@@ -156,6 +156,43 @@ export const config = convict({
       }
     }
   },
+  auth: {
+    discoveryUri: {
+      doc: 'OIDC discovery document of the identity provider. Defaults to the shared Entra stub that fg-cw-backend runs on port 3010. Deployed environments point this at Entra ID, as https://login.microsoftonline.com/<tenant-id>/v2.0/.well-known/openid-configuration',
+      format: String,
+      default: 'http://localhost:3010/.well-known/openid-configuration',
+      env: 'OIDC_DISCOVERY_URI'
+    },
+    clientId: {
+      doc: 'Application (client) id, as registered with the identity provider',
+      format: String,
+      default: 'client1',
+      env: 'OIDC_CLIENT_ID'
+    },
+    appBaseUrl: {
+      doc: 'Externally reachable base url of this app, used to build the OIDC redirect uri',
+      format: String,
+      default: 'http://localhost:3000',
+      env: 'APP_BASE_URL'
+    },
+    cookie: {
+      password: {
+        doc: 'password used to encrypt the transient OIDC login cookie',
+        format: String,
+        default: 'the-password-must-be-at-least-32-characters-long',
+        env: 'AUTH_COOKIE_PASSWORD',
+        sensitive: true
+      }
+    },
+    federatedCredentials: {
+      audience: {
+        doc: 'Audience configured on the Entra ID federated credential, and requested of AWS STS',
+        format: String,
+        default: 'fg-grants-platform-admin',
+        env: 'FEDERATED_CREDENTIALS_AUDIENCE'
+      }
+    }
+  },
   redis: {
     host: {
       doc: 'Redis cache host',

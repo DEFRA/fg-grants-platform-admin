@@ -38,9 +38,11 @@
   "dependencies": {
     "@defra/cdp-auditing": "0.6.1",
     "@defra/cdp-metrics": "0.6.0",
+    "@defra/hapi-auth-oidc": "0.5.5",
     "@defra/hapi-secure-context": "0.4.0",
     "@defra/hapi-tracing": "1.30.0",
     "@elastic/ecs-pino-format": "1.5.0",
+    "@hapi/boom": "10.0.1",
     "@hapi/catbox-memory": "6.0.2",
     "@hapi/catbox-redis": "7.0.2",
     "@hapi/hapi": "21.4.9",
@@ -60,6 +62,7 @@
     "ioredis": "5.8.2",
     "lodash": "4.18.1",
     "nunjucks": "3.2.4",
+    "openid-client": "6.8.2",
     "pino": "10.3.1"
   },
   "devDependencies": {
