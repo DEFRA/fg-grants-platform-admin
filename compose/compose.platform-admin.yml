@@ -1,0 +1,24 @@
+services:
+  fg-grants-platform-admin:
+    build: .
+    ports:
+      - "3103:3103"
+    env_file:
+      - ".env"
+    develop:
+      watch:
+        - path: ./src
+          target: /home/node/src
+          action: sync+restart
+    environment:
+      PORT: 3103
+      NODE_ENV: production
+      LOG_FORMAT: ecs
+      REDIS_HOST: redis
+      USE_SINGLE_INSTANCE_CACHE: true
+      REDIS_TLS: false
+      OIDC_DISCOVERY_URI: http://entra:3010/.well-known/openid-configuration
+      APP_BASE_URL: http://localhost:3103
+      SESSION_COOKIE_SECURE: false
+    networks:
+      - cdp-tenant
