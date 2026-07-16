@@ -65,7 +65,7 @@ function createAuthProvider() {
   }
 
   return new WebIdentityTokenProvider({
-    audience: authConfig.federatedCredentials.audience,
+    audience: [authConfig.federatedCredentials.audience],
     // The provider only refreshes once expiry has passed, so buy a minute of
     // slack rather than let an assertion lapse in flight to Entra.
     earlyRefreshMs: 60_000
