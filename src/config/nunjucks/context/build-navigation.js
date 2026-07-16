@@ -6,9 +6,14 @@ export function buildNavigation(request) {
       current: request?.path === '/'
     },
     {
-      text: 'About',
-      href: '/about',
-      current: request?.path === '/about'
+      text: 'Operations Admin',
+      href: '/operations-admin',
+      current: request?.path === '/operations-admin'
+    },
+    {
+      text: 'Applications Admin',
+      href: '/applications-admin',
+      current: request?.path === '/applications-admin'
     }
   ]
 }

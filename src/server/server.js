@@ -10,6 +10,8 @@ import { nunjucksConfig } from '#/config/nunjucks/nunjucks.js'
 import { requestTracing } from './plugins/request-tracing.js'
 import { requestLogger } from './plugins/request-logger.js'
 import { sessionCache } from './plugins/session-cache.js'
+import { oidc } from './auth/oidc.js'
+import { sessionStrategy } from './auth/session-strategy.js'
 import { getCacheEngine } from './common/helpers/session-cache/cache-engine.js'
 import { secureContext } from '@defra/hapi-secure-context'
 import { contentSecurityPolicy } from './plugins/content-security-policy.js'
@@ -62,6 +64,9 @@ export async function createServer() {
     nunjucksConfig,
     Scooter,
     contentSecurityPolicy,
+    oidc,
+    // Must precede the router: routes name the `session` strategy it registers.
+    sessionStrategy,
     router // Register all the controllers/routes defined in src/server/router.js
   ])
 
