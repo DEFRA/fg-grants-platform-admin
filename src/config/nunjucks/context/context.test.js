@@ -67,8 +67,13 @@ describe('context and cache', () => {
             },
             {
               current: false,
-              text: 'About',
-              href: '/about'
+              text: 'Operations Admin',
+              href: '/operations-admin'
+            },
+            {
+              current: false,
+              text: 'Applications Admin',
+              href: '/applications-admin'
             }
           ],
           serviceName: 'fg-grants-platform-admin',
@@ -156,8 +161,13 @@ describe('context and cache', () => {
             },
             {
               current: false,
-              text: 'About',
-              href: '/about'
+              text: 'Operations Admin',
+              href: '/operations-admin'
+            },
+            {
+              current: false,
+              text: 'Applications Admin',
+              href: '/applications-admin'
             }
           ],
           serviceName: 'fg-grants-platform-admin',
