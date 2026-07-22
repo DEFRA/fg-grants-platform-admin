@@ -1,8 +1,8 @@
 import type { Server } from '@hapi/hapi'
 
-import { createServer } from '#/server/server.ts'
+import { createServer } from '../index.ts'
 
-describe('#contentSecurityPolicy', () => {
+describe('contentSecurityPolicy', () => {
   let server: Server
 
   beforeAll(async () => {
@@ -11,13 +11,13 @@ describe('#contentSecurityPolicy', () => {
   })
 
   afterAll(async () => {
-    await server.stop({ timeout: 0 })
+    await server.stop()
   })
 
-  test('Should set the CSP policy header', async () => {
+  test('sets the CSP header', async () => {
     const resp = await server.inject({
       method: 'GET',
-      url: '/'
+      url: '/health'
     })
 
     expect(resp.headers['content-security-policy']).toBeDefined()

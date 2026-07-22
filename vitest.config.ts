@@ -19,7 +19,8 @@ export default defineConfig({
         'vitest.config.ts',
         '.sonarlint',
         'babel.config.cjs',
-        'src/types/**'
+        'src/types/**',
+        'src/**/__mocks__/**'
       ]
     }
   }

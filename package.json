@@ -3,8 +3,11 @@
   "version": "0.0.0",
   "description": "CDP Frontend Template",
   "sideEffects": false,
-  "main": "src/index.ts",
+  "main": "src/main.ts",
   "type": "module",
+  "imports": {
+    "#test/*": "./test/*"
+  },
   "engines": {
     "node": ">=24"
   },
@@ -24,15 +27,11 @@
     "test": "AWS_EMF_ENVIRONMENT=Local TZ=UTC vitest run --coverage",
     "test:watch": "AWS_EMF_ENVIRONMENT=Local TZ=UTC vitest",
     "security-audit": "npm audit --audit-level=critical",
-    "server:watch": "nodemon --exec node --inspect=0.0.0.0 --ext ts,json --legacy-watch --watch ./src/server --watch ./src/config --env-file-if-exists=.env ./src/index.ts",
-    "server:debug": "nodemon --exec node --inspect-brk=0.0.0.0 --ext ts,json --legacy-watch --watch ./src/server --watch ./src/config --env-file-if-exists=.env ./src/index.ts",
+    "server:watch": "nodemon --exec node --inspect=0.0.0.0 --ext ts,json --legacy-watch --watch ./src --env-file-if-exists=.env ./src/main.ts",
+    "server:debug": "nodemon --exec node --inspect-brk=0.0.0.0 --ext ts,json --legacy-watch --watch ./src --env-file-if-exists=.env ./src/main.ts",
     "prestart": "npm run build:frontend",
     "start": "NODE_ENV=production node .",
     "setup:husky": "node -e \"try { (await import('husky')).default() } catch (e) { if (e.code !== 'ERR_MODULE_NOT_FOUND') throw e }\" --input-type module"
-  },
-  "imports": {
-    "#/*": "./src/*",
-    "#/test-helpers/*": "./test-helpers/*"
   },
   "overrides": {
     "ts-api-utils": "3.0.0-rc.1"
@@ -53,6 +52,7 @@
     "@hapi/inert": "7.1.0",
     "@hapi/scooter": "8.0.0",
     "@hapi/vision": "7.0.3",
+    "@hapi/wreck": "18.1.2",
     "@hapi/yar": "11.0.3",
     "blankie": "5.0.0",
     "convict": "6.2.5",
@@ -78,8 +78,11 @@
     "@types/node": "26.1.1",
     "@types/nunjucks": "3.2.6",
     "@vitest/coverage-v8": "4.1.8",
+    "@vitest/eslint-plugin": "1.6.23",
     "cheerio": "1.2.0",
     "eslint": "9.39.2",
+    "eslint-import-resolver-typescript": "4.4.5",
+    "eslint-plugin-import-x": "4.17.1",
     "husky": "9.1.7",
     "neostandard": "0.13.0",
     "nodemon": "3.1.14",

@@ -48,4 +48,4 @@ ARG PORT
 ENV PORT=${PORT}
 EXPOSE ${PORT}
 
-CMD [ "node", "src/index.ts" ]
+CMD [ "node", "src/main.ts" ]

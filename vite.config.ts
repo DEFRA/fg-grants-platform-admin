@@ -22,9 +22,8 @@ export default defineConfig({
         loadPaths: [
           'node_modules',
           'src/client/stylesheets',
-          'src/server',
-          'src/server/common/components',
-          'src/server/common/templates/partials'
+          'src/common/views',
+          'src/common/views/components'
         ],
         quietDeps: true,
         sourceMapIncludeSources: true,
@@ -33,6 +32,5 @@ export default defineConfig({
     },
     lightningcss: { errorRecovery: true }
   },
-  // Dev server
   server: {}
 })
