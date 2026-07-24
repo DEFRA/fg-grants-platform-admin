@@ -3,8 +3,11 @@
   "version": "0.0.0",
   "description": "CDP Frontend Template",
   "sideEffects": false,
-  "main": "src/index.js",
+  "main": "src/main.ts",
   "type": "module",
+  "imports": {
+    "#test/*": "./test/*"
+  },
   "engines": {
     "node": ">=24"
   },
@@ -13,9 +16,10 @@
     "dev": "AWS_EMF_ENVIRONMENT=Local npm run server:watch",
     "dev:debug": "AWS_EMF_ENVIRONMENT=Local npm run server:debug",
     "docker:dev": "npm run dev",
-    "format": "prettier --write \"src/**/*.js\" \"**/*.{js,cjs,md,json,config.js,test.js}\"",
-    "format:check": "prettier --check \"src/**/*.js\" \"**/*.{js,cjs,md,json,config.js,test.js}\"",
-    "git:pre-commit-hook": "npm run security-audit && npm run format:check && npm run lint && npm test",
+    "format": "prettier --write \"src/**/*.ts\" \"**/*.{ts,cjs,md,json,config.ts,test.ts}\"",
+    "format:check": "prettier --check \"src/**/*.ts\" \"**/*.{ts,cjs,md,json,config.ts,test.ts}\"",
+    "git:pre-commit-hook": "npm run security-audit && npm run format:check && npm run typecheck && npm run lint && npm test",
+    "typecheck": "tsc --noEmit",
     "lint": "run-s lint:js lint:scss",
     "lint:js": "eslint .",
     "lint:js:fix": "eslint . --fix",
@@ -23,15 +27,14 @@
     "test": "AWS_EMF_ENVIRONMENT=Local TZ=UTC vitest run --coverage",
     "test:watch": "AWS_EMF_ENVIRONMENT=Local TZ=UTC vitest",
     "security-audit": "npm audit --audit-level=critical",
-    "server:watch": "nodemon --inspect=0.0.0.0 --ext js,json --legacy-watch --watch ./src/server --watch ./src/config --env-file-if-exists=.env ./src",
-    "server:debug": "nodemon --inspect-brk=0.0.0.0 --ext js,json --legacy-watch --watch ./src/server --watch ./src/config --env-file-if-exists=.env ./src",
+    "server:watch": "nodemon --exec node --inspect=0.0.0.0 --ext ts,json --legacy-watch --watch ./src --env-file-if-exists=.env ./src/main.ts",
+    "server:debug": "nodemon --exec node --inspect-brk=0.0.0.0 --ext ts,json --legacy-watch --watch ./src --env-file-if-exists=.env ./src/main.ts",
     "prestart": "npm run build:frontend",
     "start": "NODE_ENV=production node .",
     "setup:husky": "node -e \"try { (await import('husky')).default() } catch (e) { if (e.code !== 'ERR_MODULE_NOT_FOUND') throw e }\" --input-type module"
   },
-  "imports": {
-    "#/*": "./src/*",
-    "#/test-helpers/*": "./test-helpers/*"
+  "overrides": {
+    "ts-api-utils": "3.0.0-rc.1"
   },
   "author": "Defra DDTS",
   "license": "OGL-UK-3.0",
@@ -49,6 +52,7 @@
     "@hapi/inert": "7.1.0",
     "@hapi/scooter": "8.0.0",
     "@hapi/vision": "7.0.3",
+    "@hapi/wreck": "18.1.2",
     "@hapi/yar": "11.0.3",
     "blankie": "5.0.0",
     "convict": "6.2.5",
@@ -68,9 +72,17 @@
   "devDependencies": {
     "@babel/preset-env": "7.29.2",
     "@defra/hapi-connect": "1.0.1",
+    "@types/convict": "6.1.6",
+    "@types/convict-format-with-validator": "6.0.6",
+    "@types/lodash": "4.17.24",
+    "@types/node": "26.1.1",
+    "@types/nunjucks": "3.2.6",
     "@vitest/coverage-v8": "4.1.8",
+    "@vitest/eslint-plugin": "1.6.23",
     "cheerio": "1.2.0",
     "eslint": "9.39.2",
+    "eslint-import-resolver-typescript": "4.4.5",
+    "eslint-plugin-import-x": "4.17.1",
     "husky": "9.1.7",
     "neostandard": "0.13.0",
     "nodemon": "3.1.14",
@@ -80,6 +92,7 @@
     "sass-embedded": "1.99.0",
     "stylelint": "16.26.1",
     "stylelint-config-gds": "2.0.0",
+    "typescript": "7.0.2",
     "vite": "8.0.16",
     "vitest": "4.1.8",
     "vitest-fetch-mock": "0.4.5"
