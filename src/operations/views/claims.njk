@@ -12,7 +12,10 @@
       <h2 class="govuk-heading-m">Available entitlements</h2>
 
       {% if availableEntitlements | length %}
-        <pre class="govuk-body app-json" data-testid="available-entitlements"><code>{{ availableEntitlements | dump(2) }}</code></pre>
+        {% for entitlement in availableEntitlements %}
+          <h3 class="govuk-heading-s" data-testid="available-entitlement-claim-code">{{ entitlement.claimCode }}</h3>
+          <pre class="govuk-body app-json" data-testid="available-entitlement"><code>{{ entitlement | dump(2) }}</code></pre>
+        {% endfor %}
       {% else %}
         <p class="govuk-body" data-testid="no-available-entitlements">
           No entitlements are available for this application.

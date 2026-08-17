@@ -10,7 +10,7 @@ interface ClaimsParams {
 
 export const viewClaimsRoute: ServerRoute = {
   method: 'GET',
-  path: '/operations/grants/{code}/applications/{clientRef}/claims',
+  path: '/grant-ops/grants/{code}/applications/{clientRef}/claims',
   options: {
     auth: {
       strategy: 'session',
@@ -30,7 +30,7 @@ export const viewClaimsRoute: ServerRoute = {
       await getClaimsUseCase(code, clientRef)
 
     return h.view('claims', {
-      pageTitle: `Claims for ${clientRef}`,
+      pageTitle: 'Claims',
       heading: 'Claims',
       code,
       clientRef,

@@ -7,7 +7,7 @@ import { getClaimsUseCase } from '../use-cases/get-claims.use-case.ts'
 
 vi.mock(import('../use-cases/get-claims.use-case.ts'))
 
-const url = '/operations/grants/woodland/applications/wood-1001/claims'
+const url = '/grant-ops/grants/woodland/applications/wood-1001/claims'
 
 const credentials = {
   user: { name: 'Ada Lovelace' },
@@ -111,8 +111,53 @@ describe('viewClaimsRoute', () => {
     })
 
     expect(result).toEqual(
-      expect.stringContaining('\n    &quot;claimCode&quot;: ')
+      expect.stringContaining('\n  &quot;claimCode&quot;: ')
     )
+  })
+
+  test('labels each available entitlement with its claim code', async () => {
+    givenClaims({
+      availableEntitlements: [
+        template,
+        { ...template, claimCode: 'ENT_CS_CAPITAL_PA4' }
+      ]
+    })
+
+    const { result } = await server.inject({
+      method: 'GET',
+      url,
+      auth: { strategy: 'session', credentials }
+    })
+
+    const html = result as unknown as string
+
+    expect(
+      html.match(/data-testid="available-entitlement-claim-code"/g)
+    ).toHaveLength(2)
+    expect(html.match(/data-testid="available-entitlement"/g)).toHaveLength(2)
+    expect(html).toEqual(
+      expect.stringContaining(
+        '<h3 class="govuk-heading-s" data-testid="available-entitlement-claim-code">ENT_CS_CAPITAL_PA3</h3>'
+      )
+    )
+    expect(html).toEqual(
+      expect.stringContaining(
+        '<h3 class="govuk-heading-s" data-testid="available-entitlement-claim-code">ENT_CS_CAPITAL_PA4</h3>'
+      )
+    )
+  })
+
+  test('titles the page Claims', async () => {
+    givenClaims()
+
+    const { result } = await server.inject({
+      method: 'GET',
+      url,
+      auth: { strategy: 'session', credentials }
+    })
+
+    expect(result).toEqual(expect.stringContaining('Claims |'))
+    expect(result).not.toEqual(expect.stringContaining('Claims for wood-1001'))
   })
 
   test('tells the user when nothing is available', async () => {
