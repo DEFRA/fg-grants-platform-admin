@@ -20,5 +20,9 @@ services:
       OIDC_DISCOVERY_URI: http://entra:3010/.well-known/openid-configuration
       APP_BASE_URL: http://localhost:3103
       SESSION_COOKIE_SECURE: false
+      GAS_API_URL: http://gas:3102
+      # The local access token fg-grants-core seeds into fg-gas-backend's
+      # access_tokens collection, shared with grants-ui.
+      GAS_SERVICE_TOKEN: f081263c-6876-4d40-936f-ebdf63b5e893
     networks:
       - cdp-tenant
