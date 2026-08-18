@@ -73,6 +73,10 @@ interface ConfigSchema {
   tracing: {
     header: string
   }
+  gas: {
+    apiUrl: string
+    serviceToken: string
+  }
 }
 
 export const config = convict<ConfigSchema>({
@@ -316,6 +320,25 @@ export const config = convict<ConfigSchema>({
       format: String,
       default: 'x-cdp-request-id',
       env: 'TRACING_HEADER'
+    }
+  },
+  gas: {
+    apiUrl: {
+      doc: 'Base url of fg-gas-backend, which serves the /grant-admin endpoints',
+      format: String,
+      default: 'http://localhost:3102',
+      env: 'GAS_API_URL'
+    },
+    // Every fg-gas-backend route sits behind its `service` bearer strategy, so
+    // this app presents a service token of its own. A later ticket replaces it
+    // with a token carrying a role that distinguishes this backend-for-frontend
+    // from a general API consumer.
+    serviceToken: {
+      doc: 'Bearer token presented to fg-gas-backend',
+      format: String,
+      default: '',
+      sensitive: true,
+      env: 'GAS_SERVICE_TOKEN'
     }
   }
 })
