@@ -1,24 +1,35 @@
 @use "govuk-frontend" as *;
 
-.app-application-header {
-  margin-bottom: govuk-spacing(4);
+.app-application-banner {
+  width: 100vw;
+  position: relative;
+  left: 50%;
+  right: 50%;
+  margin-top: govuk-spacing(-4);
+  margin-right: -50vw;
+  margin-bottom: govuk-spacing(6);
+  margin-left: -50vw;
+  padding-top: govuk-spacing(3);
+  padding-bottom: govuk-spacing(4);
+  background-color: #e7f4eb;
 }
 
-.app-application-header__summary {
+.app-application-banner__summary {
   @include govuk-font($size: 19);
 
   display: flex;
   flex-wrap: wrap;
-  gap: govuk-spacing(1) govuk-spacing(6);
+  justify-content: space-between;
+  gap: govuk-spacing(2) govuk-spacing(6);
   margin: 0;
 }
 
-.app-application-header__field {
+.app-application-banner__field {
   display: flex;
   gap: govuk-spacing(1);
 }
 
-.app-application-header__label {
+.app-application-banner__label {
   font-weight: bold;
 
   &::after {
@@ -26,7 +37,6 @@
   }
 }
 
-.app-application-header__value {
+.app-application-banner__value {
   margin-left: 0;
-  color: $govuk-secondary-text-colour;
 }

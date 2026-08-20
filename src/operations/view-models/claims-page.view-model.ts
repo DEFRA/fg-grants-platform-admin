@@ -10,7 +10,7 @@ import type {
 // named here is shown as the definition spells it, which is more use to a case
 // officer than an empty column.
 const unitLabels: Record<string, string> = {
-  HA: 'Hectares',
+  HA: 'Hectares'
 }
 
 export interface HeaderField {

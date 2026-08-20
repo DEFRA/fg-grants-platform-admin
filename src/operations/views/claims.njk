@@ -5,10 +5,10 @@
 {% from "govuk/components/tag/macro.njk" import govukTag %}
 
 {% block content %}
+  {{ appApplicationHeader(header) }}
+
   <div class="govuk-grid-row">
     <div class="govuk-grid-column-full">
-
-      {{ appApplicationHeader(header) }}
 
       {# The same component the case working frontend moves between a case's
          sections with, so an officer crossing between the two services meets
