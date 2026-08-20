@@ -1,0 +1,20 @@
+{# Renders whatever the grant configured, in the order it configured it. The
+   component names no field, so a grant adding one to its banner shows it
+   without a change here. #}
+<div class="app-application-header" data-testid="application-header">
+  <h1 class="govuk-heading-l govuk-!-margin-bottom-2"
+      data-testid="application-header-title">{{ params.title }}</h1>
+
+  {% if params.summary | length %}
+    <dl class="app-application-header__summary" data-testid="application-header-summary">
+      {% for field in params.summary %}
+        <div class="app-application-header__field" data-testid="application-header-field">
+          {% if field.label %}
+            <dt class="app-application-header__label">{{ field.label }}</dt>
+          {% endif %}
+          <dd class="app-application-header__value">{{ field.text }}</dd>
+        </div>
+      {% endfor %}
+    </dl>
+  {% endif %}
+</div>
