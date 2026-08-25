@@ -222,6 +222,9 @@ describe('viewClaimsRoute', () => {
       $('[data-testid="available-entitlement-created"]').text().trim()
     ).toBe('0 of 1')
     expect($('[data-testid="available-entitlement-create"]')).toHaveLength(1)
+    expect($('[data-testid="available-entitlement-create"]').attr('href')).toBe(
+      `${url}/entitlements/ENT_CS_CAPITAL_PA3#new-entitlement`
+    )
   })
 
   // Rendered as spans first time round, which ran the description on from the

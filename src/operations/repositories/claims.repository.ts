@@ -1,4 +1,4 @@
-import { getFromGas } from '../../common/gas.ts'
+import { getFromGas, postToGas } from '../../common/gas.ts'
 
 export interface EntitlementTemplateField {
   input: boolean
@@ -49,6 +49,25 @@ export interface Claims {
   claimableEntitlements: unknown[]
   claims: unknown[]
 }
+
+export interface EntitlementFieldValue {
+  value: string | number | boolean
+}
+
+export interface NewEntitlement {
+  clientRef: string
+  grantCode: string
+  claimCode: string
+  data: Record<string, EntitlementFieldValue>
+}
+
+export const createEntitlement = async (
+  entitlement: NewEntitlement
+): Promise<void> =>
+  postToGas(
+    `/grant-admin/grants/${encodeURIComponent(entitlement.grantCode)}/applications/${encodeURIComponent(entitlement.clientRef)}/claims/entitlements`,
+    entitlement
+  )
 
 export const findClaims = async (
   code: string,

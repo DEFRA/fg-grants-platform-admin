@@ -63,8 +63,7 @@
                     data-testid="available-entitlement-created">{{ entitlement.createdCount }} of {{ entitlement.maxEntitlements }}</td>
                 <td class="govuk-table__cell govuk-table__cell--numeric">
                   {% if entitlement.canCreate %}
-                    {# The form this opens arrives with a later ticket, so the link has nowhere to go yet. #}
-                    <a class="govuk-link" href="#" data-testid="available-entitlement-create">
+                    <a class="govuk-link" href="{{ entitlement.createHref }}" data-testid="available-entitlement-create">
                       Create<span class="govuk-visually-hidden"> {{ entitlement.name }}</span>
                     </a>
                   {% else %}

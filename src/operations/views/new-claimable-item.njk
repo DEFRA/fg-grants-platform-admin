@@ -10,6 +10,25 @@
   }) }}
 
   <div class="govuk-grid-row">
+    <div class="govuk-grid-column-full">
+
+      <h2 class="govuk-heading-m">Available entitlements</h2>
+
+      {% if availableEntitlements | length %}
+        {% for entitlement in availableEntitlements %}
+          <h3 class="govuk-heading-s" data-testid="available-entitlement-claim-code">{{ entitlement.claimCode }}</h3>
+          <pre class="govuk-body app-json" data-testid="available-entitlement"><code>{{ entitlement | dump(2) }}</code></pre>
+        {% endfor %}
+      {% else %}
+        <p class="govuk-body" data-testid="no-available-entitlements">
+          No entitlements are available for this application.
+        </p>
+      {% endif %}
+
+    </div>
+  </div>
+
+  <div class="govuk-grid-row" id="new-entitlement">
     <div class="govuk-grid-column-two-thirds">
 
       <h2 class="govuk-heading-m">{{ claimableTemplate.name }}</h2>
@@ -50,31 +69,6 @@
           attributes: { "data-testid": "claimable-submit" }
         }) }}
       </form>
-
-    </div>
-  </div>
-
-  <div class="govuk-grid-row">
-    <div class="govuk-grid-column-full">
-
-      <h2 class="govuk-heading-m">Available entitlements</h2>
-
-      {% if availableEntitlements | length %}
-        {% for entitlement in availableEntitlements %}
-          <h3 class="govuk-heading-s" data-testid="available-entitlement-claim-code">{{ entitlement.claimCode }}</h3>
-          <pre class="govuk-body app-json" data-testid="available-entitlement"><code>{{ entitlement | dump(2) }}</code></pre>
-        {% endfor %}
-      {% else %}
-        <p class="govuk-body" data-testid="no-available-entitlements">
-          No entitlements are available for this application.
-        </p>
-      {% endif %}
-
-      <h2 class="govuk-heading-m">Claimable entitlements</h2>
-      <pre class="govuk-body app-json" data-testid="claimable-entitlements"><code>{{ claimableEntitlements | dump(2) }}</code></pre>
-
-      <h2 class="govuk-heading-m">Claims</h2>
-      <pre class="govuk-body app-json" data-testid="claims"><code>{{ claims | dump(2) }}</code></pre>
 
     </div>
   </div>

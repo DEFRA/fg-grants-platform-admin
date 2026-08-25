@@ -11,7 +11,7 @@ export const findItemByCode = (
   availableEntitlements: EntitlementTemplate[]
 ) => {
   return availableEntitlements.find(
-    (ae) => ae.claimCode === claimCode && ae.materialised === true
+    (ae) => ae.claimCode === claimCode && ae.materialised === false
   )
 }
 

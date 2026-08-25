@@ -31,6 +31,7 @@ export interface EntitlementRow {
   createdCount: number
   maxEntitlements: number
   canCreate: boolean
+  createHref?: string
   unavailableReason?: string
 }
 
@@ -66,7 +67,10 @@ export const toTypeLabel = (
   return unit ? (unitLabels[unit] ?? unit) : undefined
 }
 
-const toEntitlementRow = (template: EntitlementTemplate): EntitlementRow => {
+const toEntitlementRow = (
+  base: string,
+  template: EntitlementTemplate
+): EntitlementRow => {
   // fg-gas-backend answers with the templates that are still under their
   // maximum and does not yet report how many exist, so the count reads zero
   // until it does.
@@ -81,13 +85,17 @@ const toEntitlementRow = (template: EntitlementTemplate): EntitlementRow => {
     createdCount,
     maxEntitlements: template.maxEntitlements,
     canCreate,
+    createHref: canCreate
+      ? `${base}/claims/entitlements/${encodeURIComponent(template.claimCode)}#new-entitlement`
+      : undefined,
     unavailableReason: canCreate ? undefined : 'Maximum reached'
   }
 }
 
-const toTabs = (code: string, clientRef: string): Tab[] => {
-  const base = `/grant-ops/grants/${encodeURIComponent(code)}/applications/${encodeURIComponent(clientRef)}`
+const toBase = (code: string, clientRef: string): string =>
+  `/grant-ops/grants/${encodeURIComponent(code)}/applications/${encodeURIComponent(clientRef)}`
 
+const toTabs = (base: string): Tab[] => {
   return [
     { text: 'Application data', href: base, current: false },
     { text: 'Claims', href: `${base}/claims`, current: true },
@@ -117,10 +125,16 @@ export const toClaimsPage = (
   code: string,
   clientRef: string,
   { banner, availableEntitlements }: Claims & { banner: Banner }
-): ClaimsPage => ({
-  code,
-  clientRef,
-  header: toHeader(banner),
-  tabs: toTabs(code, clientRef),
-  entitlements: availableEntitlements.map(toEntitlementRow)
-})
+): ClaimsPage => {
+  const base = toBase(code, clientRef)
+
+  return {
+    code,
+    clientRef,
+    header: toHeader(banner),
+    tabs: toTabs(base),
+    entitlements: availableEntitlements.map((template) =>
+      toEntitlementRow(base, template)
+    )
+  }
+}

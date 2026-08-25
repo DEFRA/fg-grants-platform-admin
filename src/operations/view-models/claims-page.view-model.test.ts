@@ -142,6 +142,8 @@ describe('toClaimsPage', () => {
         createdCount: 0,
         maxEntitlements: 1,
         canCreate: true,
+        createHref:
+          '/grant-ops/grants/woodland/applications/WMP-1T9-RXN/claims/entitlements/ENT_CS_CAPITAL_PA3#new-entitlement',
         unavailableReason: undefined
       }
     ])
@@ -170,7 +172,21 @@ describe('toClaimsPage', () => {
     ]).entitlements
 
     expect(row.canCreate).toBe(false)
+    expect(row.createHref).toBeUndefined()
     expect(row.unavailableReason).toBe('Maximum reached')
+  })
+
+  test('escapes the create href', () => {
+    const [row] = toClaimsPage('wood land', 'wood/1001', {
+      banner,
+      availableEntitlements: [template({ claimCode: 'ENT/PA3' })],
+      claimableEntitlements: [],
+      claims: []
+    }).entitlements
+
+    expect(row.createHref).toBe(
+      '/grant-ops/grants/wood%20land/applications/wood%2F1001/claims/entitlements/ENT%2FPA3#new-entitlement'
+    )
   })
 })
 
