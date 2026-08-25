@@ -88,10 +88,12 @@ const toEntitlementRow = (template: EntitlementTemplate): EntitlementRow => {
 const toTabs = (code: string, clientRef: string): Tab[] => {
   const base = `/grant-ops/grants/${encodeURIComponent(code)}/applications/${encodeURIComponent(clientRef)}`
 
+  // The application data and payments pages arrive with later tickets, so
+  // those tabs have nowhere to go yet.
   return [
-    { text: 'Application data', href: base, current: false },
+    { text: 'Application data', href: '#', current: false },
     { text: 'Claims', href: `${base}/claims`, current: true },
-    { text: 'Payments', href: `${base}/payments`, current: false }
+    { text: 'Payments', href: '#', current: false }
   ]
 }
 

@@ -101,34 +101,26 @@ describe('toClaimsPage', () => {
 
   test('marks the claims tab as the current one', () => {
     expect(page().tabs).toEqual([
-      {
-        text: 'Application data',
-        href: '/grant-ops/grants/woodland/applications/WMP-1T9-RXN',
-        current: false
-      },
+      { text: 'Application data', href: '#', current: false },
       {
         text: 'Claims',
         href: '/grant-ops/grants/woodland/applications/WMP-1T9-RXN/claims',
         current: true
       },
-      {
-        text: 'Payments',
-        href: '/grant-ops/grants/woodland/applications/WMP-1T9-RXN/payments',
-        current: false
-      }
+      { text: 'Payments', href: '#', current: false }
     ])
   })
 
   test('escapes the tab hrefs', () => {
-    const [applicationData] = toClaimsPage('wood land', 'wood/1001', {
+    const [, claims] = toClaimsPage('wood land', 'wood/1001', {
       banner,
       availableEntitlements: [],
       claimableEntitlements: [],
       claims: []
     }).tabs
 
-    expect(applicationData.href).toBe(
-      '/grant-ops/grants/wood%20land/applications/wood%2F1001'
+    expect(claims.href).toBe(
+      '/grant-ops/grants/wood%20land/applications/wood%2F1001/claims'
     )
   })
 
