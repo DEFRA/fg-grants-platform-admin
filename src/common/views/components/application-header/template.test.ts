@@ -63,6 +63,8 @@ describe('application header component', () => {
     expect(
       $header('h1[data-testid="application-header-title"]').text().trim()
     ).toBe('wood-1001')
-    expect($header('[data-testid="application-header-summary"]')).toHaveLength(0)
+    expect($header('[data-testid="application-header-summary"]')).toHaveLength(
+      0
+    )
   })
 })

@@ -190,7 +190,12 @@ describe('toTypeLabel', () => {
               unitType: 'decimal',
               unit: 'M'
             },
-            area: { input: true, label: 'Area', unitType: 'decimal', unit: 'HA' }
+            area: {
+              input: true,
+              label: 'Area',
+              unitType: 'decimal',
+              unit: 'HA'
+            }
           }
         })
       )
