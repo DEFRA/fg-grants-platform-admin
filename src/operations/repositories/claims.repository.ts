@@ -1,12 +1,20 @@
 import { config } from '../../common/config.ts'
 import { wreck } from '../../common/wreck.ts'
 
+export interface EntitlementField {
+  label: string
+  input: boolean
+  unitType: string
+  unit?: string | null
+}
+
 export interface EntitlementTemplate {
   claimCode: string
   name: string
   description?: string
   materialised: boolean
   maxEntitlements: number
+  fields: Record<string, EntitlementField>
   availableAt: {
     phase: string
     stage?: string

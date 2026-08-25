@@ -1,6 +1,7 @@
 import type { Server } from '@hapi/hapi'
 
 import { viewOptions } from '../server/plugins/views/index.ts'
+import { newClaimableItemRoute } from './routes/new-claimable-item.route.ts'
 import { viewClaimsRoute } from './routes/view-claims.route.ts'
 import { viewOperationsRoute } from './routes/view-operations.route.ts'
 
@@ -14,7 +15,11 @@ export const operations = {
         path: 'views'
       })
 
-      server.route([viewOperationsRoute, viewClaimsRoute])
+      server.route([
+        viewOperationsRoute,
+        viewClaimsRoute,
+        newClaimableItemRoute
+      ])
     }
   }
 }
