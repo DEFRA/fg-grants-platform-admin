@@ -1,32 +1,86 @@
 {% extends 'layouts/page.njk' %}
 
+{% from "application-header/macro.njk" import appApplicationHeader %}
+{% from "govuk/components/service-navigation/macro.njk" import govukServiceNavigation %}
+{% from "govuk/components/tag/macro.njk" import govukTag %}
+
 {% block content %}
-  {{ appHeading({
-    text: heading,
-    caption: code + " / " + clientRef
-  }) }}
+  {{ appApplicationHeader(header) }}
 
   <div class="govuk-grid-row">
     <div class="govuk-grid-column-full">
 
-      <h2 class="govuk-heading-m">Available entitlements</h2>
+      {# The same component the case working frontend moves between a case's
+         sections with, so an officer crossing between the two services meets
+         one tab bar rather than two. #}
+      {{ govukServiceNavigation({
+        navigation: tabs,
+        navigationLabel: "Application sections",
+        classes: "app-application-tabs govuk-!-margin-top-5 govuk-!-margin-bottom-8"
+      }) }}
 
-      {% if availableEntitlements | length %}
-        {% for entitlement in availableEntitlements %}
-          <h3 class="govuk-heading-s" data-testid="available-entitlement-claim-code">{{ entitlement.claimCode }}</h3>
-          <pre class="govuk-body app-json" data-testid="available-entitlement"><code>{{ entitlement | dump(2) }}</code></pre>
-        {% endfor %}
+      <h2 class="govuk-heading-m" data-testid="available-entitlements-heading">Available entitlements</h2>
+
+      <p class="govuk-body" data-testid="available-entitlements-hint">
+        Entitlements you can create for this applicant. Some can be created more than once.
+      </p>
+
+      <p class="govuk-body govuk-hint" data-testid="available-entitlements-explanation">
+        An entitlement is only listed once the application reaches the point the
+        grant makes it available, and it stops being listed once the maximum
+        number for this applicant has been created.
+      </p>
+
+      {% if entitlements | length %}
+        <table class="govuk-table" data-testid="available-entitlements">
+          <thead class="govuk-table__head">
+            <tr class="govuk-table__row">
+              <th scope="col" class="govuk-table__header">Entitlement</th>
+              <th scope="col" class="govuk-table__header">Type</th>
+              <th scope="col" class="govuk-table__header">Created</th>
+              <th scope="col" class="govuk-table__header">
+                <span class="govuk-visually-hidden">Action</span>
+              </th>
+            </tr>
+          </thead>
+          <tbody class="govuk-table__body">
+            {% for entitlement in entitlements %}
+              <tr class="govuk-table__row" data-testid="available-entitlement">
+                <td class="govuk-table__cell">
+                  <p class="govuk-body govuk-!-font-weight-bold govuk-!-margin-bottom-0"
+                     data-testid="available-entitlement-name">{{ entitlement.name }}</p>
+                  {% if entitlement.description %}
+                    <p class="govuk-hint govuk-!-font-size-16 govuk-!-margin-bottom-0"
+                       data-testid="available-entitlement-description">{{ entitlement.description }}</p>
+                  {% endif %}
+                </td>
+                <td class="govuk-table__cell" data-testid="available-entitlement-type">
+                  {% if entitlement.type %}
+                    {{ govukTag({ text: entitlement.type, classes: "govuk-tag--blue" }) }}
+                  {% endif %}
+                </td>
+                <td class="govuk-table__cell"
+                    data-testid="available-entitlement-created">{{ entitlement.createdCount }} of {{ entitlement.maxEntitlements }}</td>
+                <td class="govuk-table__cell govuk-table__cell--numeric">
+                  {% if entitlement.canCreate %}
+                    {# The form this opens arrives with a later ticket, so the link has nowhere to go yet. #}
+                    <a class="govuk-link" href="#" data-testid="available-entitlement-create">
+                      Create<span class="govuk-visually-hidden"> {{ entitlement.name }}</span>
+                    </a>
+                  {% else %}
+                    <span class="govuk-hint govuk-!-margin-bottom-0"
+                          data-testid="available-entitlement-unavailable">{{ entitlement.unavailableReason }}</span>
+                  {% endif %}
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
       {% else %}
         <p class="govuk-body" data-testid="no-available-entitlements">
           No entitlements are available for this application.
         </p>
       {% endif %}
-
-      <h2 class="govuk-heading-m">Claimable entitlements</h2>
-      <pre class="govuk-body app-json" data-testid="claimable-entitlements"><code>{{ claimableEntitlements | dump(2) }}</code></pre>
-
-      <h2 class="govuk-heading-m">Claims</h2>
-      <pre class="govuk-body app-json" data-testid="claims"><code>{{ claims | dump(2) }}</code></pre>
 
     </div>
   </div>

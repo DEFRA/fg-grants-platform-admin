@@ -1,11 +1,16 @@
-import { config } from '../../common/config.ts'
-import { wreck } from '../../common/wreck.ts'
+import { getFromGas } from '../../common/gas.ts'
 
-export interface EntitlementField {
-  label: string
+export interface EntitlementTemplateField {
   input: boolean
-  unitType: string
-  unit?: string | null
+  label?: string
+  value?: string | number | boolean
+  unitType: 'decimal' | 'string'
+  decimalPlaces?: number
+  unit?: string
+  minValue?: number | null
+  maxValue?: number | null
+  minLength?: number | null
+  maxLength?: number | null
 }
 
 export interface EntitlementTemplate {
@@ -13,8 +18,11 @@ export interface EntitlementTemplate {
   name: string
   description?: string
   materialised: boolean
+  fields?: Record<string, EntitlementTemplateField>
   maxEntitlements: number
-  fields: Record<string, EntitlementField>
+  // fg-gas-backend leaves out every template already at its maximum, so this
+  // only arrives once that endpoint starts reporting what has been created.
+  createdCount?: number
   availableAt: {
     phase: string
     stage?: string
@@ -22,7 +30,21 @@ export interface EntitlementTemplate {
   }
 }
 
+export interface BannerField {
+  label?: string
+  text: string | number | boolean
+  type: string
+  format?: string
+}
+
+export interface Banner {
+  title?: BannerField
+  summary?: Record<string, BannerField>
+}
+
 export interface Claims {
+  // Absent until a grant configures a claims page.
+  banner?: Banner
   availableEntitlements: EntitlementTemplate[]
   claimableEntitlements: unknown[]
   claims: unknown[]
@@ -31,15 +53,7 @@ export interface Claims {
 export const findClaims = async (
   code: string,
   clientRef: string
-): Promise<Claims> => {
-  const url = `${config.get('gas.apiUrl')}/grant-admin/grants/${encodeURIComponent(code)}/applications/${encodeURIComponent(clientRef)}/claims`
-
-  const { payload } = await wreck.get<Claims>(url, {
-    json: true,
-    headers: {
-      authorization: `Bearer ${config.get('gas.serviceToken')}`
-    }
-  })
-
-  return payload
-}
+): Promise<Claims> =>
+  getFromGas<Claims>(
+    `/grant-admin/grants/${encodeURIComponent(code)}/applications/${encodeURIComponent(clientRef)}/claims`
+  )

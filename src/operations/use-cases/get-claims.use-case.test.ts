@@ -3,18 +3,35 @@ import { getClaimsUseCase } from './get-claims.use-case.ts'
 
 vi.mock(import('../repositories/claims.repository.ts'))
 
-describe('getClaimsUseCase', () => {
-  test('returns the claims held for an application', async () => {
-    const payload = {
-      availableEntitlements: [],
-      claimableEntitlements: [],
-      claims: []
+const claims = {
+  banner: {
+    title: { text: 'Elmwood Land Co', type: 'string' },
+    summary: {
+      sbi: { label: 'SBI', text: '113598882', type: 'string' }
     }
-    vi.mocked(findClaims).mockResolvedValue(payload)
+  },
+  availableEntitlements: [],
+  claimableEntitlements: [],
+  claims: []
+}
 
+describe('getClaimsUseCase', () => {
+  beforeEach(() => {
+    vi.mocked(findClaims).mockResolvedValue(claims)
+  })
+
+  // The /grant-admin surface answers with the page, header included, so this
+  // app makes one call rather than gathering the parts itself.
+  test('returns the claims page held for an application', async () => {
     await expect(getClaimsUseCase('woodland', 'wood-1001')).resolves.toEqual(
-      payload
+      claims
     )
+  })
+
+  test('asks for the requested application', async () => {
+    await getClaimsUseCase('woodland', 'wood-1001')
+
     expect(findClaims).toHaveBeenCalledWith('woodland', 'wood-1001')
+    expect(findClaims).toHaveBeenCalledTimes(1)
   })
 })
