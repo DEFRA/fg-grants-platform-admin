@@ -40,21 +40,21 @@ describe('context', () => {
     ).resolves.toMatchObject({
       navigation: [
         { text: 'Operations Admin', href: '/operations', current: false },
-        { text: 'Applications Admin', href: '/applications', current: false }
+        { text: 'Applications Admin', href: '/grant-ops', current: false }
       ]
     })
 
     await expect(context({ path: '/operations' })).resolves.toMatchObject({
       navigation: [
         { text: 'Operations Admin', href: '/operations', current: true },
-        { text: 'Applications Admin', href: '/applications', current: false }
+        { text: 'Applications Admin', href: '/grant-ops', current: false }
       ]
     })
 
-    await expect(context({ path: '/applications' })).resolves.toMatchObject({
+    await expect(context({ path: '/grant-ops' })).resolves.toMatchObject({
       navigation: [
         { text: 'Operations Admin', href: '/operations', current: false },
-        { text: 'Applications Admin', href: '/applications', current: true }
+        { text: 'Applications Admin', href: '/grant-ops', current: true }
       ]
     })
   })
@@ -66,7 +66,7 @@ describe('context', () => {
       getAssetPath: expect.any(Function),
       navigation: [
         { current: false, text: 'Operations Admin', href: '/operations' },
-        { current: false, text: 'Applications Admin', href: '/applications' }
+        { current: false, text: 'Applications Admin', href: '/grant-ops' }
       ],
       serviceName: 'fg-grants-platform-admin',
       serviceUrl: '/'

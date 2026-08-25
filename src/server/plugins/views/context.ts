@@ -41,8 +41,8 @@ const buildNavigation = (request?: { path?: string }) => [
   },
   {
     text: 'Applications Admin',
-    href: '/applications',
-    current: request?.path === '/applications'
+    href: '/grant-ops',
+    current: request?.path === '/grant-ops'
   }
 ]
 

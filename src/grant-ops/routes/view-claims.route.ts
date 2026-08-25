@@ -14,10 +14,6 @@ export const viewClaimsRoute: ServerRoute = {
   method: 'GET',
   path: '/grant-ops/grants/{code}/applications/{clientRef}/claims',
   options: {
-    auth: {
-      strategy: 'session',
-      scope: ['FCP.GrantOperationsAdmin']
-    },
     validate: {
       params: Joi.object({
         code: Joi.string().required(),

@@ -3,7 +3,7 @@ import process from 'node:process'
 import { main, onUnhandledRejection } from './main.ts'
 import { logger } from './common/logger.ts'
 import { operations } from './operations/index.ts'
-import { applications } from './applications/index.ts'
+import { grantOps } from './grant-ops/index.ts'
 
 const server = { register: vi.fn(), start: vi.fn() }
 
@@ -17,7 +17,7 @@ describe('main', () => {
   test('starts a server holding the domain modules', async () => {
     await main()
 
-    expect(server.register).toHaveBeenCalledWith([operations, applications])
+    expect(server.register).toHaveBeenCalledWith([operations, grantOps])
     expect(server.start).toHaveBeenCalled()
     expect(logger.info).toHaveBeenCalledWith(
       'Server started at http://localhost:3000'

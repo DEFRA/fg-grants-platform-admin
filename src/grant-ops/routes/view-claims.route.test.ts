@@ -3,7 +3,7 @@ import type { Server } from '@hapi/hapi'
 
 import { createServer } from '../../server/index.ts'
 import { statusCodes } from '../../common/status-codes.ts'
-import { operations } from '../index.ts'
+import { grantOps } from '../index.ts'
 import type { EntitlementTemplate } from '../use-cases/get-claims.use-case.ts'
 import { getClaimsUseCase } from '../use-cases/get-claims.use-case.ts'
 
@@ -13,7 +13,7 @@ const url = '/grant-ops/grants/woodland/applications/WMP-1T9-RXN/claims'
 
 const credentials = {
   user: { name: 'Ada Lovelace' },
-  scope: ['FCP.GrantOperationsAdmin']
+  scope: ['FCP.GrantApplicationsAdmin']
 }
 
 const template = (overrides: Partial<EntitlementTemplate> = {}) =>
@@ -76,7 +76,7 @@ let server: Server
 describe('viewClaimsRoute', () => {
   beforeAll(async () => {
     server = await createServer()
-    await server.register([operations])
+    await server.register([grantOps])
     await server.initialize()
   })
 
@@ -95,7 +95,7 @@ describe('viewClaimsRoute', () => {
     expect(headers.location).toBe('/auth/login')
   })
 
-  test('forbids a signed in user holding only the applications admin role', async () => {
+  test('forbids a signed in user holding only the operations admin role', async () => {
     const { statusCode } = await server.inject({
       method: 'GET',
       url,
@@ -103,7 +103,7 @@ describe('viewClaimsRoute', () => {
         strategy: 'session',
         credentials: {
           user: { name: 'Ada Lovelace' },
-          scope: ['FCP.GrantApplicationsAdmin']
+          scope: ['FCP.GrantOperationsAdmin']
         }
       }
     })
