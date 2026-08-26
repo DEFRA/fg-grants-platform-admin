@@ -71,7 +71,7 @@ describe('available entitlements component', () => {
         row({
           canCreate: false,
           createHref: undefined,
-          unavailableReason: 'Maximum reached'
+          unavailableReason: 'Maximum created'
         })
       ]
     })
@@ -83,7 +83,7 @@ describe('available entitlements component', () => {
       $section('[data-testid="available-entitlement-unavailable"]')
         .text()
         .trim()
-    ).toBe('Maximum reached')
+    ).toBe('Maximum created')
   })
 
   test('withholds the create link from the entitlement being created', () => {

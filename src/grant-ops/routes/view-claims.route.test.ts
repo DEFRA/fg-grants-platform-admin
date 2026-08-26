@@ -261,7 +261,7 @@ describe('viewClaimsRoute', () => {
     expect($('[data-testid="available-entitlement-create"]')).toHaveLength(0)
     expect(
       $('[data-testid="available-entitlement-unavailable"]').text().trim()
-    ).toBe('Maximum reached')
+    ).toBe('Maximum created')
   })
 
   test('leaves the type blank when no field carries a unit', async () => {

@@ -31,8 +31,6 @@ export interface EntitlementTemplate {
   materialised: boolean
   fields?: Record<string, EntitlementTemplateField>
   maxEntitlements: number
-  // fg-gas-backend leaves out every template already at its maximum, so this
-  // only arrives once that endpoint starts reporting what has been created.
   createdCount?: number
   availableAt: {
     phase: string

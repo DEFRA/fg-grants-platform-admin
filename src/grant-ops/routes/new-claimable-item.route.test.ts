@@ -6,8 +6,10 @@ import { statusCodes } from '../../common/status-codes.ts'
 import { grantOps } from '../index.ts'
 import type { EntitlementTemplate } from '../use-cases/get-claims.use-case.ts'
 import { getClaimsUseCase } from '../use-cases/get-claims.use-case.ts'
+import { createEntitlement } from '../repositories/claims.repository.ts'
 
 vi.mock(import('../use-cases/get-claims.use-case.ts'))
+vi.mock(import('../repositories/claims.repository.ts'))
 
 const claimsUrl = '/grant-ops/grants/woodland/applications/WMP-1T9-RXN/claims'
 const url = `${claimsUrl}/entitlements/ENT_CS_CAPITAL_PA3`
@@ -64,19 +66,19 @@ const viewPage = async () => {
 
 let server: Server
 
-describe('newClaimableItemRoute', () => {
-  beforeAll(async () => {
-    server = await createServer()
-    await server.register([grantOps])
-    await server.initialize()
-  })
+beforeAll(async () => {
+  server = await createServer()
+  await server.register([grantOps])
+  await server.initialize()
+})
 
+afterAll(async () => {
+  await server.stop()
+})
+
+describe('newClaimableItemRoute', () => {
   beforeEach(() => {
     givenClaims([template()])
-  })
-
-  afterAll(async () => {
-    await server.stop()
   })
 
   test('redirects an anonymous user to login', async () => {
@@ -222,6 +224,18 @@ describe('newClaimableItemRoute', () => {
     expect($cancel.closest('form')).toHaveLength(1)
   })
 
+  test('refuses a claim code that has reached its maximum', async () => {
+    givenClaims([template({ createdCount: 1, maxEntitlements: 1 })])
+
+    const { statusCode } = await server.inject({
+      method: 'GET',
+      url,
+      auth: { strategy: 'session', credentials }
+    })
+
+    expect(statusCode).toBe(statusCodes.notFound)
+  })
+
   test('refuses a claim code that is not available', async () => {
     givenClaims([template({ claimCode: 'ENT_SOMETHING_ELSE' })])
 
@@ -232,5 +246,201 @@ describe('newClaimableItemRoute', () => {
     })
 
     expect(statusCode).toBe(statusCodes.notFound)
+  })
+})
+
+describe('createClaimableItemRoute', () => {
+  const post = (payload: Record<string, string>) =>
+    server.inject({
+      method: 'POST',
+      url,
+      payload,
+      auth: { strategy: 'session', credentials }
+    })
+
+  const bounded = () =>
+    template({
+      fields: {
+        totalHectares: {
+          input: true,
+          label: 'Total area of eligible woodland',
+          unitType: 'decimal',
+          decimalPlaces: 4,
+          unit: 'HA',
+          minValue: 0.5,
+          maxValue: null
+        }
+      }
+    })
+
+  beforeEach(() => {
+    givenClaims([bounded()])
+  })
+
+  test('creates the entitlement and returns to the claims page', async () => {
+    const { statusCode, headers } = await post({ totalHectares: '40.25' })
+
+    expect(createEntitlement).toHaveBeenCalledWith({
+      clientRef: 'WMP-1T9-RXN',
+      grantCode: 'woodland',
+      claimCode: 'ENT_CS_CAPITAL_PA3',
+      data: { totalHectares: { value: 40.25 } }
+    })
+    expect(statusCode).toBe(statusCodes.seeOther)
+    expect(headers.location).toBe(claimsUrl)
+  })
+
+  test('posts the payload the persistence service expects', async () => {
+    await post({ totalHectares: ' 455000 ' })
+
+    const [payload] = vi.mocked(createEntitlement).mock.calls[0]
+
+    expect(payload).toEqual({
+      clientRef: 'WMP-1T9-RXN',
+      grantCode: 'woodland',
+      claimCode: 'ENT_CS_CAPITAL_PA3',
+      data: { totalHectares: { value: 455000 } }
+    })
+  })
+
+  test('announces the entitlement on the claims page it returns to', async () => {
+    const { headers } = await post({ totalHectares: '111' })
+
+    const { result } = await server.inject({
+      method: 'GET',
+      url: headers.location as string,
+      headers: { cookie: (headers['set-cookie'] as string[]).join('; ') },
+      auth: { strategy: 'session', credentials }
+    })
+
+    const $ = load(result as unknown as string)
+    const $banner = $('[data-testid="entitlement-created"]')
+
+    expect(
+      $banner.find('.govuk-notification-banner__title').text().trim()
+    ).toBe('Success')
+    expect(
+      $banner.find('.govuk-notification-banner__heading').text().trim()
+    ).toBe('Entitlement created')
+    expect($banner.find('p').text().replace(/\s+/g, ' ').trim()).toBe(
+      'PA3 Woodland Management Plan entitlement of 111 ha created. It is now awaiting a claim.'
+    )
+  })
+
+  test('shows the banner once and not on the next visit', async () => {
+    const { headers } = await post({ totalHectares: '111' })
+    const cookie = (headers['set-cookie'] as string[]).join('; ')
+
+    const visit = async () =>
+      server.inject({
+        method: 'GET',
+        url: headers.location as string,
+        headers: { cookie },
+        auth: { strategy: 'session', credentials }
+      })
+
+    await visit()
+    const { result } = await visit()
+
+    expect(
+      load(result as unknown as string)('[data-testid="entitlement-created"]')
+    ).toHaveLength(0)
+  })
+
+  test('does not reach the backend when a value fails validation', async () => {
+    await post({ totalHectares: '-100' })
+
+    expect(createEntitlement).not.toHaveBeenCalled()
+  })
+
+  test('re-renders the form with the error against the field', async () => {
+    const { result, statusCode } = await post({ totalHectares: '-100' })
+    const $ = load(result as unknown as string)
+
+    expect(statusCode).toBe(statusCodes.badRequest)
+    expect(
+      $('.govuk-error-message').text().replace(/\s+/g, ' ').trim()
+    ).toContain('Total area of eligible woodland must be 0.5 or greater')
+  })
+
+  test('keeps what was typed so it can be corrected', async () => {
+    const { result } = await post({ totalHectares: '-100' })
+    const $ = load(result as unknown as string)
+
+    expect($('#totalHectares').attr('value')).toBe('-100')
+  })
+
+  test('summarises the errors and links each to its field', async () => {
+    const { result } = await post({ totalHectares: '-100' })
+    const $ = load(result as unknown as string)
+
+    const $summary = $('[data-testid="claimable-error-summary"]')
+
+    expect($summary.find('.govuk-error-summary__title').text().trim()).toBe(
+      'There is a problem'
+    )
+    expect($summary.find('a').attr('href')).toBe('#totalHectares')
+  })
+
+  test('still shows the table and the guidance alongside the errors', async () => {
+    const { result } = await post({ totalHectares: '' })
+    const $ = load(result as unknown as string)
+
+    expect($('[data-testid="available-entitlements"]')).toHaveLength(1)
+    expect($('[data-testid="claimable-heading"]').text().trim()).toBe(
+      'Add claimable item'
+    )
+  })
+
+  test('asks for a value when the field is left blank', async () => {
+    const { result, statusCode } = await post({ totalHectares: '' })
+    const $ = load(result as unknown as string)
+
+    expect(statusCode).toBe(statusCodes.badRequest)
+    expect($('[data-testid="claimable-error-summary"] a').text().trim()).toBe(
+      'Enter total area of eligible woodland'
+    )
+    expect(createEntitlement).not.toHaveBeenCalled()
+  })
+
+  test('explains a refusal from the backend without blaming the form', async () => {
+    vi.mocked(createEntitlement).mockRejectedValue(
+      Object.assign(new Error('Response Error'), {
+        isBoom: true,
+        output: { statusCode: 409 },
+        data: {
+          payload: {
+            statusCode: 409,
+            errorCode: 'ENTITLEMENT_LIMIT_EXCEEDED',
+            message:
+              "Cannot create entitlement 'ENT_CS_CAPITAL_PA3'. Maximum instance limit of 3 has been reached."
+          }
+        }
+      })
+    )
+
+    const { result, statusCode } = await post({ totalHectares: '40.25' })
+    const $ = load(result as unknown as string)
+
+    expect(statusCode).toBe(409)
+    expect(
+      $('[data-testid="claimable-error-summary"]')
+        .text()
+        .replace(/\s+/g, ' ')
+        .trim()
+    ).toContain(
+      "This item cannot be added: Cannot create entitlement 'ENT_CS_CAPITAL_PA3'. Maximum instance limit of 3 has been reached. Please try again."
+    )
+    expect($('#totalHectares').attr('value')).toBe('40.25')
+    expect($('.govuk-error-message')).toHaveLength(0)
+  })
+
+  test('refuses to create against a claim code at its maximum', async () => {
+    givenClaims([template({ createdCount: 1, maxEntitlements: 1 })])
+
+    const { statusCode } = await post({ totalHectares: '40.25' })
+
+    expect(statusCode).toBe(statusCodes.notFound)
+    expect(createEntitlement).not.toHaveBeenCalled()
   })
 })

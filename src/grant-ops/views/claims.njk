@@ -2,6 +2,7 @@
 
 {% from "application-header/macro.njk" import appApplicationHeader %}
 {% from "available-entitlements/macro.njk" import appAvailableEntitlements %}
+{% from "govuk/components/notification-banner/macro.njk" import govukNotificationBanner %}
 {% from "govuk/components/service-navigation/macro.njk" import govukServiceNavigation %}
 
 {% block content %}
@@ -20,6 +21,19 @@
       }) }}
 
       <div class="app-section-panel">
+        {% if createdNotice %}
+          {% set createdHtml %}
+            <h3 class="govuk-notification-banner__heading">Entitlement created</h3>
+            <p class="govuk-body">{{ createdNotice }}</p>
+          {% endset %}
+
+          {{ govukNotificationBanner({
+            type: "success",
+            html: createdHtml,
+            attributes: { "data-testid": "entitlement-created" }
+          }) }}
+        {% endif %}
+
         {{ appAvailableEntitlements({ entitlements: entitlements }) }}
       </div>
 

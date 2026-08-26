@@ -87,7 +87,7 @@ const toEntitlementRow = (
     createHref: canCreate
       ? `${base}/claims/entitlements/${encodeURIComponent(template.claimCode)}#new-entitlement`
       : undefined,
-    unavailableReason: canCreate ? undefined : 'Maximum reached'
+    unavailableReason: canCreate ? undefined : 'Maximum created'
   }
 }
 

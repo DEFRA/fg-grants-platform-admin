@@ -1,7 +1,3 @@
-import Boom from '@hapi/boom'
-
-import { getClaimsUseCase } from './get-claims.use-case.ts'
-import { findItemByCode } from './view-new-claimable-item.use-case.ts'
 import type {
   EntitlementFieldValue,
   EntitlementTemplate,
@@ -9,11 +5,21 @@ import type {
 } from '../repositories/claims.repository.ts'
 import { createEntitlement } from '../repositories/claims.repository.ts'
 
+export interface CreateRefusal {
+  statusCode: number
+  errorCode?: string
+  message: string
+}
+
+interface GasError {
+  isBoom?: boolean
+  output?: { statusCode?: number }
+  data?: { payload?: { errorCode?: string; message?: string } }
+}
+
 const toValue = (field: EntitlementTemplateField, raw: string) =>
   field.unitType === 'decimal' ? Number(raw) : raw
 
-// The template names the fields a case officer supplies; anything else posted
-// with the form is dropped rather than sent on.
 const toEntitlementData = (
   template: EntitlementTemplate,
   form: Record<string, string>
@@ -21,27 +27,60 @@ const toEntitlementData = (
   Object.fromEntries(
     Object.entries(template.fields ?? {})
       .filter(([, field]) => field.input)
-      .map(([key, field]) => [key, { value: toValue(field, form[key] ?? '') }])
+      .map(([key, field]) => [
+        key,
+        { value: toValue(field, (form[key] ?? '').trim()) }
+      ])
   )
+
+const refusedMessage = 'The backend refused the request.'
+
+const isRefusal = (statusCode?: number) =>
+  statusCode != null && statusCode >= 400 && statusCode <= 499
+
+const statusOf = (error: unknown) =>
+  ((error ?? {}) as GasError).output?.statusCode
+
+const payloadOf = (error: unknown) => ((error ?? {}) as GasError).data?.payload
+
+const asRefusal = (error: unknown): CreateRefusal | undefined => {
+  const statusCode = statusOf(error)
+
+  if (!isRefusal(statusCode)) {
+    return undefined
+  }
+
+  const payload = payloadOf(error) ?? {}
+
+  return {
+    statusCode: statusCode as number,
+    errorCode: payload.errorCode,
+    message: payload.message ?? refusedMessage
+  }
+}
 
 export const createClaimableItemUseCase = async (
   code: string,
   clientRef: string,
-  claimCode: string,
+  template: EntitlementTemplate,
   form: Record<string, string>
-): Promise<void> => {
-  const { availableEntitlements } = await getClaimsUseCase(code, clientRef)
+): Promise<CreateRefusal | undefined> => {
+  try {
+    await createEntitlement({
+      clientRef,
+      grantCode: code,
+      claimCode: template.claimCode,
+      data: toEntitlementData(template, form)
+    })
 
-  const template = findItemByCode(claimCode, availableEntitlements)
+    return undefined
+  } catch (error) {
+    const refusal = asRefusal(error)
 
-  if (!template) {
-    throw Boom.notFound(`Claimable item ${claimCode} not found`)
+    if (!refusal) {
+      throw error
+    }
+
+    return refusal
   }
-
-  await createEntitlement({
-    clientRef,
-    grantCode: code,
-    claimCode,
-    data: toEntitlementData(template, form)
-  })
 }

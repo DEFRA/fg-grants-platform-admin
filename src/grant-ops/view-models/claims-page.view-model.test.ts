@@ -170,7 +170,7 @@ describe('toClaimsPage', () => {
 
     expect(row.canCreate).toBe(false)
     expect(row.createHref).toBeUndefined()
-    expect(row.unavailableReason).toBe('Maximum reached')
+    expect(row.unavailableReason).toBe('Maximum created')
   })
 
   test('escapes the create href', () => {

@@ -4,6 +4,7 @@
 {% from "available-entitlements/macro.njk" import appAvailableEntitlements %}
 {% from "govuk/components/service-navigation/macro.njk" import govukServiceNavigation %}
 {% from "govuk/components/details/macro.njk" import govukDetails %}
+{% from "govuk/components/error-summary/macro.njk" import govukErrorSummary %}
 {% from "govuk/components/input/macro.njk" import govukInput %}
 {% from "govuk/components/button/macro.njk" import govukButton %}
 
@@ -34,29 +35,28 @@
             </p>
           {% endif %}
 
-          <form method="post" novalidate>
-            {% for key, field in claimableTemplate.fields %}
-              {% if field.input %}
-                {% set unitType = field.unitType | lower %}
-                {% if unitType === "decimal" %}
-                  {% set inputmode = "decimal" %}
-                {% elif unitType === "integer" %}
-                  {% set inputmode = "numeric" %}
-                {% else %}
-                  {% set inputmode = none %}
-                {% endif %}
+          {% if errorSummary | length %}
+            {{ govukErrorSummary({
+              titleText: "There is a problem",
+              errorList: errorSummary,
+              attributes: { "data-testid": "claimable-error-summary" }
+            }) }}
+          {% endif %}
 
-                {{ govukInput({
-                  id: key,
-                  name: key,
-                  label: { text: field.label, classes: "govuk-label--s" },
-                  classes: "govuk-input--width-10",
-                  inputmode: inputmode,
-                  spellcheck: false if inputmode else none,
-                  suffix: { text: field.unit | lower } if field.unit else none,
-                  attributes: { "data-testid": "claimable-field-" + key }
-                }) }}
-              {% endif %}
+          <form method="post" novalidate>
+            {% for field in formFields %}
+              {{ govukInput({
+                id: field.key,
+                name: field.key,
+                value: field.value,
+                label: { text: field.label, classes: "govuk-label--s" },
+                classes: "govuk-input--width-10",
+                inputmode: field.inputmode,
+                spellcheck: false if field.inputmode else none,
+                suffix: { text: field.suffix } if field.suffix else none,
+                errorMessage: { text: field.error } if field.error else none,
+                attributes: { "data-testid": "claimable-field-" + field.key }
+              }) }}
             {% endfor %}
 
             {% if claimableTemplate.help %}
