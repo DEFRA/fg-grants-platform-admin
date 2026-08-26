@@ -124,12 +124,17 @@ describe('toClaimsPage', () => {
     )
   })
 
+  test('names the claims page itself', () => {
+    expect(page().claimsHref).toBe(
+      '/grant-ops/grants/woodland/applications/WMP-1T9-RXN/claims'
+    )
+  })
+
   test('turns a template into a row', () => {
     expect(page([template()]).entitlements).toEqual([
       {
         claimCode: 'ENT_CS_CAPITAL_PA3',
         name: 'PA3 Woodland Management Plan entitlement',
-        description: 'The maximum eligible woodland area that can be claimed.',
         type: 'Hectares',
         createdCount: 0,
         maxEntitlements: 1,

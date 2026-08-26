@@ -26,7 +26,6 @@ export interface Header {
 export interface EntitlementRow {
   claimCode: string
   name: string
-  description?: string
   type?: string
   createdCount: number
   maxEntitlements: number
@@ -44,6 +43,7 @@ export interface Tab {
 export interface ClaimsPage {
   code: string
   clientRef: string
+  claimsHref: string
   header: Header
   tabs: Tab[]
   entitlements: EntitlementRow[]
@@ -80,7 +80,6 @@ const toEntitlementRow = (
   return {
     claimCode: template.claimCode,
     name: template.name,
-    description: template.description,
     type: toTypeLabel(template),
     createdCount,
     maxEntitlements: template.maxEntitlements,
@@ -95,12 +94,12 @@ const toEntitlementRow = (
 const toBase = (code: string, clientRef: string): string =>
   `/grant-ops/grants/${encodeURIComponent(code)}/applications/${encodeURIComponent(clientRef)}`
 
-const toTabs = (base: string): Tab[] => {
+const toTabs = (claimsHref: string): Tab[] => {
   // The application data and payments pages arrive with later tickets, so
   // those tabs have nowhere to go yet.
   return [
     { text: 'Application data', href: '#', current: false },
-    { text: 'Claims', href: `${base}/claims`, current: true },
+    { text: 'Claims', href: claimsHref, current: true },
     { text: 'Payments', href: '#', current: false }
   ]
 }
@@ -129,12 +128,14 @@ export const toClaimsPage = (
   { banner, availableEntitlements }: Claims & { banner: Banner }
 ): ClaimsPage => {
   const base = toBase(code, clientRef)
+  const claimsHref = `${base}/claims`
 
   return {
     code,
     clientRef,
+    claimsHref,
     header: toHeader(banner),
-    tabs: toTabs(base),
+    tabs: toTabs(claimsHref),
     entitlements: availableEntitlements.map((template) =>
       toEntitlementRow(base, template)
     )

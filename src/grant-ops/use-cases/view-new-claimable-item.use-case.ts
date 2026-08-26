@@ -24,7 +24,7 @@ export const viewNewClaimableItemUseCase = async (
   clientRef: string,
   claimCode: string
 ): Promise<NewClaimableItemResponse> => {
-  const { availableEntitlements, claimableEntitlements, claims } =
+  const { banner, availableEntitlements, claimableEntitlements, claims } =
     await getClaimsUseCase(code, clientRef)
 
   const claimable = findItemByCode(claimCode, availableEntitlements)
@@ -34,6 +34,7 @@ export const viewNewClaimableItemUseCase = async (
   }
 
   return {
+    banner,
     availableEntitlements,
     claimableTemplate: claimable,
     claimableEntitlements,

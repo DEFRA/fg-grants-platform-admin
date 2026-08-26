@@ -13,10 +13,21 @@ export interface EntitlementTemplateField {
   maxLength?: number | null
 }
 
+export interface HelpBlock {
+  text?: string
+  items?: string[]
+}
+
+export interface Help {
+  summary: string
+  content: HelpBlock[]
+}
+
 export interface EntitlementTemplate {
   claimCode: string
   name: string
   description?: string
+  help?: Help
   materialised: boolean
   fields?: Record<string, EntitlementTemplateField>
   maxEntitlements: number

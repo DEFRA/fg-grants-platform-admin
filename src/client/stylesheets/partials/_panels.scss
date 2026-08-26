@@ -1,0 +1,19 @@
+@use "govuk-frontend" as *;
+
+$app-panel-border-width: 1px;
+
+.app-section-panel {
+  padding: govuk-spacing(6) govuk-spacing(4);
+  border: $app-panel-border-width solid $govuk-border-colour;
+  border-top: 0;
+
+  > :last-child {
+    margin-bottom: 0;
+  }
+}
+
+.app-card {
+  @include govuk-responsive-padding(6);
+
+  border: $app-panel-border-width solid $govuk-border-colour;
+}

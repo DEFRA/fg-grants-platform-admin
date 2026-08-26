@@ -1,6 +1,8 @@
+import Boom from '@hapi/boom'
 import type { Request, ResponseToolkit, ServerRoute } from '@hapi/hapi'
 import { createClaimableItemUseCase } from '../use-cases/create-claimable-item.use-case.ts'
 import { viewNewClaimableItemUseCase } from '../use-cases/view-new-claimable-item.use-case.ts'
+import { toClaimsPage } from '../view-models/claims-page.view-model.ts'
 import Joi from 'joi'
 
 interface ClaimableItemParams {
@@ -25,16 +27,17 @@ export const newClaimableItemRoute: ServerRoute = {
     const { code, clientRef, claimCode } =
       request.params as unknown as ClaimableItemParams
 
-    const { availableEntitlements, claimableTemplate } =
+    const { banner, claimableTemplate, ...claims } =
       await viewNewClaimableItemUseCase(code, clientRef, claimCode)
 
+    if (!banner) {
+      throw Boom.notFound(`No claims page is configured for grant "${code}"`)
+    }
+
     return h.view('new-claimable-item', {
-      pageTitle: 'New Claimable Item',
-      heading: 'New Claimable Item',
-      code,
-      clientRef,
-      availableEntitlements,
-      claimableTemplate
+      pageTitle: 'Add claimable item',
+      claimableTemplate,
+      ...toClaimsPage(code, clientRef, { ...claims, banner })
     })
   }
 }
