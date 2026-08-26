@@ -2,14 +2,14 @@ import type { Server } from '@hapi/hapi'
 
 import { createServer } from '../../server/index.ts'
 import { statusCodes } from '../../common/status-codes.ts'
-import { applications } from '../index.ts'
+import { grantOps } from '../index.ts'
 
-describe('viewApplicationsRoute', () => {
+describe('viewGrantOpsRoute', () => {
   let server: Server
 
   beforeAll(async () => {
     server = await createServer()
-    await server.register([applications])
+    await server.register([grantOps])
     await server.initialize()
   })
 
@@ -20,7 +20,7 @@ describe('viewApplicationsRoute', () => {
   test('redirects an anonymous user to login', async () => {
     const { statusCode, headers } = await server.inject({
       method: 'GET',
-      url: '/applications'
+      url: '/grant-ops'
     })
 
     expect(statusCode).toBe(statusCodes.found)
@@ -30,7 +30,7 @@ describe('viewApplicationsRoute', () => {
   test('renders the applications page for the applications admin role', async () => {
     const { result, statusCode } = await server.inject({
       method: 'GET',
-      url: '/applications',
+      url: '/grant-ops',
       auth: {
         strategy: 'session',
         credentials: {
@@ -48,7 +48,7 @@ describe('viewApplicationsRoute', () => {
   test('forbids a signed in user holding only the operations admin role', async () => {
     const { statusCode } = await server.inject({
       method: 'GET',
-      url: '/applications',
+      url: '/grant-ops',
       auth: {
         strategy: 'session',
         credentials: {
@@ -64,7 +64,7 @@ describe('viewApplicationsRoute', () => {
   test('forbids a signed in user holding no roles', async () => {
     const { statusCode } = await server.inject({
       method: 'GET',
-      url: '/applications',
+      url: '/grant-ops',
       auth: {
         strategy: 'session',
         credentials: { user: { name: 'Ada Lovelace' }, scope: [] }

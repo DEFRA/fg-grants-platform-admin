@@ -1,0 +1,7 @@
+// The tab bar a case officer moves between an application's sections with,
+// matching the case working frontend, which renders the same component this
+// way. Scoped to the class the page passes rather than every service
+// navigation, so the app level one in the header keeps its own background.
+.app-application-tabs {
+  background-color: transparent;
+}
