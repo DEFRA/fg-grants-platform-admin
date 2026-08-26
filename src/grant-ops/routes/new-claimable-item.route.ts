@@ -13,10 +13,6 @@ export const newClaimableItemRoute: ServerRoute = {
   method: 'GET',
   path: '/grant-ops/grants/{code}/applications/{clientRef}/claims/entitlements/{claimCode}',
   options: {
-    auth: {
-      strategy: 'session',
-      scope: ['FCP.GrantOperationsAdmin']
-    },
     validate: {
       params: Joi.object({
         code: Joi.string().required(),
@@ -47,10 +43,6 @@ export const createClaimableItemRoute: ServerRoute = {
   method: 'POST',
   path: '/grant-ops/grants/{code}/applications/{clientRef}/claims/entitlements/{claimCode}',
   options: {
-    auth: {
-      strategy: 'session',
-      scope: ['FCP.GrantOperationsAdmin']
-    },
     validate: {
       params: Joi.object({
         code: Joi.string().required(),

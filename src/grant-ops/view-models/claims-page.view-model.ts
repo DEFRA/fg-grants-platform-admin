@@ -96,10 +96,12 @@ const toBase = (code: string, clientRef: string): string =>
   `/grant-ops/grants/${encodeURIComponent(code)}/applications/${encodeURIComponent(clientRef)}`
 
 const toTabs = (base: string): Tab[] => {
+  // The application data and payments pages arrive with later tickets, so
+  // those tabs have nowhere to go yet.
   return [
-    { text: 'Application data', href: base, current: false },
+    { text: 'Application data', href: '#', current: false },
     { text: 'Claims', href: `${base}/claims`, current: true },
-    { text: 'Payments', href: `${base}/payments`, current: false }
+    { text: 'Payments', href: '#', current: false }
   ]
 }
 

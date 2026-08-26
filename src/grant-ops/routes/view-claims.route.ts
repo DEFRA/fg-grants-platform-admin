@@ -14,10 +14,6 @@ export const viewClaimsRoute: ServerRoute = {
   method: 'GET',
   path: '/grant-ops/grants/{code}/applications/{clientRef}/claims',
   options: {
-    auth: {
-      strategy: 'session',
-      scope: ['FCP.GrantOperationsAdmin']
-    },
     validate: {
       params: Joi.object({
         code: Joi.string().required(),
@@ -31,7 +27,7 @@ export const viewClaimsRoute: ServerRoute = {
     const { banner, ...claims } = await getClaimsUseCase(code, clientRef)
 
     // backend answers 404 for grant with no page configuration, and this guards the case of an older backend
-    // that does not yet
+    // that has no page config
     if (!banner) {
       throw Boom.notFound(`No claims page is configured for grant "${code}"`)
     }
