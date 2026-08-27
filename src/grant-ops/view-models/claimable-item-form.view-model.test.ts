@@ -201,7 +201,9 @@ describe('toClaimableItemForm', () => {
 
   test('gives integer fields a numeric keypad', () => {
     const [field] = toClaimableItemForm(
-      templateOf({ trees: { input: true, label: 'Trees', unitType: 'integer' } })
+      templateOf({
+        trees: { input: true, label: 'Trees', unitType: 'integer' }
+      })
     )
 
     expect(field.type).toBe('number')

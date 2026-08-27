@@ -149,7 +149,7 @@ describe('toClaimsPage', () => {
         maxEntitlements: 1,
         canCreate: true,
         createHref:
-        '/grant-ops/grants/woodland/applications/WMP-1T9-RXN/claims/new-entitlement/ENT_CS_CAPITAL_PA3#new-entitlement',
+          '/grant-ops/grants/woodland/applications/WMP-1T9-RXN/claims/new-entitlement/ENT_CS_CAPITAL_PA3#new-entitlement',
         unavailableReason: undefined
       }
     ])
