@@ -12,7 +12,7 @@ vi.mock(import('../use-cases/get-claims.use-case.ts'))
 vi.mock(import('../repositories/claims.repository.ts'))
 
 const claimsUrl = '/grant-ops/grants/woodland/applications/WMP-1T9-RXN/claims'
-const url = `${claimsUrl}/entitlements/ENT_CS_CAPITAL_PA3`
+const url = `${claimsUrl}/new-entitlement/ENT_CS_CAPITAL_PA3`
 
 const credentials = {
   user: { name: 'Ada Lovelace' },
@@ -141,7 +141,7 @@ describe('newClaimableItemRoute', () => {
 
     expect($links).toHaveLength(1)
     expect($links.attr('href')).toBe(
-      `${claimsUrl}/entitlements/ENT_CS_CAPITAL_PA4#new-entitlement`
+      `${claimsUrl}/new-entitlement/ENT_CS_CAPITAL_PA4#new-entitlement`
     )
   })
 
@@ -158,6 +158,8 @@ describe('newClaimableItemRoute', () => {
     const { $ } = await viewPage()
 
     expect($('[data-testid="claimable-field-totalHectares"]')).toHaveLength(1)
+    expect($('#totalHectares').attr('type')).toBe('number')
+    expect($('#totalHectares').attr('inputmode')).toBe('decimal')
     expect($('label[for="totalHectares"]').hasClass('govuk-label--s')).toBe(
       true
     )

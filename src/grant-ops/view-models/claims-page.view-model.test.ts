@@ -149,7 +149,7 @@ describe('toClaimsPage', () => {
         maxEntitlements: 1,
         canCreate: true,
         createHref:
-          '/grant-ops/grants/woodland/applications/WMP-1T9-RXN/claims/entitlements/ENT_CS_CAPITAL_PA3#new-entitlement',
+        '/grant-ops/grants/woodland/applications/WMP-1T9-RXN/claims/new-entitlement/ENT_CS_CAPITAL_PA3#new-entitlement',
         unavailableReason: undefined
       }
     ])
@@ -191,7 +191,7 @@ describe('toClaimsPage', () => {
     }).entitlements
 
     expect(row.createHref).toBe(
-      '/grant-ops/grants/wood%20land/applications/wood%2F1001/claims/entitlements/ENT%2FPA3#new-entitlement'
+      '/grant-ops/grants/wood%20land/applications/wood%2F1001/claims/new-entitlement/ENT%2FPA3#new-entitlement'
     )
   })
 })

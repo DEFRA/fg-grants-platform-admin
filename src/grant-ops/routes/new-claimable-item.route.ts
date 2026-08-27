@@ -49,7 +49,7 @@ const resolvePage = async ({
 
 export const newClaimableItemRoute: ServerRoute = {
   method: 'GET',
-  path: '/grant-ops/grants/{code}/applications/{clientRef}/claims/entitlements/{claimCode}',
+  path: '/grant-ops/grants/{code}/applications/{clientRef}/claims/new-entitlement/{claimCode}',
   options: {
     validate: { params }
   },
@@ -68,7 +68,7 @@ export const newClaimableItemRoute: ServerRoute = {
 
 export const createClaimableItemRoute: ServerRoute = {
   method: 'POST',
-  path: '/grant-ops/grants/{code}/applications/{clientRef}/claims/entitlements/{claimCode}',
+  path: '/grant-ops/grants/{code}/applications/{clientRef}/claims/new-entitlement/{claimCode}',
   options: {
     validate: {
       params,

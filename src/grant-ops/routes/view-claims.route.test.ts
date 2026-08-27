@@ -214,7 +214,7 @@ describe('viewClaimsRoute', () => {
     ).toBe('0 of 1')
     expect($('[data-testid="available-entitlement-create"]')).toHaveLength(1)
     expect($('[data-testid="available-entitlement-create"]').attr('href')).toBe(
-      `${url}/entitlements/ENT_CS_CAPITAL_PA3#new-entitlement`
+      `${url}/new-entitlement/ENT_CS_CAPITAL_PA3#new-entitlement`
     )
   })
 
