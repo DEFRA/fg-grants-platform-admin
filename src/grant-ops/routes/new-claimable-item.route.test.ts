@@ -236,6 +236,22 @@ describe('newClaimableItemRoute', () => {
     expect(statusCode).toBe(statusCodes.notFound)
   })
 
+  test('refuses a grant with no claims page configured', async () => {
+    vi.mocked(getClaimsUseCase).mockResolvedValue({
+      availableEntitlements: [template()],
+      claimableEntitlements: [],
+      claims: []
+    })
+
+    const { statusCode } = await server.inject({
+      method: 'GET',
+      url,
+      auth: { strategy: 'session', credentials }
+    })
+
+    expect(statusCode).toBe(statusCodes.notFound)
+  })
+
   test('refuses a claim code that is not available', async () => {
     givenClaims([template({ claimCode: 'ENT_SOMETHING_ELSE' })])
 

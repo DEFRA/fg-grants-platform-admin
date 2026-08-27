@@ -1,5 +1,5 @@
-import { getFromGas } from '../../common/gas.ts'
-import { findClaims } from './claims.repository.ts'
+import { getFromGas, postToGas } from '../../common/gas.ts'
+import { createEntitlement, findClaims } from './claims.repository.ts'
 
 vi.mock(import('../../common/gas.ts'))
 
@@ -31,6 +31,37 @@ describe('findClaims', () => {
 
     expect(getFromGas).toHaveBeenCalledWith(
       '/grant-admin/grants/woodland%2F..%2Fadmin/applications/wood%201001/claims'
+    )
+  })
+})
+
+describe('createEntitlement', () => {
+  const entitlement = {
+    clientRef: 'wood-1001',
+    grantCode: 'woodland',
+    claimCode: 'ENT_CS_CAPITAL_PA3',
+    data: { totalHectares: { value: 40.25 } }
+  }
+
+  test('posts the entitlement to the backend claims endpoint', async () => {
+    await createEntitlement(entitlement)
+
+    expect(postToGas).toHaveBeenCalledWith(
+      '/grant-admin/grants/woodland/applications/wood-1001/claims/entitlements',
+      entitlement
+    )
+  })
+
+  test('escapes path segments', async () => {
+    await createEntitlement({
+      ...entitlement,
+      grantCode: 'woodland/../admin',
+      clientRef: 'wood 1001'
+    })
+
+    expect(postToGas).toHaveBeenCalledWith(
+      '/grant-admin/grants/woodland%2F..%2Fadmin/applications/wood%201001/claims/entitlements',
+      expect.anything()
     )
   })
 })

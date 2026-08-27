@@ -64,6 +64,19 @@ describe('createClaimableItemUseCase', () => {
     expect(data).not.toHaveProperty('fixedLength')
   })
 
+  test('sends nothing when the template collects nothing', async () => {
+    await createClaimableItemUseCase(
+      'woodland',
+      'wood-1001',
+      template({ fields: undefined }),
+      {}
+    )
+
+    const [{ data }] = vi.mocked(createEntitlement).mock.calls[0]
+
+    expect(data).toEqual({})
+  })
+
   test('sends a value without the whitespace around it', async () => {
     await createClaimableItemUseCase('woodland', 'wood-1001', template(), {
       totalHectares: ' 40.25 ',
@@ -80,7 +93,7 @@ describe('createClaimableItemUseCase', () => {
 })
 
 describe('when fg-gas-backend refuses the request', () => {
-  const gasError = (statusCode: number, payload: object) =>
+  const gasError = (statusCode: number, payload?: object) =>
     Object.assign(new Error('Response Error'), {
       isBoom: true,
       output: { statusCode },
@@ -118,6 +131,20 @@ describe('when fg-gas-backend refuses the request', () => {
     }
   )
 
+  test('explains a refusal that arrives without a reason', async () => {
+    vi.mocked(createEntitlement).mockRejectedValue(gasError(409, undefined))
+
+    await expect(
+      createClaimableItemUseCase('woodland', 'wood-1001', template(), {
+        totalHectares: '40.25'
+      })
+    ).resolves.toEqual({
+      statusCode: 409,
+      errorCode: undefined,
+      message: 'The backend refused the request.'
+    })
+  })
+
   test('lets a failure that is not the backend refusing through', async () => {
     vi.mocked(createEntitlement).mockRejectedValue(
       gasError(503, { message: 'Service Unavailable' })
@@ -138,5 +165,15 @@ describe('when fg-gas-backend refuses the request', () => {
         totalHectares: '40.25'
       })
     ).rejects.toThrow('ECONNREFUSED')
+  })
+
+  test('lets a rejection carrying nothing through', async () => {
+    vi.mocked(createEntitlement).mockRejectedValue(undefined)
+
+    await expect(
+      createClaimableItemUseCase('woodland', 'wood-1001', template(), {
+        totalHectares: '40.25'
+      })
+    ).rejects.toBeUndefined()
   })
 })

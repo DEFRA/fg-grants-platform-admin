@@ -99,6 +99,15 @@ describe('toClaimsPage', () => {
     expect(header.summary).toEqual([{ label: 'SBI', text: '113598882' }])
   })
 
+  test('renders the title when a banner carries no summary', () => {
+    const { header } = page([], {
+      title: { text: 'Elmwood Land Co', type: 'string' }
+    })
+
+    expect(header.title).toBe('Elmwood Land Co')
+    expect(header.summary).toEqual([])
+  })
+
   test('marks the claims tab as the current one', () => {
     expect(page().tabs).toEqual([
       { text: 'Application data', href: '#', current: false },

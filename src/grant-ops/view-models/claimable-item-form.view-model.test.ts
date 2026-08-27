@@ -6,6 +6,7 @@ import {
   toClaimableItemForm,
   toCreatedNotice,
   toErrorSummary,
+  toRefusalSummary,
   validateClaimableItem
 } from './claimable-item-form.view-model.ts'
 
@@ -160,6 +161,29 @@ describe('validateClaimableItem', () => {
 })
 
 describe('toClaimableItemForm', () => {
+  test('has nothing to ask for when the definition collects nothing', () => {
+    expect(toClaimableItemForm({} as EntitlementTemplate)).toEqual([])
+  })
+
+  test('falls back to the field name when the definition has no label', () => {
+    const [field] = toClaimableItemForm(
+      templateOf({ totalHectares: { input: true, unitType: 'decimal' } })
+    )
+
+    expect(field.label).toBe('totalHectares')
+  })
+
+  test('leaves a text field without a numeric keypad or a suffix', () => {
+    const [field] = toClaimableItemForm(
+      templateOf({
+        reference: { input: true, label: 'Reference', unitType: 'string' }
+      })
+    )
+
+    expect(field.inputmode).toBeUndefined()
+    expect(field.suffix).toBeUndefined()
+  })
+
   test('describes a field the officer fills in', () => {
     expect(toClaimableItemForm(hectares())).toEqual([
       {
@@ -216,6 +240,38 @@ describe('toCreatedNotice', () => {
 
     expect(toCreatedNotice(reference, { reference: 'WMP-1' })).toBe(
       'PA3 entitlement created. It is now awaiting a claim.'
+    )
+  })
+
+  test('names the entitlement alone when the definition collects nothing', () => {
+    expect(
+      toCreatedNotice({ name: 'PA3 entitlement' } as EntitlementTemplate, {})
+    ).toBe('PA3 entitlement created. It is now awaiting a claim.')
+  })
+
+  test('leaves the amount out when the measured field was not posted', () => {
+    expect(toCreatedNotice(hectares(), {})).toBe(
+      'PA3 entitlement of  ha created. It is now awaiting a claim.'
+    )
+  })
+})
+
+describe('toRefusalSummary', () => {
+  test('reads the backend reason back as one sentence', () => {
+    expect(
+      toRefusalSummary('Maximum instance limit of 3 has been reached.')
+    ).toEqual([
+      {
+        text: 'This item cannot be added: Maximum instance limit of 3 has been reached. Please try again.'
+      }
+    ])
+  })
+
+  test('ends a reason the backend left unpunctuated', () => {
+    const [{ text }] = toRefusalSummary('Something went wrong')
+
+    expect(text).toBe(
+      'This item cannot be added: Something went wrong. Please try again.'
     )
   })
 })

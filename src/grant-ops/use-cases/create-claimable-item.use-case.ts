@@ -41,7 +41,7 @@ const isRefusal = (statusCode?: number) =>
 const statusOf = (error: unknown) =>
   ((error ?? {}) as GasError).output?.statusCode
 
-const payloadOf = (error: unknown) => ((error ?? {}) as GasError).data?.payload
+const payloadOf = (error: unknown) => (error as GasError).data?.payload
 
 const asRefusal = (error: unknown): CreateRefusal | undefined => {
   const statusCode = statusOf(error)
