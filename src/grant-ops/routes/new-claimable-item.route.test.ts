@@ -339,7 +339,7 @@ describe('createClaimableItemRoute', () => {
     ).toBe('Success')
     expect(
       $banner.find('.govuk-notification-banner__heading').text().trim()
-    ).toBe('Entitlement created')
+    ).toBe('Claimable item created')
     expect($banner.find('p').text().replace(/\s+/g, ' ').trim()).toBe(
       'PA3 Woodland Management Plan entitlement of 111 ha created. It is now awaiting a claim.'
     )
