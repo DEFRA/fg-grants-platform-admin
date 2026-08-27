@@ -113,7 +113,7 @@ describe('validateClaimableItem', () => {
       trees: {
         input: true,
         label: 'Trees',
-        unitType: 'integer' as EntitlementTemplateField['unitType'],
+        unitType: 'integer',
         decimalPlaces: 0
       }
     })
@@ -181,6 +181,7 @@ describe('toClaimableItemForm', () => {
     )
 
     expect(field.inputmode).toBeUndefined()
+    expect(field.type).toBe('text')
     expect(field.suffix).toBeUndefined()
   })
 
@@ -190,11 +191,21 @@ describe('toClaimableItemForm', () => {
         key: 'totalHectares',
         label: 'Total area of eligible woodland',
         value: '',
+        type: 'number',
         inputmode: 'decimal',
         suffix: 'ha',
         error: undefined
       }
     ])
+  })
+
+  test('gives integer fields a numeric keypad', () => {
+    const [field] = toClaimableItemForm(
+      templateOf({ trees: { input: true, label: 'Trees', unitType: 'integer' } })
+    )
+
+    expect(field.type).toBe('number')
+    expect(field.inputmode).toBe('numeric')
   })
 
   test('leaves out a field the definition fixes', () => {

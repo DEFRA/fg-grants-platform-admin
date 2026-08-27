@@ -14,7 +14,8 @@ export interface FormField {
   key: string
   label: string
   value: string
-  inputmode?: string
+  type: 'number' | 'text'
+  inputmode?: 'decimal' | 'numeric'
   suffix?: string
   error?: string
 }
@@ -115,8 +116,22 @@ export const validateClaimableItem = (
     return message ? [{ key, message }] : []
   })
 
-const inputmodeOf = (field: EntitlementTemplateField) =>
-  isNumeric(field) ? 'decimal' : undefined
+const typeOf = (field: EntitlementTemplateField): FormField['type'] =>
+  isNumeric(field) ? 'number' : 'text'
+
+const inputmodeOf = (
+  field: EntitlementTemplateField
+): FormField['inputmode'] => {
+  if (field.unitType === 'decimal') {
+    return 'decimal'
+  }
+
+  if (field.unitType === 'integer') {
+    return 'numeric'
+  }
+
+  return undefined
+}
 
 const suffixOf = (field: EntitlementTemplateField) => field.unit?.toLowerCase()
 
@@ -132,6 +147,7 @@ export const toClaimableItemForm = (
     key,
     label: labelOf(field, key),
     value: form[key] ?? '',
+    type: typeOf(field),
     inputmode: inputmodeOf(field),
     suffix: suffixOf(field),
     error: messageFor(errors, key)

@@ -18,7 +18,9 @@ interface GasError {
 }
 
 const toValue = (field: EntitlementTemplateField, raw: string) =>
-  field.unitType === 'decimal' ? Number(raw) : raw
+  field.unitType === 'decimal' || field.unitType === 'integer'
+    ? Number(raw)
+    : raw
 
 const toEntitlementData = (
   template: EntitlementTemplate,

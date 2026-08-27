@@ -51,6 +51,27 @@ describe('createClaimableItemUseCase', () => {
     })
   })
 
+  test('sends integer fields as numbers', async () => {
+    await createClaimableItemUseCase(
+      'woodland',
+      'wood-1001',
+      template({
+        fields: {
+          trees: {
+            input: true,
+            label: 'Trees',
+            unitType: 'integer'
+          }
+        }
+      }),
+      { trees: '10' }
+    )
+
+    const [{ data }] = vi.mocked(createEntitlement).mock.calls[0]
+
+    expect(data).toEqual({ trees: { value: 10 } })
+  })
+
   test('drops a posted field the template does not collect', async () => {
     await createClaimableItemUseCase('woodland', 'wood-1001', template(), {
       totalHectares: '40.25',

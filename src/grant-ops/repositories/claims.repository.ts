@@ -4,7 +4,7 @@ export interface EntitlementTemplateField {
   input: boolean
   label?: string
   value?: string | number | boolean
-  unitType: 'decimal' | 'string'
+  unitType: 'decimal' | 'integer' | 'string'
   decimalPlaces?: number
   unit?: string
   minValue?: number | null
