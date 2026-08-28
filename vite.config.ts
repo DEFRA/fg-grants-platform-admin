@@ -1,16 +1,20 @@
+import tailwindcss from '@tailwindcss/vite'
 import { defineConfig } from 'vite'
 import { NodePackageImporter } from 'sass-embedded'
 
 export default defineConfig({
   base: '/public',
+  plugins: [tailwindcss()],
   build: {
     outDir: '.public',
     manifest: true,
     rolldownOptions: {
       input: {
-        htmlAssets: 'src/client/assets.html',
+        'html-assets': 'src/client/assets.html',
         application: 'src/client/javascripts/application.ts',
-        applicationCss: 'src/client/stylesheets/application.scss'
+        'application-css': 'src/client/stylesheets/application.scss',
+        'dev-ops-css': 'src/dev-ops/client/dev-ops.css',
+        'dev-ops': 'src/dev-ops/views/components/index.ts'
       }
     },
     sourcemap: true
