@@ -17,16 +17,16 @@ interface GasError {
 }
 
 const scaleDecimalAsText = (raw: string, decimalPlaces: number): number => {
-  const [whole, fraction = ''] = raw.split('.');
-  return Number(`${whole}${fraction.padEnd(decimalPlaces, '0')}`);
+  const [whole, fraction = ''] = raw.split('.')
+  return Number(`${whole}${fraction.padEnd(decimalPlaces, '0')}`)
 }
 
 const toValue = (field: EntitlementTemplateField, raw: string) => {
   if (field.unitType === 'decimal') {
-    return scaleDecimalAsText(raw, field.decimalPlaces ?? 0);
+    return scaleDecimalAsText(raw, field.decimalPlaces ?? 0)
   }
 
-  return field.unitType === "integer" ? Number(raw) : raw
+  return field.unitType === 'integer' ? Number(raw) : raw
 }
 
 const toEntitlementData = (
