@@ -1,0 +1,42 @@
+<h2 class="govuk-heading-l" data-testid="available-entitlements-heading">Claimable items</h2>
+
+{% if params.entitlements | length %}
+  <table class="govuk-table" data-testid="available-entitlements">
+    <thead class="govuk-table__head">
+      <tr class="govuk-table__row">
+        <th scope="col" class="govuk-table__header">Claimable item</th>
+        <th scope="col" class="govuk-table__header">Type</th>
+        <th scope="col" class="govuk-table__header">Created</th>
+        <th scope="col" class="govuk-table__header">
+          <span class="govuk-visually-hidden">Action</span>
+        </th>
+      </tr>
+    </thead>
+    <tbody class="govuk-table__body">
+      {% for entitlement in params.entitlements %}
+        <tr class="govuk-table__row" data-testid="available-entitlement">
+          <td class="govuk-table__cell"
+              data-testid="available-entitlement-name">{{ entitlement.name }}</td>
+          <td class="govuk-table__cell"
+              data-testid="available-entitlement-type">{{ entitlement.type }}</td>
+          <td class="govuk-table__cell"
+              data-testid="available-entitlement-created">{{ entitlement.createdCount }} of {{ entitlement.maxEntitlements }}</td>
+          <td class="govuk-table__cell govuk-table__cell--numeric">
+            {% if entitlement.canCreate and entitlement.claimCode !== params.creatingClaimCode %}
+              <a class="govuk-link" href="{{ entitlement.createHref }}" data-testid="available-entitlement-create">
+                Create<span class="govuk-visually-hidden"> {{ entitlement.name }}</span>
+              </a>
+            {% elif entitlement.unavailableReason %}
+              <span class="govuk-hint govuk-!-margin-bottom-0"
+                    data-testid="available-entitlement-unavailable">{{ entitlement.unavailableReason }}</span>
+            {% endif %}
+          </td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% else %}
+  <p class="govuk-body" data-testid="no-available-entitlements">
+    No claimable items are available for this application.
+  </p>
+{% endif %}

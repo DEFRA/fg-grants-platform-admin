@@ -26,11 +26,11 @@ export interface Header {
 export interface EntitlementRow {
   claimCode: string
   name: string
-  description?: string
   type?: string
   createdCount: number
   maxEntitlements: number
   canCreate: boolean
+  createHref?: string
   unavailableReason?: string
 }
 
@@ -43,6 +43,7 @@ export interface Tab {
 export interface ClaimsPage {
   code: string
   clientRef: string
+  claimsHref: string
   header: Header
   tabs: Tab[]
   entitlements: EntitlementRow[]
@@ -66,7 +67,10 @@ export const toTypeLabel = (
   return unit ? (unitLabels[unit] ?? unit) : undefined
 }
 
-const toEntitlementRow = (template: EntitlementTemplate): EntitlementRow => {
+const toEntitlementRow = (
+  base: string,
+  template: EntitlementTemplate
+): EntitlementRow => {
   // fg-gas-backend answers with the templates that are still under their
   // maximum and does not yet report how many exist, so the count reads zero
   // until it does.
@@ -76,23 +80,26 @@ const toEntitlementRow = (template: EntitlementTemplate): EntitlementRow => {
   return {
     claimCode: template.claimCode,
     name: template.name,
-    description: template.description,
     type: toTypeLabel(template),
     createdCount,
     maxEntitlements: template.maxEntitlements,
     canCreate,
-    unavailableReason: canCreate ? undefined : 'Maximum reached'
+    createHref: canCreate
+      ? `${base}/claims/new-entitlement/${encodeURIComponent(template.claimCode)}#new-entitlement`
+      : undefined,
+    unavailableReason: canCreate ? undefined : 'Maximum created'
   }
 }
 
-const toTabs = (code: string, clientRef: string): Tab[] => {
-  const base = `/grant-ops/grants/${encodeURIComponent(code)}/applications/${encodeURIComponent(clientRef)}`
+const toBase = (code: string, clientRef: string): string =>
+  `/grant-ops/grants/${encodeURIComponent(code)}/applications/${encodeURIComponent(clientRef)}`
 
+const toTabs = (claimsHref: string): Tab[] => {
   // The application data and payments pages arrive with later tickets, so
   // those tabs have nowhere to go yet.
   return [
     { text: 'Application data', href: '#', current: false },
-    { text: 'Claims', href: `${base}/claims`, current: true },
+    { text: 'Claims', href: claimsHref, current: true },
     { text: 'Payments', href: '#', current: false }
   ]
 }
@@ -119,10 +126,18 @@ export const toClaimsPage = (
   code: string,
   clientRef: string,
   { banner, availableEntitlements }: Claims & { banner: Banner }
-): ClaimsPage => ({
-  code,
-  clientRef,
-  header: toHeader(banner),
-  tabs: toTabs(code, clientRef),
-  entitlements: availableEntitlements.map(toEntitlementRow)
-})
+): ClaimsPage => {
+  const base = toBase(code, clientRef)
+  const claimsHref = `${base}/claims`
+
+  return {
+    code,
+    clientRef,
+    claimsHref,
+    header: toHeader(banner),
+    tabs: toTabs(claimsHref),
+    entitlements: availableEntitlements.map((template) =>
+      toEntitlementRow(base, template)
+    )
+  }
+}

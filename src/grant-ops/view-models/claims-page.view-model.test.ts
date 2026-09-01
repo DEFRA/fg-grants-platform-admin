@@ -37,7 +37,7 @@ const template = (overrides: Partial<EntitlementTemplate> = {}) =>
       }
     },
     maxEntitlements: 1,
-    availableAt: { phase: 'PRE_AWARD' },
+    availableAt: [{ phase: 'PRE_AWARD' }],
     ...overrides
   }) as EntitlementTemplate
 
@@ -99,6 +99,15 @@ describe('toClaimsPage', () => {
     expect(header.summary).toEqual([{ label: 'SBI', text: '113598882' }])
   })
 
+  test('renders the title when a banner carries no summary', () => {
+    const { header } = page([], {
+      title: { text: 'Elmwood Land Co', type: 'string' }
+    })
+
+    expect(header.title).toBe('Elmwood Land Co')
+    expect(header.summary).toEqual([])
+  })
+
   test('marks the claims tab as the current one', () => {
     expect(page().tabs).toEqual([
       { text: 'Application data', href: '#', current: false },
@@ -124,16 +133,23 @@ describe('toClaimsPage', () => {
     )
   })
 
+  test('names the claims page itself', () => {
+    expect(page().claimsHref).toBe(
+      '/grant-ops/grants/woodland/applications/WMP-1T9-RXN/claims'
+    )
+  })
+
   test('turns a template into a row', () => {
     expect(page([template()]).entitlements).toEqual([
       {
         claimCode: 'ENT_CS_CAPITAL_PA3',
         name: 'PA3 Woodland Management Plan entitlement',
-        description: 'The maximum eligible woodland area that can be claimed.',
         type: 'Hectares',
         createdCount: 0,
         maxEntitlements: 1,
         canCreate: true,
+        createHref:
+          '/grant-ops/grants/woodland/applications/WMP-1T9-RXN/claims/new-entitlement/ENT_CS_CAPITAL_PA3#new-entitlement',
         unavailableReason: undefined
       }
     ])
@@ -162,7 +178,21 @@ describe('toClaimsPage', () => {
     ]).entitlements
 
     expect(row.canCreate).toBe(false)
-    expect(row.unavailableReason).toBe('Maximum reached')
+    expect(row.createHref).toBeUndefined()
+    expect(row.unavailableReason).toBe('Maximum created')
+  })
+
+  test('escapes the create href', () => {
+    const [row] = toClaimsPage('wood land', 'wood/1001', {
+      banner,
+      availableEntitlements: [template({ claimCode: 'ENT/PA3' })],
+      claimableEntitlements: [],
+      claims: []
+    }).entitlements
+
+    expect(row.createHref).toBe(
+      '/grant-ops/grants/wood%20land/applications/wood%2F1001/claims/new-entitlement/ENT%2FPA3#new-entitlement'
+    )
   })
 })
 
