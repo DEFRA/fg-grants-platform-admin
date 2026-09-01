@@ -1,0 +1,19 @@
+{% extends 'layouts/page.njk' %}
+
+{% from "heading/macro.njk" import heading %}
+
+{% block content %}
+  {{ heading({
+    text: pageTitle,
+    caption: "fg-grants-platform-admin"
+  }) }}
+
+  <div class="card bg-base-100 shadow-sm">
+    <div class="card-body">
+      <p>Signed in as {{ name }}.</p>
+      <div class="card-actions">
+        <a class="btn btn-primary" href="/auth/logout">Sign out</a>
+      </div>
+    </div>
+  </div>
+{% endblock %}
