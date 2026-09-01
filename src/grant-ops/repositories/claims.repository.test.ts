@@ -1,5 +1,9 @@
 import { getFromGas, postToGas } from '../../common/gas.ts'
-import { createEntitlement, findClaims } from './claims.repository.ts'
+import {
+  createEntitlement,
+  findClaim,
+  findClaims
+} from './claims.repository.ts'
 
 vi.mock(import('../../common/gas.ts'))
 
@@ -31,6 +35,24 @@ describe('findClaims', () => {
 
     expect(getFromGas).toHaveBeenCalledWith(
       '/grant-admin/grants/woodland%2F..%2Fadmin/applications/wood%201001/claims'
+    )
+  })
+})
+
+describe('findClaim', () => {
+  test('reads the authoritative template for one claim', async () => {
+    await findClaim('woodland', 'wood-1001', 'ENT_CS_CAPITAL_PA3')
+
+    expect(getFromGas).toHaveBeenCalledWith(
+      '/grant-admin/grants/woodland/applications/wood-1001/claims/ENT_CS_CAPITAL_PA3'
+    )
+  })
+
+  test('escapes every path segment', async () => {
+    await findClaim('woodland/../admin', 'wood 1001', 'ENT/PA3')
+
+    expect(getFromGas).toHaveBeenCalledWith(
+      '/grant-admin/grants/woodland%2F..%2Fadmin/applications/wood%201001/claims/ENT%2FPA3'
     )
   })
 })

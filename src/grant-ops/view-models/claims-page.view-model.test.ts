@@ -37,7 +37,7 @@ const template = (overrides: Partial<EntitlementTemplate> = {}) =>
       }
     },
     maxEntitlements: 1,
-    availableAt: { phase: 'PRE_AWARD' },
+    availableAt: [{ phase: 'PRE_AWARD' }],
     ...overrides
   }) as EntitlementTemplate
 

@@ -1,12 +1,16 @@
 import { load } from 'cheerio'
+import Boom from '@hapi/boom'
 import type { Server } from '@hapi/hapi'
 
 import { createServer } from '../../server/index.ts'
 import { statusCodes } from '../../common/status-codes.ts'
 import { grantOps } from '../index.ts'
-import type { EntitlementTemplate } from '../use-cases/get-claims.use-case.ts'
 import { getClaimsUseCase } from '../use-cases/get-claims.use-case.ts'
-import { createEntitlement } from '../repositories/claims.repository.ts'
+import type { EntitlementTemplate } from '../use-cases/get-claims.use-case.ts'
+import {
+  createEntitlement,
+  findClaim
+} from '../repositories/claims.repository.ts'
 
 vi.mock(import('../use-cases/get-claims.use-case.ts'))
 vi.mock(import('../repositories/claims.repository.ts'))
@@ -35,7 +39,7 @@ const template = (overrides: Partial<EntitlementTemplate> = {}) =>
       }
     },
     maxEntitlements: 1,
-    availableAt: { phase: 'PRE_AWARD' },
+    availableAt: [{ phase: 'PRE_AWARD' }],
     ...overrides
   }) as EntitlementTemplate
 
@@ -46,13 +50,41 @@ const banner = {
   }
 }
 
-const givenClaims = (availableEntitlements: EntitlementTemplate[] = []) =>
+const givenClaims = (availableEntitlements: EntitlementTemplate[] = []) => {
   vi.mocked(getClaimsUseCase).mockResolvedValue({
     banner,
     availableEntitlements,
     claimableEntitlements: [],
     claims: []
   })
+
+  return vi
+    .mocked(findClaim)
+    .mockImplementation(async (_code, _clientRef, claimCode) => {
+      const entitlementTemplate = availableEntitlements.find(
+        (template) => template.claimCode === claimCode
+      )
+
+      if (!entitlementTemplate) {
+        throw Boom.notFound('not available')
+      }
+
+      if (
+        (entitlementTemplate.createdCount ?? 0) >=
+        entitlementTemplate.maxEntitlements
+      ) {
+        throw Boom.conflict('limit reached')
+      }
+
+      return {
+        banner,
+        availableEntitlements,
+        claimableEntitlements: [],
+        claims: [],
+        entitlementTemplate
+      }
+    })
+}
 
 const viewPage = async () => {
   const { result, statusCode } = await server.inject({
@@ -235,14 +267,15 @@ describe('newClaimableItemRoute', () => {
       auth: { strategy: 'session', credentials }
     })
 
-    expect(statusCode).toBe(statusCodes.notFound)
+    expect(statusCode).toBe(409)
   })
 
   test('refuses a grant with no claims page configured', async () => {
-    vi.mocked(getClaimsUseCase).mockResolvedValue({
+    vi.mocked(findClaim).mockResolvedValue({
       availableEntitlements: [template()],
       claimableEntitlements: [],
-      claims: []
+      claims: [],
+      entitlementTemplate: template()
     })
 
     const { statusCode } = await server.inject({
@@ -456,9 +489,13 @@ describe('createClaimableItemRoute', () => {
   test('refuses to create against a claim code at its maximum', async () => {
     givenClaims([template({ createdCount: 1, maxEntitlements: 1 })])
 
-    const { statusCode } = await post({ totalHectares: '40.25' })
+    const { result, statusCode } = await post({ totalHectares: '40.25' })
+    const $ = load(result as unknown as string)
 
-    expect(statusCode).toBe(statusCodes.notFound)
+    expect(statusCode).toBe(409)
     expect(createEntitlement).not.toHaveBeenCalled()
+    expect($('[data-testid="entitlement-refused"]').text()).toContain(
+      'This item cannot be added: limit reached. Please try again.'
+    )
   })
 })

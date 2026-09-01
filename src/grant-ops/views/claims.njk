@@ -21,6 +21,14 @@
       }) }}
 
       <div class="app-section-panel">
+        {% if errorBanner %}
+          {{ govukNotificationBanner({
+            type: "error",
+            text: errorBanner,
+            attributes: { "data-testid": "entitlement-refused" }
+          }) }}
+        {% endif %}
+
         {% if createdNotice %}
           {% set createdHtml %}
             <h3 class="govuk-notification-banner__heading">Claimable item created</h3>

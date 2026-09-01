@@ -32,11 +32,11 @@ export interface EntitlementTemplate {
   fields?: Record<string, EntitlementTemplateField>
   maxEntitlements: number
   createdCount?: number
-  availableAt: {
+  availableAt: Array<{
     phase: string
     stage?: string
     status?: string
-  }
+  }>
 }
 
 export interface BannerField {
@@ -57,6 +57,10 @@ export interface Claims {
   availableEntitlements: EntitlementTemplate[]
   claimableEntitlements: unknown[]
   claims: unknown[]
+}
+
+export interface Claim extends Claims {
+  entitlementTemplate: EntitlementTemplate
 }
 
 export interface EntitlementFieldValue {
@@ -84,4 +88,13 @@ export const findClaims = async (
 ): Promise<Claims> =>
   getFromGas<Claims>(
     `/grant-admin/grants/${encodeURIComponent(code)}/applications/${encodeURIComponent(clientRef)}/claims`
+  )
+
+export const findClaim = async (
+  code: string,
+  clientRef: string,
+  claimCode: string
+): Promise<Claim> =>
+  getFromGas<Claim>(
+    `/grant-admin/grants/${encodeURIComponent(code)}/applications/${encodeURIComponent(clientRef)}/claims/${encodeURIComponent(claimCode)}`
   )

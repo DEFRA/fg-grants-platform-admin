@@ -2,6 +2,7 @@ import Boom from '@hapi/boom'
 import type { Request, ResponseToolkit, ServerRoute } from '@hapi/hapi'
 import { createClaimableItemUseCase } from '../use-cases/create-claimable-item.use-case.ts'
 import { viewNewClaimableItemUseCase } from '../use-cases/view-new-claimable-item.use-case.ts'
+import { getClaimsUseCase } from '../use-cases/get-claims.use-case.ts'
 import type { FieldError } from '../view-models/claimable-item-form.view-model.ts'
 import {
   createdNoticeKey,
@@ -19,6 +20,19 @@ interface ClaimableItemParams {
   clientRef: string
   claimCode: string
 }
+
+interface GasError {
+  output?: { statusCode?: number; payload?: { message?: string } }
+  data?: { payload?: { message?: string } }
+}
+
+const statusOf = (error: unknown) =>
+  (error as GasError | undefined)?.output?.statusCode
+
+const messageOf = (error: unknown) =>
+  (error as GasError | undefined)?.data?.payload?.message ??
+  (error as GasError | undefined)?.output?.payload?.message ??
+  'The backend refused the request.'
 
 const params = Joi.object({
   code: Joi.string().required(),
@@ -81,11 +95,35 @@ export const createClaimableItemRoute: ServerRoute = {
 
     const form = request.payload as Record<string, string>
 
-    const { claimableTemplate, page } = await resolvePage({
-      code,
-      clientRef,
-      claimCode
-    })
+    let resolvedPage: Awaited<ReturnType<typeof resolvePage>>
+
+    try {
+      resolvedPage = await resolvePage({
+        code,
+        clientRef,
+        claimCode
+      })
+    } catch (error) {
+      if (statusOf(error) !== 409) {
+        throw error
+      }
+
+      const { banner, ...claims } = await getClaimsUseCase(code, clientRef)
+
+      if (!banner) {
+        throw error
+      }
+
+      return h
+        .view('claims', {
+          pageTitle: 'Error: Claims',
+          errorBanner: toRefusalSummary(messageOf(error))[0].text,
+          ...toClaimsPage(code, clientRef, { ...claims, banner })
+        })
+        .code(409)
+    }
+
+    const { claimableTemplate, page } = resolvedPage
 
     const errors: FieldError[] = validateClaimableItem(claimableTemplate, form)
 

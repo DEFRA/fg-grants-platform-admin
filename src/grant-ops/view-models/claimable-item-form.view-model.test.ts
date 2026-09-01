@@ -18,7 +18,7 @@ const templateOf = (
     name: 'PA3 entitlement',
     materialised: false,
     maxEntitlements: 1,
-    availableAt: { phase: 'PRE_AWARD' },
+    availableAt: [{ phase: 'PRE_AWARD' }],
     fields
   }) as EntitlementTemplate
 
