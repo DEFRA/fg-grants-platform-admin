@@ -20,3 +20,26 @@ export const getFromGas = async <T>(path: string): Promise<T> => {
 
   return payload
 }
+
+/**
+ * Posts a json payload to fg-gas-backend.
+ *
+ * @param path An absolute path, with its segments already escaped.
+ */
+export const postToGas = async <T>(
+  path: string,
+  payload: object
+): Promise<T> => {
+  const { payload: response } = await wreck.post<T>(
+    `${config.get('gas.apiUrl')}${path}`,
+    {
+      json: true,
+      payload,
+      headers: {
+        authorization: `Bearer ${config.get('gas.serviceToken')}`
+      }
+    }
+  )
+
+  return response
+}

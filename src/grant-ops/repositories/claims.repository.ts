@@ -1,10 +1,10 @@
-import { getFromGas } from '../../common/gas.ts'
+import { getFromGas, postToGas } from '../../common/gas.ts'
 
 export interface EntitlementTemplateField {
   input: boolean
   label?: string
   value?: string | number | boolean
-  unitType: 'decimal' | 'string'
+  unitType: 'decimal' | 'integer' | 'string'
   decimalPlaces?: number
   unit?: string
   minValue?: number | null
@@ -13,21 +13,30 @@ export interface EntitlementTemplateField {
   maxLength?: number | null
 }
 
+export interface HelpBlock {
+  text?: string
+  items?: string[]
+}
+
+export interface Help {
+  summary: string
+  content: HelpBlock[]
+}
+
 export interface EntitlementTemplate {
   claimCode: string
   name: string
   description?: string
+  help?: Help
   materialised: boolean
   fields?: Record<string, EntitlementTemplateField>
   maxEntitlements: number
-  // fg-gas-backend leaves out every template already at its maximum, so this
-  // only arrives once that endpoint starts reporting what has been created.
   createdCount?: number
-  availableAt: {
+  availableAt: Array<{
     phase: string
     stage?: string
     status?: string
-  }
+  }>
 }
 
 export interface BannerField {
@@ -50,10 +59,42 @@ export interface Claims {
   claims: unknown[]
 }
 
+export interface Claim extends Claims {
+  entitlementTemplate: EntitlementTemplate
+}
+
+export interface EntitlementFieldValue {
+  value: string | number | boolean
+}
+
+export interface NewEntitlement {
+  clientRef: string
+  grantCode: string
+  claimCode: string
+  data: Record<string, EntitlementFieldValue>
+}
+
+export const createEntitlement = async (
+  entitlement: NewEntitlement
+): Promise<void> =>
+  postToGas(
+    `/grant-admin/grants/${encodeURIComponent(entitlement.grantCode)}/applications/${encodeURIComponent(entitlement.clientRef)}/claims/entitlements`,
+    entitlement
+  )
+
 export const findClaims = async (
   code: string,
   clientRef: string
 ): Promise<Claims> =>
   getFromGas<Claims>(
     `/grant-admin/grants/${encodeURIComponent(code)}/applications/${encodeURIComponent(clientRef)}/claims`
+  )
+
+export const findClaim = async (
+  code: string,
+  clientRef: string,
+  claimCode: string
+): Promise<Claim> =>
+  getFromGas<Claim>(
+    `/grant-admin/grants/${encodeURIComponent(code)}/applications/${encodeURIComponent(clientRef)}/claims/${encodeURIComponent(claimCode)}`
   )

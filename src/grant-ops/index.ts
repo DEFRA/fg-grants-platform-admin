@@ -2,6 +2,10 @@ import type { Server } from '@hapi/hapi'
 
 import { scopedTo } from '../server/plugins/auth/scoped-to.ts'
 import { viewOptions } from '../server/plugins/views/index.ts'
+import {
+  createClaimableItemRoute,
+  newClaimableItemRoute
+} from './routes/new-claimable-item.route.ts'
 import { viewClaimsRoute } from './routes/view-claims.route.ts'
 import { viewGrantOpsRoute } from './routes/view-grant-ops.route.ts'
 
@@ -18,7 +22,9 @@ export const grantOps = {
       server.route(
         scopedTo('FCP.GrantApplicationsAdmin', [
           viewGrantOpsRoute,
-          viewClaimsRoute
+          viewClaimsRoute,
+          newClaimableItemRoute,
+          createClaimableItemRoute
         ])
       )
     }

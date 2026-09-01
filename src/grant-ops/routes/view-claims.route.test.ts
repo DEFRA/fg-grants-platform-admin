@@ -32,7 +32,7 @@ const template = (overrides: Partial<EntitlementTemplate> = {}) =>
       }
     },
     maxEntitlements: 1,
-    availableAt: { phase: 'PRE_AWARD' },
+    availableAt: [{ phase: 'PRE_AWARD' }],
     ...overrides
   }) as EntitlementTemplate
 
@@ -183,18 +183,12 @@ describe('viewClaimsRoute', () => {
     expect($link.attr('aria-current')).toBe('page')
   })
 
-  test('introduces the available entitlements section', async () => {
+  test('heads the claimable items section', async () => {
     const { $ } = await viewPage()
 
     expect(
       $('[data-testid="available-entitlements-heading"]').text().trim()
-    ).toBe('Available entitlements')
-    expect($('[data-testid="available-entitlements-hint"]').text().trim()).toBe(
-      'Entitlements you can create for this applicant. Some can be created more than once.'
-    )
-    expect(
-      $('[data-testid="available-entitlements-explanation"]').text().trim()
-    ).not.toBe('')
+    ).toBe('Claimable items')
   })
 
   test('lists an available entitlement in the table', async () => {
@@ -206,37 +200,35 @@ describe('viewClaimsRoute', () => {
       $('[data-testid="available-entitlements"] thead th')
         .map((_, header) => $(header).text().trim())
         .get()
-    ).toEqual(['Entitlement', 'Type', 'Created', 'Action'])
+    ).toEqual(['Claimable item', 'Type', 'Created', 'Action'])
 
     expect($('[data-testid="available-entitlement"]')).toHaveLength(1)
     expect($('[data-testid="available-entitlement-name"]').text().trim()).toBe(
       'PA3 Woodland Management Plan entitlement'
     )
-    expect(
-      $('[data-testid="available-entitlement-description"]').text().trim()
-    ).toBe('The maximum eligible woodland area that can be claimed.')
-    expect(
-      $('[data-testid="available-entitlement-type"] .govuk-tag').text().trim()
-    ).toBe('Hectares')
+    expect($('[data-testid="available-entitlement-type"]').text().trim()).toBe(
+      'Hectares'
+    )
     expect(
       $('[data-testid="available-entitlement-created"]').text().trim()
     ).toBe('0 of 1')
     expect($('[data-testid="available-entitlement-create"]')).toHaveLength(1)
+    expect($('[data-testid="available-entitlement-create"]').attr('href')).toBe(
+      `${url}/new-entitlement/ENT_CS_CAPITAL_PA3#new-entitlement`
+    )
   })
 
-  // Rendered as spans first time round, which ran the description on from the
-  // name as one paragraph of text.
-  test('sets the name and description on their own lines', async () => {
+  test('names the item without its description', async () => {
     givenClaims([template()])
 
     const { $ } = await viewPage()
 
-    expect(
-      $('[data-testid="available-entitlement-name"]').prop('tagName')
-    ).toBe('P')
-    expect(
-      $('[data-testid="available-entitlement-description"]').prop('tagName')
-    ).toBe('P')
+    expect($('[data-testid="available-entitlement-name"]').text().trim()).toBe(
+      'PA3 Woodland Management Plan entitlement'
+    )
+    expect($('[data-testid="available-entitlement-description"]')).toHaveLength(
+      0
+    )
   })
 
   test('lists a row for every available entitlement', async () => {
@@ -269,7 +261,7 @@ describe('viewClaimsRoute', () => {
     expect($('[data-testid="available-entitlement-create"]')).toHaveLength(0)
     expect(
       $('[data-testid="available-entitlement-unavailable"]').text().trim()
-    ).toBe('Maximum reached')
+    ).toBe('Maximum created')
   })
 
   test('leaves the type blank when no field carries a unit', async () => {
@@ -299,7 +291,7 @@ describe('viewClaimsRoute', () => {
 
     expect(statusCode).toBe(statusCodes.ok)
     expect($('[data-testid="no-available-entitlements"]').text().trim()).toBe(
-      'No entitlements are available for this application.'
+      'No claimable items are available for this application.'
     )
     expect($('[data-testid="available-entitlements"]')).toHaveLength(0)
   })
