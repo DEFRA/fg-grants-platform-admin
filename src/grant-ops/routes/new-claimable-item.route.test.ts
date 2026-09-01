@@ -335,14 +335,14 @@ describe('createClaimableItemRoute', () => {
       clientRef: 'WMP-1T9-RXN',
       grantCode: 'woodland',
       claimCode: 'ENT_CS_CAPITAL_PA3',
-      data: { totalHectares: { value: 40.25 } }
+      data: { totalHectares: { value: 402500 } }
     })
     expect(statusCode).toBe(statusCodes.seeOther)
     expect(headers.location).toBe(claimsUrl)
   })
 
   test('posts the payload the persistence service expects', async () => {
-    await post({ totalHectares: ' 455000 ' })
+    await post({ totalHectares: ' 45.5 ' })
 
     const [payload] = vi.mocked(createEntitlement).mock.calls[0]
 
@@ -401,6 +401,19 @@ describe('createClaimableItemRoute', () => {
   test('does not reach the backend when a value fails validation', async () => {
     await post({ totalHectares: '-100' })
 
+    expect(createEntitlement).not.toHaveBeenCalled()
+  })
+
+  test('does not reach the backend when a number is non-finite', async () => {
+    const { result, statusCode } = await post({
+      totalHectares: '9'.repeat(309)
+    })
+    const $ = load(result as unknown as string)
+
+    expect(statusCode).toBe(statusCodes.badRequest)
+    expect($('.govuk-error-message').text()).toContain(
+      'Total area of eligible woodland must be a number'
+    )
     expect(createEntitlement).not.toHaveBeenCalled()
   })
 
@@ -497,6 +510,14 @@ describe('createClaimableItemRoute', () => {
     expect($('[data-testid="entitlement-refused"]').text()).toContain(
       'This item cannot be added: limit reached. Please try again.'
     )
+    expect(
+      $('[data-testid="entitlement-refused"]').hasClass('govuk-error-summary')
+    ).toBe(true)
+    expect(
+      $('[data-testid="entitlement-refused"] .govuk-error-summary__title')
+        .text()
+        .trim()
+    ).toBe('There is a problem')
   })
 
   test('does not render a refusal page when the claims page is unconfigured', async () => {

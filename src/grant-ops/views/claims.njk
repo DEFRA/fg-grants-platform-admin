@@ -4,6 +4,7 @@
 {% from "available-entitlements/macro.njk" import appAvailableEntitlements %}
 {% from "govuk/components/notification-banner/macro.njk" import govukNotificationBanner %}
 {% from "govuk/components/service-navigation/macro.njk" import govukServiceNavigation %}
+{% from "govuk/components/error-summary/macro.njk" import govukErrorSummary %}
 
 {% block content %}
   {{ appApplicationHeader(header) }}
@@ -21,11 +22,11 @@
       }) }}
 
       <div class="app-section-panel">
-        {% if errorBanner %}
-          {{ govukNotificationBanner({
-            type: "error",
-            text: errorBanner,
-            attributes: { "data-testid": "entitlement-refused" }
+        {% if errorSummary | length %}
+          {{ govukErrorSummary({
+                titleText: "There is a problem",
+                errorList: errorSummary,
+                attributes: { "data-testid": "entitlement-refused" }
           }) }}
         {% endif %}
 

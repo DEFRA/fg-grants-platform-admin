@@ -46,8 +46,11 @@ const firstFailure = (
   value: string
 ) => checks.map((check) => check(field, label, value)).find(Boolean)
 
-const notANumber: Check = (_field, label, value) =>
-  /^-?\d+(\.\d+)?$/.test(value) ? undefined : `${label} must be a number`
+export const notANumber: Check = (_field, label, value) => {
+  const isNumber =
+    /^-?\d+(\.\d+)?$/.test(value) && Number.isFinite(Number(value))
+  return isNumber ? undefined : `${label} must be a number`
+}
 
 const tooManyDecimalPlaces: Check = (field, label, value) =>
   field.decimalPlaces != null && decimalPlacesIn(value) > field.decimalPlaces

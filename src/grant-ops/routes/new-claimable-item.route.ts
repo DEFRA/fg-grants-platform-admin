@@ -98,7 +98,7 @@ const referenceRefusalPage = async (
 
   return {
     pageTitle: 'Error: Claims',
-    errorBanner: toRefusalSummary(message)[0].text,
+    errorSummary: toRefusalSummary(message),
     ...toClaimsPage(code, clientRef, { ...claims, banner })
   }
 }

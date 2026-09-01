@@ -7,7 +7,8 @@ import {
   toCreatedNotice,
   toErrorSummary,
   toRefusalSummary,
-  validateClaimableItem
+  validateClaimableItem,
+  notANumber
 } from './claimable-item-form.view-model.ts'
 
 const templateOf = (
@@ -37,6 +38,33 @@ const messages = (
   template: EntitlementTemplate,
   form: Record<string, string>
 ) => validateClaimableItem(template, form).map((error) => error.message)
+
+describe('notANumber', () => {
+  test('checks that a number is not infinite', () => {
+    ;[
+      {
+        label: 'nine',
+        value: '9',
+        expectation: undefined
+      },
+      {
+        label: 'text value',
+        value: 'julian',
+        expectation: 'text value must be a number'
+      },
+      {
+        label: 'Infinite number value',
+        value: '9'.repeat(309),
+        expectation: 'Infinite number value must be a number'
+      }
+    ].forEach((obj) => {
+      const { label, value, expectation } = obj
+      expect(notANumber({} as EntitlementTemplateField, label, value)).toBe(
+        expectation
+      )
+    })
+  })
+})
 
 describe('validateClaimableItem', () => {
   test('accepts a value that meets every rule', () => {

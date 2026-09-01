@@ -45,7 +45,7 @@ describe('createClaimableItemUseCase', () => {
       grantCode: 'woodland',
       claimCode: 'ENT_CS_CAPITAL_PA3',
       data: {
-        totalHectares: { value: 40.25 },
+        totalHectares: { value: 4025 },
         reference: { value: 'WMP-1' }
       }
     })
@@ -107,7 +107,7 @@ describe('createClaimableItemUseCase', () => {
     const [{ data }] = vi.mocked(createEntitlement).mock.calls[0]
 
     expect(data).toEqual({
-      totalHectares: { value: 40.25 },
+      totalHectares: { value: 4025 },
       reference: { value: 'WMP-1' }
     })
   })
