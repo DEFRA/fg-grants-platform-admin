@@ -29,9 +29,15 @@ interface GasError {
 const statusOf = (error: unknown) =>
   (error as GasError | undefined)?.output?.statusCode
 
+const dataPayloadOf = (error: unknown) =>
+  (error as GasError | undefined)?.data?.payload ?? {}
+
+const outputPayloadOf = (error: unknown) =>
+  (error as GasError | undefined)?.output?.payload ?? {}
+
 const messageOf = (error: unknown) =>
-  (error as GasError | undefined)?.data?.payload?.message ??
-  (error as GasError | undefined)?.output?.payload?.message ??
+  dataPayloadOf(error).message ??
+  outputPayloadOf(error).message ??
   'The backend refused the request.'
 
 const params = Joi.object({
@@ -58,6 +64,42 @@ const resolvePage = async ({
       claimableTemplate,
       ...toClaimsPage(code, clientRef, { ...claims, banner })
     }
+  }
+}
+
+type ResolvedPage = Awaited<ReturnType<typeof resolvePage>>
+
+type PostPage =
+  | { kind: 'page'; resolvedPage: ResolvedPage }
+  | { kind: 'refusal'; message: string }
+
+const resolvePostPage = async (
+  params: ClaimableItemParams
+): Promise<PostPage> => {
+  try {
+    return { kind: 'page', resolvedPage: await resolvePage(params) }
+  } catch (error) {
+    return statusOf(error) === 409
+      ? { kind: 'refusal', message: messageOf(error) }
+      : Promise.reject(error)
+  }
+}
+
+const referenceRefusalPage = async (
+  code: string,
+  clientRef: string,
+  message: string
+) => {
+  const { banner, ...claims } = await getClaimsUseCase(code, clientRef)
+
+  if (!banner) {
+    throw Boom.notFound(`No claims page is configured for grant "${code}"`)
+  }
+
+  return {
+    pageTitle: 'Error: Claims',
+    errorBanner: toRefusalSummary(message)[0].text,
+    ...toClaimsPage(code, clientRef, { ...claims, banner })
   }
 }
 
@@ -95,35 +137,18 @@ export const createClaimableItemRoute: ServerRoute = {
 
     const form = request.payload as Record<string, string>
 
-    let resolvedPage: Awaited<ReturnType<typeof resolvePage>>
+    const postPage = await resolvePostPage({ code, clientRef, claimCode })
 
-    try {
-      resolvedPage = await resolvePage({
-        code,
-        clientRef,
-        claimCode
-      })
-    } catch (error) {
-      if (statusOf(error) !== 409) {
-        throw error
-      }
-
-      const { banner, ...claims } = await getClaimsUseCase(code, clientRef)
-
-      if (!banner) {
-        throw error
-      }
-
+    if (postPage.kind === 'refusal') {
       return h
-        .view('claims', {
-          pageTitle: 'Error: Claims',
-          errorBanner: toRefusalSummary(messageOf(error))[0].text,
-          ...toClaimsPage(code, clientRef, { ...claims, banner })
-        })
+        .view(
+          'claims',
+          await referenceRefusalPage(code, clientRef, postPage.message)
+        )
         .code(409)
     }
 
-    const { claimableTemplate, page } = resolvedPage
+    const { claimableTemplate, page } = postPage.resolvedPage
 
     const errors: FieldError[] = validateClaimableItem(claimableTemplate, form)
 
