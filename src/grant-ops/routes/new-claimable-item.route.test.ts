@@ -498,4 +498,18 @@ describe('createClaimableItemRoute', () => {
       'This item cannot be added: limit reached. Please try again.'
     )
   })
+
+  test('does not render a refusal page when the claims page is unconfigured', async () => {
+    vi.mocked(findClaim).mockRejectedValue(Boom.conflict('limit reached'))
+    vi.mocked(getClaimsUseCase).mockResolvedValue({
+      availableEntitlements: [bounded()],
+      claimableEntitlements: [],
+      claims: []
+    })
+
+    const { statusCode } = await post({ totalHectares: '40.25' })
+
+    expect(statusCode).toBe(statusCodes.notFound)
+    expect(createEntitlement).not.toHaveBeenCalled()
+  })
 })
