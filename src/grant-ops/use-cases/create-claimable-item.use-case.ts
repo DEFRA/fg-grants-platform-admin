@@ -7,14 +7,13 @@ import { createEntitlement } from '../repositories/claims.repository.ts'
 
 export interface CreateRefusal {
   statusCode: number
-  errorCode?: string
   message: string
 }
 
 interface GasError {
   isBoom?: boolean
   output?: { statusCode?: number }
-  data?: { payload?: { errorCode?: string; message?: string } }
+  data?: { payload?: { message?: string } }
 }
 
 const toValue = (field: EntitlementTemplateField, raw: string) =>
@@ -56,7 +55,6 @@ const asRefusal = (error: unknown): CreateRefusal | undefined => {
 
   return {
     statusCode: statusCode as number,
-    errorCode: payload.errorCode,
     message: payload.message ?? refusedMessage
   }
 }

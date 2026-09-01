@@ -124,33 +124,27 @@ describe('when fg-gas-backend refuses the request', () => {
   test.each([
     [
       404,
-      'APPLICATION_NOT_FOUND',
       "No matching application found for clientRef 'wood-1001' and grantCode 'woodland'."
     ],
     [
       409,
-      'ENTITLEMENT_LIMIT_EXCEEDED',
       "Cannot create entitlement 'ENT_CS_CAPITAL_PA3'. Maximum instance limit of 3 has been reached."
     ],
     [
       422,
-      'INVALID_CLAIM_CODE',
       "Claim code 'ENT_CS_CAPITAL_PA3' is not defined for grant code 'woodland'."
     ]
-  ])(
-    'reports a %i so the page can explain it',
-    async (statusCode, errorCode, message) => {
-      vi.mocked(createEntitlement).mockRejectedValue(
-        gasError(statusCode, { statusCode, errorCode, message })
-      )
+  ])('reports a %i so the page can explain it', async (statusCode, message) => {
+    vi.mocked(createEntitlement).mockRejectedValue(
+      gasError(statusCode, { statusCode, message })
+    )
 
-      await expect(
-        createClaimableItemUseCase('woodland', 'wood-1001', template(), {
-          totalHectares: '40.25'
-        })
-      ).resolves.toEqual({ statusCode, errorCode, message })
-    }
-  )
+    await expect(
+      createClaimableItemUseCase('woodland', 'wood-1001', template(), {
+        totalHectares: '40.25'
+      })
+    ).resolves.toEqual({ statusCode, message })
+  })
 
   test('explains a refusal that arrives without a reason', async () => {
     vi.mocked(createEntitlement).mockRejectedValue(gasError(409, undefined))
@@ -161,7 +155,6 @@ describe('when fg-gas-backend refuses the request', () => {
       })
     ).resolves.toEqual({
       statusCode: 409,
-      errorCode: undefined,
       message: 'The backend refused the request.'
     })
   })
