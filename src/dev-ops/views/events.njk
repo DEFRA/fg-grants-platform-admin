@@ -1,0 +1,343 @@
+{% extends 'layouts/page.njk' %}
+
+{% from "icon/macro.njk" import icon %}
+{% from "pager/macro.njk" import pager %}
+{% from "status-badge/macro.njk" import statusBadge %}
+
+{# The table header: 11px, uppercase, and quiet enough to read as a label
+   rather than as a row. Set once here so all four spell the same treatment,
+   and written as a literal string because Tailwind scans this file's text for
+   candidates — it never sees a class assembled in TypeScript. #}
+{% set columnHeading = "text-[11px] font-semibold tracking-wide uppercase text-base-content/45" %}
+{% set numericHeading = "text-right text-[11px] font-semibold tracking-wide uppercase text-base-content/45" %}
+
+{# The one grid template every line of the table wears — the header row, each
+   data row and each group summary. It lives in client/dev-ops.css so the five
+   tracks are declared once; three elements as different as a div, a summary
+   and a header cannot share a `grid-template-columns` any other way. #}
+{% set gridRow = "do-events-row hover:bg-base-200/60" %}
+
+{# A true segmented control, not a row of loose chips: one border around each
+   group, drawn by the join, and segments that share it. The filled segment
+   says which slice of the stream is on screen; the rest carry no border of
+   their own, because a border inside a bordered container is a second outline
+   saying the same thing. #}
+{% set segmentGroup = "join rounded-md border border-base-300" %}
+{# The active segment is a mark, not a button: solid black on a toolbar above
+   a table of 11px figures made the filter bar the loudest thing on the page,
+   and the page is not about its filters. A tint of the text colour is enough
+   to say which segment is on — `do-segment-active` (client/dev-ops.css) holds
+   its hover, so the segment does not lose the mark under the pointer. #}
+{% set activeChip = "btn join-item btn-xs btn-ghost do-segment-active bg-base-content/10 font-medium text-base-content" %}
+{% set inactiveChip = "btn join-item btn-xs btn-ghost font-normal text-base-content/70" %}
+{# The group labels are labels, not options: smaller, in capitals, and muted,
+   so the eye never mistakes `Status` for a segment it could have clicked. #}
+{% set filterLabel = "text-[10px] leading-none font-medium tracking-wide uppercase text-base-content/50" %}
+
+{# One line of identity, in three registers that never argue: a name, a token,
+   a link.
+
+   The name is set in sans and semibold. Mono made it a machine string like the
+   id beside it, and the row then had no first word — an operator scanning for
+   `case.status.updated` was scanning a wall of one texture. Sans and weight
+   give the cell one thing that reads at a glance; the dots in the name already
+   say it is a symbol, without the whole column having to be typewritten.
+
+   The token after it is the machine half — the first group of the uuid, then
+   the reference — and it stays mono, because that is what an operator copies.
+   The uuid's first group tells one row from its neighbours; the whole id is on
+   the title for anyone who needs to paste it. A space-dot-space separates the
+   parts: the tight middot ran the id into the reference at 11px.
+
+   The trace is a link, and looks like one. It is the only thing in the row
+   that navigates anywhere, so it is the one place on the page allowed to carry
+   the primary colour — a link drawn as muted mono was indistinguishable from
+   the id it sat beside, and nobody clicked it. #}
+{% macro identity(row) %}
+  <div class="flex min-w-0 items-baseline gap-2 overflow-hidden whitespace-nowrap">
+    <span class="shrink-0 text-[13px] font-semibold"{% if row.typeTitle %} title="{{ row.typeTitle }}"{% endif %} data-testid="event-type">{{ row.type }}</span>
+    <span class="min-w-0 truncate font-mono text-[11px] text-base-content/45" data-testid="event-id-line"><span title="{{ row.eventId }}" data-testid="event-id">{{ row.eventIdShort }}</span>{% if row.segregationRef %}&nbsp;&nbsp;<span class="text-base-content/60">·</span>&nbsp;<span title="{{ row.segregationRef }}" data-testid="event-segregation-ref">{{ row.segregationRef }}</span>{% endif %}</span>{% if row.traceHref %} <a href="{{ row.traceHref }}" target="_blank" rel="noopener noreferrer" title="{{ row.traceId }}" class="link link-primary shrink-0 text-[11px]" data-testid="event-trace-link">trace ↗</a>{% endif %}
+  </div>
+{% endmacro %}
+
+{# One line, not two. The hop is the sentence — regular weight, because the
+   route is where the message went rather than what it is, and an arrow that
+   recedes to 60% so it is quieter than the names it joins without going
+   illegible at 13px.
+
+   Truncation here is chosen, not conceded. The sentence is `shrink-0` and can
+   never be cut: `GAS → Casewor…` is a route nobody can read, and it was the
+   sentence the flexbox picked first because it was the longest thing in the
+   cell. The parenthetical is the part that gives — mono at 11px, the string a
+   developer greps for rather than the thing they read first — and the whole of
+   the topic is on its title.
+
+   When the topic fits no naming convention there is no service to name on the
+   far end of the arrow, and the row used to end in an ellipsis. The topic is
+   then the destination itself: it goes on the arrow in mono, and the
+   parenthetical that would repeat it is not drawn at all. No row on this page
+   ever ends in `→ …`. #}
+{% macro route(row) %}
+  <div class="flex min-w-0 items-baseline gap-1 whitespace-nowrap">
+    {%- if row.routeToIsTopic -%}
+      <span class="flex min-w-0 items-baseline gap-1 text-[12.5px] text-base-content/85" data-testid="event-route"><span class="shrink-0">{{ row.routeFrom }} <span class="text-base-content/60">→</span></span> <span class="min-w-0 truncate font-mono text-[11.5px] text-base-content/70" title="{{ row.routeToTitle }}" data-testid="event-route-topic">{{ row.routeTo }}</span></span>
+    {%- else -%}
+      <span class="shrink-0 text-[12.5px] text-base-content/85" data-testid="event-route">{{ row.routeFrom }} <span class="text-base-content/60">→</span> {{ row.routeTo }}</span>
+      <span class="min-w-0 truncate font-mono text-[11px] text-base-content/50" title="{{ row.routeDetail }}" data-testid="event-route-detail">({{ row.routeDetailShort }})</span>
+    {%- endif -%}
+  </div>
+{% endmacro %}
+
+{# The status cell: the status, and — only on the rows that have one — how it
+   got there.
+
+   Failure was a column of its own, and on a healthy page it was a ruled column
+   of dashes: ten rems of the table set aside to say "nothing went wrong" on
+   every row where nothing had. But a count and a time are not a fact about an
+   event, they are a fact about its *status*, so they belong under it. A row
+   that has failed says `5/5 · 5h 36m ago` on a second line; a row that has not
+   is one line tall and says nothing at all.
+
+   The sub-line is indented to the label above it — 6px of dot plus the 6px gap
+   — so the status column reads as one left edge whether a row has one line or
+   two. Mono at 10.5px, and muted: it is detail under a headline, not a second
+   headline.
+
+   Never red. A row that failed once and recovered is not a problem, and the
+   dot and the row tint already say which rows are. A row retried but with no
+   failure on record still has a count worth reading and says the rest with a
+   dash. Both spellings of the instant, and the count in words, are on the
+   title, because neither half of `5/5 · 5h 36m ago` is quotable. #}
+{% macro statusDetail(row) %}
+  {%- if row.hasFailure or row.showAttempts -%}
+    <div class="mt-px pl-3 font-mono text-[10.5px] tabular-nums text-base-content/45" title="{{ row.failureTitle }}" data-testid="event-failure"><span data-testid="event-attempts">{{ row.attempts }}</span> <span class="text-base-content/25" aria-hidden="true">·</span> <span data-testid="event-last-failure">{% if row.hasFailure %}{{ row.lastFailureAt }}{% else %}—{% endif %}</span></div>
+  {%- endif -%}
+{% endmacro %}
+
+{# One cell, one or two lines: the badge, then the detail if the row has any.
+   The wrapper is `min-w-0` so a long status never widens the track. #}
+{% macro status(row) %}
+  <div class="min-w-0" role="cell" data-testid="event-status">
+    {{ statusBadge({
+      status: row.status,
+      label: row.statusLabel,
+      role: row.statusRole,
+      retrying: row.statusRetrying
+    }) }}{{ statusDetail(row) }}
+  </div>
+{% endmacro %}
+
+{# One data row: the same five cells whether it stands alone or sits inside an
+   open group. The first is the disclosure gutter, empty on a row that does not
+   open, so every event type on the page starts at the same x. A member is
+   indented by one class and by nothing else, so an expanded group reads as the
+   rows it always was.
+
+   A dead letter is the one row that wears a treatment of its own. Every other
+   state on this page now recedes — the commonest of them, Completed, as far as
+   grey text — so the faint error wash (`do-event-row-dead-letter`, in
+   client/dev-ops.css) is the only saturated thing on a calm page, and the
+   exception is what the eye lands on from across the room. #}
+{% macro eventRow(row, member) %}
+  <div class="{{ gridRow }}{% if row.isDeadLetter %} do-event-row-dead-letter{% endif %}{% if member %} do-events-member{% endif %}" role="row" data-testid="event-row">
+    <div role="cell"></div>
+    <div role="cell" class="min-w-0">{{ identity(row) }}</div>
+    {{ status(row) }}
+    <div role="cell" class="min-w-0">{{ route(row) }}</div>
+    <div role="cell" class="text-right whitespace-nowrap">
+      <span class="font-mono text-[12px] tabular-nums text-base-content/75" title="{{ row.createdAtTitle }}" data-testid="event-created-at">{{ row.createdAt }}</span>
+    </div>
+  </div>
+{% endmacro %}
+
+{% block content %}
+  {# The page's own header, not the navbar. The subtitle says what the page is;
+     the toolbar below says which slice of it is on screen, so the two never
+     have to narrate each other. #}
+  <hgroup class="mb-3.5" data-testid="events-heading">
+    <h1 class="text-xl font-semibold" data-testid="events-title">{{ pageTitle }}</h1>
+    <p class="mt-0.5 text-xs text-base-content/55" data-testid="events-subtitle">Inbox and outbox messages across GAS and Caseworking.</p>
+  </hgroup>
+
+  {% if unavailableSources %}
+    <div role="alert" class="alert alert-warning mb-3.5 text-[13px]" data-testid="events-partial">
+      {{ icon({ name: 'exclamation-triangle', class: 'h-4 w-4 shrink-0' }) }}
+      <span>Some event sources are unavailable: {{ unavailableSources }}. Showing the rest.</span>
+    </div>
+  {% endif %}
+
+  {% if unavailable %}
+    <div role="alert" class="alert alert-error mb-3.5 text-[13px]" data-testid="events-error">
+      {{ icon({ name: 'exclamation-circle', class: 'h-4 w-4 shrink-0' }) }}
+      <span>Events could not be loaded from GAS.</span>
+    </div>
+  {% endif %}
+
+  {# Two segmented controls and their labels, shrink-wrapped to what they hold:
+     a strip stretched to the width of the page put a border around nine
+     buttons and 700px of nothing. Each group carries its own outline now, so
+     the toolbar needs none of its own and no rule between them either.
+
+     Links, not a form: the page carries no client-side JavaScript, and each
+     segment is simply the url of the page it selects. Every segment keeps the
+     other group's filter and drops the cursor — a keyset position taken under
+     one filter means nothing under another. Rendered whatever the table did,
+     so a filter that found nothing can still be undone. #}
+  <div class="mb-3 flex w-fit flex-wrap items-center gap-x-6 gap-y-2" data-testid="events-filters">
+    {# A label and the group it introduces are one object, so they are nested
+       as one: a single flex row spaced them all alike, which put as much air
+       between `Status` and its own segments as between the two controls, and
+       the toolbar read as four things rather than two. #}
+    <div class="flex items-center gap-x-2">
+      <span class="{{ filterLabel }}" data-testid="events-filter-label">Status</span>
+      <div class="{{ segmentGroup }}" data-testid="events-filter-status">
+        {% for chip in statusFilters %}
+          {% if chip.active %}
+            <a class="{{ activeChip }}" href="{{ chip.href }}" aria-current="page" data-testid="events-filter-status-chip">{{ chip.label }}</a>
+          {% else %}
+            <a class="{{ inactiveChip }}" href="{{ chip.href }}" data-testid="events-filter-status-chip">{{ chip.label }}</a>
+          {% endif %}
+        {% endfor %}
+      </div>
+    </div>
+
+    <div class="flex items-center gap-x-2">
+      <span class="{{ filterLabel }}" data-testid="events-filter-label">Service</span>
+      <div class="{{ segmentGroup }}" data-testid="events-filter-service">
+        {% for chip in serviceFilters %}
+          {% if chip.active %}
+            <a class="{{ activeChip }}" href="{{ chip.href }}" aria-current="page" data-testid="events-filter-service-chip">{{ chip.label }}</a>
+          {% else %}
+            <a class="{{ inactiveChip }}" href="{{ chip.href }}" data-testid="events-filter-service-chip">{{ chip.label }}</a>
+          {% endif %}
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
+  {% if rows | length %}
+    <div class="overflow-hidden rounded-box border border-base-300 bg-base-100" data-testid="events-card">
+      {# The state of the page, and only that: how the rows on screen divide
+         between the states worth triaging, and how far back they reach. How
+         many there are is said once, in the footer, where the pager is already
+         counting them. No total for the stream exists — the endpoint pages by
+         keyset — so an empty bucket is not printed as a zero. Numbers carry
+         the weight; the words they are counting do not. #}
+      {% if rollup.buckets | length or rollup.oldest %}
+        <div class="flex flex-wrap items-center gap-x-2 gap-y-1 border-b border-base-300 px-3 py-1.5 text-[12px]" data-testid="events-rollup">
+          {% for bucket in rollup.buckets %}
+            <span class="text-base-content/60" data-testid="events-rollup-bucket"><span class="font-medium {{ "text-error/80" if bucket.deadLettered else "text-base-content/80" }}">{{ bucket.count }}</span> {{ bucket.label }}</span>
+            {% if not loop.last or (not groupCount and rollup.oldest) %}<span class="text-base-content/30" aria-hidden="true">·</span>{% endif %}
+          {% endfor %}
+          {# How those counts are drawn, in the same breath as the counts: the
+             strip, the chips and the footer are then three views of one
+             arithmetic rather than three unrelated numbers on one card. A
+             page that folded nothing says nothing here. #}
+          {% if groupCount %}
+            <span class="text-base-content/60" data-testid="events-rollup-groups">in <span class="font-medium text-base-content/80">{{ groupCount }}</span> group{{ "" if groupCount == 1 else "s" }}</span>
+            {% if rollup.oldest %}<span class="text-base-content/30" aria-hidden="true">·</span>{% endif %}
+          {% endif %}
+          {% if rollup.oldest %}
+            <span class="text-base-content/60" data-testid="events-rollup-oldest">oldest <span class="font-medium text-base-content/80" title="{{ rollup.oldestTitle }}">{{ rollup.oldest }}</span></span>
+          {% endif %}
+          {# The note is not one of the counts, so it is not spaced like one: a
+             hairline sets the caveat about the data apart from the arithmetic
+             it qualifies, and the middots stay punctuation between figures
+             rather than a join between two different kinds of thing. #}
+          <span class="ml-auto border-l border-base-300 pl-3 text-[10px] text-base-content/40" title="Data may be a few seconds behind (read from a secondary)." data-testid="events-lag-note">Read from a secondary — may lag a few seconds</span>
+        </div>
+      {% endif %}
+
+      {# The table scrolls inside this box, not the page: five columns of ids
+         do not fit a phone, and a body that scrolls sideways loses the header.
+         The box is height-bounded as well, which is what gives the sticky
+         header and the sticky pager something to stick to. #}
+      <div class="do-events-scroller overflow-auto" data-testid="events-scroller">
+        <div class="min-w-[64rem]">
+          {# A grid rather than a <table>: rows have to fold into groups without
+             a line of JavaScript, and only `<details>` can do that — which no
+             <tbody> will hold. The roles put the table back for assistive
+             technology; a group is a rowgroup, and its summary is its row. #}
+          <div class="do-events-grid" role="table" aria-label="Events" data-testid="events-table">
+            <div class="do-events-row do-events-head" role="row" data-testid="events-head">
+              {# The disclosure gutter, unlabelled: it heads the carets, and a
+                 word there would be a word about the table rather than about
+                 a column of it. #}
+              <div role="columnheader"></div>
+              <div role="columnheader" class="{{ columnHeading }}">Event</div>
+              <div role="columnheader" class="{{ columnHeading }}">Status</div>
+              <div role="columnheader" class="{{ columnHeading }}">Route</div>
+              {# The one column of figures is right-aligned in the header as
+                 well as in the body, so the heading sits over its own column
+                 of digits rather than over the gutter beside it. #}
+              <div role="columnheader" class="{{ numericHeading }}">Created</div>
+            </div>
+
+            {% for group in groups %}
+              {% if group.grouped %}
+                {# A retry storm writes the same row eight times in a row. Eight
+                   rows cost eight rows of attention to learn one fact, so the
+                   run folds into one line that opens — native disclosure, no
+                   script — and the members are still there, in order, for
+                   anyone who needs the ids. #}
+                <details class="do-events-group" role="rowgroup" name="{{ group.name }}" data-testid="event-group">
+                  {# The row says what it does before it is clicked: the caret
+                     is the mark, the title is the sentence, and the chip
+                     underlines under the pointer so the affordance is on the
+                     one thing in the row that is about the folding. #}
+                  <summary class="{{ gridRow }}{% if group.isDeadLetter %} do-event-row-dead-letter{% endif %} do-events-summary" role="row" title="{{ group.expandTitle }}" data-testid="event-group-summary">
+                    <div role="cell"><span class="do-caret" aria-hidden="true"></span></div>
+                    {# The chip comes straight after the type, before the
+                       reference: that this line stands for eight rows is the
+                       second thing to know about it, not the last. At the end
+                       of the cell it sat behind a truncated reference and an
+                       operator scanning the fold read past it every time. #}
+                    <div role="cell" class="min-w-0">
+                      <div class="flex min-w-0 items-baseline gap-2 overflow-hidden whitespace-nowrap">
+                        <span class="shrink-0 text-[13px] font-semibold"{% if group.typeTitle %} title="{{ group.typeTitle }}"{% endif %} data-testid="event-type">{{ group.type }}</span>
+                        <span class="do-count-chip shrink-0" title="{{ group.countTitle }}" data-testid="event-group-count">{{ group.countLabel }}</span>
+                        {% if group.segregationRef %}<span class="min-w-0 truncate font-mono text-[11px] text-base-content/45"><span class="text-base-content/60">·</span>&nbsp;<span title="{{ group.segregationRef }}" data-testid="event-segregation-ref">{{ group.segregationRef }}</span></span>{% endif %}
+                      </div>
+                    </div>
+                    {{ status(group) }}
+                    <div role="cell" class="min-w-0">{{ route(group) }}</div>
+                    {# One value, in the plain rows' own format and size: the
+                       newest member's age. The column is read down its right
+                       edge, and a range on every summary made it ragged for a
+                       fact an operator rarely needs at a glance — that fact
+                       opens the title instead. #}
+                    <div role="cell" class="text-right whitespace-nowrap">
+                      <span class="font-mono text-[12px] tabular-nums text-base-content/75" title="{{ group.createdAtTitle }}" data-testid="event-group-created-at">{{ group.createdAt }}</span>
+                    </div>
+                  </summary>
+                  {% for row in group.rows %}{{ eventRow(row, true) }}{% endfor %}
+                </details>
+              {% else %}
+                {# One treatment, for one status: a dead letter is washed faintly
+                   in the error colour and every other row is left alone. The
+                   page is calm enough now — no pill on a completed row, no
+                   figures on a row that never failed — for that wash to be the
+                   thing the eye finds first. #}
+                {{ eventRow(group.rows[0], false) }}
+              {% endif %}
+            {% endfor %}
+          </div>
+
+          {# The footer says one fact: how much of the stream is on screen.
+             How those rows are drawn — how many lines they fold into — is the
+             rollup strip's sentence at the top of the card, and saying it here
+             too made the footer a second summary of a page that has one. #}
+          {{ pager({
+            count: eventCount,
+            previousHref: previousHref,
+            nextHref: nextHref
+          }) }}
+        </div>
+      </div>
+    </div>
+  {% elif not unavailable %}
+    <div class="overflow-hidden rounded-box border border-base-300 bg-base-100" data-testid="events-card">
+      <p class="px-4 py-10 text-center text-[13px] text-base-content/60" data-testid="events-empty">No events found.</p>
+    </div>
+  {% endif %}
+{% endblock %}

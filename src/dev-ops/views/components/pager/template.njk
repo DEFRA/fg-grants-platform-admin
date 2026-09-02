@@ -1,0 +1,54 @@
+{# Lives inside the table's scroll box, under a hairline of its own: the row is
+   part of the table, not a control that floats beneath it. It is also the
+   table's bottom edge — without it the last row simply falls off — so the
+   count is rendered whenever there are rows, whether or not there is a page
+   either side of this one.
+
+   Stuck to the bottom of that box (`do-pager-sticky`, client/dev-ops.css) and
+   opaque against the rows travelling under it: Previous, Next and the count
+   are no use to an operator who has to scroll twenty rows to reach them.
+
+   The footer says how much of the stream is on screen, and only that: the
+   count on the left, the two directions on the right. How fresh the data is
+   belongs to the rollup strip at the top of the card, beside the counts it
+   qualifies.
+
+   The count says one fact: how many rows are on screen. It said the groups
+   too, and a footer that reports both is a second summary of a page whose
+   rollup strip already owns the folding — two arithmetics, in two places, for
+   a reader who asked for neither.
+
+   Both directions are always drawn. A page that renders only the link it has
+   moves Next across the footer the moment Previous appears, so the button an
+   operator is aiming at is somewhere else on the next page; the direction
+   there is no page in is a muted span of the same size, in the same place.
+
+   One cluster, hard right, rather than two links spaced by whatever the row
+   happened to hold between them: `← Previous` and `Next →` are one control
+   with two directions. `ml-auto` goes on the cluster, once, so both travel
+   together at the right and nothing floats in the middle of the footer. #}
+{# Medium, not the button's own weight: Previous and Next are the quietest
+   controls on the card, and the two of them set in semibold outweighed the
+   figures the footer exists to report. The muted span wears the same weight,
+   so the unavailable direction is the same object, greyed. #}
+{% set pagerLink = "btn btn-xs btn-ghost font-medium" %}
+{% set pagerDisabled = "btn btn-xs btn-ghost font-medium text-base-content/30" %}
+{% if params.count or params.previousHref or params.nextHref %}
+  <nav class="do-pager-sticky flex items-center gap-3 border-t border-base-300 bg-base-100 px-3.5 py-2" aria-label="Pagination" data-testid="do-pager">
+    {% if params.count %}
+      <span class="text-[11px] text-base-content/55" data-testid="do-pager-count">{{ params.count }} event{{ "" if params.count == 1 else "s" }}</span>
+    {% endif %}
+    <div class="ml-auto flex items-center gap-2" data-testid="do-pager-links">
+      {% if params.previousHref %}
+        <a class="{{ pagerLink }}" rel="prev" href="{{ params.previousHref }}" data-testid="do-pager-previous">← Previous</a>
+      {% else %}
+        <span class="{{ pagerDisabled }}" aria-hidden="true" data-testid="do-pager-previous-disabled">← Previous</span>
+      {% endif %}
+      {% if params.nextHref %}
+        <a class="{{ pagerLink }}" rel="next" href="{{ params.nextHref }}" data-testid="do-pager-next">Next →</a>
+      {% else %}
+        <span class="{{ pagerDisabled }}" aria-hidden="true" data-testid="do-pager-next-disabled">Next →</span>
+      {% endif %}
+    </div>
+  </nav>
+{% endif %}

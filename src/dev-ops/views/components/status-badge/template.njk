@@ -1,0 +1,41 @@
+{# The colour classes are spelled out here rather than composed in the view
+   model, because Tailwind scans this directory for candidates
+   (src/dev-ops/client/dev-ops.css) — a class name only a .ts file ever spells
+   is tree-shaken out of the stylesheet and the badge renders unstyled with no
+   build error and no failing test. The view model names the role; this file
+   owns the class, and client/dev-ops.css owns what the class means.
+
+   One anatomy for every status: a dot and a word, at the same x on every row.
+   Pills gave six states six silhouettes down one column, so the eye read the
+   shape of a row before it read the row — and the shapes shouted loudest on
+   the five states that are perfectly healthy. Demoting one of them out of the
+   badge system to bare text only made it worse: the column then had two
+   anatomies, and `Completed` started at a different x from `Failed`.
+
+   The dot carries the colour and the label carries the meaning. The label is
+   the status as a human says it — `Dead letter`, not `DEAD_LETTER` — in the
+   same words the filter chips above the table use, so the two are one
+   vocabulary. The raw value the endpoint wrote is on the `title`, for anyone
+   matching it against a log line or a `?status=`.
+
+   Weight says which of them is worth stopping on. Dead letter is the page's
+   subject and reads at full contrast; Completed is most of the stream and
+   recedes furthest; everything else sits between. No status is bold except the
+   one that is an incident.
+
+   The retry marker is a glyph rather than an icon: the label sets one short
+   line, and a trailing ↻ sits on it without the vertical alignment fight an
+   inline svg picks at this size. #}
+{% set dots = {
+  neutral: "do-status-dot-neutral",
+  info: "do-status-dot-info",
+  warning: "do-status-dot-warning",
+  success: "do-status-dot-success",
+  error: "do-status-dot-error"
+} %}
+{% set labels = {
+  success: "text-[12px] text-base-content/45",
+  error: "text-[12px] font-medium text-base-content"
+} %}
+{%- set text = params.label | default(params.status, true) -%}
+<span class="inline-flex items-center gap-1.5 whitespace-nowrap" title="{{ params.status }}" data-testid="do-status-badge"><span class="do-status-dot {{ dots[params.role] | default("do-status-dot-neutral", true) }}" aria-hidden="true" data-testid="do-status-dot"></span><span class="{{ labels[params.role] | default("text-[12px] text-base-content/70", true) }}" data-testid="do-status-label">{{ text }}{% if params.retrying %} ↻{% endif %}</span></span>

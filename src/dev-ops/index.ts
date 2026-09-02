@@ -2,6 +2,7 @@ import type { Server } from '@hapi/hapi'
 
 import { scopedTo } from '../server/plugins/auth/scoped-to.ts'
 import { viewDevOpsRoute } from './routes/view-dev-ops.route.ts'
+import { viewEventsRoute } from './routes/view-events.route.ts'
 import { devOpsViewOptions } from './view-options.ts'
 
 export const devOps = {
@@ -14,7 +15,9 @@ export const devOps = {
         path: 'views'
       })
 
-      server.route(scopedTo('FCP.GrantOperationsAdmin', [viewDevOpsRoute]))
+      server.route(
+        scopedTo('FCP.GrantOperationsAdmin', [viewDevOpsRoute, viewEventsRoute])
+      )
     }
   }
 }

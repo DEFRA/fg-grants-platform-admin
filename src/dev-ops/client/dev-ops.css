@@ -5,7 +5,7 @@
  * templates — markup elsewhere can never grow this bundle, and nothing here
  * leaks back.
  */
-@import "tailwindcss" source(none);
+@import 'tailwindcss' source(none);
 @source "../views";
 
 /*
@@ -14,5 +14,312 @@
  * later is a `@plugin "daisyui/theme"` block here.
  */
 @plugin "daisyui" {
-  themes: light --default, dark --prefersdark;
+  themes:
+    light --default,
+    dark --prefersdark;
+}
+
+/*
+ * The events table's own treatments: the things that are a *state of a row* or
+ * a *shape of a component*, rather than a utility. Every class below is
+ * spelled in views/events.njk or a component template, because Tailwind's
+ * scanner never sees a class assembled anywhere but a template.
+ */
+
+/*
+ * The table is a grid, not a `<table>`. Consecutive identical rows have to
+ * fold into a group that opens, the page carries no client-side JavaScript,
+ * and the only thing that discloses without script is `<details>` — which no
+ * `<tbody>` will hold. Roles put the table back for assistive technology.
+ *
+ * One template, worn by the header row, by every data row and by every group
+ * summary: three elements as different as a div, a summary and a header cannot
+ * share a `grid-template-columns` any other way, and a column that drifts
+ * between them is the whole reason a grid table usually fails.
+ *
+ * The first track is the disclosure gutter, and every row has one — a group
+ * summary puts its caret there, a plain row leaves it empty. It is the only
+ * way every event type on the page can start at the same x: hanging the caret
+ * inside the Event cell shifted every grouped row's name by its width.
+ *
+ * The rest are sized to what the columns hold rather than to what the browser
+ * has left over. Nothing is allowed to grow but Event, which is the column
+ * with something to say, and the tracks add up to less than the page is wide,
+ * so no run of dead air opens up between Route and the figures.
+ *
+ * Failure was a whole track that stood empty on every healthy row, and its
+ * heading ruled ten rems of nothing down the page. It is gone: a count and a
+ * time are facts *about a status*, so they hang under the status they belong
+ * to, on the rows that have one. Five tracks, and the width the sixth gave up
+ * went to Event and Route — the two columns with something to say.
+ *
+ * Density. One line of Route, 4px of block padding and a 34px floor: a row is
+ * as tall as what it carries needs and no taller. A row whose status has a
+ * failure line under it grows by that line, and only that row does.
+ */
+.do-events-row {
+  display: grid;
+  grid-template-columns:
+    1.25rem /* Disclosure gutter */
+    minmax(30rem, 1fr) /* Event */
+    11rem /* Status */
+    minmax(15rem, 20rem) /* Route */
+    7.5rem; /* Created */
+  align-items: center;
+  column-gap: 12px;
+  min-block-size: 34px;
+  padding-block: 4px;
+  padding-inline: 12px;
+}
+
+/*
+ * The header stays put while the body scrolls under it: twenty rows of ids all
+ * look alike, and a column of figures whose heading has scrolled away is a
+ * column of unlabelled numbers. Opaque, because the rows pass beneath it.
+ */
+.do-events-head {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  border-bottom: 1px solid var(--color-base-300);
+  background-color: var(--color-base-100);
+}
+
+/*
+ * A hairline between lines, quieter than the card's own border, and only
+ * between them: the first row sits under the header's rule already, and a
+ * second line there would read as a double.
+ */
+.do-events-grid > :not(.do-events-head) + :not(.do-events-head),
+.do-events-group > .do-events-row {
+  border-top: 1px solid
+    color-mix(in oklab, var(--color-base-300), transparent 45%);
+}
+
+/*
+ * The bounded box is what gives the sticky header and the sticky pager
+ * something to stick to — a scroll container with no height is not one. The
+ * floor keeps a short window from collapsing the table to a slot.
+ */
+.do-events-scroller {
+  max-height: max(24rem, calc(100vh - 15rem));
+  overscroll-behavior: contain;
+}
+
+/*
+ * The group summary is a row that opens. `display: grid` from `.do-events-row`
+ * already removes the default marker; `list-style` and the WebKit
+ * pseudo-element say so out loud, because a stray triangle would sit in the
+ * Event cell beside the caret this file draws instead.
+ */
+.do-events-summary {
+  cursor: pointer;
+  list-style: none;
+}
+
+.do-events-summary::-webkit-details-marker {
+  display: none;
+}
+
+/*
+ * The summary needs an affordance a caret alone cannot carry, and it cannot
+ * have one the plain rows do not: the gutter has to stay empty on those or
+ * every type on the page starts at a different x. So the mark goes on the one
+ * thing in the row that is about the folding — the count chip underlines, and
+ * darkens with it, under the pointer.
+ */
+.do-events-summary:hover .do-count-chip {
+  background-color: color-mix(
+    in oklab,
+    var(--color-base-content),
+    transparent 82%
+  );
+  color: color-mix(in oklab, var(--color-base-content), transparent 15%);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.do-events-summary:focus-visible {
+  outline: 2px solid
+    color-mix(in oklab, var(--color-base-content), transparent 40%);
+  outline-offset: -2px;
+}
+
+/* An open group is washed faintly, so its members read as belonging to it. */
+.do-events-group[open] {
+  background-color: color-mix(
+    in oklab,
+    var(--color-base-content),
+    transparent 97%
+  );
+}
+
+/*
+ * A member is indented in the one column that identifies it, and nowhere else.
+ * The gutter beside it stays empty — it belongs to the caret above, not to the
+ * indent.
+ */
+.do-events-member > :nth-child(2) {
+  padding-inline-start: 1.25rem;
+}
+
+/*
+ * The disclosure affordance: a triangle in the text colour, turned down when
+ * the group is open. Drawn in borders rather than set as a glyph, so it keeps
+ * its size and its weight whatever font the system hands the page. It lives in
+ * the row's first track, which every row carries whether or not it opens.
+ *
+ * Ten pixels tall, and centred in the 20px gutter by its own auto margins
+ * rather than by a class on the cell: the cell is shared with plain rows,
+ * which carry nothing at all there. At 7px it read as a speck of punctuation
+ * beside a 12px type and nobody would have taken it for a control.
+ */
+.do-caret {
+  display: block;
+  width: 0;
+  height: 0;
+  margin-inline: auto;
+  border-block: 4px solid transparent;
+  border-inline-start: 6px solid currentcolor;
+  opacity: 0.35;
+  transition: transform 150ms ease;
+}
+
+.do-events-group[open] > .do-events-summary .do-caret {
+  transform: rotate(90deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .do-caret {
+    transition: none;
+  }
+}
+
+/*
+ * How many rows the group folded, as a chip rather than as prose: it is a
+ * figure the eye counts down the column, and `8 events` would have been read
+ * as part of the type beside it.
+ */
+.do-count-chip {
+  display: inline-block;
+  border-radius: 3px;
+  background-color: color-mix(
+    in oklab,
+    var(--color-base-content),
+    transparent 88%
+  );
+  padding-inline: 5px;
+  color: color-mix(in oklab, var(--color-base-content), transparent 30%);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+/*
+ * The segment the page is filtered to, marked rather than filled. A solid
+ * neutral button put the heaviest object on the page in the toolbar, above a
+ * table set in 11 and 12px — the filter bar outweighed the data it was
+ * filtering. A tint of the text colour says the same thing at a tenth of the
+ * volume; this rule exists to hold that tint under the pointer, where
+ * `btn-ghost`'s own hover would otherwise replace it with a different one.
+ */
+.do-segment-active,
+.do-segment-active:hover {
+  background-color: color-mix(
+    in oklab,
+    var(--color-base-content),
+    transparent 90%
+  );
+  color: var(--color-base-content);
+  font-weight: 500;
+}
+
+.do-segment-active:hover {
+  background-color: color-mix(
+    in oklab,
+    var(--color-base-content),
+    transparent 84%
+  );
+}
+
+/*
+ * The pager is the table's bottom edge and its control, and it is no use as
+ * either once it has scrolled past the fold of a twenty-row page.
+ */
+.do-pager-sticky {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+}
+
+/*
+ * The one row treatment on the page, and the only saturated thing left on it:
+ * four percent of the error colour behind a dead-lettered row, on the row and
+ * on the summary of a group of them. With Completed demoted to grey text, a
+ * page of healthy events is entirely quiet and this wash is the exception
+ * announcing itself from across the room — which is the whole job of the page.
+ *
+ * The hover tint has to be restated here rather than left to the utility: this
+ * rule sits outside Tailwind's layers and would otherwise win against it, and
+ * a row you cannot follow across the table with the pointer is a row worse off
+ * for being important.
+ */
+.do-event-row-dead-letter {
+  background-color: color-mix(in oklab, var(--color-error), transparent 96%);
+}
+
+.do-event-row-dead-letter:hover {
+  background-color: color-mix(in oklab, var(--color-error), transparent 92%);
+}
+
+/*
+ * The status is a dot and a word, and every status is the same dot and the
+ * same word. Pills gave six states six different silhouettes down one column,
+ * so the eye read the *shape* of each row before it read what the row said,
+ * and the shapes were loudest on the five states that are perfectly healthy.
+ * The dot carries the colour, the label carries the meaning, and because both
+ * sit at the same x on every row the column reads as a column.
+ *
+ * Six pixels: large enough to hold a hue at a glance, small enough that a
+ * screen of them is texture rather than a string of lights.
+ */
+.do-status-dot {
+  display: inline-block;
+  flex: none;
+  inline-size: 6px;
+  block-size: 6px;
+  border-radius: 9999px;
+}
+
+/* Published: queued and healthy, and the quietest thing the column draws. */
+.do-status-dot-neutral {
+  background-color: color-mix(
+    in oklab,
+    var(--color-base-content),
+    transparent 75%
+  );
+}
+
+/* Processing: in flight. */
+.do-status-dot-info {
+  background-color: var(--color-info);
+}
+
+/* Failed and Resubmitted: the two states that are fighting. */
+.do-status-dot-warning {
+  background-color: var(--color-warning);
+}
+
+/*
+ * Completed, held back to 45%: it is most of the page, and a full-strength
+ * green on every row would out-shout the one row that is not fine.
+ */
+.do-status-dot-success {
+  background-color: color-mix(in oklab, var(--color-success), transparent 55%);
+}
+
+/* Dead letter: the only status the page lets say anything at full strength. */
+.do-status-dot-error {
+  background-color: var(--color-error);
 }

@@ -77,6 +77,9 @@ interface ConfigSchema {
     apiUrl: string
     serviceToken: string
   }
+  logs: {
+    explorerBaseUrl: string
+  }
 }
 
 export const config = convict<ConfigSchema>({
@@ -339,6 +342,17 @@ export const config = convict<ConfigSchema>({
       default: '',
       sensitive: true,
       env: 'GAS_SERVICE_TOKEN'
+    }
+  },
+  logs: {
+    // Optional, and empty everywhere it is not set: the events page reads it
+    // as a feature switch and renders no trace link at all when it is blank,
+    // rather than linking somewhere that does not exist.
+    explorerBaseUrl: {
+      doc: 'Base url of the CDP OpenSearch dashboards, e.g. https://logs.dev.cdp-int.defra.cloud. Empty disables the per-row trace links.',
+      format: String,
+      default: '',
+      env: 'LOGS_EXPLORER_BASE_URL'
     }
   }
 })
