@@ -1,0 +1,40 @@
+{% from "icon/macro.njk" import icon %}
+
+{# The one thing on this page that needs a line of script, and it earns it: an
+   operator's whole job here is to carry an id or a reference somewhere else —
+   into a log query, into a ticket, into Slack — and selecting eight characters
+   of truncated mono out of a dense row with a mouse is a fiddle they were
+   doing twenty times an hour.
+
+   Progressive by construction. The button ships `disabled`, because a button
+   that looks live and does nothing when clicked is worse than no button: with
+   scripting off, or before the module has run, it is visibly inert rather
+   than a broken promise. `do-copy-button` enables it on upgrade, and only when
+   the clipboard API is actually there to enable it for.
+
+   Invisible until the row is under the pointer (or the button itself is
+   tabbed to): one of these on every id and every reference, drawn at all
+   times, would put forty icons on a twenty-row page and the page would be
+   about its buttons. `group-hover` needs the `group` class on the row cell,
+   which views/events.njk puts there.
+
+   `always` turns that off. A page about one event has five of these, not
+   forty, and each sits beside a value the operator came to the page to carry
+   somewhere else — a button they have to find by hovering is a button they do
+   not know is there. It is still held back to 70% until it is pointed at, so
+   five of them read as affordances beside the values rather than as five
+   icons of their own.
+
+   The label carries the noun — `Copy event id` — because "Copy" alone, said
+   forty times down a page, names nothing for a screen reader walking the row.
+
+   Both glyphs are in the markup and CSS swaps them (client/dev-ops.css): the
+   check has to replace the clipboard for a second and a half without the
+   button changing size, and a swap the element does by rewriting innerHTML
+   would throw the row's layout for a frame. #}
+<do-copy-button class="inline-flex shrink-0 align-middle" value="{{ params.value }}" data-testid="do-copy-button">
+  <button type="button" class="btn btn-ghost btn-xs do-copy-button h-4 min-h-0 w-4 rounded-sm p-0 {{ "opacity-70 hover:opacity-100 focus-visible:opacity-100" if params.always else "opacity-0 group-hover:opacity-100 focus-visible:opacity-100" }}" aria-label="Copy {{ params.what }}" disabled data-testid="do-copy-button-control">
+    {{ icon({ name: 'clipboard', class: 'do-copy-idle h-3 w-3' }) }}
+    {{ icon({ name: 'check', class: 'do-copy-done h-3 w-3' }) }}
+  </button>
+</do-copy-button>

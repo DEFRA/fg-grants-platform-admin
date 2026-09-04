@@ -1,0 +1,13 @@
+{% extends 'layouts/page.njk' %}
+
+{# A stale link, a mistyped id, or a row that has been swept up since the list
+   was drawn — none of which is an error worth a red screen. The page says the
+   one true thing and offers the one useful move, and it keeps the list's own
+   query on the way back so an operator who followed a dead link does not also
+   lose the filter they were working in. #}
+{% block content %}
+  <a class="text-[12px] text-base-content/55 hover:underline" href="{{ backHref }}" data-testid="event-back">← Events</a>
+
+  <h1 class="mt-3 text-xl font-semibold" data-testid="event-not-found">Event not found</h1>
+  <p class="mt-1 text-[13px] text-base-content/60" data-testid="event-not-found-detail">fg-gas-backend has no event at this address. It may have been removed since the list was drawn.</p>
+{% endblock %}

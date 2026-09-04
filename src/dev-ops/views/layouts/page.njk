@@ -24,6 +24,22 @@
             Grants Platform
             <span class="mx-0.5 font-normal text-base-content/30" aria-hidden="true">·</span> <span class="text-[13px] font-normal text-base-content/50" data-testid="do-brand-suffix">Dev Ops</span>
           </a>
+          {# Which deployment this is, said once, beside the name of the app.
+             Every dev-ops page looks identical in every environment, and the
+             one action on them now writes to a queue: an operator with four
+             tabs open has to be able to tell from the tab itself which service
+             they are about to redrive an event in.
+
+             Amber only where it is an incident to be wrong — production reads
+             as a warning, everywhere else is a neutral label rather than a
+             colour that would train the eye to ignore it. #}
+          {% if environmentLabel %}
+            {% if environmentIsProduction %}
+              <span class="badge badge-sm badge-warning badge-outline font-medium uppercase" title="This is the {{ environmentLabel }} environment" data-testid="do-environment">{{ environmentLabel }}</span>
+            {% else %}
+              <span class="badge badge-sm badge-ghost font-normal uppercase text-base-content/60" title="This is the {{ environmentLabel }} environment" data-testid="do-environment">{{ environmentLabel }}</span>
+            {% endif %}
+          {% endif %}
         </div>
         <div class="flex-none">
           {{ themeToggle({}) }}

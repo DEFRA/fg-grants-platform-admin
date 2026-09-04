@@ -1,0 +1,83 @@
+{% extends 'layouts/page.njk' %}
+
+{% from "icon/macro.njk" import icon %}
+
+{# The same registers the other dev-ops pages read in, spelled as literals here
+   because Tailwind scans this file's text for candidates and never sees a class
+   assembled in TypeScript. #}
+{% set factLabel = "text-[11px] font-medium tracking-wide uppercase text-base-content/45" %}
+{% set card = "overflow-hidden rounded-box border border-base-300 bg-base-100" %}
+
+{# Stage one of the bulk redrive by query: what is about to happen, and to how
+   many.
+
+   The ticked-boxes flow could show its work — twenty rows, each named — and its
+   confirmation was that list. This one cannot, and the reason it cannot is the
+   whole reason it exists: the set is seven thousand events long. So what is
+   confirmed here is the *query*, stated in the same words the toolbar that
+   produced it uses, with the figure it adds up to above it.
+
+   Nothing on this page writes anything. The only control that does is the
+   button at the bottom, and it posts to a second address. #}
+{% block content %}
+  <a class="text-[12px] text-base-content/55 hover:underline" href="{{ backHref }}" data-testid="events-redrive-query-back">← Events</a>
+
+  <header class="mt-3 mb-4">
+    <h1 class="text-xl font-semibold" data-testid="events-redrive-query-title">Redrive all {% if countLabel %}{{ countLabel }} {% endif %}matching events?</h1>
+    <p class="mt-0.5 text-[13px] text-base-content/60" data-testid="events-redrive-query-subtitle">Every dead letter matching these filters is put back on the queue and retried by the poller.</p>
+  </header>
+
+  <section class="{{ card }} mb-4 px-4 py-3.5" data-testid="events-redrive-query-filters-card">
+    <h2 class="{{ factLabel }} mb-2" data-testid="events-redrive-query-filters-heading">Filters</h2>
+    {% if filters | length %}
+      <dl class="do-facts" data-testid="events-redrive-query-filters">
+        {% for filter in filters %}
+          <div class="do-fact" data-testid="events-redrive-query-filter">
+            <dt class="{{ factLabel }}">{{ filter.label }}</dt>
+            <dd class="min-w-0 text-[13px] wrap-anywhere text-base-content/85" data-testid="events-redrive-query-filter-value">{{ filter.value }}</dd>
+          </div>
+        {% endfor %}
+      </dl>
+    {% endif %}
+    {# `Status: Dead letter` is on every one of these pages — it is what the
+       endpoint does, not a choice anybody made — so a confirmation showing it
+       alone is a confirmation for every dead letter there is. That is worth a
+       sentence rather than being left as the absence of other rows. #}
+    {% if not narrowed %}
+      <p class="mt-2 text-[13px] text-base-content/70" data-testid="events-redrive-query-no-filters">Nothing else narrows this — every dead letter across both services.</p>
+    {% endif %}
+
+    <div class="mt-3 border-t border-base-300 pt-3">
+      <span class="{{ factLabel }}">Matched</span>
+      {% if countLabel %}
+        <span class="ml-2 font-mono text-[15px] font-medium tabular-nums text-base-content" data-testid="events-redrive-query-count">{{ countLabel }}</span>
+        <span class="ml-1 text-[12px] text-base-content/55">dead letters</span>
+      {% else %}
+        {# The count is a fresh read, and a read can fail. The write is still
+           offered — the backend counts it again for itself — but the page does
+           not invent a figure it could not obtain. #}
+        <span class="ml-2 text-[13px] text-base-content/60" data-testid="events-redrive-query-count-unknown">could not be counted — the backend will count them again when the redrive runs</span>
+      {% endif %}
+    </div>
+  </section>
+
+  {# The two things an operator has to know before they press it: this does not
+     finish in one run, and their name is on it. #}
+  <div role="alert" class="alert alert-warning mb-4 text-[13px]" data-testid="events-redrive-query-warning">
+    {{ icon({ name: 'exclamation-triangle', class: 'h-4 w-4 shrink-0' }) }}
+    <span>This will process up to <span class="font-medium" data-testid="events-redrive-query-limit">{{ limitLabel }}</span> events per run. This action is audited, and recorded against your name.</span>
+  </div>
+
+  <div class="flex items-center gap-2">
+    {# Every filter restated as a hidden field, because a form submits its own
+       controls and nothing else: the write has to ask exactly the question the
+       count above it was read under. #}
+    <form method="post" action="{{ action }}" data-testid="events-redrive-query-form">
+      {% for field in fields %}
+        <input type="hidden" name="{{ field.name }}" value="{{ field.value }}" data-testid="events-redrive-query-field">
+      {% endfor %}
+      <button class="btn btn-sm btn-error" type="submit" data-testid="events-redrive-query-confirm">Redrive all {% if countLabel %}{{ countLabel }} {% endif %}matching</button>
+    </form>
+    <a class="btn btn-sm btn-ghost font-normal" href="{{ backHref }}" data-testid="events-redrive-query-cancel">Cancel</a>
+  </div>
+{% endblock %}

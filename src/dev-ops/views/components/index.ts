@@ -1,3 +1,5 @@
+import { CopyButton } from './copy-button/copy-button.element.ts'
+import { Dropdown } from './dropdown/dropdown.element.ts'
 import { ThemeToggle } from './theme-toggle/theme-toggle.element.ts'
 
 /**
@@ -7,4 +9,6 @@ import { ThemeToggle } from './theme-toggle/theme-toggle.element.ts'
  * an entry's own statements always run. A component that ships no behaviour
  * simply has no element to define.
  */
+customElements.define('do-copy-button', CopyButton)
+customElements.define('do-dropdown', Dropdown)
 customElements.define('do-theme-toggle', ThemeToggle)

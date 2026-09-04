@@ -1,0 +1,417 @@
+{% extends 'layouts/page.njk' %}
+
+{% from "copy-button/macro.njk" import copyButton %}
+{% from "icon/macro.njk" import icon %}
+{% from "status-badge/macro.njk" import statusBadge %}
+
+{# The two registers this page reads in. A label names a fact and never
+   competes with it; a machine string is set in mono because it is a thing to
+   be copied rather than read. Both are written as literals here, because
+   Tailwind scans this file's text for candidates and never sees a class
+   assembled in TypeScript. #}
+{% set factLabel = "text-[11px] font-medium tracking-wide uppercase text-base-content/45" %}
+{% set factValue = "min-w-0 text-[13px] text-base-content/85" %}
+{% set monoValue = "font-mono text-[12px] break-all text-base-content/75" %}
+{% set sectionHeading = "text-[11px] font-semibold tracking-wide uppercase text-base-content/45" %}
+{% set card = "overflow-hidden rounded-box border border-base-300 bg-base-100" %}
+
+{# One fact: a label, and whatever the caller put under it. A dl rather than a
+   table, because these are name/value pairs and not a grid of rows — and one
+   `do-facts` grid (client/dev-ops.css) so every label sits on the same left
+   edge whether its value is one line or four. #}
+{% macro fact(label, testId) %}
+  <div class="do-fact" data-testid="{{ testId }}">
+    <dt class="{{ factLabel }}">{{ label }}</dt>
+    <dd class="{{ factValue }}">{{ caller() }}</dd>
+  </div>
+{% endmacro %}
+
+{# An instant this page states absolutely and only absolutely: there is no
+   column to fit, so the ISO spelling is drawn in full and a date the event
+   does not carry is a dash rather than an empty cell nobody can tell from a
+   bug. A relative time appears nowhere on this page: it is a figure that
+   cannot be quoted, cannot be pasted into a log query and goes stale in an
+   open tab.
+
+   The copy button is the point of stating it: what an operator does with a
+   timestamp on this page is take it somewhere else. Drawn always rather than
+   on hover — this page has a handful of them beside values somebody came here
+   to carry, not forty down a scanning surface — and never beside a dash. #}
+{% macro dateFact(label, value, testId) %}
+  {% call fact(label, testId) %}
+    <span class="flex items-center gap-1"><span class="{{ monoValue }}" data-testid="{{ testId }}-value">{{ value }}</span>{% if value != "—" %}{{ copyButton({ value: value, what: label | lower, always: true }) }}{% endif %}</span>
+  {% endcall %}
+{% endmacro %}
+
+{% block content %}
+  {# The way back, first and small: an operator arrives here from a list they
+     had filtered, searched and paged, and the whole of that query travels on
+     `?from=` so this link puts them back exactly where they were. #}
+  <a class="text-[12px] text-base-content/55 hover:underline" href="{{ backHref }}" data-testid="event-back">← Events</a>
+
+  {% if banner %}
+    {# What the redirect after a write was carrying. A write that redirects has
+       to say its own result: the page that lands is a fresh read and knows
+       nothing about the click that caused it. #}
+    <div role="alert" class="alert {{ "alert-success" if banner.role == "success" else ("alert-warning" if banner.role == "warning" else "alert-error") }} mt-3 text-[13px]" data-testid="event-banner">
+      {{ icon({ name: 'exclamation-circle' if banner.role == 'error' else 'exclamation-triangle', class: 'h-4 w-4 shrink-0' }) }}
+      <span>{{ banner.message }}</span>
+    </div>
+  {% endif %}
+
+  {% if unavailable %}
+    <div role="alert" class="alert alert-error mt-3 text-[13px]" data-testid="event-error">
+      {{ icon({ name: 'exclamation-circle', class: 'h-4 w-4 shrink-0' }) }}
+      <span>This event could not be loaded from GAS.</span>
+    </div>
+  {% else %}
+    {# The header says the three things an operator checks before anything
+       else: which id this is, what message it is, and what state it is in.
+
+       The id heads the page, whole: it is the one identifier every event has —
+       an audit record publishes no CloudEvent type — and it is what they came
+       here to copy, so the copy button sits beside it drawn at all times
+       rather than on hover, because there are five of them here and not forty.
+       It appears exactly once: it used to head the page as a type and then
+       repeat itself as a token two lines down.
+
+       The type follows underneath when there is one, as the secondary half of
+       the identity, with the un-stripped CloudEvent type on its title. #}
+    <header class="mt-3 mb-4" data-testid="event-header">
+      <div class="flex items-center gap-1">
+        <h1 class="font-mono text-xl font-semibold break-all" data-testid="event-title">{{ eventId }}</h1>{{ copyButton({ value: eventId, what: "event id", always: true }) }}
+      </div>
+      {% if type %}
+        <p class="mt-1 text-[13px] break-all text-base-content/70" {% if typeTitle %}title="{{ typeTitle }}" {% endif %}data-testid="event-type">{{ type }}</p>
+      {% endif %}
+      <div class="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1">
+        {{ statusBadge({ status: status, label: statusLabel, role: statusRole, retrying: statusRetrying }) }}
+        {% if hasFailure or showAttempts %}
+          <span class="font-mono text-[11px] tabular-nums text-base-content/45" title="{{ failureTitle }}" data-testid="event-failure">attempts <span data-testid="event-attempts">{{ attempts }}</span> <span class="text-base-content/25" aria-hidden="true">·</span> <span data-testid="event-last-failure">{{ lastFailureAt }}</span></span>
+        {% endif %}
+      </div>
+    </header>
+
+    {# The sentence that has to come before the buttons, on the events where it
+       is true: this has already been redriven once, by a named person, and it
+       failed the same way afterwards. Redriving it again is not wrong — the
+       operator may know something the page does not — but it is very unlikely
+       to work, and the alternative is the button right beside it.
+
+       A note, not a block. The page states what it knows and leaves the
+       decision where it belongs; a disabled Redrive here would be this app
+       overruling an operator on the strength of two matching strings. #}
+    {% if futileWarning %}
+      <div role="note" class="mb-3 flex items-start gap-2 rounded-box border border-warning/40 bg-warning/10 px-3 py-2 text-[12.5px] text-base-content/85" data-testid="event-futile-warning">
+        {{ icon({ name: 'exclamation-triangle', class: 'h-4 w-4 shrink-0 text-warning' }) }}
+        <span>{{ futileWarning }}</span>
+      </div>
+    {% endif %}
+
+    {# The two decisions a dead letter admits, and the one a parked event does.
+       Each is a link, not a button that does something: `?confirm=` is the same
+       page with a panel on it, which back-buttons and reloads like every other
+       state of it, and the click that actually writes is the POST inside that
+       panel.
+
+       Only one panel is ever open, because only one question is ever being
+       asked — an operator who clicked Park is answering that, and a second
+       confirmation open beside it would be two live buttons on a page that
+       writes to a queue. #}
+    {% if confirmRedrive %}
+      <div class="{{ card }} mb-4 p-4" data-testid="event-redrive-confirm">
+        <p class="text-[13px] text-base-content/85" data-testid="event-redrive-question">Redrive this event? It will be retried up to 5 times by the poller. This action is audited.</p>
+        <div class="mt-3 flex items-center gap-2">
+          <form method="post" action="{{ redriveAction }}" data-testid="event-redrive-form">
+            <input type="hidden" name="from" value="{{ from }}" data-testid="event-redrive-from">
+            <button class="btn btn-sm btn-error" type="submit" data-testid="event-redrive-submit">Redrive</button>
+          </form>
+          <a class="btn btn-sm btn-ghost font-normal" href="{{ cancelHref }}" data-testid="event-redrive-cancel">Cancel</a>
+        </div>
+      </div>
+    {% elif confirmPark %}
+      {# The reason is the whole point of the action and the only free text this
+         app ever sends anywhere, so it is required by the form as well as by
+         the route: a parked event with no reason is an event that has silently
+         left the dead-letter count, and the next operator has no way of knowing
+         why it is not on their list. #}
+      <div class="{{ card }} mb-4 p-4" data-testid="event-park-confirm">
+        <p class="text-[13px] text-base-content/85" data-testid="event-park-question">Park this event? It will be set aside and ignored by retries until somebody unparks it. This action is audited.</p>
+        <form method="post" action="{{ parkAction }}" data-testid="event-park-form">
+          <input type="hidden" name="from" value="{{ from }}" data-testid="event-park-from">
+          <label class="mt-3 block {{ factLabel }}" for="event-park-reason" data-testid="event-park-reason-label">Reason</label>
+          <textarea class="textarea mt-1 w-full max-w-2xl text-[13px]" id="event-park-reason" name="reason" rows="3" maxlength="512" required placeholder="Why is this being set aside? e.g. duplicate key on a case that no longer exists" data-testid="event-park-reason"></textarea>
+          <div class="mt-3 flex items-center gap-2">
+            <button class="btn btn-sm btn-warning" type="submit" data-testid="event-park-submit">Park</button>
+            <a class="btn btn-sm btn-ghost font-normal" href="{{ cancelHref }}" data-testid="event-park-cancel">Cancel</a>
+          </div>
+        </form>
+      </div>
+    {% elif confirmUnpark %}
+      <div class="{{ card }} mb-4 p-4" data-testid="event-unpark-confirm">
+        <p class="text-[13px] text-base-content/85" data-testid="event-unpark-question">Unpark this event? It goes back to being a dead letter, and can be redriven again. This action is audited.</p>
+        <div class="mt-3 flex items-center gap-2">
+          <form method="post" action="{{ unparkAction }}" data-testid="event-unpark-form">
+            <input type="hidden" name="from" value="{{ from }}" data-testid="event-unpark-from">
+            <button class="btn btn-sm btn-warning" type="submit" data-testid="event-unpark-submit">Unpark</button>
+          </form>
+          <a class="btn btn-sm btn-ghost font-normal" href="{{ cancelHref }}" data-testid="event-unpark-cancel">Cancel</a>
+        </div>
+      </div>
+    {% elif canRedrive or canUnpark %}
+      <div class="mb-4 flex items-center gap-2" data-testid="event-actions">
+        {% if canRedrive %}
+          <a class="btn btn-sm btn-error btn-outline" href="{{ redriveHref }}" data-testid="event-redrive">Redrive</a>
+        {% endif %}
+        {# Beside the redrive, and quieter than it: parking is the answer for the
+           four hundred events that will fail again, and it is the one an
+           operator reaches for second. #}
+        {% if canPark %}
+          <a class="btn btn-sm btn-ghost border border-base-300 font-normal" href="{{ parkHref }}" data-testid="event-park">Park</a>
+        {% endif %}
+        {% if canUnpark %}
+          <a class="btn btn-sm btn-ghost border border-base-300 font-normal" href="{{ unparkHref }}" data-testid="event-unpark">Unpark</a>
+        {% endif %}
+      </div>
+    {% endif %}
+
+    {# The facts, two columns of them: a label and a value, never cut. The list
+       is a scanning surface and every string on it is truncated to a column
+       width — this page exists because an operator needed the whole of one of
+       them. #}
+    <div class="{{ card }} mb-4 px-4 py-3.5" data-testid="event-facts-card">
+      <dl class="do-facts" data-testid="event-facts">
+        {% call fact("Route", "event-fact-route") %}
+          <div class="text-[13px] text-base-content/85" data-testid="event-route">{{ routeFrom }} <span class="text-base-content/60">→</span> {% if routeToIsTopic %}<span class="font-mono text-[12px]" title="{{ routeToTitle }}">{{ routeTo }}</span>{% else %}{{ routeTo }}{% endif %}</div>
+          {# The ARN under the sentence it is the machine spelling of. The list
+             shows a topic name cut to 26 characters; this is the value an
+             operator pastes into the console. #}
+          {% if targetRaw %}
+            <div class="mt-0.5 flex items-start gap-1"><span class="{{ monoValue }}" data-testid="event-target-raw">{{ targetRaw }}</span>{{ copyButton({ value: targetRaw, what: "target", always: true }) }}</div>
+          {% else %}
+            <div class="mt-0.5 {{ monoValue }}" data-testid="event-route-detail">{{ routeDetail }}</div>
+          {% endif %}
+        {% endcall %}
+
+        {% call fact("Reference", "event-fact-reference") %}
+          {% if segregationRef %}
+            <span class="flex items-center gap-1"><a class="{{ monoValue }} hover:underline" href="{{ segregationRefHref }}" title="{{ segregationRefTitle }}" data-testid="event-segregation-ref">{{ segregationRef }}</a>{{ copyButton({ value: segregationRef, what: "reference", always: true }) }}</span>
+          {% else %}
+            <span class="{{ monoValue }}" data-testid="event-segregation-ref-none">—</span>
+          {% endif %}
+        {% endcall %}
+
+        {% call fact("Message id", "event-fact-message-id") %}
+          {% if messageId %}
+            <span class="flex items-center gap-1"><span class="{{ monoValue }}" data-testid="event-message-id">{{ messageId }}</span>{{ copyButton({ value: messageId, what: "message id", always: true }) }}</span>
+          {% else %}
+            <span class="{{ monoValue }}" data-testid="event-message-id-none">—</span>
+          {% endif %}
+        {% endcall %}
+
+        {# The traceparent is itself the door to the logs: the value opens
+           Discover on this trace in a new tab, which is what anybody holding
+           a traceparent wants next. When no explorer is configured or the
+           event carries no trace id the value stays plain text — readable and
+           selectable, just not a door — and no traceparent at all is the em
+           dash. #}
+        {% call fact("Traceparent", "event-fact-traceparent") %}
+          {% if traceparent and traceHref %}
+            <a class="{{ monoValue }} link link-primary" href="{{ traceHref }}" target="_blank" rel="noopener noreferrer" title="{{ traceId }}" data-testid="event-traceparent">{{ traceparent }}</a>
+          {% elif traceparent %}
+            <span class="{{ monoValue }}" data-testid="event-traceparent">{{ traceparent }}</span>
+          {% else %}
+            <span class="{{ monoValue }}" data-testid="event-traceparent-none">—</span>
+          {% endif %}
+        {% endcall %}
+
+        {# Created, stated once and absolutely: the ISO UTC instant an
+           operator pastes into a log query, with the button that carries
+           it. #}
+        {% call fact("Created", "event-fact-created") %}
+          <span class="flex flex-wrap items-center gap-x-2 gap-y-1">
+            <span class="{{ monoValue }}" data-testid="event-created-absolute">{{ createdAtAbsolute }}</span>
+            {{ copyButton({ value: createdAtAbsolute, what: "created timestamp", always: true }) }}
+          </span>
+        {% endcall %}
+
+        {{ dateFact("Publication", publicationDate, "event-fact-publication") }}
+        {{ dateFact("Completion", completionDate, "event-fact-completion") }}
+        {{ dateFact("Last resubmission", lastResubmissionDate, "event-fact-last-resubmission") }}
+        {{ dateFact("Claimed at", claimedAt, "event-fact-claimed-at") }}
+        {{ dateFact("Claim expires", claimExpiresAt, "event-fact-claim-expires") }}
+
+        {% call fact("Attempts", "event-fact-attempts") %}
+          <span class="font-mono text-[12px] tabular-nums text-base-content/75" data-testid="event-attempts-value">{{ attempts }}</span>
+        {% endcall %}
+
+        {# Why this event was set aside, and by whom. Drawn only on an event
+           somebody parked: a row of dashes on every other event would be a
+           question the page keeps asking about a thing that has not happened.
+           The reason comes first because it is the only part read twice. #}
+        {% if parkedFact %}
+          {% call fact("Parked", "event-fact-parked") %}
+            <span class="text-[13px] wrap-anywhere text-base-content/85" title="{{ parkedTitle }}" data-testid="event-parked">{{ parkedFact }}</span>
+          {% endcall %}
+        {% endif %}
+
+        {# The last time somebody put this back on the queue, and who. It is the
+           fact that turns five identical failures into a story: an event that
+           failed five times on its own is a broken message, and one that was
+           redriven by a named person and failed the same way afterwards is a
+           broken system — which is a different thing to do about it. #}
+        {% if lastRedriveFact %}
+          {% call fact("Last redrive", "event-fact-last-redrive") %}
+            <span class="flex items-center gap-1"><span class="text-[13px] text-base-content/85" title="{{ lastRedriveTitle }}" data-testid="event-last-redrive">{{ lastRedriveFact }}</span>{{ copyButton({ value: lastRedriveValue, what: "redrive timestamp", always: true }) }}</span>
+          {% endcall %}
+        {% endif %}
+
+        {# The reason, whole. The list cuts it to 64 characters and hangs the
+           rest off a title; a stack trace summary that has been truncated is
+           the single most common reason an operator opens this page at all,
+           so it wraps here rather than truncating, and it is the one thing on
+           the page allowed the error colour. #}
+        {% call fact("Last error", "event-fact-last-error") %}
+          {% if errorMessage %}
+            <div class="text-[12px] wrap-anywhere text-error" data-testid="event-error-message"><span class="font-mono font-medium" data-testid="event-error-name">{{ errorName }}</span>: {{ errorMessage }}</div>
+            {% if errorAt %}
+              <div class="mt-0.5 flex items-center gap-1 font-mono text-[11px] text-base-content/45"><span data-testid="event-error-at">at {{ errorAt }}</span>{{ copyButton({ value: errorAt, what: "failure timestamp", always: true }) }}</div>
+            {% endif %}
+            {# One event's error is almost never one event's problem. This is
+               the click that says whether the operator is looking at an
+               incident or an oddity, and it carries the whole message rather
+               than a prefix of it — the endpoint matches exactly, and a
+               shortened needle would quietly answer a wider question. #}
+            {% if errorSearchHref %}
+              <div class="mt-1">
+                <a class="link link-primary text-[11.5px]" href="{{ errorSearchHref }}" data-testid="event-error-search">Show all events with this error →</a>
+              </div>
+            {% endif %}
+          {% else %}
+            <span class="{{ monoValue }}" data-testid="event-error-none">—</span>
+          {% endif %}
+        {% endcall %}
+      </dl>
+    </div>
+
+    {# Every attempt, in the order they happened.
+       The page said `attempts 5/5` and then, on one line, why the *last* of
+       them failed — the story of the fifth attempt told as if it were the
+       story of the event. The four before it are usually where the answer is:
+       a timeout, a timeout, then a duplicate key is a different incident from
+       four duplicate keys, and neither is visible in a count.
+
+       An ordered list, because the order is the content. Each line is the
+       attempt's number, when it happened both ways, and the error that ended
+       it — the message wrapping rather than truncating, because a wrapped
+       stack summary is the whole reason an operator opened this page. #}
+    <section class="{{ card }} mb-4" data-testid="event-attempts-card">
+      <div class="border-b border-base-300 px-4 py-2">
+        <h2 class="{{ sectionHeading }}" data-testid="event-attempts-heading">Attempts</h2>
+      </div>
+      {% if attemptHistory | length %}
+        <ol class="px-4 py-3" data-testid="event-attempt-list">
+          {% for attempt in attemptHistory %}
+            <li class="border-base-300/55 py-1.5 {{ "" if loop.first else "border-t" }}" data-testid="event-attempt">
+              <div class="flex flex-wrap items-baseline gap-x-2">
+                <span class="font-mono text-[11.5px] font-medium tabular-nums text-base-content/70" data-testid="event-attempt-number">{{ attempt.number }}</span>
+                <span class="text-base-content/25" aria-hidden="true">·</span>
+                {# The instant, then the gap in front of it. `4h 24m ago` was
+                   the first thing on this line and it said nothing: five
+                   attempts inside one minute all round to one phrase, which is
+                   exactly the case the timeline is read in. The instant is
+                   whole, milliseconds and all, and the delta beside it is the
+                   arithmetic nobody should have to do — four attempts at
+                   `+273ms`, `+512ms`, `+1.1s` is a service retrying into a
+                   wall, and the shape of that is visible at a glance or not at
+                   all. #}
+                <span class="font-mono text-[11.5px] tabular-nums text-base-content/75" title="{{ attempt.title }}" data-testid="event-attempt-when">{{ attempt.absolute }}</span>
+                {% if attempt.delta %}
+                  <span class="text-base-content/25" aria-hidden="true">·</span>
+                  <span class="font-mono text-[11.5px] tabular-nums text-base-content/50" data-testid="event-attempt-delta">{{ attempt.delta }}</span>
+                {% endif %}
+                <span class="text-base-content/25" aria-hidden="true">·</span>
+                <span class="font-mono text-[11.5px] wrap-anywhere text-error/80" data-testid="event-attempt-error"><span class="font-medium" data-testid="event-attempt-name">{{ attempt.name }}</span>: {{ attempt.message }}</span>
+              </div>
+            </li>
+          {% endfor %}
+          {# Where the story ends. A list of five failures that simply stops
+             reads as an event still failing; this is the line that says which
+             way it actually went. #}
+          {% if attemptOutcome %}
+            <li class="border-t border-base-300/55 py-1.5 text-[12px] text-base-content/55" data-testid="event-attempt-outcome">{{ attemptOutcome }}</li>
+          {% endif %}
+        </ol>
+      {% else %}
+        <p class="px-4 py-6 text-center text-[13px] text-base-content/55" data-testid="event-attempts-empty">No attempt details recorded (event predates attempt history).</p>
+      {% endif %}
+    </section>
+
+    {# The payload, in full and as text. It is the whole reason a single-event
+       page exists: everything above is plumbing, and this is the message. Two
+       spaces of indent, mono at 12px, and a bounded scroller so a large
+       document does not push the journey off the bottom of the page.
+
+       Rendered through nunjucks' own escaping, like every other value here: a
+       payload carrying `<script>` is a payload an operator can read, and never
+       something this page runs. #}
+    <section class="{{ card }} mb-4" data-testid="event-payload-card">
+      <div class="flex items-center gap-2 border-b border-base-300 px-4 py-2">
+        <h2 class="{{ sectionHeading }}" data-testid="event-payload-heading">Payload</h2>
+        {% if payloadJson %}{{ copyButton({ value: payloadJson, what: "payload", always: true }) }}{% endif %}
+      </div>
+      {% if payloadJson %}
+        <pre class="do-payload" data-testid="event-payload"><code>{{ payloadJson }}</code></pre>
+      {% else %}
+        <p class="px-4 py-6 text-center text-[13px] text-base-content/55" data-testid="event-payload-empty">This event carries no payload.</p>
+      {% endif %}
+    </section>
+
+    {# Every row the endpoint holds under this event id, in the order it
+       returned them: the inbox row that received it, the outbox row that
+       published it, the retry that followed. The question "where else did this
+       message go?" is the one an operator asks next, and before this it was a
+       search they had to run themselves.
+
+       The row they are already on is marked rather than unlinked: a table
+       where one row has no link reads as a broken row. #}
+    <section class="{{ card }}" data-testid="event-journey-card">
+      <div class="border-b border-base-300 px-4 py-2">
+        <h2 class="{{ sectionHeading }}" data-testid="event-journey-heading">Journey — every hop with this event id</h2>
+      </div>
+      {% if journey | length %}
+        <div class="overflow-x-auto">
+          <table class="w-full text-[12px]" data-testid="event-journey">
+            <thead>
+              <tr class="border-b border-base-300">
+                <th class="{{ sectionHeading }} px-4 py-1.5 text-left">Queue</th>
+                <th class="{{ sectionHeading }} px-4 py-1.5 text-left">Status</th>
+                {# How long each hop itself took. The table said when every hop
+                   started and never how long any of them ran, so the one
+                   question it is actually read for — which hop is slow — was
+                   the one it could not answer. #}
+                <th class="{{ sectionHeading }} px-4 py-1.5 text-right">Took</th>
+                <th class="{{ sectionHeading }} px-4 py-1.5 text-right">Created</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for hop in journey %}
+                <tr class="border-t border-base-300/55{% if hop.isCurrent %} do-journey-current{% endif %}" data-testid="event-journey-row">
+                  <td class="px-4 py-1.5 whitespace-nowrap">
+                    <a class="text-base-content/85 hover:underline" href="{{ hop.href }}" data-testid="event-journey-link">{{ hop.source }}</a>
+                    {% if hop.isCurrent %}<span class="ml-1.5 text-[10px] text-base-content/45" data-testid="event-journey-current">this event</span>{% endif %}
+                  </td>
+                  <td class="px-4 py-1.5">{{ statusBadge({ status: hop.status, label: hop.statusLabel, role: hop.statusRole, retrying: hop.statusRetrying }) }}</td>
+                  <td class="px-4 py-1.5 text-right font-mono text-[12px] tabular-nums whitespace-nowrap text-base-content/55" title="Time from created to completed on this hop" data-testid="event-journey-took">{{ hop.took }}</td>
+                  <td class="px-4 py-1.5 text-right font-mono text-[12px] tabular-nums whitespace-nowrap text-base-content/75" title="{{ hop.createdAtTitle }}" data-testid="event-journey-created">{{ hop.createdAt }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <p class="px-4 py-6 text-center text-[13px] text-base-content/55" data-testid="event-journey-empty">No other hops could be read for this event id.</p>
+      {% endif %}
+    </section>
+  {% endif %}
+{% endblock %}

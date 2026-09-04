@@ -1,0 +1,7 @@
+{# Drawn to the same recipe as the alert icons: 24 grid, no fill, 1.75 stroke,
+   so a 12px copy button reads as the same family as a 16px alert. Pairs with
+   `check`, which replaces it for a second and a half after a copy. #}
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"{% if params.class %} class="{{ params.class }}"{% endif %} data-testid="do-icon-clipboard">
+  <rect x="9" y="3" width="6" height="4" rx="1"/>
+  <path d="M9 5H7.5A1.5 1.5 0 0 0 6 6.5v13A1.5 1.5 0 0 0 7.5 21h9a1.5 1.5 0 0 0 1.5-1.5v-13A1.5 1.5 0 0 0 16.5 5H15"/>
+</svg>

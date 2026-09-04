@@ -45,25 +45,39 @@
  * The rest are sized to what the columns hold rather than to what the browser
  * has left over. Nothing is allowed to grow but Event, which is the column
  * with something to say, and the tracks add up to less than the page is wide,
- * so no run of dead air opens up between Route and the figures.
+ * so no run of dead air opens up between Queue and the figures.
  *
  * Failure was a whole track that stood empty on every healthy row, and its
  * heading ruled ten rems of nothing down the page. It is gone: a count and a
  * time are facts *about a status*, so they hang under the status they belong
  * to, on the rows that have one. Five tracks, and the width the sixth gave up
- * went to Event and Route — the two columns with something to say.
+ * went to Event and Queue — the two columns with something to say.
  *
- * Density. One line of Route, 4px of block padding and a 34px floor: a row is
- * as tall as what it carries needs and no taller. A row whose status has a
+ * Queue then gave four rems of that back. It used to hold `GAS → Caseworking
+ * (via update_case_status_fifo)` — the widest sentence on the page, for a fact
+ * read about twice a session — and now holds a hop label over a queue name,
+ * which is a narrower thing said in two lines.
+ *
+ * Event has since given ten rems back in its turn. It used to hold a type, an
+ * id, a reference and a trace link on one line; it now holds a truncated id
+ * over a type, and its floor came down from 34rem to 24rem to match. It is
+ * still the `1fr` track, so on any screen wider than the table's minimum the
+ * slack still lands there.
+ *
+ * The gutter lost half a rem with the disclosure caret: one mark in it now,
+ * not two.
+ *
+ * Density. Two lines in Queue, 4px of block padding and a 34px floor: the same
+ * two lines Event and Created draw, so no row grew. A row whose status has a
  * failure line under it grows by that line, and only that row does.
  */
 .do-events-row {
   display: grid;
   grid-template-columns:
-    1.25rem /* Disclosure gutter */
-    minmax(30rem, 1fr) /* Event */
+    1.5rem /* Selection gutter */
+    minmax(24rem, 1fr) /* Event */
     11rem /* Status */
-    minmax(15rem, 20rem) /* Route */
+    minmax(11rem, 15rem) /* Queue */
     7.5rem; /* Created */
   align-items: center;
   column-gap: 12px;
@@ -71,6 +85,24 @@
   padding-block: 4px;
   padding-inline: 12px;
 }
+
+/*
+ * The gutter, and the one mark it holds: the selection box on a row the batch
+ * can act on. It used to carry a disclosure caret beside it, for the runs of
+ * identical rows the page folded into groups; there are no groups any more, so
+ * the second track went with them and the gutter is one centred column.
+ */
+.do-events-gutter {
+  display: grid;
+  justify-items: center;
+  align-items: center;
+}
+
+/*
+ * The box is small, and quiet until it is ticked. It sits on a row that is
+ * already washed in the error colour, and a full-size control there would have
+ * been the loudest thing on a page whose whole subject is the row behind it.
+ */
 
 /*
  * The header stays put while the body scrolls under it: twenty rows of ids all
@@ -90,8 +122,7 @@
  * between them: the first row sits under the header's rule already, and a
  * second line there would read as a double.
  */
-.do-events-grid > :not(.do-events-head) + :not(.do-events-head),
-.do-events-group > .do-events-row {
+.do-events-grid > :not(.do-events-head) + :not(.do-events-head) {
   border-top: 1px solid
     color-mix(in oklab, var(--color-base-300), transparent 45%);
 }
@@ -107,72 +138,13 @@
 }
 
 /*
- * The group summary is a row that opens. `display: grid` from `.do-events-row`
- * already removes the default marker; `list-style` and the WebKit
- * pseudo-element say so out loud, because a stray triangle would sit in the
- * Event cell beside the caret this file draws instead.
- */
-.do-events-summary {
-  cursor: pointer;
-  list-style: none;
-}
-
-.do-events-summary::-webkit-details-marker {
-  display: none;
-}
-
-/*
- * The summary needs an affordance a caret alone cannot carry, and it cannot
- * have one the plain rows do not: the gutter has to stay empty on those or
- * every type on the page starts at a different x. So the mark goes on the one
- * thing in the row that is about the folding — the count chip underlines, and
- * darkens with it, under the pointer.
- */
-.do-events-summary:hover .do-count-chip {
-  background-color: color-mix(
-    in oklab,
-    var(--color-base-content),
-    transparent 82%
-  );
-  color: color-mix(in oklab, var(--color-base-content), transparent 15%);
-  text-decoration: underline;
-  text-underline-offset: 2px;
-}
-
-.do-events-summary:focus-visible {
-  outline: 2px solid
-    color-mix(in oklab, var(--color-base-content), transparent 40%);
-  outline-offset: -2px;
-}
-
-/* An open group is washed faintly, so its members read as belonging to it. */
-.do-events-group[open] {
-  background-color: color-mix(
-    in oklab,
-    var(--color-base-content),
-    transparent 97%
-  );
-}
-
-/*
- * A member is indented in the one column that identifies it, and nowhere else.
- * The gutter beside it stays empty — it belongs to the caret above, not to the
- * indent.
- */
-.do-events-member > :nth-child(2) {
-  padding-inline-start: 1.25rem;
-}
-
-/*
- * The disclosure affordance: a triangle in the text colour, turned down when
- * the group is open. Drawn in borders rather than set as a glyph, so it keeps
- * its size and its weight whatever font the system hands the page. It lives in
- * the row's first track, which every row carries whether or not it opens.
+ * The disclosure affordance, now used by the failures panel alone: a triangle
+ * in the text colour, turned down when the panel is open. Drawn in borders
+ * rather than set as a glyph, so it keeps its size and its weight whatever
+ * font the system hands the page.
  *
- * Ten pixels tall, and centred in the 20px gutter by its own auto margins
- * rather than by a class on the cell: the cell is shared with plain rows,
- * which carry nothing at all there. At 7px it read as a speck of punctuation
- * beside a 12px type and nobody would have taken it for a control.
+ * Ten pixels tall. At 7px it read as a speck of punctuation beside a 12px type
+ * and nobody would have taken it for a control.
  */
 .do-caret {
   display: block;
@@ -185,10 +157,6 @@
   transition: transform 150ms ease;
 }
 
-.do-events-group[open] > .do-events-summary .do-caret {
-  transform: rotate(90deg);
-}
-
 @media (prefers-reduced-motion: reduce) {
   .do-caret {
     transition: none;
@@ -196,24 +164,60 @@
 }
 
 /*
- * How many rows the group folded, as a chip rather than as prose: it is a
- * figure the eye counts down the column, and `8 events` would have been read
- * as part of the type beside it.
+ * The failures panel: which failures the dead letters actually are, folded
+ * above the table.
+ *
+ * A disclosure rather than a section: the panel is an aid to triage above a
+ * table that works without it, so it folds away. It is the only disclosure on
+ * the page now — the table used to fold runs of identical rows into groups
+ * with the same caret, and no longer does. The summary carries no marker of
+ * its own: the caret this file draws sits in the row instead, and a browser
+ * triangle beside it would be two marks for one state.
  */
-.do-count-chip {
-  display: inline-block;
-  border-radius: 3px;
-  background-color: color-mix(
-    in oklab,
-    var(--color-base-content),
-    transparent 88%
-  );
-  padding-inline: 5px;
-  color: color-mix(in oklab, var(--color-base-content), transparent 30%);
-  font-size: 11px;
-  font-variant-numeric: tabular-nums;
-  font-weight: 600;
-  line-height: 1.5;
+.do-failures-summary {
+  cursor: pointer;
+  list-style: none;
+}
+
+.do-failures-summary::-webkit-details-marker {
+  display: none;
+}
+
+.do-failures-summary:focus-visible {
+  outline: 2px solid
+    color-mix(in oklab, var(--color-base-content), transparent 40%);
+  outline-offset: -2px;
+}
+
+.do-failures[open] > .do-failures-summary .do-caret {
+  transform: rotate(90deg);
+}
+
+/*
+ * One failure per row: the message, what type it was raised on, how many events
+ * it caused, and the span it has been causing them over.
+ *
+ * The message is the only track allowed to grow, because it is the only one an
+ * operator reads rather than glances at, and the three figures beside it are
+ * fixed so they line up down their own right edges — a column of counts that
+ * moved with the length of the message beside it would be a column nobody could
+ * compare down.
+ *
+ * The whole row is one link. A link inside a row would make the row a place
+ * where clicking sometimes works, and this panel exists to be clicked.
+ */
+.do-failures-row {
+  display: grid;
+  grid-template-columns:
+    minmax(0, 1fr) /* The failure message */
+    minmax(8rem, 14rem) /* Type */
+    5rem /* Count */
+    8rem /* First seen */
+    8rem; /* Last seen */
+  align-items: baseline;
+  column-gap: 12px;
+  padding-block: 3px;
+  padding-inline: 12px;
 }
 
 /*
@@ -322,4 +326,131 @@
 /* Dead letter: the only status the page lets say anything at full strength. */
 .do-status-dot-error {
   background-color: var(--color-error);
+}
+
+/*
+ * The copy button's two glyphs, swapped by CSS rather than by rewriting the
+ * button's markup: the check has to stand in for the clipboard for a second
+ * and a half without the button — or the dense row around it — changing size
+ * by a pixel. The element only sets `data-copied`; this file decides what that
+ * looks like.
+ */
+/*
+ * The dropdown wrapper is a behaviour and not a box: `display: contents` takes
+ * it out of the layout entirely, so the `<details>` inside it is the flex item
+ * the toolbar positions and daisyUI's `.dropdown` anchors its panel to. An
+ * unknown element defaults to `display: inline`, which would have put an
+ * inline box between the filter row and its own control.
+ */
+do-dropdown {
+  display: contents;
+}
+
+/*
+ * daisyUI reveals a dropdown panel on `.dropdown-open`, `:focus` or
+ * `:focus-within`, and leaves a `<details>` one to the browser: it excludes
+ * `details` from the rule that would otherwise `display: none` the content, so
+ * opening the disclosure is what shows it. What it does NOT do is put the
+ * opacity back, which is left at 0 until something inside is focused.
+ *
+ * Clicking the summary focuses it, so the panel does appear — but only by
+ * accident of where the caret happens to be. This says the real condition out
+ * loud: the panel is visible because the disclosure is open.
+ */
+details.dropdown[open] > .dropdown-content {
+  opacity: 1;
+  scale: 1;
+}
+
+do-copy-button .do-copy-done {
+  display: none;
+}
+
+do-copy-button[data-copied] .do-copy-idle {
+  display: none;
+}
+
+do-copy-button[data-copied] .do-copy-done {
+  display: block;
+}
+
+/*
+ * The confirmation outlives the pointer. The buttons are hidden until their
+ * row is hovered, so a copy made and then a mouse moved away would take the
+ * check with it — the one moment the button has something to say. Unlayered,
+ * so it wins against the `opacity-0` utility it is overriding.
+ */
+do-copy-button[data-copied] .do-copy-button {
+  opacity: 1;
+}
+
+/*
+ * The single-event page.
+ *
+ * Everything below is a shape the two-column facts list or the payload block
+ * needs and no utility can state: a grid template shared by every row of a
+ * `<dl>`, and a scroller that has to be bounded in the block direction.
+ */
+
+/*
+ * A label and its value, on one left edge down the whole list. A `<dl>` cannot
+ * be a grid and keep its pairs together — the browser lays out every `<dt>`
+ * and `<dd>` as its own item — so each pair is wrapped and the pair is the
+ * grid. Fourteen rems is what the longest label ("Last resubmission") needs at
+ * 11px without wrapping.
+ *
+ * The labels stack above their values on a narrow screen rather than
+ * squeezing: a value here is an ARN or a traceparent, and neither survives a
+ * column six characters wide.
+ */
+.do-facts {
+  display: grid;
+  gap: 10px 0;
+}
+
+.do-fact {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 2px 24px;
+  align-items: baseline;
+}
+
+@media (width >= 40rem) {
+  .do-fact {
+    grid-template-columns: 9rem minmax(0, 1fr);
+  }
+}
+
+/*
+ * The payload, bounded. A stored event runs to a few hundred lines and the
+ * page has two sections under it; without a ceiling the journey table is
+ * somewhere past the third screenful, which is where an operator stops
+ * believing it exists. Thirty-two rems is roughly a screen of it.
+ *
+ * Twelve pixels of mono with the line height a nested document needs to be
+ * read as a shape rather than as a wall.
+ */
+.do-payload {
+  max-block-size: 32rem;
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding: 12px 16px;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 12px;
+  line-height: 1.55;
+  tab-size: 2;
+  white-space: pre;
+}
+
+/*
+ * The hop the operator is already on. The faintest wash the page has — it is a
+ * "you are here", not a state — and the label beside it does the actual
+ * saying.
+ */
+.do-journey-current {
+  background-color: color-mix(
+    in oklab,
+    var(--color-base-content),
+    transparent 96%
+  );
 }

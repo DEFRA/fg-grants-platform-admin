@@ -21,6 +21,7 @@ interface ConfigSchema {
   port: number
   staticCacheTimeout: number
   serviceName: string
+  environmentLabel: string
   root: string
   assetPath: string
   isProduction: boolean
@@ -112,6 +113,17 @@ export const config = convict<ConfigSchema>({
     doc: 'Applications Service Name',
     format: String,
     default: 'fg-grants-platform-admin'
+  },
+  // Which deployment the operator is looking at, said in the navbar. A
+  // dev-ops page looks identical in every environment, and the one action on
+  // it now writes to a queue: an operator with four tabs open needs the tab
+  // itself to say which service they are about to redrive an event in.
+  // `local` by default, because that is where an unset value is running.
+  environmentLabel: {
+    doc: 'The environment this deployment is running in, as an operator names it: local, dev, test, prod.',
+    format: String,
+    default: 'local',
+    env: 'ENVIRONMENT_LABEL'
   },
   root: {
     doc: 'Project root',

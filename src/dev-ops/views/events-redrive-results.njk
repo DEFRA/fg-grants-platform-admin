@@ -1,0 +1,50 @@
+{% extends 'layouts/page.njk' %}
+
+{% from "status-badge/macro.njk" import statusBadge %}
+
+{% set sectionHeading = "text-[11px] font-semibold tracking-wide uppercase text-base-content/45" %}
+{% set card = "overflow-hidden rounded-box border border-base-300 bg-base-100" %}
+
+{# Stage two: what actually happened, one line per event.
+
+   Every outcome is reported side by side rather than a single sentence about
+   the batch. A conflict on the third of eight means that one event moved on —
+   not that the write failed — and an operator who is told "3 of 8 succeeded"
+   has to go and find out which three. #}
+{% block content %}
+  <a class="text-[12px] text-base-content/55 hover:underline" href="{{ backHref }}" data-testid="events-batch-back">← Events</a>
+
+  <header class="mt-3 mb-4">
+    <h1 class="text-xl font-semibold" data-testid="events-batch-results-title">Redrove {{ redrivenCount }} of {{ count }} event{{ "" if count == 1 else "s" }}</h1>
+    <p class="mt-0.5 text-[13px] text-base-content/60" data-testid="events-batch-results-subtitle">A redriven event is Resubmitted now; the poller will retry it. Refresh the list to follow the attempts.</p>
+  </header>
+
+  <section class="{{ card }} mb-4" data-testid="events-batch-results-card">
+    <div class="overflow-x-auto">
+      <table class="w-full text-[12px]" data-testid="events-batch-results">
+        <thead>
+          <tr class="border-b border-base-300">
+            <th class="{{ sectionHeading }} px-4 py-1.5 text-left">Event</th>
+            <th class="{{ sectionHeading }} px-4 py-1.5 text-left">Outcome</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in rows %}
+            <tr class="border-t border-base-300/55" data-testid="events-batch-result-row">
+              <td class="px-4 py-1.5">
+                <a class="font-mono text-[12px] break-all hover:underline" href="{{ row.href }}" data-testid="events-batch-result-id">{{ row.eventId }}</a>
+                <div class="text-[11px] text-base-content/45" data-testid="events-batch-result-source">{{ row.source }}</div>
+              </td>
+              <td class="px-4 py-1.5">
+                {{ statusBadge({ status: row.outcome, label: row.outcome, role: row.outcomeRole }) }}
+                <div class="mt-px text-[11px] text-base-content/55" data-testid="events-batch-result-detail">{{ row.detail }}</div>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <a class="btn btn-sm btn-ghost border border-base-300 font-normal" href="{{ backHref }}" data-testid="events-batch-results-back">Back to events</a>
+{% endblock %}
