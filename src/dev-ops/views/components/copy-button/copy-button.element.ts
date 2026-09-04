@@ -51,10 +51,27 @@ export class CopyButton extends HTMLElement {
       return
     }
 
-    this.dataset.copied = ''
+    this.#showCopied(true)
     clearTimeout(this.#timer)
     this.#timer = setTimeout(() => {
-      delete this.dataset.copied
+      this.#showCopied(false)
     }, copiedMs)
+  }
+
+  /**
+   * The check stands in for the copy glyph by daisyUI's own swap state, which
+   * is a class on the swap and nothing else — both glyphs stay in the markup,
+   * so the button never changes size and the row never reflows.
+   *
+   * `data-copied` stays on the host as the state anything outside can read.
+   */
+  #showCopied(copied: boolean) {
+    if (copied) {
+      this.dataset.copied = ''
+    } else {
+      delete this.dataset.copied
+    }
+
+    this.querySelector('.swap')?.classList.toggle('swap-active', copied)
   }
 }

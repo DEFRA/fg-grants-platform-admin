@@ -51,7 +51,6 @@ const event = (overrides: Partial<Event> = {}): Event => ({
   lastFailureAt: null,
   completedAt: null,
   lastError: null,
-  parked: null,
   traceId,
   ...overrides
 })
@@ -77,7 +76,6 @@ const counts = (overrides: Partial<EventCounts> = {}): EventCounts => ({
   RESUBMITTED: 0,
   COMPLETED: 236196,
   DEAD_LETTER: 7064,
-  PARKED: 0,
   ...overrides
 })
 
@@ -621,11 +619,8 @@ describe('toEventsPage', () => {
   })
 
   // Sentence case, like the badges: one vocabulary for the two places the
-  // same six words are written. The raw enum stays on the href.
-  // Parked comes last, next to Dead letter: it is the same population a moment
-  // later — an event somebody has already triaged out of it — and the two
-  // figures that have to be read together are what still needs a decision and
-  // what has had one.
+  // same six words are written. The raw enum stays on the href. The list ends
+  // at Dead letter — where a message that could not be delivered ends.
   test('offers a segment for All and for each status a message passes through', () => {
     expect(statusChips().map((chip) => chip.label)).toEqual([
       'All',
@@ -634,18 +629,17 @@ describe('toEventsPage', () => {
       'Failed',
       'Resubmitted',
       'Completed',
-      'Dead letter',
-      'Parked'
+      'Dead letter'
     ])
   })
 
-  test('links the parked segment at the parked page, keeping the filters', () => {
-    expect(labelled(statusChips({ service: 'gas' }), 'Parked')?.href).toBe(
-      '/dev-ops/events?status=PARKED&service=gas'
+  test('links each segment at its own page, keeping the other filters', () => {
+    expect(labelled(statusChips({ service: 'gas' }), 'Dead letter')?.href).toBe(
+      '/dev-ops/events?status=DEAD_LETTER&service=gas'
     )
-    expect(labelled(statusChips({ status: 'PARKED' }), 'Parked')?.active).toBe(
-      true
-    )
+    expect(
+      labelled(statusChips({ status: 'DEAD_LETTER' }), 'Dead letter')?.active
+    ).toBe(true)
   })
 
   test('offers a chip for All and for each service', () => {
@@ -1050,8 +1044,7 @@ describe('toEventsPage', () => {
       'Failed 0',
       'Resubmitted 0',
       'Completed 236,196',
-      'Dead letter 7,064',
-      'Parked 0'
+      'Dead letter 7,064'
     ])
   })
 
@@ -1063,7 +1056,7 @@ describe('toEventsPage', () => {
     const [all, ...rest] = chips.map((chip) => chip.countLabel)
 
     expect(all).toBeNull()
-    expect(rest).toEqual(['0', '0', '0', '0', '236,196', '7,064', '0'])
+    expect(rest).toEqual(['0', '0', '0', '0', '236,196', '7,064'])
   })
 
   // ── The total ───────────────────────────────────────────────────────────
@@ -1166,8 +1159,7 @@ describe('toEventsPage', () => {
       'Failed',
       'Resubmitted',
       'Completed',
-      'Dead letter',
-      'Parked'
+      'Dead letter'
     ])
     expect(readOut(page.serviceFilters)).toEqual(['All', 'GAS', 'Caseworking'])
     expect(page.statusFilters.every((chip) => chip.zero === false)).toBe(true)
@@ -1182,8 +1174,7 @@ describe('toEventsPage', () => {
       'FAILED',
       'RESUBMITTED',
       'COMPLETED',
-      'DEAD_LETTER',
-      'PARKED'
+      'DEAD_LETTER'
     ])
     expect(serviceChips().map((chip) => chip.value)).toEqual([
       null,
@@ -1198,7 +1189,7 @@ describe('toEventsPage', () => {
     const chips = statusChips()
 
     expect(labelled(chips, 'Dead letter')).toMatchObject({
-      title: 'Failed all retry attempts; needs redrive or park'
+      title: 'Failed all retry attempts; needs a redrive'
     })
     expect(labelled(chips, 'All')).toMatchObject({ title: null })
     expect(labelled(serviceChips(), 'GAS')).toMatchObject({ title: null })
@@ -1333,29 +1324,6 @@ describe('toEventsPage', () => {
     expect(row.failureTitle).toContain('Europe/London')
   })
 
-  // The key the batch form carries: the endpoint's three-part address for a
-  // message, flattened into one form value.
-  test('gives every row the address the batch form submits', () => {
-    expect(rowFor().selectValue).toBe('gas:outbox:665f1c2e9a1b2c3d4e5f6a7b')
-  })
-
-  test.each([
-    ['DEAD_LETTER', true],
-    ['COMPLETED', false]
-  ])('reports a page of %s rows as selectable: %s', (status, selectable) => {
-    expect(model([event({ status })]).hasDeadLetters).toBe(selectable)
-  })
-
-  test('posts the batch at the batch route, carrying this page as the way back', () => {
-    const { redriveBatchAction, currentSearch } = modelFor({
-      status: 'DEAD_LETTER',
-      cursor: 'END'
-    })
-
-    expect(redriveBatchAction).toBe('/dev-ops/events/redrive-batch')
-    expect(currentSearch).toBe('?status=DEAD_LETTER&cursor=END')
-  })
-
   // The page has no opinion about how often it is looked at. `?live=30` used
   // to ride every filter link and every hidden field so an automatic reload
   // survived a filter change; with the toggle gone the parameter is gone too,
@@ -1457,7 +1425,7 @@ describe('the top failures panel', () => {
     ).toBeNull()
   })
 
-  test.each([['COMPLETED'], ['FAILED'], ['PARKED']])(
+  test.each([['COMPLETED'], ['FAILED'], ['PUBLISHED']])(
     'is absent on a page filtered to %s',
     (status) => {
       expect(withBreakdown({ status }).topFailures).toBeNull()
@@ -1751,112 +1719,29 @@ describe('the time range control', () => {
   })
 })
 
-describe('redriving everything behind the filters', () => {
-  test('offers the write on a page narrowed to dead letters', () => {
-    const { redriveAll } = modelFor({ status: 'DEAD_LETTER' })
-
-    expect(redriveAll?.label).toBe('Redrive all 7,064 matching')
-    expect(redriveAll?.href).toBe(
-      '/dev-ops/events/redrive-query-confirm?status=DEAD_LETTER'
-    )
-  })
-
-  test('hands the confirmation exactly the filters the count was read under', () => {
-    const { redriveAll } = modelFor({
-      status: 'DEAD_LETTER',
-      service: 'gas',
-      q: 'gld-9b2',
-      error: 'boom',
-      from: '2026-06-16T09:00:00.000Z',
-      cursor: 'END',
-      direction: 'forward'
-    })
-
-    expect(redriveAll?.href).toBe(
-      '/dev-ops/events/redrive-query-confirm?status=DEAD_LETTER&service=gas&q=gld-9b2&error=boom&from=2026-06-16T09%3A00%3A00.000Z'
-    )
-  })
-
-  // A button whose scope an operator has to work out from the toolbar is a
-  // button that redrives something they did not mean.
-  test.each([[undefined], ['FAILED'], ['PARKED']])(
-    'is absent on a page filtered to %s',
-    (status) => {
-      expect(modelFor({ status }).redriveAll).toBeNull()
-    }
-  )
-
-  test('is absent when there is nothing behind the filter to redrive', () => {
-    const { redriveAll } = toEventsPage(
-      {
-        page: { events: [], pagination: pagination(), sourceErrors: [] },
-        facets: facets({ DEAD_LETTER: 0 }),
-        breakdown: null,
-        unavailable: false
-      },
-      { status: 'DEAD_LETTER' },
-      now
-    )
-
-    expect(redriveAll).toBeNull()
-  })
-
-  // No counts, no figure — and a button that could not say how many events it
-  // was about is a button nobody should press.
-  test('is absent when the counts could not be read', () => {
-    const { redriveAll } = toEventsPage(
-      {
-        page: { events: [], pagination: pagination(), sourceErrors: [] },
-        facets: null,
-        breakdown: null,
-        unavailable: false
-      },
-      { status: 'DEAD_LETTER' },
-      now
-    )
-
-    expect(redriveAll).toBeNull()
-  })
-})
-
-describe('a parked row', () => {
-  const parked = {
-    at: '2026-06-16T10:10:00.000Z',
-    reason: 'duplicate key on a case that no longer exists',
-    by: 'Ada Lovelace'
-  }
-
-  test('says a person set it aside, with the reason on the title', () => {
-    const row = rowFor({ status: 'PARKED', parked })
-
-    expect(row.parked).toBe(true)
-    expect(row.parkedTitle).toBe(
-      'duplicate key on a case that no longer exists\nParked by Ada Lovelace at 2026-06-16T10:10:00Z'
-    )
-  })
-
-  test('says nothing on a row nobody parked', () => {
-    expect(rowFor().parked).toBe(false)
-    expect(rowFor().parkedTitle).toBeNull()
-  })
-
-  test('reads the status the way a human says it', () => {
-    const row = rowFor({ status: 'PARKED', parked })
-
-    expect(row.statusLabel).toBe('Parked')
-    expect(row.statusRole).toBe('neutral')
-    expect(row.statusRetrying).toBe(false)
+// The PARKED state is gone from the vocabulary: no chip offers it, and no row
+// can be in it.
+describe('the statuses the toolbar offers', () => {
+  test('ends at Dead letter, with no Parked segment', () => {
+    expect(statusChips().map((chip) => chip.value)).toEqual([
+      null,
+      'PUBLISHED',
+      'PROCESSING',
+      'FAILED',
+      'RESUBMITTED',
+      'COMPLETED',
+      'DEAD_LETTER'
+    ])
   })
 })
 
 describe('the count chips explain themselves', () => {
-  // Seven states named in one word each is a vocabulary an operator is expected
+  // Six states named in one word each is a vocabulary an operator is expected
   // to already have, and the two pairs that matter — Failed against Dead
   // letter, Published against Resubmitted — are exactly the ones the words do
   // not distinguish.
   test.each([
-    ['DEAD_LETTER', 'Failed all retry attempts; needs redrive or park'],
-    ['PARKED', 'Set aside by an operator; ignored by retries'],
+    ['DEAD_LETTER', 'Failed all retry attempts; needs a redrive'],
     ['FAILED', 'Awaiting automatic retry'],
     ['RESUBMITTED', 'Queued for another retry cycle'],
     ['PROCESSING', 'Claimed, in flight'],

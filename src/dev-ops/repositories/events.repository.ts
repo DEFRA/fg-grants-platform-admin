@@ -17,12 +17,6 @@ export type KnownEventStatus =
   | 'RESUBMITTED'
   | 'COMPLETED'
   | 'DEAD_LETTER'
-  /**
-   * Set aside by an operator: a dead letter nobody is going to redrive until
-   * something else is fixed, taken out of the retry machinery on purpose so it
-   * stops being counted among the ones that still need a decision.
-   */
-  | 'PARKED'
 
 /**
  * Why an event's last delivery attempt failed, as the endpoint reports it: the
@@ -34,18 +28,6 @@ export interface EventLastError {
   name: string
   message: string
   at: string | null
-}
-
-/**
- * Why an event was set aside, as the operator who set it aside said it: when,
- * the reason they typed, and who they were. Null on every event that is not
- * parked — which is nearly all of them.
- */
-export interface EventParked {
-  at: string
-  reason: string
-  /** The `x-actor` the park was made with: a name, or an email address. */
-  by: string
 }
 
 /** One inbox or outbox row, generic message plumbing only — never payload. */
@@ -80,8 +62,6 @@ export interface Event {
   completedAt: string | null
   /** The reason behind `lastFailureAt`; null on a row that never failed. */
   lastError: EventLastError | null
-  /** Why this event was set aside, or null on one that was not. */
-  parked: EventParked | null
 }
 
 export interface EventsPagination {
@@ -178,8 +158,6 @@ export interface EventCounts {
   RESUBMITTED: number
   COMPLETED: number
   DEAD_LETTER: number
-  /** Set aside by an operator, and deliberately not retried. */
-  PARKED: number
 }
 
 /**
@@ -354,95 +332,3 @@ export const findEventBreakdown = async (
   getFromGas<EventBreakdownPage>(
     `/grant-admin/events/breakdown${toSearch(query)}`
   )
-
-/**
- * The filters a bulk redrive acts on — the page's own filters, and a limit.
- *
- * It is deliberately the same vocabulary the list is read in. An operator
- * narrows the page until it holds exactly the failures they mean to retry, and
- * then redrives *that*: the button they press is the filter they are looking
- * at, not a second query they have to restate and could get wrong.
- */
-export interface RedriveQueryQuery {
-  service?: string
-  q?: string
-  error?: string
-  from?: string
-  to?: string
-  /** At most 500, which is also the default the endpoint applies. */
-  limit?: string
-}
-
-/** How one source fared, on a write that spans four of them. */
-export interface RedriveQuerySource {
-  service: string
-  box: string
-  matched?: number
-  processed?: number
-  redriven?: number
-  conflicts?: number
-  failures?: number
-}
-
-/**
- * What a bulk redrive came to.
- *
- * Five figures rather than one, because "it worked" is not a thing that
- * happens to five hundred events at once: some were redriven, some had moved
- * on since the page was drawn, some could not be written at all, and — when
- * more matched than one run may process — some were not reached. `processed`
- * below `matched` is the signal that another run is needed, and the results
- * page says so rather than leaving an operator to compare two numbers.
- */
-export interface RedriveQueryResult {
-  matched: number
-  processed: number
-  redriven: number
-  conflicts: number
-  failures: number
-  perSource: RedriveQuerySource[]
-  sourceErrors: SourceError[]
-}
-
-/**
- * Redrives every dead letter the given filters describe, up to the limit.
- *
- * The filters travel in the query string, exactly as they do on the read that
- * showed them: the operator confirmed a page that said `7,064 matched`, and the
- * write has to be the same question asked again rather than a second spelling
- * of it. `x-actor` names who asked.
- */
-export const redriveByQuery = async (
-  query: RedriveQueryQuery,
-  actor?: string
-): Promise<RedriveQueryResult> =>
-  postToGas<RedriveQueryResult>(
-    `/grant-admin/events/redrive-query${toSearch(query)}`,
-    { actor }
-  )
-
-/**
- * Sets one dead letter aside, with the reason the operator typed.
- *
- * The opposite of a redrive rather than a kind of one: nothing is queued, the
- * event stops being counted among the dead letters that still need a decision,
- * and the reason is what tells the next operator why they should leave it
- * alone. The endpoint answers 409 when the event is no longer dead-lettered,
- * carrying the status it is in now, exactly as a redrive does.
- */
-export const parkEvent = async (
-  key: EventKey,
-  reason: string,
-  actor?: string
-): Promise<RedrivenEvent> =>
-  postToGas<RedrivenEvent>(`${toPath(key)}/park`, {
-    payload: { reason },
-    actor
-  })
-
-/** Puts a parked event back among the dead letters, for somebody to decide. */
-export const unparkEvent = async (
-  key: EventKey,
-  actor?: string
-): Promise<RedrivenEvent> =>
-  postToGas<RedrivenEvent>(`${toPath(key)}/unpark`, { actor })

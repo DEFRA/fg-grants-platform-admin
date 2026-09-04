@@ -52,7 +52,6 @@ const row = (overrides: Partial<Event> = {}): Event => ({
     message: 'E11000 duplicate key error collection: gas.events index: id_1',
     at: '2026-06-16T10:16:05.000Z'
   },
-  parked: null,
   ...overrides
 })
 
@@ -121,13 +120,6 @@ const valueOf = ($: CheerioAPI, testId: string) =>
 let server: Server
 
 const now = new Date('2026-06-16T10:20:00.000Z')
-
-/** An event an operator set aside, as the endpoint reports the park. */
-const parkedNote = {
-  at: '2026-06-16T10:10:00.000Z',
-  reason: 'duplicate key on a case that no longer exists',
-  by: 'Ada Lovelace'
-}
 
 /** Two attempts that failed the same way — the shape of a futile retry. */
 const identicalAttempts = [
@@ -358,7 +350,9 @@ describe('viewEventRoute', () => {
     )
     expect(copy).toHaveLength(1)
     expect(copy.attr('value')).toBe('3f2c1a0e-1111-2222-3333-444455556666')
-    expect(copy.find('button').attr('class')).toContain('opacity-70')
+    expect(copy.find('button').attr('class')).toBe(
+      'btn btn-ghost btn-xs btn-square'
+    )
     expect(copy.find('button').attr('class')).not.toContain('opacity-0')
   })
 
@@ -375,7 +369,7 @@ describe('viewEventRoute', () => {
 
   // ── The facts ─────────────────────────────────────────────────────────────
 
-  test('reads the route as the list does, with the whole ARN beneath it', async () => {
+  test('reads the hop as the list does, with the whole ARN beneath it', async () => {
     const { $ } = await viewPage()
 
     expect(valueOf($, 'event-route')).toBe('GAS → Caseworking')
@@ -497,7 +491,6 @@ describe('viewEventRoute', () => {
       detail({
         completionDate: '2026-06-16T10:17:00.000Z',
         lastResubmissionDate: '2026-06-16T10:16:30.000Z',
-        parked: parkedNote,
         lastRedrive: { at: '2026-06-16T10:15:00.000Z', by: 'Ada Lovelace' }
       })
     )
@@ -655,21 +648,100 @@ describe('viewEventRoute', () => {
 
   // ── The payload ───────────────────────────────────────────────────────────
 
-  test('prints the payload as pretty json inside a pre', async () => {
+  // A plain bordered block on the page's own surface: one `pre` per line, the
+  // number beside it, in a scroller bounded so a large document cannot push
+  // the sections under it off the bottom of the page. `mockup-code` drew this
+  // as a screenshot of a terminal — traffic lights and a dark window in a
+  // light page — which is decoration around the one piece of evidence here.
+  test('prints the payload as pretty json, a line at a time', async () => {
     const { $ } = await viewPage()
 
     const payload = $('[data-testid="event-payload"]')
-
-    expect(payload.is('pre')).toBe(true)
-    expect(payload.find('code')).toHaveLength(1)
-    expect(payload.text()).toBe(
-      JSON.stringify(
-        { id: '3f2c1a0e', data: { caseRef: 'GLD-9B2', stage: 'assess' } },
-        null,
-        2
-      )
+    const json = JSON.stringify(
+      { id: '3f2c1a0e', data: { caseRef: 'GLD-9B2', stage: 'assess' } },
+      null,
+      2
     )
-    expect(payload.attr('class')).toContain('do-payload')
+
+    expect(payload.attr('class')).not.toContain('mockup-code')
+    expect(payload.attr('class')).toContain('border border-base-300')
+    expect(payload.attr('class')).toContain('max-h-96')
+    expect(payload.attr('class')).toContain('overflow-auto')
+    expect(payload.find('pre > code')).toHaveLength(json.split('\n').length)
+    expect(
+      payload
+        .find('code')
+        .toArray()
+        .map((line) => $(line).text())
+        .join('\n')
+    ).toBe(json)
+
+    // Numbered — and the numbers are drawn by the stylesheet from an
+    // attribute rather than written into the markup, so a selection dragged
+    // across the block copies the payload and not a numbered listing of it.
+    const gutter = payload.find('[data-testid="event-payload-line"] > span')
+    const numbers = gutter.toArray().map((line) => $(line).attr('data-line'))
+
+    expect(numbers.slice(0, 3)).toEqual(['1', '2', '3'])
+    expect(numbers).toHaveLength(json.split('\n').length)
+    expect(gutter.first().text()).toBe('')
+    expect(gutter.first().attr('class')).toContain(
+      'before:content-[attr(data-line)]'
+    )
+    expect(gutter.first().attr('aria-hidden')).toBe('true')
+  })
+
+  // Fifteen facts in a single column ran the page's most-read card to a
+  // screen and a half with two thirds of every line empty. It is a reference
+  // table, and a reference table is read across as well as down — but only
+  // where there is width for it: the labels stack above their values on a
+  // narrow screen, because a value here is an ARN or a traceparent.
+  test('sets the facts as two definition columns on a wide screen', async () => {
+    const { $ } = await viewPage()
+
+    const facts = $('[data-testid="event-facts"]')
+
+    expect(facts.is('dl')).toBe(true)
+    expect(facts.attr('class')).toContain('grid-cols-1')
+    expect(facts.attr('class')).toContain('sm:grid-cols-[9.5rem_minmax(0,1fr)]')
+    expect(facts.attr('class')).toContain(
+      'lg:grid-cols-[9.5rem_minmax(0,1fr)_9.5rem_minmax(0,1fr)]'
+    )
+    // Every pair is still one testid over a label and a value, so the grid is
+    // a layout and not a re-modelling of the facts.
+    const pair = $('[data-testid="event-fact-route"]')
+
+    expect(pair.attr('class')).toBe('contents')
+    expect(pair.children('dt')).toHaveLength(1)
+    expect(pair.children('dd')).toHaveLength(1)
+  })
+
+  // One word for this across all three surfaces: the list's column, this
+  // fact, and the journey table's first column below it. The test id keeps the
+  // older name: it is an internal handle, not a label.
+  test('heads the hop fact with the word all three surfaces use', async () => {
+    const { $ } = await viewPage()
+
+    const pair = $('[data-testid="event-fact-route"]')
+
+    expect(pair.children('dt').text()).toBe('Queue')
+    expect(pair.text()).not.toContain('Route')
+    // Scoped to the page's own labels — its `dt`s and `th`s. A payload
+    // legitimately carries a CloudEvent `source` field, and that is the
+    // message's vocabulary rather than this page's.
+    expect(
+      $('main dt, main th')
+        .toArray()
+        .map((label) => $(label).text().trim())
+    ).not.toContain('Source')
+    expect($('[data-testid="event-journey"] th').first().text().trim()).toBe(
+      'Queue'
+    )
+    // Its contents are untouched: the hop line, the store beneath it.
+    expect(flatten(pair.find('[data-testid="event-route"]').text())).toBe(
+      'GAS → Caseworking'
+    )
+    expect(pair.find('[data-testid="event-target-raw"]')).toHaveLength(1)
   })
 
   test('offers a copy button for the raw payload json', async () => {
@@ -784,8 +856,8 @@ describe('viewEventRoute', () => {
 
     const rows = $('[data-testid="event-journey-row"]')
 
-    expect(rows.first().hasClass('do-journey-current')).toBe(true)
-    expect(rows.last().hasClass('do-journey-current')).toBe(false)
+    expect(rows.first().hasClass('bg-base-200')).toBe(true)
+    expect(rows.last().hasClass('bg-base-200')).toBe(false)
     expect($('[data-testid="event-journey-current"]')).toHaveLength(1)
     expect(valueOf($, 'event-journey-current')).toBe('this event')
   })
@@ -829,7 +901,30 @@ describe('viewEventRoute', () => {
     const back = $('[data-testid="event-back"]')
 
     expect(back.attr('href')).toBe('/dev-ops/events')
-    expect(back.text().trim()).toBe('← Events')
+    expect(back.text().trim()).toBe('Events')
+    expect(back.closest('.breadcrumbs')).toHaveLength(1)
+
+    // The leaf says which page this is; the id itself heads the page two lines
+    // below, whole. Spelled out here it wrapped the trail onto two lines and
+    // said the same thing twice, so it keeps its two ends and its title.
+    const leaf = $('[data-testid="event-breadcrumb-id"]')
+
+    expect(leaf.text()).toBe('3f2c1a0e…6666')
+    expect(leaf.attr('title')).toBe('3f2c1a0e-1111-2222-3333-444455556666')
+    expect($('[data-testid="event-title"]').text()).toBe(
+      '3f2c1a0e-1111-2222-3333-444455556666'
+    )
+  })
+
+  // A short id is not worth cutting: the crumb only trims what would wrap.
+  test('leaves a short id whole in the breadcrumb', async () => {
+    givenEvent(detail({ eventId: '665f1c2e9a1b2c3d' }))
+
+    const { $ } = await viewPage()
+
+    expect($('[data-testid="event-breadcrumb-id"]').text()).toBe(
+      '665f1c2e9a1b2c3d'
+    )
   })
 
   test('puts the operator back on the list they left', async () => {
@@ -1126,11 +1221,14 @@ describe('viewEventRoute', () => {
         ].includes(id ?? '')
       )
 
+    // The journey is four lines about where this message went; the payload is
+    // a screenful of the message itself, and a two-row table pushed below a
+    // hundred lines of JSON is a table nobody scrolls to.
     expect(order).toEqual([
       'event-facts-card',
       'event-attempts-card',
-      'event-payload-card',
-      'event-journey-card'
+      'event-journey-card',
+      'event-payload-card'
     ])
     expect($('[data-testid="event-attempts-heading"]').text()).toBe('Attempts')
   })
@@ -1145,11 +1243,35 @@ describe('viewEventRoute', () => {
 
     const attempts = $('[data-testid="event-attempt"]')
       .toArray()
-      .map((attempt) => flatten($(attempt).text()))
+      .map((attempt) => ({
+        number: flatten(
+          $(attempt).find('[data-testid="event-attempt-number"]').text()
+        ),
+        when: flatten(
+          $(attempt).find('[data-testid="event-attempt-when"]').text()
+        ),
+        delta: flatten(
+          $(attempt).find('[data-testid="event-attempt-delta"]').text()
+        ),
+        error: flatten(
+          $(attempt).find('[data-testid="event-attempt-error"]').text()
+        )
+      }))
 
     expect(attempts).toEqual([
-      '#1 · 2026-06-16T10:08:00.000Z · after 8m 0s · MongoNetworkTimeoutError: connection timed out after 30000ms',
-      '#2 · 2026-06-16T10:16:05.000Z · +8m 5s · MongoServerError: E11000 duplicate key error collection: gas.events index: id_1'
+      {
+        number: '#1',
+        when: '2026-06-16T10:08:00.000Z',
+        delta: 'after 8m 0s',
+        error: 'MongoNetworkTimeoutError: connection timed out after 30000ms'
+      },
+      {
+        number: '#2',
+        when: '2026-06-16T10:16:05.000Z',
+        delta: '+8m 5s',
+        error:
+          'MongoServerError: E11000 duplicate key error collection: gas.events index: id_1'
+      }
     ])
     expect($('[data-testid="event-attempt-list"]').text()).not.toContain('ago')
   })
@@ -1185,7 +1307,7 @@ describe('viewEventRoute', () => {
     const error = $('[data-testid="event-attempt-error"]').first()
 
     expect(error.attr('class')).toContain('font-mono')
-    expect(error.attr('class')).toContain('text-[11.5px]')
+    expect(error.attr('class')).toContain('text-xs')
     expect(error.attr('class')).toContain('wrap-anywhere')
     expect(error.attr('class')).toContain('text-error/80')
     expect($('[data-testid="event-attempt-name"]').first().text()).toBe(
@@ -1226,6 +1348,14 @@ describe('viewEventRoute', () => {
     expect(valueOf($, 'event-attempts-empty')).toBe(
       'No attempt details recorded (event predates attempt history).'
     )
+    // One line under the heading, not six rems of centred white space: this
+    // absence is the ordinary case for every event written before attempt
+    // history existed, and it should not read as a section of its own.
+    const empty = $('[data-testid="event-attempts-empty"]')
+
+    expect(empty.attr('class')).not.toContain('text-center')
+    expect(empty.attr('class')).not.toContain('py-6')
+    expect(empty.prev().attr('data-testid')).toBe('event-attempts-heading')
   })
 
   test('escapes an attempt message containing markup', async () => {
@@ -1288,30 +1418,24 @@ describe('viewEventRoute', () => {
     ).toHaveLength(1)
   })
 
-  test('offers Park beside Redrive on a dead letter', async () => {
+  // Redrive is the only decision a dead letter admits now. Park and Unpark
+  // went with the PARKED state itself.
+  test('offers Redrive alone on a dead letter', async () => {
     const { $ } = await viewPage()
 
-    expect($('[data-testid="event-redrive"]')).toHaveLength(1)
-    expect($('[data-testid="event-park"]').attr('href')).toBe(
-      `${path}?confirm=park`
+    const actions = $('[data-testid="event-actions"]')
+
+    expect($('[data-testid="event-redrive"]').attr('href')).toBe(
+      `${path}?confirm=redrive`
     )
+    expect(actions.children()).toHaveLength(1)
+    expect(actions.text()).not.toContain('Park')
+    expect($('[data-testid="event-park"]')).toHaveLength(0)
     expect($('[data-testid="event-unpark"]')).toHaveLength(0)
   })
 
-  test('offers only Unpark on a parked event', async () => {
-    givenEvent(detail({ status: 'PARKED', parked: parkedNote }))
-
-    const { $ } = await viewPage()
-
-    expect($('[data-testid="event-redrive"]')).toHaveLength(0)
-    expect($('[data-testid="event-park"]')).toHaveLength(0)
-    expect($('[data-testid="event-unpark"]').attr('href')).toBe(
-      `${path}?confirm=unpark`
-    )
-  })
-
   test.each([['COMPLETED'], ['PUBLISHED']])(
-    'offers neither park nor redrive on a %s event',
+    'offers no redrive on a %s event',
     async (status) => {
       givenEvent(detail({ status }))
 
@@ -1321,98 +1445,43 @@ describe('viewEventRoute', () => {
     }
   )
 
-  // The reason is the whole point of the action, so the form asks for it and
-  // will not submit without one.
-  test('asks for a reason before it will park anything', async () => {
-    const { $ } = await viewPage(`${path}?confirm=park`)
-    const reason = $('[data-testid="event-park-reason"]')
+  // Only one confirmation is ever open, and there is only one to open: a
+  // second live button on a page that writes to a queue is a page with two
+  // ways to press the wrong one.
+  test('opens the redrive confirmation in place of the buttons', async () => {
+    const { $ } = await viewPage(`${path}?confirm=redrive`)
 
-    expect(valueOf($, 'event-park-question')).toContain('audited')
-    expect(reason.attr('required')).toBeDefined()
-    expect(reason.attr('maxlength')).toBe('512')
-    expect(reason.attr('name')).toBe('reason')
-    expect($('[data-testid="event-park-form"]').attr('action')).toBe(
-      `${path}/park`
-    )
-    expect($('[data-testid="event-park-form"]').attr('method')).toBe('post')
-  })
-
-  test('carries the list the operator came from through the park', async () => {
-    const { $ } = await viewPage(
-      `${path}?from=%3Fstatus%3DDEAD_LETTER&confirm=park`
-    )
-
-    expect($('[data-testid="event-park-from"]').attr('value')).toBe(
-      '?status=DEAD_LETTER'
-    )
-    expect($('[data-testid="event-park-cancel"]').attr('href')).toBe(
-      `${path}?from=%3Fstatus%3DDEAD_LETTER`
-    )
-  })
-
-  test('confirms an unpark on a parked event', async () => {
-    givenEvent(detail({ status: 'PARKED', parked: parkedNote }))
-
-    const { $ } = await viewPage(`${path}?confirm=unpark`)
-
-    expect($('[data-testid="event-unpark-form"]').attr('action')).toBe(
-      `${path}/unpark`
-    )
-    expect(valueOf($, 'event-unpark-question')).toContain('being a dead letter')
-  })
-
-  // Only one question is ever being asked: a second live button on a page that
-  // writes to a queue is a page with two ways to press the wrong one.
-  test('opens one confirmation panel at a time', async () => {
-    const { $ } = await viewPage(`${path}?confirm=park`)
-
-    expect($('[data-testid="event-redrive-confirm"]')).toHaveLength(0)
+    expect($('[data-testid="event-redrive-confirm"]')).toHaveLength(1)
     expect($('[data-testid="event-actions"]')).toHaveLength(0)
-    expect($('[data-testid="event-park-confirm"]')).toHaveLength(1)
+    expect($('[data-testid="event-park-confirm"]')).toHaveLength(0)
+    expect($('[data-testid="event-unpark-confirm"]')).toHaveLength(0)
   })
 
-  test('says why an event was parked, by whom and when', async () => {
-    givenEvent(detail({ status: 'PARKED', parked: parkedNote }))
-
-    const { $ } = await viewPage()
-
-    expect(valueOf($, 'event-parked')).toBe(
-      'duplicate key on a case that no longer exists · by Ada Lovelace · 2026-06-16T10:10:00Z'
-    )
-    expect(
-      flatten(
-        $('[data-testid="event-header"] [data-testid="do-status-label"]').text()
-      )
-    ).toBe('Parked')
-  })
-
-  test('says nothing about a park on an event nobody parked', async () => {
+  // The state went, and with it every trace of it on this page.
+  test('says nothing about parking anywhere on the page', async () => {
     const { $ } = await viewPage()
 
     expect($('[data-testid="event-fact-parked"]')).toHaveLength(0)
+    expect($('main').text()).not.toContain('Park')
+    expect($('main').html()).not.toContain('/park')
+    expect($('main').html()).not.toContain('/unpark')
   })
 
-  test('renders a hostile park reason as text', async () => {
-    givenEvent(
-      detail({ status: 'PARKED', parked: { ...parkedNote, reason: xss } })
-    )
-
-    const { $ } = await viewPage()
-
-    expect($('[data-testid="event-parked"] script')).toHaveLength(0)
-    expect(valueOf($, 'event-parked')).toContain(xss)
-  })
-
+  // The park redirects went with the state; a bookmarked one is now a
+  // parameter this route has never heard of, and is refused as any other is.
   test.each([
-    ['parked=1', 'set aside'],
-    ['unparked=1', 'dead letter again'],
-    ['park_conflict=COMPLETED', 'Its status is now Completed.'],
-    ['park_error=missing', 'no longer has this event'],
-    ['park_error=failed', 'could not be reached']
-  ])('says what the %s redirect was carrying', async (query, message) => {
-    const { $ } = await viewPage(`${path}?${query}`)
+    'parked=1',
+    'unparked=1',
+    'park_conflict=COMPLETED',
+    'park_error=missing'
+  ])('refuses the leftover %s parameter', async (query) => {
+    const { statusCode } = await server.inject({
+      method: 'GET',
+      url: `${path}?${query}`,
+      auth: { strategy: 'session', credentials }
+    })
 
-    expect(valueOf($, 'event-banner')).toContain(message)
+    expect(statusCode).toBe(statusCodes.badRequest)
   })
 
   test('warns above the buttons when a redrive already failed the same way', async () => {
@@ -1421,7 +1490,7 @@ describe('viewEventRoute', () => {
     const { $ } = await viewPage()
 
     expect(valueOf($, 'event-futile-warning')).toBe(
-      'A previous redrive (by Ada Lovelace, 2026-06-16T10:10:00Z) failed with the identical error — redriving again is unlikely to succeed until the underlying cause is fixed. Consider Park.'
+      'A previous redrive (by Ada Lovelace, 2026-06-16T10:10:00Z) failed with the identical error — redriving again is unlikely to succeed until the underlying cause is fixed.'
     )
     // A note, not a block: the button is exactly where it was.
     expect($('[data-testid="event-redrive"]')).toHaveLength(1)

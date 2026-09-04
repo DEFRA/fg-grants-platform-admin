@@ -45,28 +45,27 @@ describe('status-badge component', () => {
     expect($badge.attr('class')).toContain('inline-flex')
   })
 
-  // Published: queued and healthy, and the quietest dot on the page.
+  // Published: queued and healthy, and the quietest dot on the page — which is
+  // daisyUI's own unmodified `status`, drawn in the text colour held well back.
   test('dots the neutral role in the text colour, held well back', () => {
-    expect(dotClass({ status: 'PUBLISHED', role: 'neutral' })).toBe(
-      'do-status-dot do-status-dot-neutral'
-    )
+    expect(dotClass({ status: 'PUBLISHED', role: 'neutral' })).toBe('status')
   })
 
   test('dots the informational role', () => {
     expect(dotClass({ status: 'PROCESSING', role: 'info' })).toBe(
-      'do-status-dot do-status-dot-info'
+      'status status-info'
     )
   })
 
   test('dots the warning role', () => {
     expect(dotClass({ status: 'FAILED', role: 'warning' })).toBe(
-      'do-status-dot do-status-dot-warning'
+      'status status-warning'
     )
   })
 
   test('dots the error role', () => {
     expect(dotClass({ status: 'DEAD_LETTER', role: 'error' })).toBe(
-      'do-status-dot do-status-dot-error'
+      'status status-error'
     )
   })
 
@@ -80,7 +79,7 @@ describe('status-badge component', () => {
     })
 
     expect($badge.find('[data-testid="do-status-dot"]').attr('class')).toBe(
-      'do-status-dot do-status-dot-success'
+      'status status-success'
     )
     expect($badge.text()).toBe('Completed')
     expect($badge.attr('title')).toBe('COMPLETED')
@@ -90,22 +89,22 @@ describe('status-badge component', () => {
   // subject and reads at full contrast; Completed recedes furthest.
   test('recedes the completed label and holds the dead letter one at full contrast', () => {
     expect(labelClass({ status: 'COMPLETED', role: 'success' })).toBe(
-      'text-[12px] text-base-content/45'
+      'text-base-content/55'
     )
     expect(labelClass({ status: 'DEAD_LETTER', role: 'error' })).toBe(
-      'text-[12px] font-medium text-base-content'
+      'font-medium'
     )
   })
 
   test('sets every other label at one muted weight', () => {
     expect(labelClass({ status: 'PUBLISHED', role: 'neutral' })).toBe(
-      'text-[12px] text-base-content/70'
+      'text-base-content/80'
     )
     expect(labelClass({ status: 'PROCESSING', role: 'info' })).toBe(
-      'text-[12px] text-base-content/70'
+      'text-base-content/80'
     )
     expect(labelClass({ status: 'FAILED', role: 'warning' })).toBe(
-      'text-[12px] text-base-content/70'
+      'text-base-content/80'
     )
   })
 
@@ -133,12 +132,53 @@ describe('status-badge component', () => {
     expect(html).not.toContain('uppercase')
   })
 
-  test('falls back to the quietest dot for a role it does not know', () => {
-    expect(dotClass({ status: 'PUBLISHED', role: 'chartreuse' })).toBe(
-      'do-status-dot do-status-dot-neutral'
+  // The other spelling, for the page about one event: there is no column to
+  // line up there and one piece of state to say, so it is a soft badge.
+  test('says the status as a soft badge when asked for one', () => {
+    const $badge = badge({
+      status: 'DEAD_LETTER',
+      label: 'Dead letter',
+      role: 'error',
+      variant: 'badge'
+    })
+
+    expect($badge.attr('class')).toBe('badge badge-error badge-soft')
+    expect($badge.attr('title')).toBe('DEAD_LETTER')
+    expect($badge.text()).toBe('Dead letter')
+    expect($badge.find('[data-testid="do-status-dot"]')).toHaveLength(0)
+  })
+
+  test.each([
+    ['info', 'badge badge-info badge-soft'],
+    ['warning', 'badge badge-warning badge-soft'],
+    ['success', 'badge badge-success badge-soft'],
+    ['neutral', 'badge badge-ghost'],
+    ['chartreuse', 'badge badge-ghost']
+  ])('badges the %s role as %s', (role, expected) => {
+    expect(badge({ status: 'X', role, variant: 'badge' }).attr('class')).toBe(
+      expected
     )
+  })
+
+  test('keeps the badge variant on the same testids', () => {
+    const $badge = badge({
+      status: 'FAILED',
+      label: 'Failed',
+      role: 'warning',
+      retrying: true,
+      variant: 'badge'
+    })
+
+    expect($badge).toHaveLength(1)
+    expect($badge.find('[data-testid="do-status-label"]').text()).toBe(
+      'Failed ↻'
+    )
+  })
+
+  test('falls back to the quietest dot for a role it does not know', () => {
+    expect(dotClass({ status: 'PUBLISHED', role: 'chartreuse' })).toBe('status')
     expect(labelClass({ status: 'PUBLISHED', role: 'chartreuse' })).toBe(
-      'text-[12px] text-base-content/70'
+      'text-base-content/80'
     )
   })
 
@@ -150,9 +190,7 @@ describe('status-badge component', () => {
   })
 
   test('falls back to the quietest dot when no role is given', () => {
-    expect(dotClass({ status: 'PUBLISHED' })).toBe(
-      'do-status-dot do-status-dot-neutral'
-    )
+    expect(dotClass({ status: 'PUBLISHED' })).toBe('status')
   })
 
   test('trails a retrying status with the retry glyph', () => {

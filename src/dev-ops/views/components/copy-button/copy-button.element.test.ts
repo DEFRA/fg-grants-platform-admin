@@ -68,15 +68,20 @@ describe('do-copy-button', () => {
 
   test('shows the check for a moment, then goes back to the clipboard', async () => {
     const { element, button } = await mountButton()
+    const swap = element.querySelector('.swap') as HTMLElement
 
     button.click()
     await settle()
 
     expect(element.dataset.copied).toBe('')
+    // daisyUI's swap does the glyph change: both are in the markup, and the
+    // state is one class, so the button never changes size mid-copy.
+    expect(swap.classList.contains('swap-active')).toBe(true)
 
     vi.advanceTimersByTime(1500)
 
     expect(element.dataset.copied).toBeUndefined()
+    expect(swap.classList.contains('swap-active')).toBe(false)
   })
 
   test('holds the check the full moment after a second copy', async () => {

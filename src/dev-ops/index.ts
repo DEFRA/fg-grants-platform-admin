@@ -1,13 +1,7 @@
 import type { Server } from '@hapi/hapi'
 
 import { scopedTo } from '../server/plugins/auth/scoped-to.ts'
-import { parkEventRoute, unparkEventRoute } from './routes/park-event.route.ts'
-import { redriveBatchRoute } from './routes/redrive-batch.route.ts'
 import { redriveEventRoute } from './routes/redrive-event.route.ts'
-import {
-  redriveQueryConfirmRoute,
-  redriveQueryRoute
-} from './routes/redrive-query.route.ts'
 import { viewDevOpsRoute } from './routes/view-dev-ops.route.ts'
 import { viewEventRoute } from './routes/view-event.route.ts'
 import { viewEventsRoute } from './routes/view-events.route.ts'
@@ -28,12 +22,7 @@ export const devOps = {
           viewDevOpsRoute,
           viewEventsRoute,
           viewEventRoute,
-          redriveEventRoute,
-          redriveBatchRoute,
-          redriveQueryConfirmRoute,
-          redriveQueryRoute,
-          parkEventRoute,
-          unparkEventRoute
+          redriveEventRoute
         ])
       )
     }

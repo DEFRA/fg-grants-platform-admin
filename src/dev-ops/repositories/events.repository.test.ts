@@ -10,10 +10,7 @@ import {
   findEventBreakdown,
   findEventCounts,
   findEvents,
-  parkEvent,
-  redriveByQuery,
-  redriveEvent,
-  unparkEvent
+  redriveEvent
 } from './events.repository.ts'
 
 vi.mock(import('../../common/gas.ts'))
@@ -41,8 +38,7 @@ const page: EventsPage = {
         name: 'MongoServerError',
         message: 'E11000 duplicate key error collection: gas.events',
         at: '2026-06-16T10:16:05.000Z'
-      },
-      parked: null
+      }
     }
   ],
   pagination: {
@@ -146,8 +142,7 @@ const countsPage: EventCountsPage = {
     FAILED: 1,
     RESUBMITTED: 0,
     COMPLETED: 236196,
-    DEAD_LETTER: 7064,
-    PARKED: 12
+    DEAD_LETTER: 7064
   },
   sourceErrors: []
 }
@@ -326,12 +321,6 @@ describe('findEventCounts with a failure filter', () => {
     )
   })
 
-  test('reports the parked count the endpoint now returns', async () => {
-    const { counts } = await findEventCounts({})
-
-    expect(counts.PARKED).toBe(12)
-  })
-
   // One block and its errors. `total` was the seven numbers in `counts` added
   // up and sent beside them, so it could only ever agree with them or be a
   // bug; the page adds them up. The two service-shaped blocks went before it.
@@ -395,105 +384,6 @@ describe('findEventBreakdown', () => {
     expect(groups).toHaveLength(2)
     expect(groups[0].count).toBe(4182)
     expect(groups[1].error).toBeNull()
-  })
-})
-
-describe('redriveByQuery', () => {
-  beforeEach(() => {
-    vi.mocked(postToGas).mockResolvedValue({
-      matched: 7064,
-      processed: 500,
-      redriven: 498,
-      conflicts: 1,
-      failures: 1,
-      perSource: [],
-      sourceErrors: []
-    })
-  })
-
-  test('posts the filters the operator confirmed', async () => {
-    await redriveByQuery(
-      { service: 'gas', error: 'boom', limit: '500' },
-      'Ada Lovelace'
-    )
-
-    expect(postToGas).toHaveBeenCalledWith(
-      '/grant-admin/events/redrive-query?service=gas&error=boom&limit=500',
-      { actor: 'Ada Lovelace' }
-    )
-  })
-
-  test('posts an unfiltered redrive with no query at all', async () => {
-    await redriveByQuery({})
-
-    expect(postToGas).toHaveBeenCalledWith(
-      '/grant-admin/events/redrive-query',
-      {
-        actor: undefined
-      }
-    )
-  })
-
-  test('returns the five figures the backend answers with', async () => {
-    await expect(redriveByQuery({})).resolves.toMatchObject({
-      matched: 7064,
-      processed: 500,
-      redriven: 498
-    })
-  })
-})
-
-describe('parkEvent', () => {
-  beforeEach(() => {
-    vi.mocked(postToGas).mockResolvedValue({
-      event: { ...page.events[0], status: 'PARKED' }
-    })
-  })
-
-  test('posts the park with the reason the operator typed', async () => {
-    await parkEvent(key, 'duplicate key on a case that no longer exists', 'Ada')
-
-    expect(postToGas).toHaveBeenCalledWith(
-      '/grant-admin/events/gas/outbox/665f1c2e9a1b2c3d4e5f6a7b/park',
-      {
-        payload: { reason: 'duplicate key on a case that no longer exists' },
-        actor: 'Ada'
-      }
-    )
-  })
-
-  test('escapes every segment of the path', async () => {
-    await parkEvent({ service: 'a/b', box: 'c d', id: 'e?f' }, 'why')
-
-    expect(postToGas).toHaveBeenCalledWith(
-      '/grant-admin/events/a%2Fb/c%20d/e%3Ff/park',
-      { payload: { reason: 'why' }, actor: undefined }
-    )
-  })
-
-  test('returns the row the backend answers with', async () => {
-    const { event } = await parkEvent(key, 'why')
-
-    expect(event.status).toBe('PARKED')
-  })
-})
-
-describe('unparkEvent', () => {
-  beforeEach(() => {
-    vi.mocked(postToGas).mockResolvedValue({
-      event: { ...page.events[0], status: 'DEAD_LETTER' }
-    })
-  })
-
-  // Nothing to send but who asked: the park's reason is the thing being
-  // withdrawn, so there is none to give.
-  test('posts the unpark, naming who asked', async () => {
-    await unparkEvent(key, 'Ada Lovelace')
-
-    expect(postToGas).toHaveBeenCalledWith(
-      '/grant-admin/events/gas/outbox/665f1c2e9a1b2c3d4e5f6a7b/unpark',
-      { actor: 'Ada Lovelace' }
-    )
   })
 })
 

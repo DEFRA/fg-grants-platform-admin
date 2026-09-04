@@ -4,8 +4,7 @@ import type { Request } from '@hapi/hapi'
  * Who is asking, as the backend's audit record should name them.
  *
  * Every write this app makes is somebody's decision — a redrive puts a message
- * back on a live queue, a park takes one out of the count with a reason
- * attached — and until now all fg-gas-backend could record was that
+ * back on a live queue — and until now all fg-gas-backend could record was that
  * `fg-grants-platform-admin` did it, because the only identity on the request
  * is this app's service token. That is a true statement about the token and a
  * useless one about the decision: four operators share it.

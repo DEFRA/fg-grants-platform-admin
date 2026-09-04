@@ -66,12 +66,7 @@ const statusBadges: Record<string, { role: BadgeRole; retrying: boolean }> = {
   FAILED: { role: 'warning', retrying: true },
   RESUBMITTED: { role: 'warning', retrying: true },
   COMPLETED: { role: 'success', retrying: false },
-  DEAD_LETTER: { role: 'error', retrying: false },
-  // Parked is a dead letter somebody has already looked at, so it is drawn as
-  // the quietest thing the column has: neutral, the same grey dot as Published.
-  // Colouring it would put a second alarm beside the one status that is an
-  // alarm, and the whole point of parking an event is that it stops asking.
-  PARKED: { role: 'neutral', retrying: false }
+  DEAD_LETTER: { role: 'error', retrying: false }
 }
 
 const unknownStatus = { role: 'neutral' as BadgeRole, retrying: false }
@@ -94,8 +89,7 @@ const statusLabels: Record<string, string> = {
   FAILED: 'Failed',
   RESUBMITTED: 'Resubmitted',
   COMPLETED: 'Completed',
-  DEAD_LETTER: 'Dead letter',
-  PARKED: 'Parked'
+  DEAD_LETTER: 'Dead letter'
 }
 
 export const toStatusLabel = (status: string): string =>
@@ -105,7 +99,7 @@ export const toStatusLabel = (status: string): string =>
  * What each status actually means, in one line, for the `title` of the chip
  * that counts it.
  *
- * Seven words on a strip cannot say what seven states are, and the wire's
+ * Six words on a strip cannot say what six states are, and the wire's
  * spelling does not help: `Failed` and `Dead letter` read as two words for one
  * thing, `Resubmitted` and `Published` as two more, and an operator new to the
  * page has no way to tell which of them is a thing they should be doing
@@ -122,8 +116,7 @@ const statusExplainers: Record<string, string> = {
   FAILED: 'Awaiting automatic retry',
   RESUBMITTED: 'Queued for another retry cycle',
   COMPLETED: 'Processed successfully',
-  DEAD_LETTER: 'Failed all retry attempts; needs redrive or park',
-  PARKED: 'Set aside by an operator; ignored by retries'
+  DEAD_LETTER: 'Failed all retry attempts; needs a redrive'
 }
 
 export const toStatusExplainer = (status: string): string | null =>

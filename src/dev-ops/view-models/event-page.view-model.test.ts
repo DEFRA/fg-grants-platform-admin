@@ -46,7 +46,6 @@ const row = (overrides: Partial<Event> = {}): Event => ({
     message: 'E11000 duplicate key',
     at: '2026-06-16T10:16:05.000Z'
   },
-  parked: null,
   ...overrides
 })
 
@@ -615,128 +614,26 @@ const identicalAttempts = [
 
 const lastRedrive = { at: '2026-06-16T10:10:00.000Z', by: 'Ada Lovelace' }
 
-const parked = {
-  at: '2026-06-16T10:10:00.000Z',
-  reason: 'duplicate key on a case that no longer exists',
-  by: 'Ada Lovelace'
-}
-
-describe('parking an event', () => {
-  test('offers both decisions on a dead letter', () => {
+// The PARKED state and both of its verbs are gone: a dead letter's only
+// decision is the redrive, and nothing on the page mentions parking.
+describe('a dead letter with the park removed', () => {
+  test('offers the redrive alone', () => {
     const page = model()
 
     expect(page.canRedrive).toBe(true)
-    expect(page.canPark).toBe(true)
-    expect(page.canUnpark).toBe(false)
-    expect(page.parkHref).toBe(
-      '/dev-ops/events/gas/outbox/665f1c2e9a1b2c3d4e5f6a7b?confirm=park'
-    )
+    expect(page).not.toHaveProperty('canPark')
+    expect(page).not.toHaveProperty('canUnpark')
+    expect(page).not.toHaveProperty('parkAction')
+    expect(page).not.toHaveProperty('unparkAction')
+    expect(page).not.toHaveProperty('parkedFact')
   })
 
-  test('offers only the way back on a parked event', () => {
-    const page = model(found(detail({ status: 'PARKED', parked })))
-
-    expect(page.canRedrive).toBe(false)
-    expect(page.canPark).toBe(false)
-    expect(page.canUnpark).toBe(true)
-    expect(page.unparkHref).toBe(
-      '/dev-ops/events/gas/outbox/665f1c2e9a1b2c3d4e5f6a7b?confirm=unpark'
-    )
-  })
-
-  test.each([['COMPLETED'], ['FAILED'], ['PUBLISHED']])(
-    'offers neither on a %s event',
-    (status) => {
-      const page = model(found(detail({ status })))
-
-      expect(page.canPark).toBe(false)
-      expect(page.canUnpark).toBe(false)
+  test.each([['parked'], ['unparked'], ['park_conflict'], ['park_error']])(
+    'has no banner left for the %s redirect',
+    (param) => {
+      expect(model(found(), { [param]: '1' }).banner).toBeNull()
     }
   )
-
-  // `?confirm=` is the same page with a panel on it, so it back-buttons and
-  // reloads like every other state of it.
-  test('opens the park panel only when it was asked for, and only where it applies', () => {
-    expect(model(found(), { confirm: 'park' }).confirmPark).toBe(true)
-    expect(model(found(), { confirm: 'redrive' }).confirmPark).toBe(false)
-    expect(
-      model(found(detail({ status: 'PARKED', parked })), { confirm: 'park' })
-        .confirmPark
-    ).toBe(false)
-  })
-
-  test('opens the unpark panel only on a parked event', () => {
-    expect(
-      model(found(detail({ status: 'PARKED', parked })), { confirm: 'unpark' })
-        .confirmUnpark
-    ).toBe(true)
-    expect(model(found(), { confirm: 'unpark' }).confirmUnpark).toBe(false)
-  })
-
-  test("posts each to the endpoint's own path on this app", () => {
-    const page = model()
-
-    expect(page.parkAction).toBe(
-      '/dev-ops/events/gas/outbox/665f1c2e9a1b2c3d4e5f6a7b/park'
-    )
-    expect(page.unparkAction).toBe(
-      '/dev-ops/events/gas/outbox/665f1c2e9a1b2c3d4e5f6a7b/unpark'
-    )
-  })
-
-  test('keeps the list the operator came from on both confirmations', () => {
-    const page = model(found(), { from: '?status=DEAD_LETTER' })
-
-    expect(page.parkHref).toBe(
-      '/dev-ops/events/gas/outbox/665f1c2e9a1b2c3d4e5f6a7b?from=%3Fstatus%3DDEAD_LETTER&confirm=park'
-    )
-  })
-
-  // The instant absolutely, not `10m ago`: every fact row on this page states
-  // the instant a log query takes.
-  test('says why it was parked, who by, and at what instant', () => {
-    const page = model(found(detail({ status: 'PARKED', parked })))
-
-    expect(page.parkedFact).toBe(
-      'duplicate key on a case that no longer exists · by Ada Lovelace · 2026-06-16T10:10:00Z'
-    )
-    expect(page.parkedFact).not.toContain('ago')
-    expect(page.parkedTitle).toContain('2026-06-16T10:10:00Z')
-    expect(page.statusLabel).toBe('Parked')
-    expect(page.statusRole).toBe('neutral')
-  })
-
-  test('says nothing about a park on an event nobody parked', () => {
-    expect(model().parkedFact).toBeNull()
-    expect(model().parkedTitle).toBe('')
-  })
-
-  test.each([
-    ['parked', 'success', 'Parked — this event is set aside'],
-    ['unparked', 'success', 'Unparked — this event is a dead letter again']
-  ])('says what the %s redirect was carrying', (param, role, message) => {
-    const { banner } = model(found(), { [param]: '1' })
-
-    expect(banner?.role).toBe(role)
-    expect(banner?.message).toContain(message)
-  })
-
-  test('names the status that refused a park', () => {
-    const { banner } = model(found(), { park_conflict: 'COMPLETED' })
-
-    expect(banner?.role).toBe('warning')
-    expect(banner?.message).toContain('Its status is now Completed.')
-  })
-
-  test.each([
-    ['missing', 'no longer has this event'],
-    ['failed', 'could not be reached']
-  ])('says a park that failed with %s changed nothing', (value, message) => {
-    const { banner } = model(found(), { park_error: value })
-
-    expect(banner?.role).toBe('error')
-    expect(banner?.message).toContain(message)
-  })
 })
 
 describe('the futile redrive warning', () => {
@@ -748,7 +645,7 @@ describe('the futile redrive warning', () => {
 
     expect(page.futileWarning).toBe(
       'A previous redrive (by Ada Lovelace, 2026-06-16T10:10:00Z) failed with the identical error — ' +
-        'redriving again is unlikely to succeed until the underlying cause is fixed. Consider Park.'
+        'redriving again is unlikely to succeed until the underlying cause is fixed.'
     )
   })
 

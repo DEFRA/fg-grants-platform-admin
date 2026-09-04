@@ -68,36 +68,3 @@ export const redriveEventUseCase = async (
     return toOutcome(error)
   }
 }
-
-/** One event's place in a batch: which it was, and what came of it. */
-export interface RedriveBatchItem {
-  key: EventKey
-  result: RedriveResult
-}
-
-/**
- * A batch of redrives, one at a time.
- *
- * Sequentially and deliberately so: this is the one write this app makes, it
- * puts messages back on a queue that is already struggling, and twenty of them
- * at once is a burst rather than a recovery. Each is the same single-event use
- * case the inspect page calls — there is one definition of what a redrive is
- * and what its four outcomes mean, and a batch is only ever a loop over it.
- *
- * Nothing stops at the first failure. A conflict on the third of eight says
- * that one event moved on, not that the other seven should be abandoned, and
- * the page reports every outcome side by side rather than an error and a
- * silence.
- */
-export const redriveEventsUseCase = async (
-  keys: EventKey[],
-  actor?: string
-): Promise<RedriveBatchItem[]> => {
-  const results: RedriveBatchItem[] = []
-
-  for (const key of keys) {
-    results.push({ key, result: await redriveEventUseCase(key, actor) })
-  }
-
-  return results
-}

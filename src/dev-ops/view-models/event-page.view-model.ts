@@ -209,32 +209,6 @@ export interface EventPageModel {
   redriveAction: string
 
   /**
-   * The other decision a dead letter admits: set it aside, with a reason.
-   *
-   * Offered on exactly the status the redrive is offered on, because they are
-   * the two answers to the same question. Most of a real dead-letter queue is
-   * four hundred copies of one failure that will fail again until somebody
-   * fixes a topic ARN, and until now the page's only verb for that was
-   * `Redrive` — which is the wrong answer, twice.
-   */
-  canPark: boolean
-  confirmPark: boolean
-  parkHref: string
-  parkAction: string
-  /** Parked already, and therefore worth offering to put back in the queue. */
-  canUnpark: boolean
-  confirmUnpark: boolean
-  unparkHref: string
-  unparkAction: string
-  /**
-   * Why this event was set aside, as one line of the facts list: the reason
-   * somebody typed, who they were, and at what instant. Null on an event nobody
-   * parked — which is a fact worth no row at all rather than a row of dashes.
-   */
-  parkedFact: string | null
-  /** The reason and both spellings of the instant, for the row's title. */
-  parkedTitle: string
-  /**
    * The last redrive, said as the facts list says an instant: the absolute
    * UTC spelling, and the person who asked. Null when nobody has redriven
    * this event, or when it was redriven before the backend recorded who did.
@@ -381,46 +355,6 @@ const banners: {
     })
   },
   {
-    reads: (query) => query.parked,
-    toBanner: () => ({
-      role: 'success',
-      message:
-        'Parked — this event is set aside and will not be retried. Unpark it to put it back among the dead letters.'
-    })
-  },
-  {
-    reads: (query) => query.unparked,
-    toBanner: () => ({
-      role: 'success',
-      message:
-        'Unparked — this event is a dead letter again, and can be redriven.'
-    })
-  },
-  {
-    reads: (query) => query.park_conflict,
-    toBanner: (status) => ({
-      role: 'warning',
-      message: `Not changed — this event has moved on since the page was drawn. Its status is now ${toStatusLabel(status)}.`
-    })
-  },
-  {
-    reads: (query) =>
-      query.park_error === 'missing' ? query.park_error : undefined,
-    toBanner: () => ({
-      role: 'error',
-      message:
-        'Not changed — fg-gas-backend no longer has this event. Nothing has changed.'
-    })
-  },
-  {
-    reads: (query) => query.park_error,
-    toBanner: () => ({
-      role: 'error',
-      message:
-        'Not changed — fg-gas-backend could not be reached. Nothing has changed.'
-    })
-  },
-  {
     reads: (query) =>
       query.redrive_error === 'missing' ? query.redrive_error : undefined,
     toBanner: () => ({
@@ -458,10 +392,6 @@ export interface EventPageQuery {
   redriven?: string
   redrive_conflict?: string
   redrive_error?: string
-  parked?: string
-  unparked?: string
-  park_conflict?: string
-  park_error?: string
 }
 
 /**
@@ -475,9 +405,7 @@ const toShell = (key: EventKey, query: EventPageQuery) => {
     from,
     backHref: toBackHref(from),
     banner: toBanner(query),
-    redriveAction: `${toEventHref(key)}/redrive`,
-    parkAction: `${toEventHref(key)}/park`,
-    unparkAction: `${toEventHref(key)}/unpark`
+    redriveAction: `${toEventHref(key)}/redrive`
   }
 }
 
@@ -529,14 +457,6 @@ const emptyDetail = {
   confirmRedrive: false,
   redriveHref: '',
   cancelHref: '',
-  canPark: false,
-  confirmPark: false,
-  parkHref: '',
-  canUnpark: false,
-  confirmUnpark: false,
-  unparkHref: '',
-  parkedFact: null as string | null,
-  parkedTitle: '',
   lastRedriveFact: null as string | null,
   lastRedriveValue: '',
   lastRedriveTitle: '',
@@ -700,26 +620,6 @@ const toRedrive = (
 })
 
 /**
- * Why this event was set aside, as one line: the reason, who set it, and at
- * what instant.
- *
- * The reason is first because it is the only part anybody reads twice — the
- * page is opened on a parked event to find out why it is parked. The instant
- * is stated absolutely: a relative time is unquotable, and the UTC ISO
- * spelling is the one a log query takes.
- */
-const toParkedDetail = (parked: EventDetail['parked']) => {
-  if (parked == null) {
-    return { parkedFact: null, parkedTitle: '' }
-  }
-
-  return {
-    parkedFact: `${parked.reason} · by ${parked.by} · ${toAbsoluteOrNone(parked.at)}`,
-    parkedTitle: toAbsoluteOrNone(parked.at)
-  }
-}
-
-/**
  * The last time somebody put this event back on the queue, and who.
  *
  * It is the fact that turns a page of five identical failures into a story: an
@@ -781,7 +681,7 @@ const toFutileWarning = (event: EventDetail): string | null => {
 
   return (
     `A previous redrive (by ${redrive.by}, ${toAbsoluteOrNone(redrive.at)}) failed with the identical error — ` +
-    'redriving again is unlikely to succeed until the underlying cause is fixed. Consider Park.'
+    'redriving again is unlikely to succeed until the underlying cause is fixed.'
   )
 }
 
@@ -805,32 +705,6 @@ const toErrorSearchHref = (event: EventDetail): string | null => {
   })
 
   return `/dev-ops/events?${params}`
-}
-
-/**
- * The two actions a dead letter admits, and the two urls that stand either side
- * of each: exactly the anatomy the redrive already has, because they are three
- * answers to one question and an operator should not have to learn three ways
- * of being asked it. `?confirm=park` is the same page with a panel on it, which
- * back-buttons and reloads like every other state of it.
- */
-const toParkActions = (
-  event: EventDetail,
-  key: EventKey,
-  query: EventPageQuery,
-  from: string
-) => {
-  const isDeadLetter = event.status === 'DEAD_LETTER'
-  const isParked = event.status === 'PARKED'
-
-  return {
-    canPark: isDeadLetter,
-    confirmPark: isDeadLetter && query.confirm === 'park',
-    parkHref: toSelfHref(key, from, ['confirm', 'park']),
-    canUnpark: isParked,
-    confirmUnpark: isParked && query.confirm === 'unpark',
-    unparkHref: toSelfHref(key, from, ['confirm', 'unpark'])
-  }
 }
 
 const toDetail = (
@@ -869,8 +743,6 @@ const toDetail = (
     journey: toJourney(journey, key, from),
     journeyCount: journey.length,
     ...toRedrive(state.isDeadLetter, key, query, from),
-    ...toParkActions(event, key, query, from),
-    ...toParkedDetail(event.parked),
     ...toLastRedriveDetail(event.lastRedrive),
     futileWarning: toFutileWarning(event),
     errorSearchHref: toErrorSearchHref(event)

@@ -2,7 +2,6 @@ import { describeError } from '../../common/describe-error.ts'
 import { logger } from '../../common/logger.ts'
 import type {
   EventBreakdownPage,
-  EventCountsQuery,
   EventFacets,
   EventsPage,
   EventsQuery
@@ -23,7 +22,6 @@ export type {
   EventCountsQuery,
   EventFacets,
   EventLastError,
-  EventParked,
   EventService,
   EventsPage,
   EventsPagination,
@@ -167,16 +165,6 @@ const readBreakdown = async (
     return null
   }
 }
-
-/**
- * The dataset-wide breakdown on its own, for the page that has to quote a
- * figure before it writes: `Redrive all 7,064 matching` is a promise about the
- * same filters the list was read under, and the confirmation that quotes it
- * reads them itself rather than trusting a number handed to it on a url.
- */
-export const getEventCountsUseCase = async (
-  query: EventCountsQuery
-): Promise<EventFacets | null> => readCounts(query)
 
 /**
  * The events page: the rows and the counts above them, read together.

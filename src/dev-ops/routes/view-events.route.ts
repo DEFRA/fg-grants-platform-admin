@@ -3,6 +3,7 @@ import Joi from 'joi'
 
 import type { EventsQuery } from '../use-cases/get-events.use-case.ts'
 import { getEventsUseCase } from '../use-cases/get-events.use-case.ts'
+import { eventEnumFilters } from '../view-models/event-filters.ts'
 import type { EventsPageQuery } from '../view-models/events-page.view-model.ts'
 import { toEventsPage } from '../view-models/events-page.view-model.ts'
 
@@ -41,16 +42,22 @@ const toInstant = (value: string | undefined): string | undefined => {
 }
 
 /**
- * Every parameter is optional and unconstrained beyond being a string. No
- * filter is All, which is the page an operator opens by default.
+ * Every parameter is optional. No filter is All, which is the page an operator
+ * opens by default.
  *
- * The enums are deliberately not repeated here. fg-gas-backend owns them and
- * answers 400 for a value it does not accept — including a tampered cursor —
- * and this app turns that into the page's own error alert. Validating the
- * values here would instead replace the whole screen with the shared govuk
- * error page (src/server/plugins/errors.ts), which is a worse answer for an
- * operator who reached this page because something is already wrong. Unknown
- * *keys* are still rejected by Joi's default, which catches a typo'd link.
+ * The enums among them — `status`, `service` and the cursor's `direction` —
+ * are checked here against the values this app itself offers
+ * (view-models/event-filters.ts). They used to be passed through on the
+ * grounds that fg-gas-backend owns them and answers 400 for a value it does
+ * not accept; what that produced was `?status=dead-letter` being drawn as
+ * "Events could not be loaded from GAS", which reports a typo as an outage on
+ * the one page operators open to find out whether there is an outage. A
+ * mistyped filter is this app's own 400, and it says so.
+ *
+ * Everything else is still unconstrained. A cursor is opaque and a tampered
+ * one is genuinely the endpoint's to refuse; the search and the failure
+ * message are free text by definition. Unknown *keys* are rejected by Joi's
+ * default, which catches a typo'd link.
  *
  * `q` is the one parameter this route touches at all, and only to normalise
  * it: the search box submits `q=` when it is cleared with the keyboard, and
@@ -103,9 +110,11 @@ export const viewEventsRoute: ServerRoute = {
     validate: {
       query: Joi.object({
         cursor: Joi.string(),
-        direction: Joi.string(),
-        status: Joi.string(),
-        service: Joi.string(),
+        // The two directions the keyset walks. Written by this app's own pager
+        // and by nothing else, so anything but these two is a url nobody
+        // issued rather than a filter somebody mistyped.
+        direction: Joi.string().valid('forward', 'backward'),
+        ...eventEnumFilters,
         // Empty is allowed through validation so a cleared search box is a
         // page, not the shared govuk error screen; `toQuery` then drops it.
         q: Joi.string().allow(''),

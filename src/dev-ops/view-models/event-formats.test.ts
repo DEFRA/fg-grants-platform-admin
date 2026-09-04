@@ -33,7 +33,6 @@ const event = (overrides: Partial<Event> = {}): Event => ({
   lastFailureAt: null,
   completedAt: null,
   lastError: null,
-  parked: null,
   traceId: null,
   ...overrides
 })

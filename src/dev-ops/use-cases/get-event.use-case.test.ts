@@ -30,7 +30,6 @@ const row = (overrides: Partial<Event> = {}): Event => ({
   lastFailureAt: '2026-06-16T10:16:05.000Z',
   completedAt: null,
   lastError: null,
-  parked: null,
   ...overrides
 })
 

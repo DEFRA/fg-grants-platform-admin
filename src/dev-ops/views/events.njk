@@ -4,56 +4,47 @@
 {% from "pager/macro.njk" import pager %}
 {% from "status-badge/macro.njk" import statusBadge %}
 
-{# The table header: 11px, uppercase, and quiet enough to read as a label
-   rather than as a row. Set once here so all four spell the same treatment,
-   and written as a literal string because Tailwind scans this file's text for
-   candidates — it never sees a class assembled in TypeScript. #}
-{% set columnHeading = "text-[11px] font-semibold tracking-wide uppercase text-base-content/45" %}
-{% set numericHeading = "text-right text-[11px] font-semibold tracking-wide uppercase text-base-content/45" %}
+{# The page is stock daisyUI: a `join` of link-buttons for each facet, a
+   popover `dropdown` for the window, a `join` for the search, a `collapse` for
+   the failures panel and a real `table` for the events. Nothing on it is a
+   selector this app authored — the hand-rolled grid table, the segment tint,
+   the caret and the failures grid have all gone back to components.
 
-{# The one grid template every line of the table wears — the header row, each
-   data row and each group summary. It lives in client/dev-ops.css so the five
-   tracks are declared once; three elements as different as a div, a summary
-   and a header cannot share a `grid-template-columns` any other way. #}
-{% set gridRow = "do-events-row hover:bg-base-200/60" %}
+   The class names are still written as literal strings in this file, because
+   Tailwind scans this file's text for candidates and never sees a class
+   assembled in TypeScript. #}
 
-{# A true segmented control, not a row of loose chips: one border around each
-   group, drawn by the join, and segments that share it. The filled segment
-   says which slice of the stream is on screen; the rest carry no border of
-   their own, because a border inside a bordered container is a second outline
-   saying the same thing. #}
-{% set segmentGroup = "join rounded-md border border-base-300" %}
-{# The active segment is a mark, not a button: solid black on a toolbar above
-   a table of 11px figures made the filter bar the loudest thing on the page,
-   and the page is not about its filters. A tint of the text colour is enough
-   to say which segment is on — `do-segment-active` (client/dev-ops.css) holds
-   its hover, so the segment does not lose the mark under the pointer. #}
-{% set activeChip = "btn join-item btn-xs btn-ghost do-segment-active bg-base-content/10 font-medium text-base-content" %}
-{% set inactiveChip = "btn join-item btn-xs btn-ghost font-normal text-base-content/70" %}
+{# The group labels name a control, they are not options in it: smaller and
+   muted, in sentence case, so the eye never mistakes `Status` for a segment it
+   could have clicked. #}
+{% set filterLabel = "text-xs font-medium text-base-content/60" %}
+
+{# A true segmented control, not a row of loose chips: one border around the
+   group, drawn by the `join`, and segments that share it. The selected segment
+   is `btn-active`, which is daisyUI's own word for "this is the one on". #}
+{% set activeChip = "btn btn-sm join-item btn-active" %}
+{% set inactiveChip = "btn btn-sm join-item font-normal" %}
+{# The time-range button wears the same mark an active segment does, because
+   it says the same kind of thing: this is the window the page is on. Spelled
+   whole rather than concatenated into the attribute, so every class name in
+   this file is a literal Tailwind and daisyUI can both see. #}
+{% set rangeButton = "btn btn-sm" %}
+{% set activeRangeButton = "btn btn-sm btn-active" %}
 {# A segment with nothing behind it. Dimmed, and still a link: an operator who
    can see that Failed holds nothing has been answered, and a segment that
-   vanished when it emptied could not be told from one the page forgot to draw.
-   Half opacity rather than a fourth text colour, so the figure and the word
-   fade together and the segment keeps the shape of its neighbours. #}
-{% set emptyChip = "btn join-item btn-xs btn-ghost font-normal text-base-content/70 opacity-50" %}
-{# The figure on a segment. The word says which slice; the number says whether
-   it is worth opening, so the number carries the weight and the word does not.
-   Tabular, because the three controls are read down as much as along. #}
-{% set segmentCount = "font-medium tabular-nums" %}
+   vanished when it emptied could not be told from one the page forgot to
+   draw. #}
+{% set emptyChip = "btn btn-sm join-item font-normal text-base-content/60" %}
+{# The figure on a segment, as a badge inside the button — official syntax, and
+   the reason this control is worth its width: seven status words said which
+   slices exist and nothing about which of them is worth opening. Tabular,
+   because the segments are read down as much as along. #}
+{% set segmentCount = "badge badge-ghost badge-sm tabular-nums" %}
 {# The one figure in the toolbar allowed a colour: the dead letters, and only
    while there are some. A red zero is an alarm about nothing. #}
-{% set segmentCountAlarm = "font-medium tabular-nums text-error/80" %}
-{# The group labels are labels, not options: smaller, in capitals, and muted,
-   so the eye never mistakes `Status` for a segment it could have clicked. #}
-{% set filterLabel = "text-[10px] leading-none font-medium tracking-wide uppercase text-base-content/50" %}
+{% set segmentCountAlarm = "badge badge-error badge-sm tabular-nums" %}
 
 {# One segment: the word, and how many events are behind it.
-
-   The figure is the reason this control is worth its width. Seven status words
-   said which slices exist and nothing about which of them is worth opening,
-   and the number an operator came for — how many dead letters are behind this
-   filter — lived in a second control below the toolbar saying the same seven
-   words a second time. That strip is gone; the counts are on the segments.
 
    Every figure is a facet: it says how many events *selecting this segment*
    would find, not how many the current selection holds. So the Caseworking
@@ -64,324 +55,247 @@
    alert. The control is a perfectly good filter without its figures, and a
    summary that failed has not made the page below it an error. #}
 {% macro segment(chip, testId) %}
-  <a class="{{ activeChip if chip.active else (emptyChip if chip.zero else inactiveChip) }}" href="{{ chip.href }}"{% if chip.active %} aria-current="page"{% endif %}{% if chip.title %} title="{{ chip.title }}"{% endif %}{% if chip.value %} data-value="{{ chip.value }}"{% endif %} data-testid="{{ testId }}">{{ chip.label }}{% if chip.countLabel %} <span class="{{ segmentCountAlarm if chip.alarming else segmentCount }}" data-testid="{{ testId }}-count">{{ chip.countLabel }}</span>{% endif %}</a>
+  {# A zero says nothing a dimmed segment has not already said, and seven of
+     them across the status group was seven badges of noise on a healthy page —
+     the one figure worth reading, the dead letters, had to compete with them.
+     The count still exists on a segment that is empty; it is on the title,
+     where a figure nobody needs at a glance belongs. #}
+  {%- set emptyTitle = (chip.title ~ " · " ~ chip.countLabel ~ " events") if chip.title else (chip.countLabel ~ " events") -%}
+  {%- set chipTitle = emptyTitle if chip.zero else chip.title -%}
+  <a class="{{ activeChip if chip.active else (emptyChip if chip.zero else inactiveChip) }}" href="{{ chip.href }}"{% if chip.active %} aria-current="page"{% endif %}{% if chipTitle %} title="{{ chipTitle }}"{% endif %}{% if chip.value %} data-value="{{ chip.value }}"{% endif %} data-testid="{{ testId }}">{{ chip.label }}{% if chip.countLabel and not chip.zero %} <span class="{{ segmentCountAlarm if chip.alarming else segmentCount }}" data-testid="{{ testId }}-count">{{ chip.countLabel }}</span>{% endif %}</a>
 {% endmacro %}
-
-{# The time-range button. It reads as a filter control like the segments
-   beside it — same height, same border, same quiet weight — because it is one:
-   it says which window the page is asking about and opens the way to change
-   it. Bordered on its own rather than joined, because it is one control and
-   not a group of them.
-
-   The active spelling picks up the same tint an active segment wears, so a
-   page with a window on it says so in the toolbar's own vocabulary. #}
-{% set rangeButton = "btn btn-xs btn-ghost h-auto min-h-0 rounded-md border border-base-300 py-1 font-normal text-base-content/70" %}
-{% set activeRangeButton = "btn btn-xs btn-ghost do-segment-active h-auto min-h-0 rounded-md border border-base-300 bg-base-content/10 py-1 font-medium text-base-content" %}
-{# One rung of the ladder. A full-width row rather than a chip: the list is
-   read down, and a column of centred pills would be a menu pretending to be a
-   segmented control. #}
-{% set rangePreset = "block rounded px-2 py-1 text-left text-[12px] text-base-content/75 hover:bg-base-content/10 hover:text-base-content" %}
-{% set rangePresetActive = "block rounded bg-base-content/10 px-2 py-1 text-left text-[12px] font-medium text-base-content" %}
-{# The panel's own section heading, quieter than the rungs it introduces. #}
-{% set rangeHeading = "px-2 text-[10px] leading-none font-medium tracking-wide uppercase text-base-content/45" %}
-
-{# The failures panel: one row per failure, laid out on the grid in
-   client/dev-ops.css. A row is a link and reads as one only under the pointer —
-   twenty primary-coloured rows would make the panel the loudest thing on a page
-   whose subject is the table below it. #}
-{% set failureRow = "do-failures-row hover:bg-base-200/60" %}
 
 {# The identity cell: an id, and the type under it when there is one.
 
    The id is the row's name. It is the one identifier every event has — an
-   audit record publishes no CloudEvent type at all — and it is set in mono
-   and semibold because it is a machine string and the first thing an operator
-   scans down. It is drawn in full: a CloudEvent id is a ~36-character uuid
-   and a Mongo fallback id 24 hex characters, and either fits the Event track
-   whole — the string an operator copies should never need a hover to read.
+   audit record publishes no CloudEvent type at all — and it is set in mono and
+   semibold because it is a machine string and the first thing an operator
+   scans down.
 
-   It is a link, and it opens this row's own page — the payload, the
-   timestamps, the journey. It is deliberately NOT a `?q=` search: an id
-   belongs to exactly one row, so a search by it could only ever answer with
-   the row already on screen. The reference, which really does gather a set,
-   keeps that gesture on the detail page. It underlines only under the pointer:
-   a primary-coloured link on every row would have made forty links of a page
-   with one thing to point at.
-
-   The link carries the list's own query as `?from=`, so the back link on the
+   It is a link, and it opens this row's own page — the payload, the timestamps,
+   the journey. It is deliberately NOT a `?q=` search: an id belongs to exactly
+   one row, so a search by it could only ever answer with the row already on
+   screen. It carries the list's own query as `?from=`, so the back link on the
    page it opens returns to this exact page — same filter, same search, same
-   cursor — rather than to page one of an unfiltered list.
+   cursor.
 
    The type sits under it, smaller and quieter, in sans: the dots in a name
    like `case.status.updated` already say it is a symbol, and setting it in the
    id's own mono would have made the cell a wall of one texture with no first
-   word. It is simply absent on a row that has no type.
-
-   Nothing else is in this cell any more. The reference, the copy button and
-   the trace link each cost a hover target or a second machine string on every
-   line of a list read at a glance, and each of them is one click away on the
-   page the id opens. #}
+   word. It is simply absent on a row that has no type. #}
 {% macro identity(row) %}
-  <div class="flex min-w-0 items-baseline gap-2 overflow-hidden whitespace-nowrap">
-    <a href="{{ row.eventHref }}" class="min-w-0 truncate font-mono text-[13px] font-semibold text-base-content/85 hover:underline" title="{{ row.eventId }}" data-testid="event-id">{{ row.eventId }}</a>
-  </div>
+  <a href="{{ row.eventHref }}" class="link link-hover block truncate font-mono text-sm font-semibold" title="{{ row.eventId }}" data-testid="event-id">{{ row.eventId }}</a>
   {% if row.type %}
-    <div class="min-w-0 truncate text-[12px] text-base-content/70" data-testid="event-type">{{ row.type }}</div>
+    <div class="truncate text-xs text-base-content/60" title="{{ row.type }}" data-testid="event-type">{{ row.type }}</div>
   {% endif %}
 {% endmacro %}
 
-{# Which hop, and which queue. Not `A → B (via …)`: producer → consumer is the
-   fact a developer works out once and then knows, and it was spending the
-   widest column on the page saying it on every row — while leaving out the two
-   things a *list* is actually read for.
+{# Which hop, and where the message was going. Not `A → B (via …)`: producer →
+   consumer is the fact a developer works out once and then knows, and it was
+   spending the widest column on the page saying it on every row.
 
-   The first is which hop a row is. An outbox write and the inbox consume that
-   answers it carry one event id, so searching that id returns both, and until
-   this line said `GAS · Outbox` against `CW · Inbox` nothing on either row told
-   them apart. It is spelled by the same `toSourceName` the journey table uses,
-   so a row and the page it opens say the hop the same way.
+   The first line is which hop a row is. An outbox write and the inbox consume
+   that answers it carry one event id, so searching that id returns both, and
+   until this line said `GAS · Outbox` against `CW · Inbox` nothing on either
+   row told them apart. It is spelled by the same `toSourceName` the journey
+   table uses, so a row and the page it opens say the hop the same way.
 
    The second is where the message went: `to Caseworking`, resolved through the
    same subscription map the detail page's Route uses. The transport's own name
    — the string that gets pasted into an AWS console or a log query — is on the
-   title, whole and unshortened, which is the whole of how it stays reachable.
-   There is no copy button: a hover target on every line of a page read by
-   scanning bought a gesture an operator can make on the row's own page, one
-   click away, where the value is drawn whole with a button of its own.
+   title, whole and unshortened. An inbox row has no topic to name, so line two
+   names the producer instead: `from GAS`.
 
-   An inbox row has no topic to name — it is a message sitting in a box — so
-   line two names the producer instead: `from GAS`. A hop either way round, so
-   the column reads as one vocabulary rather than a sentence beside a machine
-   string.
-
-   The hop is a link to this page filtered to its service, which is half of what
-   the label says; the box half has no filter on the endpoint to point at yet. #}
-{% macro queueCell(row) %}
-  <div class="flex min-w-0 flex-col">
-    {%- if row.hopHref -%}
-      <a href="{{ row.hopHref }}" class="min-w-0 truncate text-[13px] text-base-content/85 hover:underline" title="{{ row.hopTitle }}" data-testid="event-hop">{{ row.hop }}</a>
-    {%- else -%}
-      <span class="min-w-0 truncate text-[13px] text-base-content/85" data-testid="event-hop">{{ row.hop }}</span>
-    {%- endif -%}
-    {%- if row.queue %}
-      <span class="min-w-0 truncate font-mono text-[11px] text-base-content/50"{% if row.queueValue %} title="{{ row.queueValue }}"{% endif %} data-testid="event-queue">{{ row.queue }}</span>
-    {%- endif -%}
-  </div>
+   The hop is a link to this page filtered to its service. #}
+{% macro sourceCell(row) %}
+  {%- if row.hopHref -%}
+    <a href="{{ row.hopHref }}" class="link link-hover block truncate" title="{{ row.hopTitle }}" data-testid="event-hop">{{ row.hop }}</a>
+  {%- else -%}
+    <div class="truncate" data-testid="event-hop">{{ row.hop }}</div>
+  {%- endif -%}
+  {%- if row.queue %}
+    <div class="truncate text-xs text-base-content/50"{% if row.queueValue %} title="{{ row.queueValue }}"{% endif %} data-testid="event-queue">{{ row.queue }}</div>
+  {%- endif -%}
 {% endmacro %}
 
-{# The status cell: the status, and — only on the rows that have one — how it
-   got there.
+{# What the status is, and — only on the rows that have one — how it got there.
 
    Failure was a column of its own, and on a healthy page it was a ruled column
-   of dashes: ten rems of the table set aside to say "nothing went wrong" on
-   every row where nothing had. But a count and a time are not a fact about an
-   event, they are a fact about its *status*, so they belong under it. A row
-   that has failed says `5/5 · 5h 36m ago` on a second line; a row that has not
-   is one line tall and says nothing at all.
+   of dashes. But a count and a time are not a fact about an event, they are a
+   fact about its *status*, so they belong under it. A row that has failed says
+   `attempts 5/5 · 5h 36m ago` on a second line; a row that has not is one line
+   tall and says nothing at all.
 
-   The sub-line is indented to the label above it — 6px of dot plus the 6px gap
-   — so the status column reads as one left edge whether a row has one line or
-   two. Mono at 10.5px, and muted: it is detail under a headline, not a second
-   headline.
+   The sub-lines are indented to the label above them, so the status column
+   reads as one left edge whether a row has one line or four. Muted mono: they
+   are detail under a headline, not a second headline.
 
-   `attempts 5/5` rather than `5/5`: the count sat under a status with nothing
-   naming it, and a bare `5/5` beside a time was read as often as a fraction of
-   something else — a fifth attempt out of five is the only reading now.
-
-   The reason goes under the count, on the rows that carry one. `Failed` says
-   that a message did not get through and never says why, and the why was two
-   clicks away in the logs for every one of them; one line of the actual error
-   turns a page of identical amber rows into a page an operator can triage
-   without leaving it. It is the one place on the row allowed a tint of the
-   error colour — muted, truncated to what the column holds, and with the error
-   class, the whole message and the instant on the title.
-
-   Never red. A row that failed once and recovered is not a problem, and the
-   dot and the row tint already say which rows are. A row retried but with no
-   failure on record still has a count worth reading and says the rest with a
-   dash. Both spellings of the instant, and the count in words, are on the
-   title, because neither half of `5/5 · 5h 36m ago` is quotable. #}
+   Never red, except the error itself. A row that failed once and recovered is
+   not a problem, and the dot and the row tint already say which rows are. #}
 {% macro statusDetail(row) %}
   {%- if row.hasFailure or row.showAttempts -%}
-    <div class="mt-px pl-3 font-mono text-[10.5px] tabular-nums text-base-content/45" title="{{ row.failureTitle }}" data-testid="event-failure">attempts <span data-testid="event-attempts">{{ row.attempts }}</span> <span class="text-base-content/25" aria-hidden="true">·</span> <span data-testid="event-last-failure">{% if row.hasFailure %}{{ row.lastFailureAt }}{% else %}—{% endif %}</span></div>
+    <div class="truncate pl-3.5 font-mono text-xs tabular-nums text-base-content/50" title="{{ row.failureTitle }}" data-testid="event-failure">attempts <span data-testid="event-attempts">{{ row.attempts }}</span> <span class="text-base-content/30" aria-hidden="true">·</span> <span data-testid="event-last-failure">{% if row.hasFailure %}{{ row.lastFailureAt }}{% else %}—{% endif %}</span></div>
   {%- endif -%}
   {%- if row.errorMessage -%}
-    <div class="truncate pl-3 font-mono text-[10.5px] text-error/70" title="{{ row.errorTitle }}" data-testid="event-error">{{ row.errorMessage }}</div>
-  {%- endif -%}
-  {# An event somebody set aside. The status above already says `Parked`; this
-     line says that a person did it and holds the reason they gave on its
-     title, because the reason is the only thing anybody wants to know about a
-     parked row and the column has eleven rems. Muted to the same weight as the
-     attempt line: it is a fact about the status, not a second status. #}
-  {%- if row.parked -%}
-    <div class="mt-px pl-3 font-mono text-[10.5px] text-base-content/45" title="{{ row.parkedTitle }}" data-testid="event-parked">parked</div>
+    <div class="truncate pl-3.5 font-mono text-xs text-error/70" title="{{ row.errorTitle }}" data-testid="event-error">{{ row.errorMessage }}</div>
   {%- endif -%}
   {# How long it took, on the rows that finished. `Completed` said that a
      message got through and never said how long it took to, and a queue whose
-     whole job is to be quick had no figure on this page saying whether it was.
-     Drawn in the same muted mono as the attempt line above it, indented to the
-     same left edge, and only ever on a row that carries both instants. #}
+     whole job is to be quick had no figure on this page saying whether it
+     was. #}
   {%- if row.latency -%}
-    <div class="mt-px pl-3 font-mono text-[10.5px] tabular-nums text-base-content/45" title="Time from created to completed" data-testid="event-latency">took {{ row.latency }}</div>
+    <div class="truncate pl-3.5 font-mono text-xs tabular-nums text-base-content/50" title="Time from created to completed" data-testid="event-latency">took {{ row.latency }}</div>
   {%- endif -%}
 {% endmacro %}
 
-{# One cell, one or two lines: the badge, then the detail if the row has any.
-   The wrapper is `min-w-0` so a long status never widens the track. #}
-{% macro status(row) %}
-  <div class="min-w-0" role="cell" data-testid="event-status">
-    {{ statusBadge({
-      status: row.status,
-      label: row.statusLabel,
-      role: row.statusRole,
-      retrying: row.statusRetrying
-    }) }}{{ statusDetail(row) }}
-  </div>
-{% endmacro %}
-
-{# The gutter, and the one mark it can carry: the selection box on a row the
-   batch can act on. It is only ever drawn on a dead letter — that is the one
-   status the redrive is for, and a page of checkboxes beside rows that cannot
-   be redriven is a page inviting a click that can only ever fail.
-
-   One box per row, and it selects that row: the page used to fold runs of
-   identical rows into groups whose box selected the whole run, and there are
-   no groups any more. #}
-{% macro selectBox(row, label) %}
-  {%- if row.isDeadLetter -%}
-    <input class="do-events-select checkbox checkbox-xs" type="checkbox" name="id" value="{{ row.selectValue }}" aria-label="{{ label }}" data-testid="event-select">
-  {%- endif -%}
-{% endmacro %}
-
-{# One data row, five cells. The first is the selection gutter, empty on every
-   row the batch cannot act on, so every id on the page starts at the same x.
+{# One row of the table, four cells. There was a fifth, a gutter holding a
+   checkbox on every dead letter, which is gone with the batch redrive it fed:
+   an event is redriven from its own page now, one decision at a time.
 
    A dead letter is the one row that wears a treatment of its own. Every other
-   state on this page now recedes — the commonest of them, Completed, as far as
-   grey text — so the faint error wash (`do-event-row-dead-letter`, in
-   client/dev-ops.css) is the only saturated thing on a calm page, and the
-   exception is what the eye lands on from across the room. #}
+   state on this page recedes — the commonest of them, Completed, as far as
+   grey text — so the faint error wash is the only saturated thing on a calm
+   page, and the exception is what the eye lands on from across the room. #}
 {% macro eventRow(row) %}
-  <div class="{{ gridRow }}{% if row.isDeadLetter %} do-event-row-dead-letter{% endif %}" role="row" data-testid="event-row">
-    <div role="cell" class="do-events-gutter">{{ selectBox(row, "Select this event for redrive") }}</div>
-    <div role="cell" class="min-w-0">{{ identity(row) }}</div>
-    {{ status(row) }}
-    <div role="cell" class="min-w-0">{{ queueCell(row) }}</div>
-    <div role="cell" class="text-right whitespace-nowrap">
-      <span class="font-mono text-[12px] tabular-nums text-base-content/75" title="{{ row.createdAtTitle }}" data-testid="event-created-at">{{ row.createdAt }}</span>
+  <tr class="{{ "bg-error/5 hover:bg-error/10" if row.isDeadLetter else "hover:bg-base-200" }}" data-testid="event-row">
+    <td>{{ identity(row) }}</td>
+    <td class="overflow-hidden" data-testid="event-status">
+      {{ statusBadge({
+        status: row.status,
+        label: row.statusLabel,
+        role: row.statusRole,
+        retrying: row.statusRetrying
+      }) }}
+      {{ statusDetail(row) }}
+    </td>
+    <td>{{ sourceCell(row) }}</td>
+    <td class="text-right">
+      <div class="font-mono text-xs tabular-nums" title="{{ row.createdAtTitle }}" data-testid="event-created-at">{{ row.createdAt }}</div>
       {# The instant itself, under the age of it. `22m ago` is the right first
          reading and the wrong thing to match against a log line, and the
          absolute was on a tooltip nobody hovers while scanning a column.
 
          The date arrives once the row is more than a day old, and the seconds
          go with it: `1 Sep 08:18` places a row a keyset window has reached
-         back to, and `08:18:01` places one from this morning. A bare clock did
-         the first job badly — the page filtered to Dead letter is exactly the
-         page whose rows are days old, and `08:18:01` on one of them reads as
-         today to anybody scanning.
-
-         The column carries no copy button. Two spellings of the instant are
-         already on the row and a third, whole to the millisecond, is on the
-         title and on the row's own page — which is one click away and is where
-         an operator goes to copy anything. A hover target on every line of a
-         column read by scanning bought a gesture they can make a line later. #}
-      {% if row.createdAtClock %}<div class="flex items-baseline justify-end gap-0.5 font-mono text-[11px] tabular-nums text-base-content/40" title="{{ row.createdAtTitle }}" data-testid="event-created-clock"><span data-testid="event-created-clock-text">{{ row.createdAtClock }}</span></div>{% endif %}
-    </div>
-  </div>
+         back to, and `08:18:01` places one from this morning. #}
+      {% if row.createdAtClock %}<div class="font-mono text-xs tabular-nums text-base-content/40" title="{{ row.createdAtTitle }}" data-testid="event-created-clock"><span data-testid="event-created-clock-text">{{ row.createdAtClock }}</span></div>{% endif %}
+    </td>
+  </tr>
 {% endmacro %}
+
+{# The one page in the app that is an application rather than a document: the
+   viewport is the frame, the heading and the toolbar take what they need, and
+   the card below them takes everything that is left. The document itself never
+   scrolls — the table does, inside the card — so the filters an operator works
+   with stay on screen and the last row of a full page is the last row of the
+   viewport rather than something below the fold.
+
+   A short page keeps the same frame. Three rows in a card that stops after
+   three rows reads as a broken page; three rows in a full-height card reads as
+   a stream that happens to be quiet. #}
+{% block bodyClass %} h-dvh overflow-hidden{% endblock %}
 
 {% block content %}
   {# The page's own header, not the navbar. The subtitle says what the page is;
      the toolbar below says which slice of it is on screen, so the two never
-     have to narrate each other. #}
-  <hgroup class="mb-3.5" data-testid="events-heading">
-    <h1 class="text-xl font-semibold" data-testid="events-title">{{ pageTitle }}</h1>
-    <p class="mt-0.5 text-xs text-base-content/55" data-testid="events-subtitle">Inbox and outbox messages across GAS, Caseworking and connected services.</p>
+     have to narrate each other.
+
+     One line, not three. A display-sized title over a sentence over a rule
+     spent sixty pixels of a viewport-height page introducing a table that
+     introduces itself — on the one screen an operator keeps open all day. The
+     `h1` stays, because the page still has one subject and the skip link still
+     has somewhere to land; it is simply set at the size of the words around
+     it, with the sentence beside it rather than under it. #}
+  <hgroup class="mb-2 flex flex-wrap items-baseline gap-x-2" data-testid="events-heading">
+    <h1 class="text-base font-semibold" data-testid="events-title">{{ pageTitle }}</h1>
+    <p class="text-sm text-base-content/60" data-testid="events-subtitle">Inbox and outbox messages across GAS, Caseworking and connected services.</p>
   </hgroup>
 
   {% if unavailableSources %}
-    <div role="alert" class="alert alert-warning mb-3.5 text-[13px]" data-testid="events-partial">
-      {{ icon({ name: 'exclamation-triangle', class: 'h-4 w-4 shrink-0' }) }}
+    <div role="alert" class="alert alert-warning alert-soft mb-3 text-sm" data-testid="events-partial">
+      {{ icon({ name: 'exclamation-triangle', class: 'size-4 shrink-0' }) }}
       <span>Some event sources are unavailable: {{ unavailableSources }}. Showing the rest.</span>
     </div>
   {% endif %}
 
-  {% if unavailable %}
-    <div role="alert" class="alert alert-error mb-3.5 text-[13px]" data-testid="events-error">
-      {{ icon({ name: 'exclamation-circle', class: 'h-4 w-4 shrink-0' }) }}
-      <span>Events could not be loaded from GAS.</span>
-    </div>
-  {% endif %}
+  {# Two rows, declared rather than emergent.
 
-  {# Two segmented controls and their labels, shrink-wrapped to what they hold:
-     a strip stretched to the width of the page put a border around nine
-     buttons and 700px of nothing. Each group carries its own outline now, so
-     the toolbar needs none of its own and no rule between them either.
+     Everything used to sit in one wrapping flex line: which controls shared a
+     row depended on how wide the count badges happened to render that minute,
+     so the toolbar re-laid itself out as the numbers changed and left a ragged
+     void beside the last control that fitted. The rows are stated instead —
+     what the page is filtered *to* on the first, how it is narrowed and
+     searched on the second — and the second row is pushed to the right edge so
+     the space between the two clusters is one gap rather than a field.
 
      Links, not a form: the page carries no client-side JavaScript, and each
      segment is simply the url of the page it selects. Every segment keeps the
      other group's filter and drops the cursor — a keyset position taken under
      one filter means nothing under another. Rendered whatever the table did,
      so a filter that found nothing can still be undone. #}
-  {# The toolbar is two things now: the filters on the left, and the controls
-     that act on the page on the right. They are separate flex children rather
-     than one run of items, so the filters keep shrink-wrapping to what they
-     hold — a strip stretched to the page put a border around nine buttons and
-     700px of nothing — while the right-hand cluster travels to the far edge. #}
-  <div class="mb-3 flex flex-wrap items-start justify-between gap-x-6 gap-y-2" data-testid="events-toolbar">
-  <div class="flex w-fit flex-wrap items-center gap-x-6 gap-y-2" data-testid="events-filters">
-    {# A label and the group it introduces are one object, so they are nested
-       as one: a single flex row spaced them all alike, which put as much air
-       between `Status` and its own segments as between the two controls, and
-       the toolbar read as four things rather than two. #}
-    <div class="flex items-center gap-x-2">
-      <span class="{{ filterLabel }}" data-testid="events-filter-label">Status</span>
-      <div class="{{ segmentGroup }}" data-testid="events-filter-status">
-        {% for chip in statusFilters %}{{ segment(chip, "events-filter-status-chip") }}{% endfor %}
+  <div class="mb-3 grid gap-y-2" data-testid="events-toolbar">
+    <div class="flex flex-wrap items-center gap-x-5 gap-y-2" data-testid="events-filters">
+      {# A label and the group it introduces are one object, so they are nested
+         as one: a single flex row spaced them all alike, which put as much air
+         between `Status` and its own segments as between the two controls. #}
+      <div class="flex items-center gap-2">
+        <span class="{{ filterLabel }}" data-testid="events-filter-label">Status</span>
+        <div class="join" role="group" aria-label="Filter by status" data-testid="events-filter-status">
+          {% for chip in statusFilters %}{{ segment(chip, "events-filter-status-chip") }}{% endfor %}
+        </div>
       </div>
+
+      <div class="flex items-center gap-2">
+        <span class="{{ filterLabel }}" data-testid="events-filter-label">Service</span>
+        <div class="join" role="group" aria-label="Filter by service" data-testid="events-filter-service">
+          {% for chip in serviceFilters %}{{ segment(chip, "events-filter-service-chip") }}{% endfor %}
+        </div>
+      </div>
+
     </div>
 
-    <div class="flex items-center gap-x-2">
-      <span class="{{ filterLabel }}" data-testid="events-filter-label">Service</span>
-      <div class="{{ segmentGroup }}" data-testid="events-filter-service">
-        {% for chip in serviceFilters %}{{ segment(chip, "events-filter-service-chip") }}{% endfor %}
-      </div>
-    </div>
+    {# The second row: the window and the needle, hard right. Neither is a
+       facet of the stream — one narrows what the page is asking about and the
+       other searches inside it — and both are read left-to-right into the
+       table's own right edge. #}
+    <div class="flex flex-wrap items-center justify-end gap-x-5 gap-y-2" data-testid="events-controls">
+      {# The window, as one control instead of four.
 
-    {# The window, as one control instead of four.
+         A `from` box, a `to` box and three quick links took a quarter of the
+         filter row to say something none of them said out loud: which window
+         the page is actually asking about. This says it on the button — `Last
+         24h`, an absolute pair, or `Any time` — and keeps the machinery behind
+         it.
 
-       A `from` box, a `to` box and three quick links took a quarter of the
-       filter row to say something none of them said out loud: which window the
-       page is actually asking about. This says it on the button — `Last 24h`,
-       an absolute pair, or `Any time` — and keeps the machinery behind it.
-
-       `<details>` and not a script: a summary is a button the browser already
-       knows how to focus, toggle with a keyboard and announce, and every path
-       out of the panel is a link or a submit, so the page reloads and the
-       panel closes itself. `do-dropdown` only adds what CSS cannot — closing
-       it again when the operator clicks somewhere else or presses Escape —
-       and the control works without it. #}
-    <div class="flex items-center gap-x-2">
-      <span class="{{ filterLabel }}" data-testid="events-filter-label">Time</span>
-      <do-dropdown>
-        <details class="dropdown" data-testid="events-range">
-          <summary class="{{ activeRangeButton if timeRange.active else rangeButton }}" title="{{ timeRange.title }}" data-testid="events-range-button">{{ timeRange.label }}</summary>
-          <div class="dropdown-content z-10 mt-1 w-[19rem] rounded-box border border-base-300 bg-base-100 p-2 shadow-lg" data-testid="events-range-panel">
+         The panel is a popover, and the popover is the whole of the behaviour:
+         the browser opens it from `popovertarget`, closes it on Escape and on
+         a click anywhere else, and returns focus to the button. There is no
+         script here at all — the custom element that used to supply exactly
+         those two behaviours is gone. #}
+      <div class="flex items-center gap-2" data-testid="events-range">
+        <span class="{{ filterLabel }}" data-testid="events-filter-label">Time</span>
+        <button class="{{ activeRangeButton if timeRange.active else rangeButton }}" type="button" popovertarget="events-range-panel" style="anchor-name:--events-range" title="{{ timeRange.title }}" data-testid="events-range-button">
+          {{ icon({ name: 'clock', class: 'size-3.5 opacity-60' }) }}
+          {{ timeRange.label }}
+          {{ icon({ name: 'chevron-down', class: 'size-3 opacity-60' }) }}
+        </button>
+        <div class="dropdown card card-sm w-72 border border-base-300 bg-base-100 shadow-md" popover id="events-range-panel" style="position-anchor:--events-range" data-testid="events-range-panel">
+          <div class="card-body gap-2 p-2">
             {# The ladder. Each rung is a plain GET link carrying every other
                filter, exactly as the quick links it replaces did: it writes an
                absolute `from`, clears `to`, drops the cursor, and names itself
                in `range=` so the button can say which rung it is. #}
-            <ul class="flex flex-col gap-y-0.5" data-testid="events-range-presets">
+            <ul class="menu menu-sm w-full p-0" data-testid="events-range-presets">
               {% for preset in timeRange.presets %}
                 <li>
-                  <a class="{{ rangePresetActive if preset.active else rangePreset }}" href="{{ preset.href }}" title="{{ preset.title }}"{% if preset.active %} aria-current="true"{% endif %} data-value="{{ preset.key }}" data-testid="events-range-preset">{{ preset.label }}</a>
+                  <a class="{{ "menu-active" if preset.active }}" href="{{ preset.href }}" title="{{ preset.title }}"{% if preset.active %} aria-current="true"{% endif %} data-value="{{ preset.key }}" data-testid="events-range-preset">{{ preset.label }}</a>
                 </li>
               {% endfor %}
               {# `Any time` is a rung and not a `Clear ×` off to one side: "no
                  window" is a choice about the range like any other, and this
                  list is the one place an operator looks to make it. #}
               <li>
-                <a class="{{ rangePresetActive if timeRange.anyTimeActive else rangePreset }}" href="{{ timeRange.anyTimeHref }}"{% if timeRange.anyTimeActive %} aria-current="true"{% endif %} data-testid="events-range-any">Any time</a>
+                <a class="{{ "menu-active" if timeRange.anyTimeActive }}" href="{{ timeRange.anyTimeHref }}"{% if timeRange.anyTimeActive %} aria-current="true"{% endif %} data-testid="events-range-any">Any time</a>
               </li>
             </ul>
 
@@ -398,79 +312,49 @@
                repeated beside every figure is a label nobody reads. The two
                boxes keep it on their titles, where the parsing rule is the one
                thing an operator might actually need told. #}
-            <form class="mt-2 flex flex-col gap-y-1 border-t border-base-300 pt-2" method="get" action="/dev-ops/events" data-testid="events-range-form">
+            <form method="get" action="/dev-ops/events" data-testid="events-range-form">
               {% for field in rangeFilters %}
                 <input type="hidden" name="{{ field.name }}" value="{{ field.value }}" data-testid="events-range-filter">
               {% endfor %}
-              <span class="{{ rangeHeading }}" data-testid="events-range-absolute-heading">Absolute range</span>
-              <label class="flex items-center gap-x-2 px-2 {{ filterLabel }}" data-testid="events-range-from-label">
-                <span class="w-8">From</span>
-                <input class="input input-xs grow text-[12px] normal-case" type="datetime-local" step="1" name="from" value="{{ fromInput }}" data-testid="events-range-from">
-              </label>
-              <label class="flex items-center gap-x-2 px-2 {{ filterLabel }}" data-testid="events-range-to-label">
-                <span class="w-8">To</span>
-                <input class="input input-xs grow text-[12px] normal-case" type="datetime-local" step="1" name="to" value="{{ toInput }}" data-testid="events-range-to">
-              </label>
-              <button class="btn btn-xs btn-ghost mt-1 self-end border border-base-300 font-normal" type="submit" data-testid="events-range-apply">Apply</button>
+              <fieldset class="fieldset border-t border-base-300 pt-2">
+                <legend class="fieldset-legend" data-testid="events-range-absolute-heading">Absolute range</legend>
+                <label class="label" for="events-range-from" data-testid="events-range-from-label">From</label>
+                <input class="input input-sm w-full font-mono text-xs" id="events-range-from" type="datetime-local" step="1" name="from" value="{{ fromInput }}" data-testid="events-range-from">
+                <label class="label" for="events-range-to" data-testid="events-range-to-label">To</label>
+                <input class="input input-sm w-full font-mono text-xs" id="events-range-to" type="datetime-local" step="1" name="to" value="{{ toInput }}" data-testid="events-range-to">
+                <button class="btn btn-sm mt-2 self-end" type="submit" data-testid="events-range-apply">Apply</button>
+              </fieldset>
             </form>
           </div>
-        </details>
-      </do-dropdown>
-    </div>
+        </div>
+      </div>
 
-    {# The one control on the page that is a form rather than a link, because
-       it is the one that takes a value the server cannot enumerate. It is
-       also the shortest path an operator has: they arrive holding an id from
-       a log line, a message id from a ticket or a reference from a case, and
-       before this the answer was Ctrl+F over one keyset page.
+      {# The one control on the page that is a form rather than a link, because
+         it is the one that takes a value the server cannot enumerate. It is
+         also the shortest path an operator has: they arrive holding an id from
+         a log line, a message id from a ticket or a reference from a case, and
+         before this the answer was Ctrl+F over one keyset page.
 
-       GET, so a search is a url — shareable, bookmarkable, and back-buttonable
-       like every other state of this page.
+         GET, so a search is a url — shareable, bookmarkable, and
+         back-buttonable like every other state of this page.
 
-       A form submits its own fields and nothing else, so every filter the
-       toolbar holds is restated as a hidden field: without them, searching
-       from a page filtered to Dead letter would quietly widen it to All. The
-       window is among them now that its boxes live in the panel above, `range`
-       with it, so a search from `Last 24h` comes back still saying so. The
-       cursor is deliberately not among them — a keyset position taken over the
-       whole stream means nothing over a search of it. #}
-    <form class="flex items-center gap-x-2" method="get" action="/dev-ops/events" role="search" data-testid="events-search">
-      {% for field in searchFilters %}
-        <input type="hidden" name="{{ field.name }}" value="{{ field.value }}" data-testid="events-search-filter">
-      {% endfor %}
-      <input class="input input-sm w-[22rem] text-[12px]" type="search" name="q" value="{{ q }}" placeholder="Event id, message id or reference…" aria-label="Search events" data-testid="events-search-input">
-      <button class="btn btn-sm btn-ghost border border-base-300 font-normal" type="submit" data-testid="events-search-submit">Search</button>
-    </form>
-  </div>
-
-    {# The controls that *write*, hard right and away from the filters, and
-       now the only thing in this corner: they are the destructive things on
-       this screen and they have no business sitting in a run of filter chips.
-       Nothing about how the page refreshes itself keeps them company — that is
-       a browser's job, not a row of buttons an operator aims at.
-
-       Each is only drawn where there is something for it to act on. A page of
-       healthy rows has no checkboxes on it, and a submit button above one
-       could only ever be pressed by mistake, so on such a page this corner is
-       deliberately empty rather than filled with a control that does nothing.
-
-       The button lives outside the form it submits — the form wraps the table,
-       because that is where the checkboxes are — and reaches it by `form=`,
-       which is HTML's own answer and needs no script. #}
-    <div class="flex items-center gap-x-2" data-testid="events-toolbar-actions">
-      {% if hasDeadLetters %}
-        <button class="btn btn-sm btn-error btn-outline font-normal" type="submit" form="events-redrive-batch" data-testid="events-redrive-selected">Redrive selected</button>
-      {% endif %}
-      {# The other shape of the same intent, and the one a real dead-letter
-         queue needs: not these eight, but every one of the seven thousand
-         behind this filter. It is a link to a confirmation rather than a
-         submit, because the set it acts on is a query and not a selection —
-         there is nothing on this page to gather up, and the page that follows
-         has to state the filters back before anything is written. Drawn only
-         where the filter it would act on is the one on screen. #}
-      {% if redriveAll %}
-        <a class="btn btn-sm btn-error btn-outline font-normal" href="{{ redriveAll.href }}" title="{{ redriveAll.title }}" data-testid="events-redrive-all">{{ redriveAll.label }}</a>
-      {% endif %}
+         A form submits its own fields and nothing else, so every filter the
+         toolbar holds is restated as a hidden field: without them, searching
+         from a page filtered to Dead letter would quietly widen it to All. The
+         window is among them now that its boxes live in the panel above,
+         `range` with it, so a search from `Last 24h` comes back still saying
+         so. The cursor is deliberately not among them — a keyset position
+         taken over the whole stream means nothing over a search of it. #}
+      <form class="join" method="get" action="/dev-ops/events" role="search" data-testid="events-search">
+        {% for field in searchFilters %}
+          <input type="hidden" name="{{ field.name }}" value="{{ field.value }}" data-testid="events-search-filter">
+        {% endfor %}
+        <label class="input input-sm join-item w-80" data-testid="events-search-label">
+          {{ icon({ name: 'search', class: 'size-3.5 opacity-50' }) }}
+          <input type="search" name="q" value="{{ q }}" placeholder="Event id, message id or reference…" aria-label="Search events" data-testid="events-search-input">
+        </label>
+        <button class="btn btn-sm join-item" type="submit" data-testid="events-search-submit">Search</button>
+      </form>
     </div>
   </div>
 
@@ -481,21 +365,14 @@
      in the panel below. Each is a filter an operator forgets is on, and a page
      read under a forgotten filter is a page lying about the stream.
 
-     The window used to be a third. It is not any more: the TIME button says
-     which window is on and is the way out of it, so a line here repeating that
-     would be the same fact in two places, one of them a control and one of
-     them prose.
-
      They sit under the toolbar rather than inside the card, because they are
-     filter state and that is where the filters are — and because it leaves the
-     card to the two things it is actually about, the failures above the table
-     and the table. Each carries the way out of itself, one click, keeping
-     everything else. #}
+     filter state and that is where the filters are. Each carries the way out
+     of itself, one click, keeping everything else. #}
   {% if q or errorFilter %}
-    <div class="mb-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px]" data-testid="events-filter-notes">
+    <div class="mb-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs" data-testid="events-filter-notes">
       {% if q %}
         <span class="text-base-content/60" data-testid="events-note-search">Matching <span class="font-mono text-base-content/80">"{{ q }}"</span></span>
-        <a class="text-[11px] text-base-content/50 hover:underline" href="{{ clearSearchHref }}" data-testid="events-note-search-clear">Clear ×</a>
+        <a class="link link-hover text-base-content/50" href="{{ clearSearchHref }}" data-testid="events-note-search-clear">Clear ×</a>
       {% endif %}
       {# The narrowest filter the page has, and the only one with no control
          anywhere on the toolbar showing its value: without this line an
@@ -503,148 +380,187 @@
          which. Sixty characters of it, the whole of it on the title. #}
       {% if errorFilter %}
         {% if q %}<span class="text-base-content/30" aria-hidden="true">·</span>{% endif %}
-        <span class="text-base-content/60" data-testid="events-note-error">Error: <span class="font-mono text-[11px] text-base-content/80" title="{{ errorFilter.title }}">"{{ errorFilter.label }}"</span></span>
-        <a class="text-[11px] text-base-content/50 hover:underline" href="{{ errorFilter.clearHref }}" data-testid="events-note-error-clear">Clear ×</a>
+        <span class="text-base-content/60" data-testid="events-note-error">Error: <span class="font-mono text-base-content/80" title="{{ errorFilter.title }}">"{{ errorFilter.label }}"</span></span>
+        <a class="link link-hover text-base-content/50" href="{{ errorFilter.clearHref }}" data-testid="events-note-error-clear">Clear ×</a>
       {% endif %}
     </div>
   {% endif %}
 
   {% if rows | length %}
-    {# The table sits inside the batch form, because the checkboxes do: a form
-       submits its own controls and nothing else, and the selection is spread
-       down the rows. The button that submits it is up in the toolbar and
-       reaches this form by `form=` rather than by script.
+    {# The list writes nothing. It used to be wrapped in a form, because the
+       rows carried checkboxes and a batch redrive submitted them; that flow is
+       gone, and with it the last POST on this page. Every write in the app is
+       now made from one event's own page, where the operator can see what they
+       are about to redrive. #}
+    {# The card is the frame and the table inside it is the only thing that
+       scrolls: the caption, the failures panel and the pager keep their
+       places at the top and the bottom of it while the rows travel past
+       between them. #}
+    <div class="card card-border flex min-h-0 flex-1 flex-col overflow-hidden bg-base-100" data-testid="events-card">
+        {# One row, not two. The failures summary and the caption are both
+           *about this result set*, and stacked they were two strips of chrome
+           before a single row of data.
 
-       POST, and to a page that only shows what it is about to do. The write
-       itself is the second POST, from the confirmation — so nothing here can
-       queue a message, and nothing here can be re-submitted by a reload.
+           A one-cell grid: both children are placed in the same cell, so the
+           disclosure keeps the full width of the card to open into while the
+           right-hand cluster sits on its first line. A flex row would have
+           given the panel only the width the buttons left it.
 
-       `from` carries the list's own query through both stages, so the way back
-       out of the flow is the page the operator started on: same filter, same
-       search, same cursor. #}
-    <form method="post" action="{{ redriveBatchAction }}" id="events-redrive-batch" data-testid="events-batch-form">
-      <input type="hidden" name="from" value="{{ currentSearch }}" data-testid="events-batch-from">
-    <div class="overflow-hidden rounded-box border border-base-300 bg-base-100" data-testid="events-card">
-      {# How many events every filter on this page selects, said once, over the
-         table it describes.
+           The summary and its chevron are the only click target on the left —
+           `w-fit` stops the disclosure at its own words — and everything on
+           the right is outside `<summary>`, so neither the figure nor the
+           buttons toggle anything. The row is drawn whenever any of them has
+           something to say, so the total never disappears with the panel. #}
+        {% if eventsTotal or topFailures %}
+          <div class="grid shrink-0 grid-cols-1 grid-rows-1 border-b border-base-300" data-testid="events-card-header">
 
-         It used to be the figure on the STATUS `All` segment, which put the
-         page's headline number inside one segment of one control — and a facet
-         at that, so selecting a status left it unmoved. The one number an
-         operator reads as "what am I looking at?" was the one number the
-         status filter did not change.
+        {# Which failures the dead letters actually are.
 
-         Here it belongs to the result set and to nothing else: it moves when
-         any filter moves, status included. Quiet and right-aligned, over the
-         column of figures it counts, because it is a caption on the table and
-         not a control. Drawn only where it is known — a summary that failed to
-         load has not made the table below it an error. #}
-      {% if eventsTotal %}
-        <div class="flex items-center justify-end border-b border-base-300 px-3 py-1.5" data-testid="events-total">
-          <span class="text-[12px] tabular-nums text-base-content/55" title="Events matching every filter on this page">{{ eventsTotal }}</span>
-        </div>
-      {% endif %}
+           A queue with seven thousand dead letters in it is not seven thousand
+           incidents; it is usually three, and the list cannot say which three
+           because it is one keyset window ordered by time and the shape of an
+           incident is spread across three hundred pages of it. Each row is one
+           failure, how many events it has caused, and how long it has been
+           causing them — and each row is the link that narrows the page to
+           exactly that failure, message and all.
 
-      {# Which failures the dead letters actually are.
-
-         A queue with seven thousand dead letters in it is not seven thousand
-         incidents; it is usually three, and the list cannot say which three
-         because it is one keyset window ordered by time and the shape of an
-         incident is spread across three hundred pages of it. Each row is one
-         failure, how many events it has caused, and how long it has been
-         causing them — and each row is the link that narrows the page to
-         exactly that failure, message and all.
-
-         Open when the page is already about dead letters, and folded shut when
-         it is not: a summary of the queue's worst day should not push the table
-         down on a page somebody opened to look at something else, but it should
-         still say it is there. Native disclosure, no script. #}
-      {% if topFailures %}
-        <details class="do-failures border-b border-base-300"{% if topFailures.open %} open{% endif %} data-testid="events-failures">
-          <summary class="do-failures-summary flex items-center gap-2 px-3 py-1.5 text-[12px] text-base-content/70" data-testid="events-failures-summary">
-            <span class="do-caret" aria-hidden="true"></span>{{ topFailures.summary }}
-          </summary>
-          <div class="pb-1.5" data-testid="events-failures-list">
-            {% for group in topFailures.groups %}
-              <a class="{{ failureRow }}" href="{{ group.href }}" data-testid="events-failure-row">
-                <span class="min-w-0 truncate font-mono text-[11.5px] text-error/80" title="{{ group.messageTitle }}" data-testid="events-failure-message">{{ group.message }}</span>
-                {# The failure message beside it is what names this group; the
-                   type is the extra fact. A group of rows that store none —
-                   audit records — leaves the cell empty rather than standing
-                   something in for it. #}
-                <span class="min-w-0 truncate text-[12px] text-base-content/70" data-testid="events-failure-type">{{ group.type if group.type else "" }}</span>
-                <span class="text-right font-mono text-[12px] font-medium tabular-nums text-base-content/85" data-testid="events-failure-count">{{ group.countLabel }}</span>
-                <span class="text-right font-mono text-[11px] tabular-nums whitespace-nowrap text-base-content/45" title="{{ group.firstTitle }}" data-testid="events-failure-first">first {{ group.firstAt }}</span>
-                <span class="text-right font-mono text-[11px] tabular-nums whitespace-nowrap text-base-content/45" title="{{ group.lastTitle }}" data-testid="events-failure-last">last {{ group.lastAt }}</span>
-              </a>
-            {% endfor %}
-            {# The groups that recorded no message are counted like any other,
-               and cannot be linked to like any other: `?error=` matches a
-               message, and there is none. Saying so is the honest answer —
-               a link that quietly widened to every dead letter would be a
-               worse one. #}
-            {% if topFailures.hasUnattributed %}
-              <p class="px-3 pt-1 text-[11px] text-base-content/45" data-testid="events-failures-note">Events with no error recorded are counted here but cannot be isolated by a failure filter.</p>
-            {% endif %}
-          </div>
-        </details>
-      {% endif %}
-
-      {# The table scrolls inside this box, not the page: five columns of ids
-         do not fit a phone, and a body that scrolls sideways loses the header.
-         The box is height-bounded as well, which is what gives the sticky
-         header and the sticky pager something to stick to. #}
-      <div class="do-events-scroller overflow-auto" data-testid="events-scroller">
-        <div class="min-w-[64rem]">
-          {# A grid rather than a <table>: the cells are two-line stacks and a
-             `<td>` is a poor box for one. The roles put the table back for
-             assistive technology. #}
-          <div class="do-events-grid" role="table" aria-label="Events" data-testid="events-table">
-            <div class="do-events-row do-events-head" role="row" data-testid="events-head">
-              {# The selection gutter, unlabelled: it heads the checkboxes, and
-                 a word there would be a word about the table rather than about
-                 a column of it. #}
-              <div role="columnheader" class="do-events-gutter"></div>
-              <div role="columnheader" class="{{ columnHeading }}">Event</div>
-              <div role="columnheader" class="{{ columnHeading }}">Status</div>
-              <div role="columnheader" class="{{ columnHeading }}">Source</div>
-              {# The one column of figures is right-aligned in the header as
-                 well as in the body, so the heading sits over its own column
-                 of digits rather than over the gutter beside it. #}
-              <div role="columnheader" class="{{ numericHeading }}">Created</div>
+           Open when the page is already about dead letters, and folded shut
+           when it is not: a summary of the queue's worst day should not push
+           the table down on a page somebody opened to look at something else,
+           but it should still say it is there. daisyUI's `collapse` on a
+           native `details`, so the disclosure is still the browser's and the
+           open state is still the server's. #}
+        {% if topFailures %}
+          <details class="group collapse col-start-1 row-start-1 max-h-64 overflow-y-auto rounded-none"{% if topFailures.open %} open{% endif %} data-testid="events-failures">
+            {# `collapse-arrow` draws its mark against the far edge of the
+               panel, which on a full-width row is a chevron a hand's breadth
+               from the words it belongs to — and it would land under the
+               caption. The glyph is inline instead, immediately after the
+               label, turned over when the panel is open. #}
+            <summary class="collapse-title flex min-h-10 w-fit items-center gap-1.5 px-4 py-0 text-sm text-base-content/70" data-testid="events-failures-summary">{{ topFailures.summary }}{{ icon({ name: 'chevron-down', class: 'size-3.5 opacity-60 transition-transform group-open:rotate-180' }) }}</summary>
+            <div class="collapse-content px-0 pb-2" data-testid="events-failures-list">
+              <div class="max-w-full overflow-x-auto">
+                <table class="table table-xs" data-testid="events-failures-table">
+                  <thead>
+                    <tr>
+                      <th>Error</th>
+                      <th>Type</th>
+                      <th class="text-right">Count</th>
+                      <th class="text-right">First</th>
+                      <th class="text-right">Last</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {% for group in topFailures.groups %}
+                      <tr class="hover:bg-base-200" data-testid="events-failure-row">
+                        <td class="max-w-96 truncate">
+                          <a class="link link-hover font-mono {{ "text-error" if group.hasError else "text-base-content/50" }}" href="{{ group.href }}" title="{{ group.messageTitle }}" data-testid="events-failure-message">{{ group.message }}</a>
+                        </td>
+                        {# The failure message beside it is what names this
+                           group; the type is the extra fact. A group of rows
+                           that store none — audit records — leaves the cell
+                           empty rather than standing something in for it. #}
+                        <td class="text-base-content/70" data-testid="events-failure-type">{{ group.type if group.type else "" }}</td>
+                        <td class="text-right font-mono font-medium tabular-nums" data-testid="events-failure-count">{{ group.countLabel }}</td>
+                        <td class="text-right font-mono tabular-nums whitespace-nowrap text-base-content/50" title="{{ group.firstTitle }}" data-testid="events-failure-first">first {{ group.firstAt }}</td>
+                        <td class="text-right font-mono tabular-nums whitespace-nowrap text-base-content/50" title="{{ group.lastTitle }}" data-testid="events-failure-last">last {{ group.lastAt }}</td>
+                      </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              </div>
+              {# The groups that recorded no message are counted like any other,
+                 and cannot be isolated like any other: `?error=` matches a
+                 message, and there is none. Saying so is the honest answer. #}
+              {% if topFailures.hasUnattributed %}
+                <p class="px-4 pt-1 text-xs text-base-content/50" data-testid="events-failures-note">Events with no error recorded are counted here but cannot be isolated by a failure filter.</p>
+              {% endif %}
             </div>
+          </details>
+        {% endif %}
 
-            {# One row per event, in the endpoint's order. Runs of identical
-               rows used to fold into openable `<details>` groups; they do not
-               any more, so there is one list to walk and one kind of thing on
-               it. #}
-            {% for row in rows %}{{ eventRow(row) }}{% endfor %}
-          </div>
+        {# The right-hand end of that row: what the filters add up to.
 
-          {# The footer is two directions and nothing else.
+           It is the figure the whole page answers to — it used to be the
+           number on the STATUS `All` segment, which put the page's headline
+           inside one segment of one control, and a facet at that, so selecting
+           a status left it unmoved. It moves when any filter moves.
 
-             It used to count the rows above it. `20 events` under a page of
-             twenty is a fact about a window, and the segments in the toolbar
-             now carry the facts about the stream that an operator actually
-             opens this page for — so the footer counting its own rows was one
-             page-shaped number sitting under seven dataset-shaped ones, in the
-             smallest type on the card. The last row is where the page ends;
-             nothing has to say so in words. #}
-          {{ pager({
-            previousHref: previousHref,
-            nextHref: nextHref
-          }) }}
+           It had the two bulk-redrive buttons beside it until they were taken
+           off the page. Nothing on this list writes now, and the row is the
+           same height without them. #}
+        <div class="col-start-1 row-start-1 flex min-h-10 items-center gap-3 self-start justify-self-end px-4" data-testid="events-card-aside">
+          {% if eventsTotal %}
+            <span class="text-xs tabular-nums text-base-content/60" title="Events matching every filter on this page" data-testid="events-total">{{ eventsTotal }}</span>
+          {% endif %}
         </div>
-      </div>
+          </div>
+        {% endif %}
+
+        {# The table scrolls inside this box, not the page: four columns of ids
+           do not fit a phone, and a body that scrolls sideways loses the
+           header. The box takes whatever height the card has left, which is
+           what gives `table-pin-rows` something to pin the header to and what
+           keeps the pager on screen under a page of twenty rows. #}
+        <div class="min-h-0 w-full flex-1 overflow-x-auto overflow-y-auto overscroll-contain" data-testid="events-scroller">
+          {# `table-fixed`, and every column's share declared on its header.
+             An auto table measures its own contents, so the columns moved
+             between one page and the next — a page of 24-hex Mongo ids gave
+             Event less width than a page of uuids, a page with no failure
+             lines under the statuses narrowed Status, and paging felt like the
+             table was being rebuilt each time. The proportions are tuned at
+             the table's own minimum width, where Event still has room for a
+             36-character id and Status for `attempts 5/5 · 2d ago` under its
+             label; on a wider screen every column grows by the same ratio.
+
+             The four percent the selection gutter held went to Event and
+             Source, the two columns with something to say: an id and a hop are
+             read, and a status and a timestamp are glanced at. #}
+          <table class="table table-sm table-pin-rows min-w-[64rem] table-fixed" data-testid="events-table">
+            <thead>
+              <tr data-testid="events-head">
+                <th class="w-[46%]">Event</th>
+                <th class="w-[19%]">Status</th>
+                <th class="w-[21%]">Queue</th>
+                {# The one column of figures is right-aligned in the header as
+                   well as in the body, so the heading sits over its own column
+                   of digits rather than beside it. #}
+                <th class="w-[14%] text-right">Created</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in rows %}{{ eventRow(row) }}{% endfor %}
+            </tbody>
+          </table>
+        </div>
+
+        {{ pager({
+          previousHref: previousHref,
+          nextHref: nextHref
+        }) }}
     </div>
-    </form>
-  {% elif not unavailable %}
-    <div class="overflow-hidden rounded-box border border-base-300 bg-base-100" data-testid="events-card">
-      {# An empty page under a search says which search found nothing, and
-         offers the way back out of it. `No events found.` under a needle the
-         operator typed reads as "this service has no events", which is a much
-         more alarming sentence than the true one. #}
-      <p class="px-4 py-10 text-center text-[13px] text-base-content/60" data-testid="events-empty">{% if q %}No events match "{{ q }}". <a class="text-base-content/50 hover:underline" href="{{ clearSearchHref }}" data-testid="events-empty-clear">Clear search</a>{% else %}No events found.{% endif %}</p>
+  {% else %}
+    {# Every other outcome keeps the frame. A card that stops after one
+       sentence under a full-height toolbar reads as a page that failed to
+       draw — and an outage used to have no card at all, so the toolbar was
+       left floating over an empty screen with a red strip above it. Nothing
+       could be read is a state of the result set like any other, and it is
+       reported inside the frame the result set lives in. #}
+    <div class="card card-border min-h-0 flex-1 bg-base-100" data-testid="events-card">
+      {% if unavailable %}
+        <div class="p-4">
+          <div role="alert" class="alert alert-error alert-soft text-sm" data-testid="events-error">
+            {{ icon({ name: 'exclamation-circle', class: 'size-4 shrink-0' }) }}
+            <span>Events could not be loaded from GAS.</span>
+          </div>
+        </div>
+      {% else %}
+        {# An empty page under a search says which search found nothing, and
+           offers the way back out of it. `No events found.` under a needle the
+           operator typed reads as "this service has no events", which is a much
+           more alarming sentence than the true one. #}
+        <p class="px-4 py-10 text-center text-sm text-base-content/60" data-testid="events-empty">{% if q %}No events match "{{ q }}". <a class="link link-hover text-base-content/50" href="{{ clearSearchHref }}" data-testid="events-empty-clear">Clear search</a>{% else %}No events found.{% endif %}</p>
+      {% endif %}
     </div>
   {% endif %}
 {% endblock %}

@@ -1,9 +1,6 @@
 import { logger } from '../../common/logger.ts'
 import { redriveEvent } from '../repositories/events.repository.ts'
-import {
-  redriveEventUseCase,
-  redriveEventsUseCase
-} from './redrive-event.use-case.ts'
+import { redriveEventUseCase } from './redrive-event.use-case.ts'
 
 vi.mock(import('../repositories/events.repository.ts'))
 vi.mock(import('../../common/logger.ts'))
@@ -36,8 +33,7 @@ describe('redriveEventUseCase', () => {
         createdAt: '2026-06-16T10:00:00.000Z',
         lastFailureAt: null,
         completedAt: null,
-        lastError: null,
-        parked: null
+        lastError: null
       }
     })
   })
@@ -132,75 +128,5 @@ describe('redriveEventUseCase', () => {
     const [line] = vi.mocked(logger.error).mock.calls[0]
 
     expect(String(line)).not.toContain('mongo')
-  })
-})
-
-const other = { service: 'caseworking', box: 'inbox', id: 'b'.repeat(24) }
-
-describe('redriveEventsUseCase', () => {
-  beforeEach(() => {
-    vi.mocked(redriveEvent).mockResolvedValue({
-      event: {
-        service: 'gas',
-        box: 'outbox',
-        id: '665f1c2e9a1b2c3d4e5f6a7b',
-        eventId: '3f2c1a0e-1111-2222-3333-444455556666',
-        type: 'case.status.updated',
-        fullType: null,
-        source: null,
-        target: null,
-        segregationRef: null,
-        status: 'RESUBMITTED',
-        attempts: 0,
-        maxAttempts: 5,
-        traceId: null,
-        createdAt: '2026-06-16T10:00:00.000Z',
-        lastFailureAt: null,
-        completedAt: null,
-        lastError: null,
-        parked: null
-      }
-    })
-  })
-
-  test('redrives every event it is given, and answers for each', async () => {
-    await expect(redriveEventsUseCase([key, other])).resolves.toEqual([
-      { key, result: { outcome: 'redriven', status: null } },
-      { key: other, result: { outcome: 'redriven', status: null } }
-    ])
-  })
-
-  // One at a time, deliberately: this write puts messages back on a queue that
-  // is already struggling, and twenty at once is a burst rather than a
-  // recovery.
-  test('writes one at a time, in the order it was given', async () => {
-    await redriveEventsUseCase([key, other])
-
-    expect(redriveEvent).toHaveBeenCalledTimes(2)
-    expect(vi.mocked(redriveEvent).mock.calls.map(([given]) => given)).toEqual([
-      key,
-      other
-    ])
-  })
-
-  // A conflict on the third of eight says one event moved on, not that the
-  // other seven should be abandoned.
-  test('carries on past a failure, and reports every outcome', async () => {
-    vi.mocked(redriveEvent)
-      .mockRejectedValueOnce(responseError(409, { status: 'COMPLETED' }))
-      .mockRejectedValueOnce(responseError(404))
-
-    const results = await redriveEventsUseCase([key, other, key])
-
-    expect(results.map(({ result }) => result)).toEqual([
-      { outcome: 'conflict', status: 'COMPLETED' },
-      { outcome: 'not-found', status: null },
-      { outcome: 'redriven', status: null }
-    ])
-  })
-
-  test('writes nothing at all when nothing was selected', async () => {
-    await expect(redriveEventsUseCase([])).resolves.toEqual([])
-    expect(redriveEvent).not.toHaveBeenCalled()
   })
 })

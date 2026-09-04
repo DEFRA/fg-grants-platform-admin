@@ -53,12 +53,8 @@ describe('pager component', () => {
     expect(older.attr('href')).toBeUndefined()
     expect(newer.text()).toBe('← Newer')
     expect(older.text()).toBe('Older →')
-    expect(newer.attr('class')).toBe(
-      'btn btn-xs btn-ghost font-medium text-base-content/30'
-    )
-    expect(older.attr('class')).toBe(
-      'btn btn-xs btn-ghost font-medium text-base-content/30'
-    )
+    expect(newer.attr('class')).toBe('btn btn-xs join-item btn-disabled')
+    expect(older.attr('class')).toBe('btn btn-xs join-item btn-disabled')
   })
 
   // The bar is the table's bottom edge as much as it is a control: without it
@@ -93,14 +89,15 @@ describe('pager component', () => {
     )
   })
 
-  // One cluster, hard right: the two directions are one control, and nothing
-  // at all floats to the left of them.
-  test('holds both directions in one cluster on the right', () => {
+  // One cluster, centred under the table: the two directions are one control —
+  // a `join`, which is daisyUI's own pagination — and nothing at all floats
+  // beside them.
+  test('holds both directions in one joined cluster', () => {
     const $pager = render('pager', { previousHref, nextHref })
 
     const links = $pager('[data-testid="do-pager-links"]')
 
-    expect(links.attr('class')).toBe('ml-auto flex items-center gap-2')
+    expect(links.attr('class')).toBe('join')
     expect(links.children()).toHaveLength(2)
     expect(links.children().first().attr('data-testid')).toBe('do-pager-newer')
     expect(links.children().last().attr('data-testid')).toBe('do-pager-older')
@@ -137,20 +134,17 @@ describe('pager component', () => {
     expect($pager('[data-testid="do-pager"]').text()).not.toContain('Next')
   })
 
-  // Extra small, like the filter segments: the row is the table's last line,
-  // not a control panel under it, so it keeps the height of the rows above it.
-  test('renders both links as quiet extra small buttons', () => {
+  // Extra small joined buttons, which is daisyUI's documented pagination:
+  // one control with two segments, and the quietest thing on the card.
+  test('renders both directions as joined extra small buttons', () => {
     const $pager = render('pager', { previousHref, nextHref })
 
     expect($pager('[data-testid="do-pager-newer"]').attr('class')).toBe(
-      'btn btn-xs btn-ghost font-medium'
+      'btn btn-xs join-item'
     )
     expect($pager('[data-testid="do-pager-older"]').attr('class')).toBe(
-      'btn btn-xs btn-ghost font-medium'
+      'btn btn-xs join-item'
     )
-    expect(
-      $pager('[data-testid="do-pager-newer"]').attr('class')
-    ).not.toContain('font-semibold')
   })
 
   test('sits under a hairline inside the card it belongs to', () => {
@@ -162,28 +156,30 @@ describe('pager component', () => {
   })
 
   // The directions are no use to an operator who has to scroll a twenty-row
-  // page to reach them, so the bar rides the bottom of the scroll box —
-  // opaque, because the rows travel under it.
-  test('sticks to the bottom of the box it scrolls in', () => {
+  // page to reach them. The bar sits below the table's scroll box rather than
+  // inside it, and never gives up its height to the rows above.
+  test('holds its height at the foot of the card', () => {
     const $pager = render('pager', { previousHref, nextHref })
 
     const pager = $pager('[data-testid="do-pager"]')
 
-    expect(pager.hasClass('do-pager-sticky')).toBe(true)
-    expect(pager.hasClass('bg-base-100')).toBe(true)
+    expect(pager.hasClass('shrink-0')).toBe(true)
+    expect(pager.attr('class')).not.toContain('sticky')
   })
 
-  // `ml-auto` is on the cluster, once, not on each direction: a page with no
-  // Newer still finds Older in exactly the place the last page left it.
-  test('keeps the cluster hard right on a page with no Newer', () => {
+  // The cluster is one object however many directions have a page in them: a
+  // page with no Newer still finds Older exactly where the last page left it.
+  test('keeps the cluster in one place on a page with no Newer', () => {
     const $pager = render('pager', { previousHref: null, nextHref })
 
-    expect($pager('[data-testid="do-pager-links"]').attr('class')).toContain(
-      'ml-auto'
+    const links = $pager('[data-testid="do-pager-links"]')
+
+    expect(links.attr('class')).toBe('join')
+    expect(links.children()).toHaveLength(2)
+    expect(links.children().first().attr('data-testid')).toBe(
+      'do-pager-newer-disabled'
     )
-    expect(
-      $pager('[data-testid="do-pager-older"]').attr('class')
-    ).not.toContain('ml-auto')
+    expect(links.children().last().attr('data-testid')).toBe('do-pager-older')
   })
 
   test('keeps the whole query string of the href it is given', () => {

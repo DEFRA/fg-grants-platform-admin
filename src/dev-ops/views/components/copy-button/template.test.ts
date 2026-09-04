@@ -12,7 +12,20 @@ describe('copy-button component', () => {
       'GLD-9B2-BWS-grasslands'
     )
     expect(control.attr('type')).toBe('button')
-    expect(control.attr('class')).toContain('btn btn-ghost btn-xs')
+    expect(control.attr('class')).toBe('btn btn-ghost btn-xs btn-square')
+  })
+
+  // The icon says nothing on its own, so the tooltip says it: stock daisyUI,
+  // and the same noun the accessible name carries.
+  test('names what it copies in a tooltip too', () => {
+    const $button = render('copy-button', params)
+
+    const tooltip = $button('.tooltip')
+
+    expect(tooltip.attr('data-tip')).toBe('Copy reference')
+    expect(tooltip.find('[data-testid="do-copy-button-control"]')).toHaveLength(
+      1
+    )
   })
 
   // "Copy", said forty times down a page, names nothing for a screen reader
@@ -35,26 +48,33 @@ describe('copy-button component', () => {
     ).toBe(true)
   })
 
-  // Both glyphs are in the markup because CSS swaps them: a swap done by
-  // rewriting the button's markup would throw the row's layout for a frame.
-  test('holds both glyphs, for the stylesheet to swap', () => {
+  // Both glyphs are in the markup because daisyUI's swap shows one of them: a
+  // swap done by rewriting the button's markup would throw the row's layout
+  // for a frame.
+  test('holds both glyphs in a swap, for the element to flip', () => {
     const $button = render('copy-button', params)
 
-    expect($button('[data-testid="do-icon-clipboard"]').attr('class')).toBe(
-      'do-copy-idle h-3 w-3'
+    const swap = $button('[data-testid="do-copy-button-swap"]')
+
+    expect(swap.attr('class')).toBe('swap')
+    expect(swap.attr('class')).not.toContain('swap-active')
+    expect($button('[data-testid="do-icon-copy"]').attr('class')).toBe(
+      'swap-off size-3.5 opacity-60'
     )
     expect($button('[data-testid="do-icon-check"]').attr('class')).toBe(
-      'do-copy-done h-3 w-3'
+      'swap-on size-3.5 text-success'
     )
   })
 
-  // Forty icons drawn at all times would make the page about its buttons.
-  test('stays invisible until its row is hovered or it is focused', () => {
+  // The list has none of these — every id there is one click from the page
+  // that draws it whole — so the handful that are left sit beside values
+  // somebody came to the page to carry, and are drawn at all times.
+  test('is drawn at all times, not on hover', () => {
     const $button = render('copy-button', params)
 
     expect(
       $button('[data-testid="do-copy-button-control"]').attr('class')
-    ).toContain('opacity-0 group-hover:opacity-100 focus-visible:opacity-100')
+    ).not.toContain('opacity-0')
   })
 
   test('escapes a hostile value rather than emitting it', () => {

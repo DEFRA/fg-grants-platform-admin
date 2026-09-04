@@ -1,18 +1,15 @@
-{# Lives inside the table's scroll box, under a hairline of its own: the row is
-   part of the table, not a control that floats beneath it. It is also the
-   table's bottom edge — without it the last row simply falls off — so it is
-   drawn whenever there are rows, whether or not there is a page either side of
-   this one.
+{# The table's bottom edge and its control. It is drawn whenever there are
+   rows, whether or not there is a page either side of this one — without it
+   the last row simply falls off the card.
 
-   Stuck to the bottom of that box (`do-pager-sticky`, client/dev-ops.css) and
-   opaque against the rows travelling under it: two directions are no use to an
-   operator who has to scroll twenty rows to reach them.
+   It sits under the table's scroll box rather than inside it: the box is
+   height-bounded, so the pager is on screen at the foot of it whatever the
+   rows are doing, and a control stuck over its own table needed a rule of its
+   own to say it was not one.
 
-   It counts nothing. `20 events` under a page of twenty was a fact about a
-   window, and the filter segments above the table now carry the facts about
-   the stream — how many are dead-lettered, how many are on Caseworking — so
-   the one page-shaped number on the card sat in the smallest type under seven
-   dataset-shaped ones and invited them to be read as the same kind of thing.
+   It counts nothing. `20 events` under a page of twenty is a fact about a
+   window, and the card's own caption already says how many events every filter
+   on the page selects.
 
    Newer and Older, not Previous and Next. The list is newest first and the
    cursor walks it: `direction=backward` from the top of the page reaches the
@@ -23,27 +20,26 @@
    moves a triage window. `rel` still says prev and next, because that is what
    they are to a browser.
 
-   Both directions are always drawn. A footer that renders only the link it has
-   moves the other one across the row the moment the first appears, so the
-   button an operator is aiming at is somewhere else on the next page; the
-   direction there is no page in is a muted span of the same size, in the same
-   place. #}
-{# Medium, not the button's own weight: they are the quietest controls on the
-   card. The muted span wears the same weight, so the unavailable direction is
-   the same object, greyed. #}
-{% set pagerLink = "btn btn-xs btn-ghost font-medium" %}
-{% set pagerDisabled = "btn btn-xs btn-ghost font-medium text-base-content/30" %}
-<nav class="do-pager-sticky flex items-center gap-3 border-t border-base-300 bg-base-100 px-3.5 py-2" aria-label="Pagination" data-testid="do-pager">
-  <div class="ml-auto flex items-center gap-2" data-testid="do-pager-links">
+   Both directions are always drawn, joined into one control: a footer that
+   renders only the link it has moves the other one across the row the moment
+   the first appears, so the button an operator is aiming at is somewhere else
+   on the next page. The direction there is no page in is the same object,
+   disabled.
+
+   Extra small, on a strip barely taller than the buttons: this is the quietest
+   control on the card, it is read once at the end of a page, and every pixel
+   it takes is a pixel of rows on a screen whose whole subject is rows. #}
+<nav class="flex shrink-0 items-center justify-center border-t border-base-300 px-4 py-1" aria-label="Pagination" data-testid="do-pager">
+  <div class="join" data-testid="do-pager-links">
     {% if params.previousHref %}
-      <a class="{{ pagerLink }}" rel="prev" href="{{ params.previousHref }}" data-testid="do-pager-newer">← Newer</a>
+      <a class="btn btn-xs join-item" rel="prev" href="{{ params.previousHref }}" data-testid="do-pager-newer">← Newer</a>
     {% else %}
-      <span class="{{ pagerDisabled }}" aria-hidden="true" data-testid="do-pager-newer-disabled">← Newer</span>
+      <span class="btn btn-xs join-item btn-disabled" aria-hidden="true" data-testid="do-pager-newer-disabled">← Newer</span>
     {% endif %}
     {% if params.nextHref %}
-      <a class="{{ pagerLink }}" rel="next" href="{{ params.nextHref }}" data-testid="do-pager-older">Older →</a>
+      <a class="btn btn-xs join-item" rel="next" href="{{ params.nextHref }}" data-testid="do-pager-older">Older →</a>
     {% else %}
-      <span class="{{ pagerDisabled }}" aria-hidden="true" data-testid="do-pager-older-disabled">Older →</span>
+      <span class="btn btn-xs join-item btn-disabled" aria-hidden="true" data-testid="do-pager-older-disabled">Older →</span>
     {% endif %}
   </div>
 </nav>

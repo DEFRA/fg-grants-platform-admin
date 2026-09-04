@@ -9,10 +9,7 @@ import {
   findEventCounts,
   findEvents
 } from '../repositories/events.repository.ts'
-import {
-  getEventCountsUseCase,
-  getEventsUseCase
-} from './get-events.use-case.ts'
+import { getEventsUseCase } from './get-events.use-case.ts'
 
 vi.mock(import('../repositories/events.repository.ts'))
 vi.mock(import('../../common/logger.ts'))
@@ -36,8 +33,7 @@ const page: EventsPage = {
       createdAt: '2026-06-16T10:00:00.000Z',
       lastFailureAt: null,
       completedAt: '2026-06-16T10:00:01.000Z',
-      lastError: null,
-      parked: null
+      lastError: null
     }
   ],
   pagination: {
@@ -55,8 +51,7 @@ const counts: EventCounts = {
   FAILED: 1,
   RESUBMITTED: 0,
   COMPLETED: 236196,
-  DEAD_LETTER: 7064,
-  PARKED: 12
+  DEAD_LETTER: 7064
 }
 
 /**
@@ -310,7 +305,7 @@ describe('getEventsUseCase', () => {
 
   // A page filtered to any other status could not draw the panel, so it does
   // not ask: a third read on every page load for a panel nobody can see.
-  test.each([['COMPLETED'], ['FAILED'], ['PARKED']])(
+  test.each([['COMPLETED'], ['FAILED'], ['PUBLISHED']])(
     'asks for no breakdown on a page filtered to %s',
     async (status) => {
       const { breakdown } = await getEventsUseCase({ status })
@@ -344,59 +339,5 @@ describe('getEventsUseCase', () => {
     expect(logger.error).toHaveBeenCalledWith(
       'Could not read the event breakdown from fg-gas-backend: Error: Response Error: 502 Bad Gateway'
     )
-  })
-})
-
-// The figure the bulk-redrive confirmation quotes before it writes. It is read
-// there rather than passed on a url: a count on a query string is a count
-// anybody can edit.
-describe('getEventCountsUseCase', () => {
-  beforeEach(() => {
-    vi.mocked(findEventCounts).mockResolvedValue({
-      ...facets,
-      sourceErrors: []
-    })
-  })
-
-  test('returns the counts the repository read', async () => {
-    await expect(getEventCountsUseCase({ service: 'gas' })).resolves.toEqual(
-      facets
-    )
-  })
-
-  // The partial-source report belongs to the list read, which says it once in
-  // an alert of its own; carrying a second copy of it here would be a second
-  // place the page could disagree with itself about what answered.
-  test('drops the source errors the counts read reports of its own', async () => {
-    vi.mocked(findEventCounts).mockResolvedValue({
-      ...facets,
-      sourceErrors: [
-        { service: 'caseworking', box: 'inbox', message: 'timeout' }
-      ]
-    })
-
-    await expect(getEventCountsUseCase({})).resolves.not.toHaveProperty(
-      'sourceErrors'
-    )
-  })
-
-  test('asks for exactly the filters it was given', async () => {
-    await getEventCountsUseCase({ service: 'gas', error: 'boom' })
-
-    expect(findEventCounts).toHaveBeenCalledWith({
-      service: 'gas',
-      error: 'boom'
-    })
-  })
-
-  // The confirmation still offers the write when the count could not be read —
-  // the backend counts it again for itself — so this answers null rather than
-  // throwing.
-  test('answers null when the counts could not be read', async () => {
-    vi.mocked(findEventCounts).mockRejectedValue(
-      responseError(502, 'Bad Gateway')
-    )
-
-    await expect(getEventCountsUseCase({})).resolves.toBeNull()
   })
 })

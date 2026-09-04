@@ -17,7 +17,7 @@ export const viewEventRoute: ServerRoute = {
     validate: {
       params: Joi.object(eventAddress),
       /**
-       * Four parameters, none of them constrained beyond being a string.
+       * Five parameters, none of them constrained beyond being a string.
        *
        * `from` is the list's own query string, handed back opaquely — it is
        * checked by the view model rather than by Joi, because a `from` that
@@ -31,11 +31,7 @@ export const viewEventRoute: ServerRoute = {
         confirm: Joi.string(),
         redriven: Joi.string(),
         redrive_conflict: Joi.string().allow(''),
-        redrive_error: Joi.string(),
-        parked: Joi.string(),
-        unparked: Joi.string(),
-        park_conflict: Joi.string().allow(''),
-        park_error: Joi.string()
+        redrive_error: Joi.string()
       })
     }
   },

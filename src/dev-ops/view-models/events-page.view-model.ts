@@ -4,7 +4,6 @@ import {
   noTimestamp,
   toAttempts,
   toClock,
-  toAbsolute,
   toEventHref,
   toLatency,
   toQueue,
@@ -20,13 +19,13 @@ import type {
   EventBreakdownPage,
   EventCounts,
   EventFacets,
-  EventService,
   EventLastError,
   EventsPagination,
   EventsQuery,
   EventsResult,
   SourceError
 } from '../use-cases/get-events.use-case.ts'
+import { eventServices, eventStatuses } from './event-filters.ts'
 
 /**
  * The page's own query: every filter the endpoint takes, plus `range`.
@@ -142,11 +141,6 @@ export interface EventRow {
    * nothing was wrong without ever saying how well anything went.
    */
   latency: string | null
-  /**
-   * This row's key as the batch form submits it: `service:box:id`. Only ever
-   * put on the page for a dead letter — the one status the batch acts on.
-   */
-  selectValue: string
   /** The raw status, kept for the status `title` and for `?status=`. */
   status: string
   /** The same status as a human reads it: `Dead letter`, `Published`. */
@@ -159,16 +153,6 @@ export interface EventRow {
    * is the only saturated area on a calm page.
    */
   isDeadLetter: boolean
-  /**
-   * Whether an operator set this row aside, and why. The status column already
-   * says `Parked`; this is the sentence under it, because the word alone
-   * answers "what state is it in?" and leaves the only question anybody
-   * actually has about a parked event — why — two clicks away. The reason is
-   * on the title rather than on the row: it is a sentence somebody typed, and
-   * the status column holds eleven rems.
-   */
-  parked: boolean
-  parkedTitle: string | null
 }
 
 /**
@@ -290,22 +274,6 @@ export interface TopFailures {
 }
 
 /**
- * The offer to redrive every dead letter behind the current filters.
- *
- * Only ever drawn on a page that is already narrowed to dead letters, because
- * the write it leads to acts on the filters and nothing else: a button that
- * said `Redrive all` on a page showing every status would be a button whose
- * scope an operator has to work out from the toolbar.
- */
-export interface RedriveAll {
-  /** `Redrive all 7,064 matching`. */
-  label: string
-  /** The confirmation, carrying the same filters the count was read under. */
-  href: string
-  title: string
-}
-
-/**
  * One segment of one filter control: a word, and how many events are behind
  * it.
  *
@@ -361,7 +329,7 @@ export interface EventsPageModel {
   /** Every row on the page, in the endpoint's order. One row per event. */
   rows: EventRow[]
   /**
-   * All · Published · … · Dead letter · Parked, in the order a message travels
+   * All · Published · … · Completed · Dead letter, in the order a message travels
    * through them, each carrying its count across the current filters.
    */
   statusFilters: FilterChip[]
@@ -393,8 +361,6 @@ export interface EventsPageModel {
    * not about dead letters — the panel is silent rather than empty.
    */
   topFailures: TopFailures | null
-  /** The bulk write, on a page narrowed to dead letters. Null everywhere else. */
-  redriveAll: RedriveAll | null
   /**
    * The filters the search box has to carry through a submission. A GET form
    * sends its own fields and nothing else, so every filter the toolbar holds
@@ -421,17 +387,6 @@ export interface EventsPageModel {
   unavailableSources: string
   /** Nothing could be read at all. */
   unavailable: boolean
-  /**
-   * Whether any row on this page is a dead letter. The batch control is drawn
-   * only where there is something for it to act on: a `Redrive selected`
-   * button above a page of healthy rows is a button that can only ever be
-   * pressed by mistake.
-   */
-  hasDeadLetters: boolean
-  /** Where the batch form posts. */
-  redriveBatchAction: string
-  /** This page's own query, for the batch form to carry back out of the flow. */
-  currentSearch: string
 }
 
 /**
@@ -489,25 +444,6 @@ const toErrorTitle = (error: EventLastError, now: Date): string => {
     .join('\n')
 }
 
-/**
- * The park, as the status cell needs it: a word, and the reason on the title.
- *
- * The word is drawn rather than the reason because the reason is a sentence
- * somebody typed and the column holds eleven rems; the whole of it, with who
- * parked it and when, is one hover away. Both spellings of the instant are not
- * offered here — a parked event is not a thing anyone is timing.
- */
-const toParked = (parked: Event['parked']) =>
-  parked == null
-    ? { parked: false, parkedTitle: null }
-    : {
-        parked: true,
-        parkedTitle: [
-          parked.reason,
-          `Parked by ${parked.by}${parked.at ? ` at ${toAbsolute(parked.at) ?? parked.at}` : ''}`
-        ].join('\n')
-      }
-
 /** The failure reason as the status cell needs it — or two nulls, together. */
 const toReason = (error: EventLastError | null, now: Date) =>
   error === null
@@ -539,15 +475,6 @@ const toEventPageHref = (event: Event, from: string): string => {
 
   return from === '' ? href : `${href}?from=${encodeURIComponent(from)}`
 }
-
-/**
- * One row's key, as the batch form carries it: `service:box:id`, which is the
- * endpoint's own three-part address for a message flattened into a single form
- * value. The route splits it back apart and validates each piece — nothing
- * here is trusted on the way in, exactly as nothing on a url is.
- */
-const toSelectValue = ({ service, box, id }: Event): string =>
-  `${service}:${box}:${id}`
 
 /**
  * The hop, as a link to the slice of the list it belongs to.
@@ -600,9 +527,7 @@ const toRow =
         hasFailure ? failed.title : noTimestamp.title
       ),
       ...toReason(event.lastError, now),
-      ...toParked(event.parked),
       latency: toLatency(event.createdAt, event.completedAt),
-      selectValue: toSelectValue(event),
       status: event.status,
       statusLabel: toStatusLabel(event.status),
       statusRole: badge.role,
@@ -636,31 +561,14 @@ const toUnavailableSources = (sourceErrors: SourceError[] = []): string =>
   sourceErrors.map(toSourceName).join(', ')
 
 /**
- * The statuses the filter bar offers, in the order a message travels through
- * them, with the two ends of a dead letter's life last: one that still needs a
- * decision, and one that has had one. The endpoint may still pass a status
- * through that is not on this list — a `?status=` typed by hand, say — in
- * which case no segment is active, including All, which is the honest answer:
- * the page is filtered to none of these.
- *
- * Typed as the counts' own keys, because each segment now wears its count and
- * a status the toolbar offers that the endpoint does not count would be a
- * segment that could only ever say nothing.
+ * The statuses and services the filter bar offers, which are the same lists
+ * the route validates `?status=` and `?service=` against
+ * (view-models/event-filters.ts). A segment the route would refuse, or a value
+ * the route accepts with no segment to show it on, would each be a page an
+ * operator can reach and cannot read — so there is one list of each.
  */
-const statusFilters: (keyof EventCounts)[] = [
-  'PUBLISHED',
-  'PROCESSING',
-  'FAILED',
-  'RESUBMITTED',
-  'COMPLETED',
-  'DEAD_LETTER',
-  'PARKED'
-]
-
-const serviceFilters: { value: EventService; label: string }[] = [
-  { value: 'gas', label: 'GAS' },
-  { value: 'caseworking', label: 'Caseworking' }
-]
+const statusFilters = eventStatuses
+const serviceFilters = eventServices
 
 /**
  * A filter link carries the *other* filter and nothing else. `cursor` and
@@ -1251,36 +1159,6 @@ const toTopFailures = (
 }
 
 /**
- * The bulk write, offered only where its scope is on screen.
- *
- * The figure is the dead-letter count under the current filters — the same
- * number the Dead letter segment beside it wears — because that is precisely
- * the set the write will act on. With no counts there is no figure, and a
- * button that could not say how many events it was about is a button nobody
- * should press.
- */
-const toRedriveAll = (
-  facets: EventFacets | null,
-  query: EventsPageQuery
-): RedriveAll | null => {
-  const count = toDeadLetterCount(facets)
-
-  if (query.status !== 'DEAD_LETTER' || count === 0) {
-    return null
-  }
-
-  return {
-    label: `Redrive all ${counted.format(count)} matching`,
-    href: toPathHref('/dev-ops/events/redrive-query-confirm', {
-      ...query,
-      cursor: undefined,
-      direction: undefined
-    }),
-    title: `Redrive every dead letter matching the current filters (up to 500 per run)`
-  }
-}
-
-/**
  * @param now Injected so the relative times a test asserts on are the times it
  *   set up; the page itself renders against the clock at request time.
  */
@@ -1313,16 +1191,12 @@ export const toEventsPage = (
     errorFilter: toErrorNote(filters),
     timeRange: toTimeRange(filters, now),
     topFailures: toTopFailures(breakdown, facets, filters, now),
-    redriveAll: toRedriveAll(facets, filters),
     searchFilters: toSearchFilters(filters),
     rangeFilters: toRangeFilters(filters),
     fromInput: toLocalInput(query.from),
     toInput: toLocalInput(query.to),
     ...toPagerHrefs(pagination, filters),
     unavailableSources: toUnavailableSources(sourceErrors),
-    unavailable,
-    hasDeadLetters: rows.some((row) => row.isDeadLetter),
-    redriveBatchAction: '/dev-ops/events/redrive-batch',
-    currentSearch
+    unavailable
   }
 }

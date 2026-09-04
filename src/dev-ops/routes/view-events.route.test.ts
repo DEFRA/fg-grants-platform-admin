@@ -1,4 +1,5 @@
-import { load, type CheerioAPI } from 'cheerio'
+import { load, type Cheerio, type CheerioAPI } from 'cheerio'
+import type { Element } from 'domhandler'
 import type { Server } from '@hapi/hapi'
 
 import { config } from '../../common/config.ts'
@@ -48,7 +49,6 @@ const event = (overrides: Partial<Event> = {}): Event => ({
   lastFailureAt: null,
   completedAt: null,
   lastError: null,
-  parked: null,
   traceId,
   ...overrides
 })
@@ -76,7 +76,6 @@ const counts = (overrides: Partial<EventCounts> = {}): EventCounts => ({
   RESUBMITTED: 0,
   COMPLETED: 236196,
   DEAD_LETTER: 7064,
-  PARKED: 0,
   ...overrides
 })
 
@@ -219,10 +218,11 @@ const rendersAsText = {
 }
 
 /**
- * The class every line of the table wears: the shared grid template, and the
- * hover tint that is a row's whole state.
+ * The class an ordinary line of the table wears: the hover tint, which is the
+ * whole of a healthy row's state. A dead letter wears the error wash instead.
  */
-const rowClass = 'do-events-row hover:bg-base-200/60'
+const rowClass = 'hover:bg-base-200'
+const deadLetterRowClass = 'bg-error/5 hover:bg-error/10'
 
 /**
  * The identity line is set with real spaces around its separators, so the
@@ -230,6 +230,9 @@ const rowClass = 'do-events-row hover:bg-base-200/60'
  * back as the ordinary spaces they look like.
  */
 const flatten = (text: string) => text.replace(/\s+/g, ' ').trim()
+
+/** A cell's classes, as a string: a `td` the table styles carries none. */
+const classOf = (cell: Cheerio<Element>) => cell.attr('class') ?? ''
 
 /** A segment as it reads: `Dead letter 7,064`, or the word alone without one. */
 const segments = ($: CheerioAPI, testId: string) =>
@@ -241,8 +244,7 @@ const segments = ($: CheerioAPI, testId: string) =>
 const segmentFor = ($: CheerioAPI, testId: string, value: string) =>
   $(`[data-testid="${testId}"][data-value="${value}"]`)
 
-const headings = ($: CheerioAPI) =>
-  $('[data-testid="events-table"] [role="columnheader"]')
+const headings = ($: CheerioAPI) => $('[data-testid="events-table"] thead th')
 
 const viewPage = async (url = '/dev-ops/events') => {
   const { result, statusCode } = await server.inject({
@@ -266,13 +268,6 @@ const now = new Date('2026-06-16T10:20:00.000Z')
 /** The failure a page narrowed by `?error=` is narrowed to, and that page. */
 const errorMessage = 'E11000 duplicate key error collection: gas.events'
 const errorFiltered = `/dev-ops/events?status=DEAD_LETTER&error=${encodeURIComponent(errorMessage)}`
-
-/** An event an operator set aside, as the endpoint reports the park. */
-const parkedNote = {
-  at: '2026-06-16T10:10:00.000Z',
-  reason: 'duplicate key on a case that no longer exists',
-  by: 'Ada Lovelace'
-}
 
 describe('viewEventsRoute', () => {
   beforeAll(async () => {
@@ -359,26 +354,49 @@ describe('viewEventsRoute', () => {
     })
   })
 
-  test('forwards a status the endpoint does not know', async () => {
-    const { statusCode } = await viewPage('/dev-ops/events?status=BOGUS')
+  // A value outside the vocabulary this app offers is refused here rather than
+  // forwarded. It used to go through to fg-gas-backend, come back 400, and be
+  // drawn as "Events could not be loaded from GAS" — a typo reported as an
+  // outage, on the page operators open to find out whether there is one.
+  test.each([
+    ['status', '/dev-ops/events?status=BOGUS'],
+    // Exact values only: no case folding, because a url that means one thing
+    // here and another at the endpoint is worse than one that is simply wrong.
+    ['a mis-cased status', '/dev-ops/events?status=dead_letter'],
+    ['a hyphenated status', '/dev-ops/events?status=dead-letter'],
+    ['service', '/dev-ops/events?service=other'],
+    ['a mis-cased service', '/dev-ops/events?service=GAS'],
+    ['direction', '/dev-ops/events?direction=sideways']
+  ])('refuses a %s the vocabulary does not hold', async (_name, url) => {
+    const { statusCode } = await viewPage(url)
 
-    expect(statusCode).toBe(statusCodes.ok)
-    expect(getEventsUseCase).toHaveBeenCalledWith({ status: 'BOGUS' })
+    expect(statusCode).toBe(statusCodes.badRequest)
+    expect(getEventsUseCase).not.toHaveBeenCalled()
   })
 
-  test('forwards a service the endpoint does not know', async () => {
-    const { statusCode } = await viewPage('/dev-ops/events?service=other')
+  test.each([
+    ['/dev-ops/events?status=DEAD_LETTER', { status: 'DEAD_LETTER' }],
+    ['/dev-ops/events?service=caseworking', { service: 'caseworking' }],
+    ['/dev-ops/events?direction=backward', { direction: 'backward' }]
+  ])('forwards %s, which it does hold', async (url, expected) => {
+    const { statusCode } = await viewPage(url)
 
     expect(statusCode).toBe(statusCodes.ok)
-    expect(getEventsUseCase).toHaveBeenCalledWith({ service: 'other' })
+    expect(getEventsUseCase).toHaveBeenCalledWith(expected)
   })
 
-  test('forwards a direction the endpoint does not know', async () => {
-    const { statusCode } = await viewPage('/dev-ops/events?direction=sideways')
+  // Neither filter has a control that can be cleared — both are links, and a
+  // link either carries the filter or does not — so an empty one is a url
+  // nobody issued, exactly as it was before the values were checked.
+  test.each(['status', 'service'])(
+    'refuses an empty %s, which no control of this page can produce',
+    async (name) => {
+      const { statusCode } = await viewPage(`/dev-ops/events?${name}=`)
 
-    expect(statusCode).toBe(statusCodes.ok)
-    expect(getEventsUseCase).toHaveBeenCalledWith({ direction: 'sideways' })
-  })
+      expect(statusCode).toBe(statusCodes.badRequest)
+      expect(getEventsUseCase).not.toHaveBeenCalled()
+    }
+  )
 
   test('forwards the search', async () => {
     await viewPage('/dev-ops/events?q=gld-9b2')
@@ -416,10 +434,12 @@ describe('viewEventsRoute', () => {
     expect(getEventsUseCase).toHaveBeenCalledWith({ status: 'FAILED' })
   })
 
-  test('shows the error alert when the endpoint refuses the query', async () => {
+  // The alert is for a backend that is actually unwell, which is now the only
+  // way to reach it: a query this app knows how to spell, refused by GAS.
+  test('shows the error alert when the endpoint refuses a query it accepts', async () => {
     givenUnavailable()
 
-    const { statusCode, $ } = await viewPage('/dev-ops/events?status=BOGUS')
+    const { statusCode, $ } = await viewPage('/dev-ops/events?status=FAILED')
 
     expect(statusCode).toBe(statusCodes.ok)
     expect($('[data-testid="events-error"]')).toHaveLength(1)
@@ -462,15 +482,17 @@ describe('viewEventsRoute', () => {
   test('counts every status segment but All, and no service segment', async () => {
     const { $ } = await viewPage()
 
+    // A zero says nothing the dimmed segment beside it has not said already,
+    // and seven of them made the one figure worth reading compete for
+    // attention. The count on an empty segment lives on its title.
     expect(segments($, 'events-filter-status-chip')).toEqual([
       'All',
-      'Published 0',
-      'Processing 0',
-      'Failed 0',
-      'Resubmitted 0',
+      'Published',
+      'Processing',
+      'Failed',
+      'Resubmitted',
       'Completed 236,196',
-      'Dead letter 7,064',
-      'Parked 0'
+      'Dead letter 7,064'
     ])
     expect(segments($, 'events-filter-service-chip')).toEqual([
       'All',
@@ -491,13 +513,12 @@ describe('viewEventsRoute', () => {
 
     expect(segments($, 'events-filter-status-chip')).toEqual([
       'All',
-      'Published 0',
-      'Processing 0',
-      'Failed 0',
-      'Resubmitted 0',
+      'Published',
+      'Processing',
+      'Failed',
+      'Resubmitted',
       'Completed 236,196',
-      'Dead letter 7,064',
-      'Parked 0'
+      'Dead letter 7,064'
     ])
   })
 
@@ -514,17 +535,17 @@ describe('viewEventsRoute', () => {
     ).toBe('page')
   })
 
-  // The figure is the thing being read, so it carries the weight and the word
-  // does not; tabular, because the three controls are read down as much as
-  // along.
-  test('weights the figure on a segment and leaves its word alone', async () => {
+  // The figure is the thing being read, so it is a badge inside the button —
+  // daisyUI's own "badge in a button" — and the word beside it stays a word.
+  // Tabular, because the segments are read down as much as along.
+  test('sets the figure on a segment as a quiet badge', async () => {
     const { $ } = await viewPage()
 
     expect(
       segmentFor($, 'events-filter-status-chip', 'COMPLETED')
         .find('[data-testid="events-filter-status-chip-count"]')
         .attr('class')
-    ).toBe('font-medium tabular-nums')
+    ).toBe('badge badge-ghost badge-sm tabular-nums')
   })
 
   // A segment that vanished when it emptied could not be told from one the
@@ -535,12 +556,17 @@ describe('viewEventsRoute', () => {
 
     const failed = segmentFor($, 'events-filter-status-chip', 'FAILED')
 
-    expect(flatten(failed.text())).toBe('Failed 0')
-    expect(failed.attr('class')).toContain('opacity-50')
+    expect(flatten(failed.text())).toBe('Failed')
+    expect(
+      failed.find('[data-testid="events-filter-status-chip-count"]')
+    ).toHaveLength(0)
+    // The figure it does not draw is still one hover away.
+    expect(failed.attr('title')).toBe('Awaiting automatic retry · 0 events')
+    expect(failed.attr('class')).toContain('text-base-content/60')
     expect(failed.attr('href')).toBe('/dev-ops/events?status=FAILED')
     expect(
       segmentFor($, 'events-filter-status-chip', 'DEAD_LETTER').attr('class')
-    ).not.toContain('opacity-50')
+    ).not.toContain('text-base-content/60')
   })
 
   // A segment with no figure is not an empty one: the dimming follows `zero`,
@@ -551,7 +577,7 @@ describe('viewEventsRoute', () => {
     for (const service of ['gas', 'caseworking']) {
       expect(
         segmentFor($, 'events-filter-service-chip', service).attr('class')
-      ).not.toContain('opacity-50')
+      ).not.toContain('text-base-content/60')
     }
   })
 
@@ -564,17 +590,20 @@ describe('viewEventsRoute', () => {
       segmentFor($, 'events-filter-status-chip', 'DEAD_LETTER')
         .find('[data-testid="events-filter-status-chip-count"]')
         .attr('class')
-    ).toBe('font-medium tabular-nums text-error/80')
+    ).toBe('badge badge-error badge-sm tabular-nums')
 
     givenCounts({ DEAD_LETTER: 0 })
 
     const { $: quiet } = await viewPage()
 
+    // No dead letters is no badge at all, not a red nought: an alarm about
+    // nothing is the one figure on this toolbar that must never cry wolf.
+    expect(quiet('main').html()).not.toContain('badge-error')
     expect(
-      segmentFor(quiet, 'events-filter-status-chip', 'DEAD_LETTER')
-        .find('[data-testid="events-filter-status-chip-count"]')
-        .attr('class')
-    ).not.toContain('text-error')
+      segmentFor(quiet, 'events-filter-status-chip', 'DEAD_LETTER').attr(
+        'title'
+      )
+    ).toContain('0 events')
   })
 
   // A summary that could not be read has not made the filters below it an
@@ -592,8 +621,7 @@ describe('viewEventsRoute', () => {
       'Failed',
       'Resubmitted',
       'Completed',
-      'Dead letter',
-      'Parked'
+      'Dead letter'
     ])
     expect(segments($, 'events-filter-service-chip')).toEqual([
       'All',
@@ -606,32 +634,9 @@ describe('viewEventsRoute', () => {
     expect($('[data-testid="events-partial"]')).toHaveLength(0)
   })
 
-  // Parked comes last, beside Dead letter: it is the same population a moment
-  // later — an event somebody has already triaged out of it — and the two
-  // figures that have to be read together are what still needs a decision and
-  // what has had one.
-  test('offers a Parked segment after Dead letter, linked at its own page', async () => {
-    givenCounts({ PARKED: 412 })
-
-    const { $ } = await viewPage('/dev-ops/events?service=gas')
-
-    const parked = segmentFor($, 'events-filter-status-chip', 'PARKED')
-
-    expect(flatten(parked.text())).toBe('Parked 412')
-    expect(parked.attr('href')).toBe(
-      '/dev-ops/events?status=PARKED&service=gas'
-    )
-    expect(parked.attr('title')).toBe(
-      'Set aside by an operator; ignored by retries'
-    )
-    expect(
-      $('[data-testid="events-filter-status-chip"]').last().attr('data-value')
-    ).toBe('PARKED')
-  })
-
-  // Seven states named in one word each is a vocabulary an operator is
-  // expected to already have, and the pairs that matter are the ones the words
-  // do not distinguish.
+  // Six states named in one word each is a vocabulary an operator is expected
+  // to already have, and the pairs that matter are the ones the words do not
+  // distinguish.
   test('explains what each status segment is counting', async () => {
     const { $ } = await viewPage()
 
@@ -641,17 +646,16 @@ describe('viewEventsRoute', () => {
         .map((chip) => $(chip).attr('title'))
     ).toEqual([
       undefined,
-      'Queued, not yet claimed',
-      'Claimed, in flight',
-      'Awaiting automatic retry',
-      'Queued for another retry cycle',
+      'Queued, not yet claimed · 0 events',
+      'Claimed, in flight · 0 events',
+      'Awaiting automatic retry · 0 events',
+      'Queued for another retry cycle · 0 events',
       'Processed successfully',
-      'Failed all retry attempts; needs redrive or park',
-      'Set aside by an operator; ignored by retries'
+      'Failed all retry attempts; needs a redrive'
     ])
   })
 
-  test('renders each filter group as a join of extra small buttons', async () => {
+  test('renders each filter group as a join of small buttons', async () => {
     const { $ } = await viewPage()
 
     expect($('[data-testid="events-filter-status"]').hasClass('join')).toBe(
@@ -662,19 +666,18 @@ describe('viewEventsRoute', () => {
     )
     expect(
       $('[data-testid="events-filter-status-chip"]').first().attr('class')
-    ).toContain('btn join-item btn-xs')
+    ).toContain('btn btn-sm join-item')
   })
 
   // A strip stretched to the width of the page drew a border around nine
   // buttons and 700px of nothing. The toolbar shrink-wraps what it holds now,
   // and carries no border of its own: each group is outlined already.
-  test('shrink-wraps the toolbar and gives it no border of its own', async () => {
+  test('gives the toolbar no border or surface of its own', async () => {
     const { $ } = await viewPage()
 
     const toolbar = $('[data-testid="events-filters"]')
 
     expect(toolbar).toHaveLength(1)
-    expect(toolbar.attr('class')).toContain('w-fit')
     expect(toolbar.attr('class')).toContain('items-center')
     expect(toolbar.attr('class')).not.toContain('border')
     expect(toolbar.attr('class')).not.toContain('bg-base-100')
@@ -685,6 +688,34 @@ describe('viewEventsRoute', () => {
     expect($('[data-testid="events-filter-label"]').first().text()).toBe(
       'Status'
     )
+  })
+
+  // Which controls shared a line used to depend on how wide the count badges
+  // happened to render, so the toolbar re-laid itself out as the figures
+  // changed. The two rows are declared: what the page is filtered to on the
+  // first, how it is narrowed and searched on the second.
+  test('lays the toolbar out as two declared rows', async () => {
+    const { $ } = await viewPage()
+
+    const toolbar = $('[data-testid="events-toolbar"]')
+    const rows = toolbar.children()
+
+    expect(toolbar.attr('class')).toContain('grid')
+    expect(rows.toArray().map((row) => $(row).attr('data-testid'))).toEqual([
+      'events-filters',
+      'events-controls'
+    ])
+    expect(
+      rows.first().find('[data-testid="events-filter-status"]')
+    ).toHaveLength(1)
+    expect(
+      rows.first().find('[data-testid="events-filter-service"]')
+    ).toHaveLength(1)
+    expect(rows.last().find('[data-testid="events-range"]')).toHaveLength(1)
+    expect(rows.last().find('[data-testid="events-search"]')).toHaveLength(1)
+    // Hard right, so the gap between the two clusters is a gap and not a
+    // ragged field of nothing.
+    expect(rows.last().attr('class')).toContain('justify-end')
   })
 
   // A segmented control is one outline around a run of segments. Each group
@@ -699,14 +730,18 @@ describe('viewEventsRoute', () => {
     ]
 
     groups.forEach((group) => {
-      expect(group.attr('class')).toBe('join rounded-md border border-base-300')
+      // The join draws the outline; the app adds nothing of its own to it.
+      expect(group.attr('class')).toBe('join')
+      expect(group.attr('role')).toBe('group')
+      expect(group.attr('aria-label')).toContain('Filter by')
     })
     expect($('[data-testid="events-filter-divider"]')).toHaveLength(0)
   })
 
-  // The labels name the two groups; the chips are the options. Ten pixels, in
-  // capitals and muted, is what tells the eye which of the two it is looking
-  // at — set as prose, `Status` read as a chip nobody could click.
+  // The labels name the groups; the chips are the options. Small and muted is
+  // what tells the eye which of the two it is looking at — set as prose,
+  // `Status` read as a chip nobody could click. Sentence case, not capitals:
+  // a working interface does not shout its own furniture.
   test('sets the toolbar labels apart from the chips they introduce', async () => {
     const { $ } = await viewPage()
 
@@ -720,10 +755,10 @@ describe('viewEventsRoute', () => {
       'Time'
     ])
     labels.forEach((label) => {
-      expect(label.attr('class')).toContain('text-[10px]')
-      expect(label.attr('class')).toContain('uppercase')
-      expect(label.attr('class')).toContain('tracking-wide')
-      expect(label.attr('class')).toContain('text-base-content/50')
+      expect(label.attr('class')).toBe(
+        'text-xs font-medium text-base-content/60'
+      )
+      expect(label.attr('class')).not.toContain('uppercase')
     })
   })
 
@@ -734,14 +769,16 @@ describe('viewEventsRoute', () => {
     const { $ } = await viewPage()
 
     expect($('[data-testid="events-filters"]').attr('class')).toContain(
-      'gap-x-6'
+      'gap-x-5'
     )
 
-    const pairs = $('[data-testid="events-filters"] > div')
+    const pairs = $(
+      '[data-testid="events-filters"] > div, [data-testid="events-controls"] > div'
+    )
 
     expect(pairs).toHaveLength(3)
     pairs.toArray().forEach((pair) => {
-      expect($(pair).attr('class')).toContain('gap-x-2')
+      expect($(pair).attr('class')).toContain('gap-2')
       expect($(pair).find('[data-testid="events-filter-label"]')).toHaveLength(
         1
       )
@@ -752,8 +789,11 @@ describe('viewEventsRoute', () => {
     expect(
       pairs.eq(1).find('[data-testid="events-filter-service"]')
     ).toHaveLength(1)
-    // The time range is the third pair: a label, and one control under it.
-    expect(pairs.last().find('[data-testid="events-range"]')).toHaveLength(1)
+    // The time range opens the second row: a label, and one control beside it.
+    expect(pairs.last().attr('data-testid')).toBe('events-range')
+    expect(
+      pairs.last().find('[data-testid="events-range-button"]')
+    ).toHaveLength(1)
     expect($('[data-testid="events-filter-kind"]')).toHaveLength(0)
   })
 
@@ -768,25 +808,21 @@ describe('viewEventsRoute', () => {
     ).toHaveLength(0)
   })
 
-  // Marked, not filled. A solid neutral segment put the heaviest object on
-  // the page in the toolbar, above a table set in 11 and 12px, and the filter
-  // bar outweighed the data it was filtering.
-  test('marks the segment the page is filtered to without filling it', async () => {
+  // Marked by daisyUI's own word for it. `btn-active` is the state a segmented
+  // control is meant to wear, and the app no longer paints a tint of its own
+  // over a ghost button to say the same thing.
+  test('marks the segment the page is filtered to', async () => {
     const { $ } = await viewPage('/dev-ops/events?status=DEAD_LETTER')
 
     const active = $('[data-testid="events-filter-status-chip"][aria-current]')
 
-    expect(active.attr('class')).toBe(
-      'btn join-item btn-xs btn-ghost do-segment-active bg-base-content/10 font-medium text-base-content'
-    )
+    expect(active.attr('class')).toBe('btn btn-sm join-item btn-active')
     expect(active.attr('class')).not.toContain('btn-neutral')
     expect(flatten(active.text())).toBe('Dead letter 7,064')
 
     const inactive = $('[data-testid="events-filter-status-chip"]').first()
 
-    expect(inactive.attr('class')).toBe(
-      'btn join-item btn-xs btn-ghost font-normal text-base-content/70'
-    )
+    expect(inactive.attr('class')).toBe('btn btn-sm join-item font-normal')
   })
 
   // A border on a segment inside a bordered group is a second outline saying
@@ -847,7 +883,7 @@ describe('viewEventsRoute', () => {
     const { $ } = await viewPage('/dev-ops/events?status=DEAD_LETTER')
 
     expect($('[data-testid="events-empty"]')).toHaveLength(1)
-    expect($('[data-testid="events-filter-status-chip"]')).toHaveLength(8)
+    expect($('[data-testid="events-filter-status-chip"]')).toHaveLength(7)
   })
 
   test('keeps the filter bar when nothing could be read at all', async () => {
@@ -919,17 +955,28 @@ describe('viewEventsRoute', () => {
     const form = $('[data-testid="events-search"]')
     const input = $('[data-testid="events-search-input"]')
 
-    expect(form.closest('[data-testid="events-filters"]')).toHaveLength(1)
+    expect(form.closest('[data-testid="events-controls"]')).toHaveLength(1)
     expect(form.attr('method')).toBe('get')
     expect(form.attr('action')).toBe('/dev-ops/events')
     expect(input.attr('type')).toBe('search')
     expect(input.attr('name')).toBe('q')
     expect(input.attr('value')).toBe('gld-9b2')
     expect(input.attr('placeholder')).toBe('Event id, message id or reference…')
-    expect(input.attr('class')).toContain('input input-sm')
-    expect(input.attr('class')).toContain('w-[22rem]')
+    // The box and its button are one `join`, and the box itself is the
+    // daisyUI `input` label that holds the search glyph beside the field.
+    expect(form.attr('class')).toBe('join')
+    expect($('[data-testid="events-search-label"]').attr('class')).toBe(
+      'input input-sm join-item w-80'
+    )
+    expect(
+      $('[data-testid="events-search-label"] [data-testid="do-icon-search"]')
+    ).toHaveLength(1)
+    expect(input.closest('[data-testid="events-search-label"]')).toHaveLength(1)
     expect($('[data-testid="events-search-submit"]').attr('type')).toBe(
       'submit'
+    )
+    expect($('[data-testid="events-search-submit"]').attr('class')).toBe(
+      'btn btn-sm join-item'
     )
   })
 
@@ -968,14 +1015,73 @@ describe('viewEventsRoute', () => {
     expect($('[data-testid="events-search-filter"]')).toHaveLength(0)
   })
 
-  test('sets the table header small, quiet and uppercase', async () => {
+  // Real table headers now, dressed by daisyUI's own `table` rather than by a
+  // heading class this app spelled four times. Sentence case, not capitals.
+  test('heads the table with real th cells, in sentence case', async () => {
     const { $ } = await viewPage()
 
-    const heading = headings($).eq(1)
+    const heading = headings($).eq(0)
 
-    expect(heading.attr('class')).toContain('text-[11px]')
-    expect(heading.attr('class')).toContain('uppercase')
-    expect(heading.attr('class')).toContain('text-base-content/45')
+    expect(heading.is('th')).toBe(true)
+    expect(heading.text().trim()).toBe('Event')
+    expect($('[data-testid="events-table"] thead')).toHaveLength(1)
+  })
+
+  // An auto table measures its own contents, so a page of 24-hex Mongo ids
+  // gave Event a different width from a page of uuids and paging read as the
+  // table being rebuilt. Every share is declared on its header, once.
+  test('fixes the column widths in proportion, on the headers', async () => {
+    const { $ } = await viewPage()
+
+    expect($('[data-testid="events-table"]').attr('class')).toContain(
+      'table-fixed'
+    )
+    expect(
+      headings($)
+        .toArray()
+        .map((cell) => classOf($(cell)).replace(' text-right', ''))
+    ).toEqual(['w-[46%]', 'w-[19%]', 'w-[21%]', 'w-[14%]'])
+  })
+
+  // The four percent the selection gutter held went to Event and Source, the
+  // two columns with something to say. The proportions do not move with the
+  // filter: a table that re-laid itself out when an operator selected Dead
+  // letter is a table being rebuilt exactly when they are working fastest.
+  test('holds the same proportions whatever the page is filtered to', async () => {
+    const { $: healthy } = await viewPage()
+
+    givenEvents([event({ status: 'DEAD_LETTER' })])
+
+    const { $: dead } = await viewPage('/dev-ops/events?status=DEAD_LETTER')
+    const widths = ($: CheerioAPI) =>
+      headings($)
+        .toArray()
+        .map((cell) => classOf($(cell)))
+
+    expect(widths(healthy)).toEqual(widths(dead))
+    expect(dead('[data-testid="event-row"] > td')).toHaveLength(4)
+  })
+
+  // A fixed column cannot grow to fit, so everything that could outrun one is
+  // cut by the column and kept whole on its title.
+  test('cuts what outruns a fixed column, and keeps it on the title', async () => {
+    givenEvents([failing('connect ETIMEDOUT 10.0.3.14:443')])
+
+    const { $ } = await viewPage()
+
+    for (const testId of [
+      'event-id',
+      'event-type',
+      'event-hop',
+      'event-queue',
+      'event-error'
+    ]) {
+      const cell = $(`[data-testid="${testId}"]`)
+
+      expect(classOf(cell)).toContain('truncate')
+      expect(cell.attr('title')).not.toBe('')
+      expect(cell.attr('title')).toBeDefined()
+    }
   })
 
   // Figures are read against their own right edge, so the one column of them
@@ -987,17 +1093,17 @@ describe('viewEventsRoute', () => {
 
     const heads = headings($)
 
-    expect(heads.eq(4).attr('class')).toContain('text-right')
-    expect(heads.eq(1).attr('class')).not.toContain('text-right')
-    expect(heads.eq(2).attr('class')).not.toContain('text-right')
-    expect(heads.eq(3).attr('class')).not.toContain('text-right')
+    expect(heads.eq(3).attr('class')).toContain('text-right')
+    expect(classOf(heads.eq(0))).not.toContain('text-right')
+    expect(classOf(heads.eq(1))).not.toContain('text-right')
+    expect(classOf(heads.eq(2))).not.toContain('text-right')
 
-    const cells = $('[data-testid="event-row"]').first().find('[role="cell"]')
+    const cells = $('[data-testid="event-row"]').first().find('td')
 
-    expect(cells.eq(4).attr('class')).toContain('text-right')
-    expect(cells.eq(1).attr('class')).not.toContain('text-right')
-    expect(cells.eq(2).attr('class')).not.toContain('text-right')
-    expect(cells.eq(3).attr('class')).not.toContain('text-right')
+    expect(cells.eq(3).attr('class')).toContain('text-right')
+    expect(classOf(cells.eq(0))).not.toContain('text-right')
+    expect(classOf(cells.eq(1))).not.toContain('text-right')
+    expect(classOf(cells.eq(2))).not.toContain('text-right')
   })
 
   test('sets every figure in tabular monospace', async () => {
@@ -1018,92 +1124,80 @@ describe('viewEventsRoute', () => {
     })
   })
 
-  // Four columns and the disclosure gutter that heads the carets. Failure was
-  // a fifth, and on a healthy page it was a ruled column of dashes: a count
-  // and a time are facts about a row's *status*, so they hang under the status
-  // instead, and the width the column gave up went to Event and Queue.
+  // Four columns. Failure was a fifth, and on a healthy page it was a ruled
+  // column of dashes: a count and a time are facts about a row's *status*, so
+  // they hang under the status instead, and the width the column gave up went
+  // to Event and Queue.
   //
-  // `Source`, not `Queue`: the column names the hop a row is — which service
-  // and which box — with where the message came from or went to under it. The
-  // transport's own name is still there, on the title and the clipboard, but
-  // it is no longer what the column is about.
-  test('heads the table with the gutter and the four columns in order', async () => {
+  // `Queue` is the one word all three surfaces use for this: the column here,
+  // the fact on an event's own page, and the journey table's first column. The
+  // cell still says which hop the row is — which service and which box — with
+  // where the message came from or went to under it.
+  test('heads the table with its four columns in order', async () => {
     const { $ } = await viewPage()
 
     expect(
       headings($)
         .toArray()
         .map((cell) => $(cell).text().trim())
-    ).toEqual(['', 'Event', 'Status', 'Source', 'Created'])
+    ).toEqual(['Event', 'Status', 'Queue', 'Created'])
   })
 
   test('adds no further column for actions, counts, failures or a source chip', async () => {
     const { $ } = await viewPage()
 
-    expect(headings($)).toHaveLength(5)
-    expect(
-      $('[data-testid="event-row"]').first().find('> [role="cell"]')
-    ).toHaveLength(5)
+    expect(headings($)).toHaveLength(4)
+    expect($('[data-testid="event-row"]').first().find('> td')).toHaveLength(4)
   })
 
-  // Every row carries the gutter, whether or not it can be selected, so every
-  // id on the page starts at the same x. It holds one mark now — the checkbox
-  // — because the disclosure caret went with the groups.
-  test('gives every row the selection gutter, and no caret anywhere in it', async () => {
+  // The id is the first thing in every row now. The gutter that held a
+  // checkbox went with the batch redrive it fed, and the disclosure caret went
+  // with the groups before it: the table draws no mark of its own at all.
+  test('starts every row at the id, with no gutter and no caret', async () => {
     givenEvents([...storm(3), event({ id: 'alone', eventId: 'alone' })])
 
     const { $ } = await viewPage()
 
-    const gutters = $('[data-testid="event-row"]')
+    const firsts = $('[data-testid="event-row"]')
       .toArray()
-      .map((row) => $(row).find('> [role="cell"]').first())
+      .map((row) => $(row).find('> td').first())
 
-    expect(gutters).toHaveLength(4)
-    gutters.forEach((gutter) => {
-      expect(gutter.attr('class')).toBe('do-events-gutter')
+    expect(firsts).toHaveLength(4)
+    firsts.forEach((cell) => {
+      expect(cell.find('[data-testid="event-id"]')).toHaveLength(1)
     })
-    expect($('[data-testid="event-row"] .do-caret')).toHaveLength(0)
+    expect($('[data-testid="events-table"] .do-caret')).toHaveLength(0)
+    expect($('[data-testid="events-table"] input')).toHaveLength(0)
+    expect(headings($).first().text().trim()).toBe('Event')
   })
 
-  // Not a `<table>`: consecutive identical rows have to fold into a group that
-  // opens, and no `<tbody>` will hold a `<details>`. The roles put the table
-  // back for assistive technology.
-  test('builds the table as a grid carrying the table roles', async () => {
+  // A real `<table>`. The grid existed to let runs of identical rows fold into
+  // a `<details>` group, which no `<tbody>` will hold; grouping is gone, so
+  // the semantics come free instead of being bolted back on with roles.
+  test('builds the table as a real table, with no roles bolted on', async () => {
     const { $ } = await viewPage()
 
     const table = $('[data-testid="events-table"]')
 
-    expect(table.is('table')).toBe(false)
-    expect($('main table')).toHaveLength(0)
-    expect(table.attr('role')).toBe('table')
-    expect(table.attr('aria-label')).toBe('Events')
-    expect($('[data-testid="events-head"]').attr('role')).toBe('row')
-    expect($('[data-testid="event-row"]').first().attr('role')).toBe('row')
-  })
-
-  // One `grid-template-columns`, declared once in client/dev-ops.css, worn by
-  // the header row and by every data row: a column that drifts between them is
-  // the whole reason a grid table usually fails.
-  test('dresses the header and every row in the one grid template', async () => {
-    const { $ } = await viewPage()
-
-    expect($('[data-testid="events-head"]').hasClass('do-events-row')).toBe(
-      true
-    )
+    expect(table.is('table')).toBe(true)
+    expect(table.attr('class')).toContain('table table-sm')
+    expect(table.attr('role')).toBeUndefined()
+    expect($('[data-testid="events-head"]').is('tr')).toBe(true)
+    expect($('[data-testid="events-head"]').closest('thead')).toHaveLength(1)
+    expect($('[data-testid="event-row"]').first().is('tr')).toBe(true)
     expect(
-      $('[data-testid="event-row"]')
-        .toArray()
-        .every((row) => $(row).hasClass('do-events-row'))
-    ).toBe(true)
+      $('[data-testid="event-row"]').first().closest('tbody')
+    ).toHaveLength(1)
+    expect($('[data-testid="events-table"] [role="cell"]')).toHaveLength(0)
   })
 
   // Twenty rows of ids all look alike, and a column of figures whose heading
-  // has scrolled away is a column of unlabelled numbers.
-  test('sticks the header to the top of the scroll box', async () => {
+  // has scrolled away is a column of unlabelled numbers. daisyUI pins it.
+  test('pins the header to the top of the scroll box', async () => {
     const { $ } = await viewPage()
 
-    expect($('[data-testid="events-head"]').hasClass('do-events-head')).toBe(
-      true
+    expect($('[data-testid="events-table"]').attr('class')).toContain(
+      'table-pin-rows'
     )
   })
 
@@ -1268,7 +1362,7 @@ describe('viewEventsRoute', () => {
     expect(flatten(total.text())).toBe('243,260 events')
     expect(total.closest('[data-testid="events-card"]')).toHaveLength(1)
     expect(total.closest('[data-testid="events-filters"]')).toHaveLength(0)
-    expect(total.find('span').attr('title')).toBe(
+    expect(total.attr('title')).toBe(
       'Events matching every filter on this page'
     )
   })
@@ -1328,7 +1422,7 @@ describe('viewEventsRoute', () => {
     const id = $('[data-testid="event-id"]')
 
     expect(id.text()).toBe('3f2c1a0e-1111-2222-3333-444455556666')
-    expect(id.attr('class')).toContain('text-[13px]')
+    expect(id.attr('class')).toContain('text-sm')
     expect(id.attr('class')).toContain('font-semibold')
   })
 
@@ -1338,7 +1432,7 @@ describe('viewEventsRoute', () => {
     const type = $('[data-testid="event-type"]')
 
     expect(type.text()).toBe('case.status.updated')
-    expect(type.attr('class')).toContain('text-[12px]')
+    expect(type.attr('class')).toContain('text-xs')
     expect(type.attr('class')).not.toContain('font-semibold')
   })
 
@@ -1354,33 +1448,30 @@ describe('viewEventsRoute', () => {
   })
 
   // The hop is the line a human reads, so it stays in the page's own face at
-  // the size the row's other words are set in; the queue under it is a machine
-  // string and is set as one.
-  test('keeps the hop label in sans above the queue in mono', async () => {
+  // the size the row's other words are set in; the queue under it is the
+  // quieter, smaller half of the cell.
+  test('keeps the hop label above the queue, quieter', async () => {
     const { $ } = await viewPage()
 
     const hop = $('[data-testid="event-hop"]')
     const queue = $('[data-testid="event-queue"]')
 
-    expect(hop.attr('class')).not.toContain('font-mono')
-    expect(hop.attr('class')).toContain('text-[13px]')
-    expect(queue.attr('class')).toContain('font-mono')
-    expect(queue.attr('class')).toContain('text-[11px]')
+    expect(hop.attr('class')).toBe('link link-hover block truncate')
+    expect(queue.attr('class')).toContain('text-xs')
     expect(queue.attr('class')).toContain('text-base-content/50')
   })
 
-  // Both lines give when the column is narrow, and neither value is cut before
-  // the column has to: the whole target is on the title either way.
+  // Neither value is cut before the column has to: the whole target is on the
+  // title either way, and the cell is a real `td` that the table sizes.
   test('leaves the cut to the column, on both of its lines', async () => {
     const { $ } = await viewPage()
 
     const hop = $('[data-testid="event-hop"]')
     const queue = $('[data-testid="event-queue"]')
 
-    expect(hop.attr('class')).toContain('min-w-0')
-    expect(hop.attr('class')).toContain('truncate')
-    expect(queue.attr('class')).toContain('min-w-0')
-    expect(queue.attr('class')).toContain('truncate')
+    expect(hop.attr('title')).toBeDefined()
+    expect(queue.attr('title')).toBe('gas__sns__update_case_status_fifo')
+    expect(hop.text()).not.toContain('…')
   })
 
   // The whole id, unshortened: the string an operator copies should never
@@ -1410,11 +1501,11 @@ describe('viewEventsRoute', () => {
   test('sets the identity cell as the id line with the type beneath it', async () => {
     const { $ } = await viewPage()
 
-    const cell = $('[data-testid="event-row"] [role="cell"]').eq(1)
+    const cell = $('[data-testid="event-row"] > td').eq(0)
 
-    expect(cell.find('> div')).toHaveLength(2)
-    expect(cell.find('> div').first().attr('class')).toContain('items-baseline')
-    expect(cell.find('> div').last().attr('data-testid')).toBe('event-type')
+    expect(cell.find('> a').attr('data-testid')).toBe('event-id')
+    expect(cell.find('> div')).toHaveLength(1)
+    expect(cell.find('> div').attr('data-testid')).toBe('event-type')
     expect(flatten(cell.text())).toBe(
       '3f2c1a0e-1111-2222-3333-444455556666 case.status.updated'
     )
@@ -1549,7 +1640,7 @@ describe('viewEventsRoute', () => {
     const failure = $('[data-testid="event-failure"]')
 
     expect($('[data-testid="event-last-failure"]').text().trim()).toBe('4m ago')
-    expect(failure.attr('class')).toContain('text-base-content/45')
+    expect(failure.attr('class')).toContain('text-base-content/50')
     expect(failure.attr('class')).not.toContain('text-error')
     expect(failure.attr('title')).toContain(
       '2026-06-16T10:16:05Z   ·   16 Jun 2026, 11:16:05 BST (Europe/London)'
@@ -1584,14 +1675,14 @@ describe('viewEventsRoute', () => {
 
     const cells = $('[data-testid="event-row"]')
       .first()
-      .find('[role="cell"]')
+      .find('td')
       .toArray()
       .map((cell) => $(cell).html())
       .join('')
 
     expect(cells).not.toContain('text-error')
     expect($('[data-testid="do-status-dot"]').attr('class')).toContain(
-      'do-status-dot-error'
+      'status-error'
     )
   })
 
@@ -1607,7 +1698,7 @@ describe('viewEventsRoute', () => {
       .toArray()
       .map((row) => $(row).attr('class'))
 
-    expect(classes).toEqual([`${rowClass} do-event-row-dead-letter`, rowClass])
+    expect(classes).toEqual([deadLetterRowClass, rowClass])
   })
 
   test('leaves the summary of a healthy group unwashed', async () => {
@@ -1618,7 +1709,7 @@ describe('viewEventsRoute', () => {
 
     const { $ } = await viewPage()
 
-    expect($('main').html()).not.toContain('do-event-row-dead-letter')
+    expect($('main').html()).not.toContain('bg-error/5')
   })
 
   // Two lines: the hop tells this row from the inbox row that shares its event
@@ -1627,7 +1718,7 @@ describe('viewEventsRoute', () => {
   test('reads an outbox row as the hop it is, over where it went', async () => {
     const { $ } = await viewPage()
 
-    const cell = $('[data-testid="event-row"] [role="cell"]').eq(3)
+    const cell = $('[data-testid="event-row"] > td').eq(2)
 
     expect(flatten(cell.text())).toBe('GAS · Outbox to Caseworking')
     expect($('[data-testid="event-hop"]').text().trim()).toBe('GAS · Outbox')
@@ -1788,12 +1879,18 @@ describe('viewEventsRoute', () => {
     expect(id.attr('href')).toContain('/dev-ops/events/gas/outbox/')
   })
 
-  // A type the page shows verbatim carries no title: a tooltip repeating the
-  // text under the cursor is noise.
-  test('hangs no title off a type it shows as it stands', async () => {
+  // The type used to carry no title, because the column grew to fit it and a
+  // tooltip repeating the text under the cursor is noise. The column is a
+  // fixed share of the table now and can cut a long type, so the whole of it
+  // is on the title — where a cut string has to be recoverable.
+  test('keeps the whole type on the title of a column that can cut it', async () => {
     const { $ } = await viewPage()
 
-    expect($('[data-testid="event-type"]').attr('title')).toBeUndefined()
+    const type = $('[data-testid="event-type"]')
+
+    expect(type.attr('title')).toBe('case.status.updated')
+    expect(type.text()).toBe('case.status.updated')
+    expect(classOf(type)).toContain('truncate')
   })
 
   // The exception owns the row, and it does it without a pill: a red dot, a
@@ -1815,16 +1912,16 @@ describe('viewEventsRoute', () => {
     const badge = $('[data-testid="do-status-badge"]')
 
     expect(badge.find('[data-testid="do-status-dot"]').attr('class')).toContain(
-      'do-status-dot-error'
+      'status-error'
     )
     expect(badge.text().trim()).toBe('Dead letter')
     expect(badge.attr('title')).toBe('DEAD_LETTER')
     expect($('[data-testid="do-status-label"]').attr('class')).toContain(
       'font-medium'
     )
-    expect(
-      $('[data-testid="event-row"]').hasClass('do-event-row-dead-letter')
-    ).toBe(true)
+    expect($('[data-testid="event-row"]').attr('class')).toBe(
+      deadLetterRowClass
+    )
     expect(flatten($('[data-testid="event-status"]').text())).toBe(
       'Dead letter attempts 5/5 · 4m ago'
     )
@@ -1849,7 +1946,7 @@ describe('viewEventsRoute', () => {
     const { $ } = await viewPage()
 
     expect($('[data-testid="event-row"]').attr('class')).toBe(rowClass)
-    expect($('main').html()).not.toContain('do-event-row-completed')
+    expect($('main').html()).not.toContain('bg-error/5')
   })
 
   test('leaves a row in neither state untreated', async () => {
@@ -1858,20 +1955,20 @@ describe('viewEventsRoute', () => {
     expect($('[data-testid="event-row"]').attr('class')).toBe(rowClass)
   })
 
-  test('gives the table its own grid class', async () => {
+  // The one width the table declares for itself: below it the five columns of
+  // ids do not fit, and the box around it scrolls instead of the page.
+  test('keeps the table on daisyUI classes and one minimum width', async () => {
     const { $ } = await viewPage()
 
-    expect($('[data-testid="events-table"]').hasClass('do-events-grid')).toBe(
-      true
+    expect($('[data-testid="events-table"]').attr('class')).toBe(
+      'table table-sm table-pin-rows min-w-[64rem] table-fixed'
     )
   })
 
   test('dots a published row quietly', async () => {
     const { $ } = await viewPage()
 
-    expect($('[data-testid="do-status-dot"]').attr('class')).toContain(
-      'do-status-dot-neutral'
-    )
+    expect($('[data-testid="do-status-dot"]').attr('class')).toContain('status')
   })
 
   test('dots a processing row as in flight', async () => {
@@ -1880,7 +1977,7 @@ describe('viewEventsRoute', () => {
     const { $ } = await viewPage()
 
     expect($('[data-testid="do-status-dot"]').attr('class')).toContain(
-      'do-status-dot-info'
+      'status-info'
     )
   })
 
@@ -1890,7 +1987,7 @@ describe('viewEventsRoute', () => {
     const { $ } = await viewPage()
 
     expect($('[data-testid="do-status-dot"]').attr('class')).toContain(
-      'do-status-dot-warning'
+      'status-warning'
     )
     expect($('[data-testid="do-status-badge"]').text().trim()).toBe('Failed ↻')
   })
@@ -1907,10 +2004,10 @@ describe('viewEventsRoute', () => {
     const status = $('[data-testid="do-status-badge"]')
 
     expect(status.find('[data-testid="do-status-dot"]').attr('class')).toBe(
-      'do-status-dot do-status-dot-success'
+      'status status-success'
     )
     expect($('[data-testid="do-status-label"]').attr('class')).toContain(
-      'text-base-content/45'
+      'text-base-content/55'
     )
     expect(status.text().trim()).toBe('Completed')
     expect(status.attr('title')).toBe('COMPLETED')
@@ -1936,11 +2033,11 @@ describe('viewEventsRoute', () => {
         .toArray()
         .map((dot) => $(dot).attr('class'))
     ).toEqual([
-      'do-status-dot do-status-dot-neutral',
-      'do-status-dot do-status-dot-info',
-      'do-status-dot do-status-dot-warning',
-      'do-status-dot do-status-dot-error',
-      'do-status-dot do-status-dot-success'
+      'status',
+      'status status-info',
+      'status status-warning',
+      'status status-error',
+      'status status-success'
     ])
     expect($('main').html()).not.toContain('do-badge')
     expect($('main').html()).not.toContain('do-status-quiet')
@@ -1952,9 +2049,7 @@ describe('viewEventsRoute', () => {
     const { statusCode, $ } = await viewPage()
 
     expect(statusCode).toBe(statusCodes.ok)
-    expect($('[data-testid="do-status-dot"]').attr('class')).toContain(
-      'do-status-dot-neutral'
-    )
+    expect($('[data-testid="do-status-dot"]').attr('class')).toBe('status')
     expect($('[data-testid="do-status-badge"]').text()).toContain('QUARANTINED')
   })
 
@@ -1996,7 +2091,7 @@ describe('viewEventsRoute', () => {
 
     expect(flatten(detail.text())).toBe('attempts 5/5 · 4m ago')
     expect(detail.closest('[data-testid="event-status"]')).toHaveLength(1)
-    expect(detail.attr('class')).toContain('text-[10.5px]')
+    expect(detail.attr('class')).toContain('text-xs')
     expect(detail.attr('class')).toContain('font-mono')
     // Indented to clear the dot and its gap, so the status column keeps one
     // left edge whether a row is one line tall or two.
@@ -2070,7 +2165,7 @@ describe('viewEventsRoute', () => {
 
     expect(reason.text().trim()).toBe('connect ETIMEDOUT 10.0.3.14:443')
     expect(reason.closest('[data-testid="event-status"]')).toHaveLength(1)
-    expect(reason.attr('class')).toContain('text-[10.5px]')
+    expect(reason.attr('class')).toContain('text-xs')
     expect(reason.attr('class')).toContain('font-mono')
     expect(reason.attr('class')).toContain('text-error/70')
   })
@@ -2493,41 +2588,63 @@ describe('viewEventsRoute', () => {
     expect($('[data-testid="events-empty-clear"]')).toHaveLength(0)
   })
 
-  test('shows no card at all when nothing could be read', async () => {
+  // An outage is a state of the result set like any other, so it is reported
+  // inside the frame the result set lives in. It used to have no card at all,
+  // which left the toolbar floating over an empty screen under a red strip.
+  test('reports an outage inside the same card frame', async () => {
     givenUnavailable()
 
     const { $ } = await viewPage()
 
-    expect($('[data-testid="events-card"]')).toHaveLength(0)
+    const card = $('[data-testid="events-card"]')
+
+    expect(card).toHaveLength(1)
+    expect(card.attr('class')).toContain('flex-1')
+    expect(card.find('[data-testid="events-error"]')).toHaveLength(1)
     expect($('[data-testid="events-empty"]')).toHaveLength(0)
+    expect($('[data-testid="events-table"]')).toHaveLength(0)
+    // Not a strip above the toolbar any more.
+    expect(
+      $('[data-testid="events-toolbar"]').find('[data-testid="events-error"]')
+    ).toHaveLength(0)
   })
 
-  test('scrolls the table inside its own container', async () => {
+  // The document does not scroll: the page is the viewport, and the rows
+  // travel inside the card while the toolbar above them stays put.
+  test('scrolls the table inside its own container, not the page', async () => {
     const { $ } = await viewPage()
 
     const scroller = $('[data-testid="events-scroller"]')
 
-    expect(scroller.hasClass('overflow-auto')).toBe(true)
-    expect(scroller.hasClass('do-events-scroller')).toBe(true)
+    expect(scroller.hasClass('overflow-y-auto')).toBe(true)
+    expect(scroller.hasClass('overflow-x-auto')).toBe(true)
+    // It takes whatever height the card has left, and gives none of it back.
+    expect(scroller.hasClass('flex-1')).toBe(true)
+    expect(scroller.hasClass('min-h-0')).toBe(true)
     expect(scroller.find('[data-testid="events-table"]')).toHaveLength(1)
+    expect($('body').attr('class')).toContain('h-dvh')
+    expect($('body').attr('class')).toContain('overflow-hidden')
   })
 
   test('keeps the table wide enough for its four columns to scroll', async () => {
     const { $ } = await viewPage()
 
-    expect($('[data-testid="events-scroller"] > div').attr('class')).toContain(
+    expect($('[data-testid="events-table"]').attr('class')).toContain(
       'min-w-[64rem]'
     )
   })
 
-  test('frames the table in a bordered card', async () => {
+  // A card, and one that fills what the viewport has left: three rows in a
+  // card that stops after three rows reads as a page that failed to draw.
+  test('frames the table in a bordered card that fills the viewport', async () => {
     const { $ } = await viewPage()
 
     const card = $('[data-testid="events-card"]')
 
-    expect(card.attr('class')).toContain('rounded-box')
-    expect(card.attr('class')).toContain('border-base-300')
+    expect(card.attr('class')).toContain('card card-border')
     expect(card.attr('class')).toContain('bg-base-100')
+    expect(card.attr('class')).toContain('flex-1')
+    expect(card.attr('class')).toContain('min-h-0')
     expect(card.find('[data-testid="events-scroller"]')).toHaveLength(1)
   })
 
@@ -2541,24 +2658,28 @@ describe('viewEventsRoute', () => {
 
     const { $ } = await viewPage()
 
+    const pager = $('[data-testid="events-card"] [data-testid="do-pager"]')
+
+    expect(pager).toHaveLength(1)
     expect(
       $('[data-testid="events-scroller"] [data-testid="do-pager"]')
-    ).toHaveLength(1)
+    ).toHaveLength(0)
+    expect(pager.prev().attr('data-testid')).toBe('events-scroller')
     expect($('[data-testid="do-pager-newer"]').text()).toBe('← Newer')
     expect($('[data-testid="do-pager-older"]').text()).toBe('Older →')
     expect($('[data-testid="do-pager"]').text()).not.toContain('Previous')
     expect($('[data-testid="do-pager"]').text()).not.toContain('Next')
   })
 
-  // Previous, Next and the count are no use to an operator who has to scroll
-  // twenty rows to reach them, so the bar rides the bottom of the scroll box.
-  test('sticks the pager to the bottom of the scroll box', async () => {
+  // The directions are no use to an operator who has to scroll twenty rows to
+  // reach them. The bar sits under the scroll box, at the foot of a card that
+  // is as tall as the viewport, and never gives its height back to the rows.
+  test('holds the pager at the foot of the card', async () => {
     const { $ } = await viewPage()
 
     const pager = $('[data-testid="do-pager"]')
 
-    expect(pager.hasClass('do-pager-sticky')).toBe(true)
-    expect(pager.hasClass('bg-base-100')).toBe(true)
+    expect(pager.hasClass('shrink-0')).toBe(true)
     expect(pager.attr('class')).toContain('border-t border-base-300')
   })
 
@@ -2577,30 +2698,29 @@ describe('viewEventsRoute', () => {
 
     expect(newer.is('span')).toBe(true)
     expect(newer.attr('href')).toBeUndefined()
-    expect(newer.attr('class')).toContain('text-base-content/30')
+    expect(newer.attr('class')).toContain('btn-disabled')
     expect(newer.text()).toBe('← Newer')
   })
 
-  // The filters are still links, and the page still offers no row action: the
-  // only form on it is the search, and its only controls are the search box
-  // and its submit. No select, no tablist, and nothing that mutates anything.
-  // Still no select, no tab strip and no purge. What the page does carry is
-  // two forms — the search, and the batch around the table — and the three
-  // boxes the search row holds; on a page with nothing dead-lettered on it,
-  // not one checkbox and no button to submit them with.
-  test('offers no select, no purge and no checkbox on a healthy page', async () => {
-    const { $ } = await viewPage()
+  // The list writes nothing at all any more. Every form on it is a GET — the
+  // search and the range — the two POSTs it used to carry went with the batch
+  // redrive, and every write in the app is now made from one event's own page.
+  test('writes nothing: no post, no select, no checkbox, no row action', async () => {
+    givenEvents([event({ status: 'DEAD_LETTER' })])
+
+    const { $ } = await viewPage('/dev-ops/events?status=DEAD_LETTER')
 
     expect($('main select')).toHaveLength(0)
     expect($('main [role="tablist"]')).toHaveLength(0)
-    expect($('[data-testid="events-search"]').attr('method')).toBe('get')
-    expect($('[data-testid="events-batch-form"]').attr('method')).toBe('post')
-    expect($('main [data-testid="event-select"]')).toHaveLength(0)
-    expect($('[data-testid="events-redrive-selected"]')).toHaveLength(0)
-    // Search, and Apply inside the range panel. Neither writes anything.
+    expect($('main form[method="post"]')).toHaveLength(0)
+    expect($('main form[method="get"]')).toHaveLength(2)
+    expect($('main [type="checkbox"]')).toHaveLength(0)
+    expect($('main [form]')).toHaveLength(0)
+    // Search, the button that opens the range panel, and Apply inside it.
+    // None of the three writes anything.
     expect(
       $('main button:not([data-testid="do-copy-button-control"])')
-    ).toHaveLength(2)
+    ).toHaveLength(3)
     // The search box and the range panel's two boxes.
     expect($('main input:not([type="hidden"])')).toHaveLength(3)
   })
@@ -2649,15 +2769,16 @@ describe('viewEventsRoute', () => {
     const { $ } = await viewPage()
 
     const brand = $('[data-testid="do-brand"]')
+    const suffix = $('[data-testid="do-brand-suffix"]')
 
-    expect(brand.text().replace(/\s+/g, ' ').trim()).toBe(
+    expect(flatten(`${brand.text()} ${suffix.text()}`)).toBe(
       'Grants Platform · Dev Ops'
     )
-    expect(brand.attr('class')).toContain('font-semibold')
+    expect(brand.attr('class')).toContain('font-bold')
     expect(brand.attr('href')).toBe('/dev-ops')
-    expect($('[data-testid="do-brand-suffix"]').attr('class')).toContain(
-      'text-base-content/50'
-    )
+    expect(suffix.attr('class')).toContain('text-base-content/50')
+    expect(brand.closest('.navbar-start')).toHaveLength(1)
+    expect($('header').attr('class')).toContain('navbar')
     expect(brand.text()).not.toContain('fg-grants-platform-admin')
   })
 
@@ -2673,7 +2794,7 @@ describe('viewEventsRoute', () => {
     expect(id.attr('href')).toBe(
       '/dev-ops/events/gas/outbox/665f1c2e9a1b2c3d4e5f6a7b'
     )
-    expect(id.attr('class')).toContain('hover:underline')
+    expect(id.attr('class')).toContain('link link-hover')
     expect(id.attr('class')).toContain('font-semibold')
   })
 
@@ -2743,7 +2864,7 @@ describe('viewEventsRoute', () => {
   // The id opens the row, and it is the only link the identity cell has left.
   test('points the id at the row, the one link the cell carries', async () => {
     const { $ } = await viewPage()
-    const cell = $('[data-testid="event-row"] [role="cell"]').eq(1)
+    const cell = $('[data-testid="event-row"] > td').eq(0)
 
     expect(cell.find('a')).toHaveLength(1)
     expect($('[data-testid="event-id"]').attr('href')).toContain(
@@ -2760,7 +2881,7 @@ describe('viewEventsRoute', () => {
 
     expect(clock.text().trim()).toBe('10:00:00')
     expect(clock.attr('class')).toContain('font-mono')
-    expect(clock.attr('class')).toContain('text-[11px]')
+    expect(clock.attr('class')).toContain('text-xs')
     expect(clock.attr('class')).toContain('text-base-content/40')
     expect(clock.attr('title')).toBe(
       '2026-06-16T10:00:00Z   ·   16 Jun 2026, 11:00:00 BST (Europe/London)'
@@ -2832,7 +2953,8 @@ describe('viewEventsRoute', () => {
     expect(badge.attr('class')).toContain('badge')
     expect(badge.attr('class')).not.toContain('badge-warning')
     expect(badge.attr('title')).toBe('This is the local environment')
-    expect(badge.prev().attr('data-testid')).toBe('do-brand')
+    expect(badge.prev().attr('data-testid')).toBe('do-brand-suffix')
+    expect(badge.closest('.navbar-start')).toHaveLength(1)
   })
 
   // Amber only where being wrong is an incident. Everywhere else the badge is
@@ -2960,7 +3082,7 @@ describe('viewEventsRoute', () => {
       '/dev-ops/events?from=2026-06-16T09:00&status=FAILED&cursor=END'
     )
 
-    expect($('[data-testid="events-range-button"]').text()).toBe(
+    expect(flatten($('[data-testid="events-range-button"]').text())).toBe(
       '2026-06-16 09:00 → now'
     )
     expect($('[data-testid="events-note-range"]')).toHaveLength(0)
@@ -2970,7 +3092,7 @@ describe('viewEventsRoute', () => {
   test('names the earlier end when only the later one was given', async () => {
     const { $ } = await viewPage('/dev-ops/events?to=2026-06-16T10:00')
 
-    expect($('[data-testid="events-range-button"]').text()).toBe(
+    expect(flatten($('[data-testid="events-range-button"]').text())).toBe(
       'earliest → 2026-06-16 10:00'
     )
   })
@@ -3030,63 +3152,29 @@ describe('viewEventsRoute', () => {
     expect(hidden.map(([name]) => name)).not.toContain('to')
   })
 
-  // A checkbox on a row that cannot be redriven is an invitation to a click
-  // that can only ever fail.
-  test('offers a checkbox on a dead letter row and on no other', async () => {
+  // The batch redrive is gone, and with it every mark it put on this page: no
+  // checkbox on a dead letter, no form around the table, no `Redrive selected`
+  // button reaching into it by `form=`. A dead letter is redriven from its own
+  // page, where the operator can see what they are about to put back.
+  test('offers no batch redrive anywhere on a page of dead letters', async () => {
     givenEvents([
       event({ id: '665f1c2e9a1b2c3d4e5f6a7b', status: 'DEAD_LETTER' }),
       event({ id: '665f1c2e9a1b2c3d4e5f6a7c', status: 'COMPLETED' })
     ])
 
-    const { $ } = await viewPage()
+    const { $ } = await viewPage('/dev-ops/events?status=DEAD_LETTER')
 
-    const boxes = $('[data-testid="event-select"]')
-
-    expect(boxes).toHaveLength(1)
-    expect(boxes.attr('type')).toBe('checkbox')
-    expect(boxes.attr('name')).toBe('id')
-    expect(boxes.attr('value')).toBe('gas:outbox:665f1c2e9a1b2c3d4e5f6a7b')
-    // In the gutter, where the caret lives, so no event type on the page moves
-    // sideways to make room for it.
-    expect(boxes.closest('[role="cell"]').attr('class')).toBe(
-      'do-events-gutter'
+    expect($('[data-testid="event-select"]')).toHaveLength(0)
+    expect($('[data-testid="events-batch-form"]')).toHaveLength(0)
+    expect($('[data-testid="events-redrive-selected"]')).toHaveLength(0)
+    expect($('[data-testid="events-redrive-all"]')).toHaveLength(0)
+    expect($('[data-testid="events-toolbar-actions"]')).toHaveLength(0)
+    expect($('main').html()).not.toContain('redrive-batch')
+    expect($('main').html()).not.toContain('redrive-query')
+    // The row still opens the one page a redrive can be made from.
+    expect($('[data-testid="event-id"]').first().attr('href')).toContain(
+      '/dev-ops/events/gas/outbox/'
     )
-  })
-
-  // The table is the form, because the checkboxes are in it; the button that
-  // submits it is in the toolbar and reaches it by `form=`, which is HTML's
-  // own answer and needs no script.
-  test('posts the table to the batch route, carrying the list query', async () => {
-    givenEvents([event({ status: 'DEAD_LETTER' })])
-
-    const { $ } = await viewPage(
-      '/dev-ops/events?status=DEAD_LETTER&cursor=END'
-    )
-
-    const form = $('[data-testid="events-batch-form"]')
-
-    expect(form.attr('method')).toBe('post')
-    expect(form.attr('action')).toBe('/dev-ops/events/redrive-batch')
-    expect(form.attr('id')).toBe('events-redrive-batch')
-    expect($('[data-testid="events-batch-from"]').attr('value')).toBe(
-      '?status=DEAD_LETTER&cursor=END'
-    )
-    expect(form.find('[data-testid="events-table"]')).toHaveLength(1)
-  })
-
-  test('offers Redrive selected only where there is a dead letter to select', async () => {
-    givenEvents([event({ status: 'DEAD_LETTER' })])
-
-    const { $ } = await viewPage()
-
-    const button = $('[data-testid="events-redrive-selected"]')
-
-    expect(button.attr('type')).toBe('submit')
-    expect(button.attr('form')).toBe('events-redrive-batch')
-    expect(button.text().trim()).toBe('Redrive selected')
-    expect(
-      button.closest('[data-testid="events-toolbar-actions"]')
-    ).toHaveLength(1)
   })
 
   // A queue's whole job is to be quick, and `Completed` never said how quick.
@@ -3155,33 +3243,32 @@ describe('viewEventsRoute', () => {
   // nothing else. A page reloading itself every thirty seconds is something a
   // browser does; a page that offered to do it put a control for it beside the
   // one button on the screen that queues seven thousand messages.
-  test('offers no reload controls at all, leaving the corner to the writes', async () => {
+  test('offers no reload controls at all', async () => {
     givenEvents([event({ status: 'DEAD_LETTER' })])
 
     const { $ } = await viewPage('/dev-ops/events?status=DEAD_LETTER')
 
-    const actions = $('[data-testid="events-toolbar-actions"]')
-
     expect($('[data-testid="events-refresh"]')).toHaveLength(0)
     expect($('[data-testid="events-live"]')).toHaveLength(0)
-    expect(actions.text()).not.toContain('Refresh')
-    expect(actions.text()).not.toContain('Auto')
+    expect($('main').text()).not.toContain('Refresh')
+    expect($('main').text()).not.toContain('Auto')
+  })
+
+  // The card header holds the caption and nothing else now: the two bulk
+  // buttons that used to sit beside it went with the batch redrive.
+  test('keeps the card header to the failures summary and the total', async () => {
+    givenEvents([event({ status: 'DEAD_LETTER' })])
+
+    const { $ } = await viewPage('/dev-ops/events?status=DEAD_LETTER')
+
+    const aside = $('[data-testid="events-card-aside"]')
+
     expect(
-      actions
+      aside
         .children()
         .toArray()
         .map((child) => $(child).attr('data-testid'))
-    ).toEqual(['events-redrive-selected', 'events-redrive-all'])
-  })
-
-  // And on a page with nothing to write to, the corner is empty rather than
-  // holding a control that does nothing.
-  test('leaves the corner empty on a page with nothing to act on', async () => {
-    const { $ } = await viewPage()
-
-    expect($('[data-testid="events-toolbar-actions"]').children()).toHaveLength(
-      0
-    )
+    ).toEqual(['events-total'])
   })
 
   // Nothing on the page turns it over on a timer any more, so nothing goes in
@@ -3236,16 +3323,62 @@ describe('viewEventsRoute', () => {
       .map((child) => $(child).attr('data-testid'))
 
     expect(children).toEqual([
-      'events-total',
-      'events-failures',
-      'events-scroller'
+      'events-card-header',
+      'events-scroller',
+      'do-pager'
     ])
     expect($('[data-testid="events-failures"]').attr('open')).toBeDefined()
     expect(
-      $('[data-testid="events-failures"]')
+      $('[data-testid="events-card-header"]')
         .next()
         .find('[data-testid="events-table"]')
     ).toHaveLength(1)
+  })
+
+  // One row, not two strips of chrome before a single row of data. The
+  // disclosure is only as wide as its own words, so the figure beside it is
+  // not part of the click target; the chevron sits against the label rather
+  // than a hand's breadth away at the far edge, where it would land under the
+  // caption.
+  test('merges the failures summary and the total into one row', async () => {
+    givenBreakdown()
+
+    const { $ } = await viewPage('/dev-ops/events?status=DEAD_LETTER')
+
+    const header = $('[data-testid="events-card-header"]')
+    const summary = $('[data-testid="events-failures-summary"]')
+
+    expect(header.attr('class')).toContain('shrink-0')
+    expect(header.children()).toHaveLength(2)
+    expect(header.find('[data-testid="events-failures"]')).toHaveLength(1)
+    expect(header.find('[data-testid="events-total"]')).toHaveLength(1)
+    // The caption is not inside the summary, so clicking it toggles nothing.
+    expect(summary.find('[data-testid="events-total"]')).toHaveLength(0)
+    expect($('[data-testid="events-total"]').closest('summary')).toHaveLength(0)
+    // The disclosure stops at its own words, and the chevron is the last of
+    // them rather than an arrow pinned to the far edge.
+    expect(classOf(summary)).toContain('w-fit')
+    expect(classOf($('[data-testid="events-failures"]'))).not.toContain(
+      'collapse-arrow'
+    )
+    expect(summary.children().last().attr('data-testid')).toBe(
+      'do-icon-chevron-down'
+    )
+  })
+
+  // The total is the one figure that answers to every filter at once, so it
+  // survives a page with no failures panel to sit beside — as the row itself.
+  test('keeps the total row on a page with no failures panel', async () => {
+    givenEvents([event()])
+
+    const { $ } = await viewPage()
+
+    const total = $('[data-testid="events-total"]')
+
+    expect($('[data-testid="events-failures"]')).toHaveLength(0)
+    expect($('[data-testid="events-card-header"]')).toHaveLength(1)
+    expect(total).toHaveLength(1)
+    expect(total.closest('[data-testid="events-card-aside"]')).toHaveLength(1)
   })
 
   // Folded shut it is one line, and it still keeps its own summary: a page an
@@ -3262,9 +3395,11 @@ describe('viewEventsRoute', () => {
     expect(flatten($('[data-testid="events-failures-summary"]').text())).toBe(
       'Top failures (1 group)'
     )
-    // The only thing above it is the total, which is a caption on the table.
-    expect(panel.prev().attr('data-testid')).toBe('events-total')
-    expect(panel.attr('class')).toContain('border-b')
+    // It shares its line with the total, and the row they share is the one
+    // ruled off from the table below it.
+    expect(panel.parent().attr('data-testid')).toBe('events-card-header')
+    expect(panel.parent().attr('class')).toContain('border-b')
+    expect(panel.attr('class')).not.toContain('border-b')
   })
 
   test('folds the failures panel shut on an unfiltered page with dead letters behind it', async () => {
@@ -3305,9 +3440,12 @@ describe('viewEventsRoute', () => {
       '/dev-ops/events?status=DEAD_LETTER&service=gas&cursor=END'
     )
 
-    expect($('[data-testid="events-failure-row"]').attr('href')).toBe(
+    // The row is a table row now, so the link is the message inside it — the
+    // one cell that names the failure the link narrows to.
+    expect($('[data-testid="events-failure-message"]').attr('href')).toBe(
       '/dev-ops/events?status=DEAD_LETTER&service=gas&error=E11000+duplicate+key+error+collection%3A+gas.events+index%3A+eventId_1'
     )
+    expect($('[data-testid="events-failure-row"]').is('tr')).toBe(true)
   })
 
   // The failure message names the group here; the type is the extra fact. A
@@ -3334,7 +3472,7 @@ describe('viewEventsRoute', () => {
     expect(flatten($('[data-testid="events-failure-message"]').text())).toBe(
       '(no error recorded)'
     )
-    expect($('[data-testid="events-failure-row"]').attr('href')).toBe(
+    expect($('[data-testid="events-failure-message"]').attr('href')).toBe(
       '/dev-ops/events?status=DEAD_LETTER'
     )
     expect(flatten($('[data-testid="events-failures-note"]').text())).toContain(
@@ -3460,17 +3598,27 @@ describe('viewEventsRoute', () => {
 
   // ── The control itself ──────────────────────────────────────────────────
 
-  // `<details>` and not a script: the summary is a button the browser already
-  // focuses, toggles and announces, and `do-dropdown` only adds dismissal.
-  test('draws the range control as a native disclosure', async () => {
+  // A popover and not a script: the browser opens it from `popovertarget`,
+  // closes it on Escape and on a click anywhere else, and hands focus back to
+  // the button. That was the whole job of the custom element this replaced,
+  // and there is no element left to define.
+  test('draws the range control as a native popover', async () => {
     const { $ } = await viewPage()
 
-    const range = $('[data-testid="events-range"]')
+    const button = $('[data-testid="events-range-button"]')
+    const panel = $('[data-testid="events-range-panel"]')
 
-    expect(range.is('details')).toBe(true)
-    expect(range.parent().is('do-dropdown')).toBe(true)
-    expect($('[data-testid="events-range-button"]').is('summary')).toBe(true)
-    expect(range.attr('open')).toBeUndefined()
+    expect(button.is('button')).toBe(true)
+    expect(button.attr('type')).toBe('button')
+    expect(button.attr('popovertarget')).toBe('events-range-panel')
+    expect(panel.attr('id')).toBe('events-range-panel')
+    expect(panel.attr('popover')).toBeDefined()
+    expect(panel.attr('class')).toContain('dropdown')
+    // The anchor pair: the panel is positioned against the button by name.
+    expect(button.attr('style')).toBe('anchor-name:--events-range')
+    expect(panel.attr('style')).toBe('position-anchor:--events-range')
+    expect($('do-dropdown')).toHaveLength(0)
+    expect($('[data-testid="events-range"] details')).toHaveLength(0)
   })
 
   test('says Any time on the button of a page with no window', async () => {
@@ -3478,8 +3626,12 @@ describe('viewEventsRoute', () => {
 
     const button = $('[data-testid="events-range-button"]')
 
-    expect(button.text()).toBe('Any time')
+    expect(flatten(button.text())).toBe('Any time')
     expect(button.attr('title')).toBe('Time range: Any time')
+    // A clock in front of the label and a chevron after it: the button says
+    // what it is about, and that it opens something.
+    expect(button.find('[data-testid="do-icon-clock"]')).toHaveLength(1)
+    expect(button.find('[data-testid="do-icon-chevron-down"]')).toHaveLength(1)
   })
 
   test('says the preset back on the page its link opens', async () => {
@@ -3487,7 +3639,9 @@ describe('viewEventsRoute', () => {
       '/dev-ops/events?from=2026-06-15T10:19:57.000Z&range=24h'
     )
 
-    expect($('[data-testid="events-range-button"]').text()).toBe('Last 24h')
+    expect(flatten($('[data-testid="events-range-button"]').text())).toBe(
+      'Last 24h'
+    )
     expect(
       $('[data-testid="events-range-preset"][data-value="24h"]').attr(
         'aria-current'
@@ -3500,7 +3654,7 @@ describe('viewEventsRoute', () => {
       '/dev-ops/events?from=2026-09-01T00:00:00&to=2026-09-02T00:00:00'
     )
 
-    expect($('[data-testid="events-range-button"]').text()).toBe(
+    expect(flatten($('[data-testid="events-range-button"]').text())).toBe(
       '2026-09-01 00:00 → 2026-09-02 00:00'
     )
   })
@@ -3528,65 +3682,13 @@ describe('viewEventsRoute', () => {
     ).toContain('range=24h')
   })
 
-  test('offers Redrive all matching beside Redrive selected on a dead-letter page', async () => {
-    givenEvents([event({ status: 'DEAD_LETTER' })])
-
-    const { $ } = await viewPage('/dev-ops/events?status=DEAD_LETTER')
-    const button = $('[data-testid="events-redrive-all"]')
-
-    expect(button.text()).toBe('Redrive all 7,064 matching')
-    expect(button.attr('href')).toBe(
-      '/dev-ops/events/redrive-query-confirm?status=DEAD_LETTER'
-    )
-    expect($('[data-testid="events-redrive-selected"]')).toHaveLength(1)
-  })
-
-  test('hands the redrive confirmation every filter the page is holding', async () => {
-    givenEvents([event({ status: 'DEAD_LETTER' })])
-
-    const { $ } = await viewPage(
-      '/dev-ops/events?status=DEAD_LETTER&service=gas&q=gld-9b2&cursor=END'
-    )
-
-    expect($('[data-testid="events-redrive-all"]').attr('href')).toBe(
-      '/dev-ops/events/redrive-query-confirm?status=DEAD_LETTER&service=gas&q=gld-9b2'
-    )
-  })
-
-  test('offers no Redrive all matching on a page that is not filtered to dead letters', async () => {
+  // The state is gone from the app: no segment, no row line, no vocabulary.
+  test('says nothing about parking anywhere on the list', async () => {
     const { $ } = await viewPage()
 
-    expect($('[data-testid="events-redrive-all"]')).toHaveLength(0)
-  })
-
-  test('offers no Redrive all matching when there is nothing behind the filter', async () => {
-    givenCounts({ DEAD_LETTER: 0 })
-
-    const { $ } = await viewPage('/dev-ops/events?status=DEAD_LETTER')
-
-    expect($('[data-testid="events-redrive-all"]')).toHaveLength(0)
-  })
-
-  test('reads a parked row as Parked, with the reason on its title', async () => {
-    givenEvents([event({ status: 'PARKED', parked: parkedNote })])
-
-    const { $ } = await viewPage()
-
-    expect($('[data-testid="do-status-label"]').text()).toBe('Parked')
-    expect($('[data-testid="event-parked"]').text()).toBe('parked')
-    expect($('[data-testid="event-parked"]').attr('title')).toContain(
-      'duplicate key on a case that no longer exists'
-    )
-  })
-
-  test('renders a hostile park reason as text', async () => {
-    givenEvents([
-      event({ status: 'PARKED', parked: { ...parkedNote, reason: xss } })
-    ])
-
-    const { $ } = await viewPage()
-
-    expect($('[data-testid="event-parked"]').attr('title')).toContain(xss)
-    expect($('[data-testid="event-parked"] script')).toHaveLength(0)
+    expect($('[data-testid="event-parked"]')).toHaveLength(0)
+    expect(segments($, 'events-filter-status-chip')).not.toContain('Parked')
+    expect($('main').text()).not.toContain('Parked')
+    expect($('main').html()).not.toContain('PARKED')
   })
 })
