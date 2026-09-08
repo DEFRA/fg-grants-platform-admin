@@ -13,6 +13,35 @@ describe('icon component', () => {
     expect(svg.find('path')).toHaveLength(1)
   })
 
+  test('renders the alert warning icon as a stroked inline svg', () => {
+    const $icon = render('icon', {
+      name: 'exclamation-triangle',
+      class: 'h-4 w-4 shrink-0'
+    })
+
+    const svg = $icon('[data-testid="do-icon-exclamation-triangle"]')
+
+    expect(svg).toHaveLength(1)
+    expect(svg.attr('class')).toBe('h-4 w-4 shrink-0')
+    expect(svg.attr('aria-hidden')).toBe('true')
+    expect(svg.attr('stroke')).toBe('currentColor')
+    expect(svg.find('path')).toHaveLength(1)
+  })
+
+  test('renders the alert error icon as a stroked inline svg', () => {
+    const $icon = render('icon', {
+      name: 'exclamation-circle',
+      class: 'h-4 w-4 shrink-0'
+    })
+
+    const svg = $icon('[data-testid="do-icon-exclamation-circle"]')
+
+    expect(svg).toHaveLength(1)
+    expect(svg.attr('stroke')).toBe('currentColor')
+    expect(svg.find('circle')).toHaveLength(1)
+    expect(svg.find('path')).toHaveLength(1)
+  })
+
   test('escapes hostile classes rather than emitting them', () => {
     const $icon = render('icon', { name: 'moon', class: '"><script>' })
 

@@ -70,7 +70,7 @@ describe('createEntitlement', () => {
 
     expect(postToGas).toHaveBeenCalledWith(
       '/grant-admin/grants/woodland/applications/wood-1001/claims/entitlements',
-      entitlement
+      { payload: entitlement }
     )
   })
 

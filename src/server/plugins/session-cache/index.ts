@@ -59,6 +59,13 @@ export const sessionCache = {
             password: sessionConfig.cookie.password,
             ttl: sessionConfig.cookie.ttl,
             isSecure: config.get('session.cookie.secure'),
+            // Pinned rather than inherited. It is hapi's default today, and it
+            // is also the whole of this app's CSRF defence: the one write it
+            // makes carries no token, on the reasoning that a cross-site POST
+            // cannot arrive with this cookie attached. A default that changed
+            // under us would take that reasoning with it silently, so the
+            // value is written down where the reasoning can point at it.
+            isSameSite: 'Strict',
             clearInvalid: true
           }
         }

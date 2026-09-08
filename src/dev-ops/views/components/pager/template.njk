@@ -1,0 +1,32 @@
+{# The table's bottom edge and its control: drawn whenever there are rows —
+   without it the last row simply falls off the card — and under the table's
+   scroll box rather than inside it, so it stays on screen whatever the rows
+   are doing. It counts nothing: `20 events` under a page of twenty is a fact
+   about a window.
+
+   Newer and Older, not Previous and Next: the list is newest first and the
+   cursor walks it in time — `backward` reaches what arrived after these rows
+   — and `Previous` on such a list points at whichever end the reader guessed.
+   `rel` still says prev and next, because that is what they are to a browser.
+
+   Both directions are always drawn, joined into one control: a footer that
+   renders only the link it has moves the other across the row the moment the
+   first appears. The direction there is no page in is the same object,
+   disabled - and `aria-disabled` rather than `aria-hidden`, so a screen
+   reader says the control is there and unavailable rather than not saying it
+   is there at all. A pager missing half of itself reads as a pager that only
+   goes one way. #}
+<nav class="flex shrink-0 items-center justify-center border-t border-base-300 px-4 py-1" aria-label="Pagination" data-testid="do-pager">
+  <div class="join" data-testid="do-pager-links">
+    {% if params.previousHref %}
+      <a class="btn btn-xs join-item" rel="prev" href="{{ params.previousHref }}" data-testid="do-pager-newer">← Newer</a>
+    {% else %}
+      <span class="btn btn-xs join-item btn-disabled" aria-disabled="true" data-testid="do-pager-newer-disabled">← Newer</span>
+    {% endif %}
+    {% if params.nextHref %}
+      <a class="btn btn-xs join-item" rel="next" href="{{ params.nextHref }}" data-testid="do-pager-older">Older →</a>
+    {% else %}
+      <span class="btn btn-xs join-item btn-disabled" aria-disabled="true" data-testid="do-pager-older-disabled">Older →</span>
+    {% endif %}
+  </div>
+</nav>

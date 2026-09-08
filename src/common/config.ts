@@ -21,6 +21,7 @@ interface ConfigSchema {
   port: number
   staticCacheTimeout: number
   serviceName: string
+  environmentLabel: string
   root: string
   assetPath: string
   isProduction: boolean
@@ -77,6 +78,9 @@ interface ConfigSchema {
     apiUrl: string
     serviceToken: string
   }
+  logs: {
+    explorerBaseUrl: string
+  }
 }
 
 export const config = convict<ConfigSchema>({
@@ -109,6 +113,17 @@ export const config = convict<ConfigSchema>({
     doc: 'Applications Service Name',
     format: String,
     default: 'fg-grants-platform-admin'
+  },
+  // Which deployment the operator is looking at, said in the navbar. A
+  // dev-ops page looks identical in every environment, and the one action on
+  // it now writes to a queue: an operator with four tabs open needs the tab
+  // itself to say which service they are about to redrive an event in.
+  // `local` by default, because that is where an unset value is running.
+  environmentLabel: {
+    doc: 'The environment this deployment is running in, as an operator names it: local, dev, test, prod.',
+    format: String,
+    default: 'local',
+    env: 'ENVIRONMENT_LABEL'
   },
   root: {
     doc: 'Project root',
@@ -339,6 +354,17 @@ export const config = convict<ConfigSchema>({
       default: '',
       sensitive: true,
       env: 'GAS_SERVICE_TOKEN'
+    }
+  },
+  logs: {
+    // Optional, and empty everywhere it is not set: the events page reads it
+    // as a feature switch and renders no trace link at all when it is blank,
+    // rather than linking somewhere that does not exist.
+    explorerBaseUrl: {
+      doc: 'Base url of the CDP OpenSearch dashboards, e.g. https://logs.dev.cdp-int.defra.cloud. Empty disables the per-row trace links.',
+      format: String,
+      default: '',
+      env: 'LOGS_EXPLORER_BASE_URL'
     }
   }
 })
