@@ -2,6 +2,7 @@ import type { Server } from '@hapi/hapi'
 
 import { viewOptions } from '../server/plugins/views/index.ts'
 import { viewOperationsRoute } from './routes/view-operations.route.ts'
+import { woodlandMigrationRoutes } from './routes/woodland-migration.route.ts'
 
 export const operations = {
   plugin: {
@@ -14,6 +15,7 @@ export const operations = {
       })
 
       server.route(viewOperationsRoute)
+      server.route(woodlandMigrationRoutes)
     }
   }
 }
