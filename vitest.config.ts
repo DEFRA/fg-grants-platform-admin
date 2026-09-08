@@ -20,7 +20,8 @@ export default defineConfig({
         '.sonarlint',
         'babel.config.cjs',
         'src/types/**',
-        'src/**/__mocks__/**'
+        'src/**/__mocks__/**',
+        'src/**/test-utils.ts'
       ]
     }
   }

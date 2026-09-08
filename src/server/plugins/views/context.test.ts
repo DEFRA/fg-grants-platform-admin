@@ -39,22 +39,22 @@ describe('context', () => {
       context({ path: '/non-existent-path' })
     ).resolves.toMatchObject({
       navigation: [
-        { text: 'Operations Admin', href: '/operations', current: false },
-        { text: 'Applications Admin', href: '/applications', current: false }
+        { text: 'Operations Admin', href: '/dev-ops', current: false },
+        { text: 'Applications Admin', href: '/grant-ops', current: false }
       ]
     })
 
-    await expect(context({ path: '/operations' })).resolves.toMatchObject({
+    await expect(context({ path: '/dev-ops' })).resolves.toMatchObject({
       navigation: [
-        { text: 'Operations Admin', href: '/operations', current: true },
-        { text: 'Applications Admin', href: '/applications', current: false }
+        { text: 'Operations Admin', href: '/dev-ops', current: true },
+        { text: 'Applications Admin', href: '/grant-ops', current: false }
       ]
     })
 
-    await expect(context({ path: '/applications' })).resolves.toMatchObject({
+    await expect(context({ path: '/grant-ops' })).resolves.toMatchObject({
       navigation: [
-        { text: 'Operations Admin', href: '/operations', current: false },
-        { text: 'Applications Admin', href: '/applications', current: true }
+        { text: 'Operations Admin', href: '/dev-ops', current: false },
+        { text: 'Applications Admin', href: '/grant-ops', current: true }
       ]
     })
   })
@@ -65,8 +65,8 @@ describe('context', () => {
       breadcrumbs: [],
       getAssetPath: expect.any(Function),
       navigation: [
-        { current: false, text: 'Operations Admin', href: '/operations' },
-        { current: false, text: 'Applications Admin', href: '/applications' }
+        { current: false, text: 'Operations Admin', href: '/dev-ops' },
+        { current: false, text: 'Applications Admin', href: '/grant-ops' }
       ],
       serviceName: 'fg-grants-platform-admin',
       serviceUrl: '/'

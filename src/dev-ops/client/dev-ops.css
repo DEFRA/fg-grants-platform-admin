@@ -1,0 +1,18 @@
+/*
+ * The dev-ops app's stylesheet: Tailwind + daisyUI, nothing shared with the
+ * GDS bundle in src/client/stylesheets. `source(none)` turns off Tailwind's
+ * repo-wide content scan so utilities are generated only from the dev-ops
+ * templates — markup elsewhere can never grow this bundle, and nothing here
+ * leaks back.
+ */
+@import "tailwindcss" source(none);
+@source "../views";
+
+/*
+ * The theme contract, stated rather than defaulted: light unless the system
+ * asks for dark; the theme-toggle component forces dark. A branded theme
+ * later is a `@plugin "daisyui/theme"` block here.
+ */
+@plugin "daisyui" {
+  themes: light --default, dark --prefersdark;
+}

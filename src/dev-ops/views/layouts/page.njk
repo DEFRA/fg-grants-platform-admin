@@ -1,0 +1,33 @@
+{% from "theme-toggle/macro.njk" import themeToggle %}
+
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{% block pageTitle %}{{ pageTitle }} | {{ serviceName }}{% endblock %}</title>
+    {# The service favicon, shared with the GDS side: one service, one tab
+       icon, whichever app the page belongs to. #}
+    <link rel="icon" sizes="48x48" href="{{ getAssetPath("node_modules/govuk-frontend/dist/govuk/assets/images/favicon.ico") }}">
+    <link rel="icon" sizes="any" href="{{ getAssetPath("node_modules/govuk-frontend/dist/govuk/assets/images/favicon.svg") }}" type="image/svg+xml">
+    <link href="{{ getAssetPath('src/dev-ops/client/dev-ops.css') }}" rel="stylesheet">
+  </head>
+  <body class="min-h-screen bg-base-200">
+    <a href="#main-content" class="sr-only focus:not-sr-only focus:absolute focus:z-50 focus:m-3 btn btn-primary">Skip to main content</a>
+    {% block header %}
+      <header class="navbar bg-base-100 shadow-sm">
+        <div class="flex-1">
+          <a class="btn btn-ghost text-xl" href="/dev-ops">{{ serviceName }}</a>
+        </div>
+        <div class="flex-none">
+          {{ themeToggle({}) }}
+          <a class="btn btn-ghost" href="/auth/logout">Sign out</a>
+        </div>
+      </header>
+    {% endblock %}
+    <main id="main-content" class="container mx-auto max-w-4xl p-6">
+      {% block content %}{% endblock %}
+    </main>
+    <script type="module" src="{{ getAssetPath('src/dev-ops/views/components/index.ts') }}"></script>
+  </body>
+</html>

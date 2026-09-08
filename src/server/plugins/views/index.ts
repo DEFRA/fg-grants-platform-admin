@@ -6,13 +6,23 @@ import { environment, viewsRoot } from './engine.ts'
 import { config } from '../../../common/config.ts'
 
 /**
- * Everything a views manager needs apart from where its pages live. A domain
- * spreads this into its own `server.views()` call, adding `relativeTo` and
- * `path`, so vision resolves `h.view('index')` against that domain's directory
- * — a handler never names a path through the source tree, and this file never
+ * Everything a views manager needs apart from where its pages live and which
+ * nunjucks environment resolves what they pull in. A domain spreads the result
+ * into its own `server.views()` call, adding `relativeTo` and `path`, so
+ * vision resolves `h.view('index')` against that domain's directory — a
+ * handler never names a path through the source tree, and this file never
  * names a domain.
+ *
+ * The environment is a parameter because it is the seam between design
+ * systems: GDS domains share the environment from ./engine.ts, while a domain
+ * that is effectively its own app (dev-ops) brings an environment that
+ * cannot even resolve a GDS template, so a stray govuk import fails at render
+ * instead of silently working.
  */
-export const viewOptions = {
+export const buildViewOptions = (
+  environment: nunjucks.Environment,
+  context: (request?: { path?: string }) => Promise<object>
+) => ({
   engines: {
     njk: {
       compile(src: string, options: { environment: nunjucks.Environment }) {
@@ -26,7 +36,10 @@ export const viewOptions = {
   },
   isCached: config.get('isProduction'),
   context
-}
+})
+
+/** The options shared by every GDS domain's views manager. */
+export const viewOptions = buildViewOptions(environment, context)
 
 /**
  * The fallback views manager, holding the pages that belong to no domain.

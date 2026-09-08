@@ -1,0 +1,51 @@
+{% extends 'layouts/page.njk' %}
+
+{% from "application-header/macro.njk" import appApplicationHeader %}
+{% from "available-entitlements/macro.njk" import appAvailableEntitlements %}
+{% from "govuk/components/notification-banner/macro.njk" import govukNotificationBanner %}
+{% from "govuk/components/service-navigation/macro.njk" import govukServiceNavigation %}
+{% from "govuk/components/error-summary/macro.njk" import govukErrorSummary %}
+
+{% block content %}
+  {{ appApplicationHeader(header) }}
+
+  <div class="govuk-grid-row">
+    <div class="govuk-grid-column-full">
+
+      {# The same component the case working frontend moves between a case's
+         sections with, so an officer crossing between the two services meets
+         one tab bar rather than two. #}
+      {{ govukServiceNavigation({
+        navigation: tabs,
+        navigationLabel: "Application sections",
+        classes: "app-application-tabs govuk-!-margin-top-5"
+      }) }}
+
+      <div class="app-section-panel">
+        {% if errorSummary | length %}
+          {{ govukErrorSummary({
+                titleText: "There is a problem",
+                errorList: errorSummary,
+                attributes: { "data-testid": "entitlement-refused" }
+          }) }}
+        {% endif %}
+
+        {% if createdNotice %}
+          {% set createdHtml %}
+            <h3 class="govuk-notification-banner__heading">Claimable item created</h3>
+            <p class="govuk-body">{{ createdNotice }}</p>
+          {% endset %}
+
+          {{ govukNotificationBanner({
+            type: "success",
+            html: createdHtml,
+            attributes: { "data-testid": "entitlement-created" }
+          }) }}
+        {% endif %}
+
+        {{ appAvailableEntitlements({ entitlements: entitlements }) }}
+      </div>
+
+    </div>
+  </div>
+{% endblock %}

@@ -3,8 +3,8 @@ import process from 'node:process'
 import { createServer } from './server/index.ts'
 import { config } from './common/config.ts'
 import { logger } from './common/logger.ts'
-import { operations } from './operations/index.ts'
-import { applications } from './applications/index.ts'
+import { devOps } from './dev-ops/index.ts'
+import { grantOps } from './grant-ops/index.ts'
 
 export const onUnhandledRejection = (error: unknown) => {
   logger.info('Unhandled rejection')
@@ -14,7 +14,7 @@ export const onUnhandledRejection = (error: unknown) => {
 
 export const main = async () => {
   const server = await createServer()
-  await server.register([operations, applications])
+  await server.register([devOps, grantOps])
   await server.start()
 
   logger.info(`Server started at http://localhost:${config.get('port')}`)

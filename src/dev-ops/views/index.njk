@@ -1,0 +1,88 @@
+{% extends 'layouts/page.njk' %}
+
+{% from "heading/macro.njk" import heading %}
+
+{% block content %}
+  {{ heading({
+    text: pageTitle,
+    caption: "fg-grants-platform-admin"
+  }) }}
+
+  <div class="card bg-base-100 shadow-sm">
+    <div class="card-body">
+      <p>Signed in as {{ name }}.</p>
+      <div class="card-actions">
+        <a class="btn btn-primary" href="/auth/logout">Sign out</a>
+      </div>
+    </div>
+  </div>
+
+  <section class="card bg-base-100 mt-6 shadow-sm" aria-labelledby="woodland-migration-heading">
+    <div class="card-body">
+      <h2 class="card-title" id="woodland-migration-heading">Woodland migration</h2>
+
+      <form method="post" action="/operations/woodland-migration/dry-run">
+        <button class="btn btn-primary" type="submit">Run dry-run</button>
+      </form>
+
+      {% if migrationError %}
+        <div class="alert alert-error" role="alert">
+          <span><strong>Migration request failed:</strong> {{ migrationError }}</span>
+        </div>
+      {% endif %}
+
+      {% if dryRun %}
+        <h3 class="font-semibold">Dry-run result</h3>
+        <dl class="grid grid-cols-[max-content_1fr] gap-x-4 gap-y-2">
+          <dt class="font-semibold">Valid</dt>
+          <dd>{{ dryRun.valid }}</dd>
+          <dt class="font-semibold">Agreements</dt>
+          <dd>{{ dryRun.agreements }}</dd>
+          <dt class="font-semibold">Versions</dt>
+          <dd>{{ dryRun.versions }}</dd>
+          <dt class="font-semibold">Failures</dt>
+          <dd>{{ dryRun.failures }}</dd>
+          <dt class="font-semibold">Source checksum</dt>
+          <dd class="break-all">{{ dryRun.sourceChecksum }}</dd>
+        </dl>
+
+        {% if not dryRun.valid or dryRun.failures != 0 %}
+          <div class="alert alert-warning" role="status">
+            <span>The dry-run is not clean. Apply is unavailable.</span>
+          </div>
+        {% endif %}
+      {% endif %}
+
+      {% if dryRun and dryRun.valid and dryRun.failures == 0 %}
+        <form class="space-y-4" method="post" action="/operations/woodland-migration/apply">
+          <input type="hidden" name="expectedAgreements" value="{{ dryRun.agreements }}">
+          <input type="hidden" name="expectedVersions" value="{{ dryRun.versions }}">
+          <input type="hidden" name="sourceChecksum" value="{{ dryRun.sourceChecksum }}">
+          <label class="label cursor-pointer justify-start gap-3" for="confirmation">
+            <input class="checkbox checkbox-primary" id="confirmation" name="confirmation" type="checkbox" value="{{ confirmationValue }}" required>
+            <span class="label-text">I confirm this migration should be applied</span>
+          </label>
+          <button class="btn btn-error" type="submit">Apply migration</button>
+        </form>
+      {% endif %}
+
+      {% if applyResult %}
+        <h3 class="font-semibold">Apply result</h3>
+        <dl class="grid grid-cols-[max-content_1fr] gap-x-4 gap-y-2">
+          <dt class="font-semibold">Inserted</dt>
+          <dd>{{ applyResult.inserted }}</dd>
+          <dt class="font-semibold">Replaced</dt>
+          <dd>{{ applyResult.replaced }}</dd>
+          <dt class="font-semibold">Skipped</dt>
+          <dd>{{ applyResult.skipped }}</dd>
+          <dt class="font-semibold">Agreements</dt>
+          <dd>{{ applyResult.agreements }}</dd>
+          <dt class="font-semibold">Versions</dt>
+          <dd>{{ applyResult.versions }}</dd>
+          <dt class="font-semibold">Source checksum</dt>
+          <dd class="break-all">{{ applyResult.sourceChecksum }}</dd>
+        </dl>
+      {% endif %}
+    </div>
+  </section>
+{% endblock %}
