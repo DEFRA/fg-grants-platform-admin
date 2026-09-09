@@ -41,7 +41,8 @@ describe('woodlandMigrationRoutes', () => {
 
   test.each([
     ['dry-run', '/operations/woodland-migration/dry-run'],
-    ['apply', '/operations/woodland-migration/apply']
+    ['apply', '/operations/woodland-migration/apply'],
+    ['catch-up', '/operations/woodland-migration/catch-up']
   ])('redirects an anonymous %s request to login', async (_name, url) => {
     const { statusCode, headers } = await server.inject({ method: 'POST', url })
 
@@ -52,7 +53,8 @@ describe('woodlandMigrationRoutes', () => {
 
   test.each([
     ['dry-run', '/operations/woodland-migration/dry-run'],
-    ['apply', '/operations/woodland-migration/apply']
+    ['apply', '/operations/woodland-migration/apply'],
+    ['catch-up', '/operations/woodland-migration/catch-up']
   ])('forbids %s for an applications admin', async (_name, url) => {
     const { statusCode } = await server.inject({
       method: 'POST',
@@ -76,6 +78,8 @@ describe('woodlandMigrationRoutes', () => {
       payload: {
         valid: true,
         agreements: 50,
+        offeredAgreements: 12,
+        acceptedAgreements: 38,
         versions: 5274,
         failures: 0,
         sourceChecksum: checksum
@@ -100,10 +104,93 @@ describe('woodlandMigrationRoutes', () => {
     expect(Object.prototype.hasOwnProperty.call(options, 'payload')).toBe(false)
     expect(result).toEqual(expect.stringContaining('5274'))
     expect(result).toEqual(expect.stringContaining(checksum))
+    expect(result).toEqual(expect.stringContaining('Offered agreements'))
+    expect(result).toEqual(expect.stringContaining('12'))
+    expect(result).toEqual(expect.stringContaining('Accepted agreements'))
+    expect(result).toEqual(expect.stringContaining('38'))
     expect(result).toEqual(
       expect.stringContaining('action="/operations/woodland-migration/apply"')
     )
     expect(result).toEqual(expect.stringContaining('name="confirmation"'))
+  })
+
+  test('runs a catch-up without a request body and shows the result', async () => {
+    vi.mocked(wreck.post).mockResolvedValue({
+      res: { statusCode: 200 },
+      payload: {
+        valid: true,
+        agreements: 50,
+        offeredAgreements: 12,
+        acceptedAgreements: 38,
+        versions: 5274,
+        inserted: 10,
+        updated: 4,
+        preserved: 36,
+        failed: 0,
+        failures: [],
+        sourceChecksum: checksum
+      }
+    } as never)
+
+    const { result, statusCode } = await server.inject({
+      method: 'POST',
+      url: '/operations/woodland-migration/catch-up',
+      auth: operationsAdminAuth
+    })
+
+    expect(statusCode).toBe(200)
+    expect(wreck.post).toHaveBeenCalledTimes(1)
+    const [url, options] = vi.mocked(wreck.post).mock.calls[0]
+    expect(url).toBe('http://gas.test/admin/migrations/woodland/catch-up')
+    expect(options).toMatchObject({
+      headers: { Authorization: 'Bearer <token>' },
+      json: true,
+      timeout: 50_000
+    })
+    expect(Object.prototype.hasOwnProperty.call(options, 'payload')).toBe(false)
+    expect(result).toEqual(expect.stringContaining('5274'))
+    expect(result).toEqual(expect.stringContaining('10'))
+    expect(result).toEqual(expect.stringContaining('Preserved'))
+    expect(result).toEqual(expect.stringContaining('Catch-up result'))
+    expect(result).toEqual(expect.stringContaining('No failures.'))
+  })
+
+  test('lists catch-up failures as agreement number and reason', async () => {
+    vi.mocked(wreck.post).mockResolvedValue({
+      res: { statusCode: 200 },
+      payload: {
+        valid: true,
+        agreements: 50,
+        offeredAgreements: 12,
+        acceptedAgreements: 38,
+        versions: 5274,
+        inserted: 10,
+        updated: 4,
+        preserved: 36,
+        failed: 1,
+        failures: [
+          {
+            agreementNumber: 'A00123456',
+            reason: 'newer version present in target'
+          }
+        ],
+        sourceChecksum: checksum
+      }
+    } as never)
+
+    const { result, statusCode } = await server.inject({
+      method: 'POST',
+      url: '/operations/woodland-migration/catch-up',
+      auth: operationsAdminAuth
+    })
+
+    expect(statusCode).toBe(200)
+    expect(result).toEqual(expect.stringContaining('A00123456'))
+    expect(result).toEqual(
+      expect.stringContaining('newer version present in target')
+    )
+    expect(result).toEqual(expect.stringContaining('Failures to inspect'))
+    expect(result).toEqual(expect.stringContaining('Do not simply re-run it'))
   })
 
   test('shows a failed dry-run without offering apply', async () => {
@@ -151,6 +238,23 @@ describe('woodlandMigrationRoutes', () => {
     )
   })
 
+  test('shows a controlled GAS error from catch-up', async () => {
+    vi.mocked(wreck.post).mockResolvedValue({
+      res: { statusCode: 502 },
+      payload: { message: 'boom' }
+    } as never)
+
+    const { result, statusCode } = await server.inject({
+      method: 'POST',
+      url: '/operations/woodland-migration/catch-up',
+      auth: operationsAdminAuth
+    })
+
+    expect(statusCode).toBe(200)
+    expect(result).toEqual(expect.stringContaining('boom'))
+    expect(result).not.toEqual(expect.stringContaining('Catch-up result'))
+  })
+
   test('shows a controlled transport error from dry-run', async () => {
     vi.mocked(wreck.post).mockRejectedValue(new Error('ECONNRESET'))
 
@@ -163,6 +267,21 @@ describe('woodlandMigrationRoutes', () => {
     expect(statusCode).toBe(200)
     expect(result).toEqual(
       expect.stringContaining('Dry-run request to GAS failed.')
+    )
+  })
+
+  test('shows a controlled transport error from catch-up', async () => {
+    vi.mocked(wreck.post).mockRejectedValue(new Error('ECONNRESET'))
+
+    const { result, statusCode } = await server.inject({
+      method: 'POST',
+      url: '/operations/woodland-migration/catch-up',
+      auth: operationsAdminAuth
+    })
+
+    expect(statusCode).toBe(200)
+    expect(result).toEqual(
+      expect.stringContaining('Catch-up request to GAS failed.')
     )
   })
 
@@ -262,6 +381,7 @@ describe('woodlandMigrationRoutes', () => {
       expect.stringContaining('action="/operations/woodland-migration/apply"')
     )
     expect(result).toEqual(expect.stringContaining(`value="${checksum}"`))
+    expect(result).not.toEqual(expect.stringContaining('Offered agreements'))
   })
 
   test('shows a controlled transport error from apply', async () => {
