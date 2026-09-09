@@ -4,6 +4,7 @@ import { findClaims } from '../repositories/claims.repository.ts'
 export type {
   Banner,
   BannerField,
+  ClaimableEntitlement,
   Claims,
   EntitlementTemplate,
   EntitlementTemplateField
