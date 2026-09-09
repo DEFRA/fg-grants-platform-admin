@@ -1,0 +1,45 @@
+{# The class names are spelled out here rather than composed in the view
+   model, because Tailwind scans this directory for candidates
+   (src/dev-ops/client/dev-ops.css) — a class name only a .ts file ever spells
+   is tree-shaken out of the stylesheet and the badge renders unstyled with no
+   build error and no failing test. The view model names the role; this file
+   owns the class, and daisyUI owns what the class means.
+
+   In a column it is a `status` dot and a word, at the same x on every row:
+   the dot carries the colour and the label the meaning, and neither is ever
+   alone. On a page about one event there is no column to line up, so
+   `variant: "badge"` says it as a soft `badge`.
+
+   The label is the status as a human says it — `Dead letter`, not
+   `DEAD_LETTER` — in the same words the filter segments use. The raw value
+   the endpoint wrote is on the `title`, for anyone matching it against a log
+   line or a `?status=`. Weight says which status is worth stopping on: none
+   is bold except the one that is an incident.
+
+   The retry marker is a glyph rather than an icon: a trailing ↻ sits on the
+   label without the vertical alignment fight an inline svg picks at this
+   size. #}
+{% set dots = {
+  neutral: "status",
+  info: "status status-info",
+  warning: "status status-warning",
+  success: "status status-success",
+  error: "status status-error"
+} %}
+{% set labels = {
+  success: "text-base-content/55",
+  error: "font-medium"
+} %}
+{% set badges = {
+  neutral: "badge badge-ghost",
+  info: "badge badge-info badge-soft",
+  warning: "badge badge-warning badge-soft",
+  success: "badge badge-success badge-soft",
+  error: "badge badge-error badge-soft"
+} %}
+{%- set text = params.label | default(params.status, true) -%}
+{%- if params.variant == "badge" -%}
+<span class="{{ badges[params.role] | default("badge badge-ghost", true) }}" title="{{ params.status }}" data-testid="do-status-badge"><span data-testid="do-status-label">{{ text }}{% if params.retrying %} ↻{% endif %}</span></span>
+{%- else -%}
+<span class="inline-flex items-center gap-1.5 whitespace-nowrap" title="{{ params.status }}" data-testid="do-status-badge"><span class="{{ dots[params.role] | default("status", true) }}" aria-hidden="true" data-testid="do-status-dot"></span><span class="{{ labels[params.role] | default("text-base-content/80", true) }}" data-testid="do-status-label">{{ text }}{% if params.retrying %} ↻{% endif %}</span></span>
+{%- endif -%}

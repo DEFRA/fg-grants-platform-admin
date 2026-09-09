@@ -90,7 +90,10 @@ export const createEntitlement = async (
 ): Promise<void> =>
   postToGas(
     `/grant-admin/grants/${encodeURIComponent(entitlement.grantCode)}/applications/${encodeURIComponent(entitlement.clientRef)}/claims/entitlements`,
-    entitlement
+    // The entitlement is the request body. `postToGas` takes its options
+    // rather than a bare payload, because not every write to fg-gas-backend
+    // has a body to send — a redrive is identified entirely by its path.
+    { payload: entitlement }
   )
 
 export const findClaims = async (

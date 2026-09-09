@@ -1,0 +1,401 @@
+{% extends 'layouts/page.njk' %}
+
+{% from "audit-filter/macro.njk" import auditFilter as auditFilterControl %}
+{% from "icon/macro.njk" import icon %}
+{% from "pager/macro.njk" import pager %}
+{% from "status-badge/macro.njk" import statusBadge %}
+
+{# The class names are written as literal strings in this file, because
+   Tailwind scans this file's text for candidates and never sees a class
+   assembled in TypeScript. #}
+
+{# The group labels name a control, they are not options in it. #}
+{% set filterLabel = "text-xs font-medium text-base-content/60" %}
+
+{# One border around the group, drawn by the `join`; the selected segment is
+   `btn-active`, daisyUI's own word for "this is the one on". #}
+{% set activeChip = "btn btn-sm join-item btn-active" %}
+{% set inactiveChip = "btn btn-sm join-item font-normal" %}
+{# Spelled whole rather than concatenated into the attribute, so every class
+   name in this file is a literal Tailwind can see. #}
+{% set rangeButton = "btn btn-sm" %}
+{% set activeRangeButton = "btn btn-sm btn-active" %}
+{# Dimmed, and still a link: a segment that vanished when it emptied could
+   not be told from one the page forgot to draw. #}
+{% set emptyChip = "btn btn-sm join-item font-normal text-base-content/60" %}
+{# The figure rides as a badge inside the button; tabular, because the
+   segments are read down as much as along. #}
+{% set segmentCount = "badge badge-ghost badge-sm tabular-nums" %}
+{# The dead letters are the only figure allowed a colour, and only while
+   there are some. #}
+{% set segmentCountAlarm = "badge badge-error badge-sm tabular-nums" %}
+
+{# One segment. Every figure is a facet: it says how many events *selecting
+   this segment* would find, not how many the current selection holds. A count
+   that could not be read draws nothing at all — the control is a perfectly
+   good filter without its figures. #}
+{% macro segment(chip, testId) %}
+  {# A zero draws no badge; the count still exists on an empty segment's
+     title. #}
+  {%- set emptyTitle = (chip.title ~ " · " ~ chip.countLabel ~ " events") if chip.title else (chip.countLabel ~ " events") -%}
+  {%- set chipTitle = emptyTitle if chip.zero else chip.title -%}
+  <a class="{{ activeChip if chip.active else (emptyChip if chip.zero else inactiveChip) }}" href="{{ chip.href }}"{% if chip.active %} aria-current="page"{% endif %}{% if chipTitle %} title="{{ chipTitle }}"{% endif %}{% if chip.value %} data-value="{{ chip.value }}"{% endif %} data-testid="{{ testId }}">{{ chip.label }}{% if chip.countLabel and not chip.zero %} <span class="{{ segmentCountAlarm if chip.alarming else segmentCount }}" data-testid="{{ testId }}-count">{{ chip.countLabel }}</span>{% endif %}</a>
+{% endmacro %}
+
+{# The identity cell: the id, and the type under it when there is one. The id
+   link opens this row's own page and is deliberately NOT a `?q=` search — an
+   id belongs to exactly one row. It carries the list's query as `?from=` so
+   the back link returns to this exact page. #}
+{% macro identity(row) %}
+  <a href="{{ row.eventHref }}" class="link link-hover block truncate font-mono text-sm font-semibold" title="{{ row.eventId }}" data-testid="event-id">{{ row.eventId }}</a>
+  <div class="truncate text-xs text-base-content/60" title="{{ row.type }}" data-testid="event-type">{{ row.type }}</div>
+{% endmacro %}
+
+{# Which hop a row is, and where its message was going: `to Caseworking` on
+   an outbox row, `from GAS` on an inbox one, with the transport's own name on
+   the title. Plain text here: the service filter is the toolbar's job, and a
+   link on every row of a column of near-identical values was mostly a way to
+   lose the page you were on. The detail page's Queue fact still links. #}
+{% macro sourceCell(row) %}
+  <div class="truncate" title="{{ row.hop }}" data-testid="event-hop">{{ row.hop }}</div>
+  {%- if row.queue %}
+    <div class="truncate text-xs text-base-content/50"{% if row.queueValue %} title="{{ row.queueValue }}"{% endif %} data-testid="event-queue">{{ row.queue }}</div>
+  {%- endif -%}
+{% endmacro %}
+
+{# The status, and — only on the rows that have one — what happened under it:
+   why it failed, and how long it took. The sub-lines are indented to the
+   label, so the column keeps one left edge. Never red except the error
+   itself: the dot and the row tint already say which rows are a problem.
+
+   The attempt count that used to lead this stack is on the detail page only.
+   It repeated the badge on almost every row (`attempts 1/5` under Completed)
+   and the one number that mattered, on a dead letter, was the one the badge
+   already made obvious. #}
+{% macro statusDetail(row) %}
+  {%- if row.errorMessage -%}
+    <div class="truncate pl-3.5 font-mono text-xs text-error/70" title="{{ row.errorTitle }}" data-testid="event-error">{{ row.errorMessage }}</div>
+  {%- endif -%}
+  {# How long it took, on the rows that finished. #}
+  {%- if row.latency -%}
+    <div class="truncate pl-3.5 font-mono text-xs tabular-nums text-base-content/50" title="{{ row.latencyTitle }}" data-testid="event-latency">took {{ row.latency }}</div>
+  {%- endif -%}
+{% endmacro %}
+
+{# A dead letter is the one row that wears a treatment of its own: every
+   other state recedes, so the faint error wash is the only saturated thing on
+   a calm page. #}
+{% macro eventRow(row) %}
+  <tr class="{{ "bg-error/5 hover:bg-error/10" if row.isDeadLetter else "hover:bg-base-200" }}" data-testid="event-row">
+    <td>{{ identity(row) }}</td>
+    <td class="overflow-hidden" data-testid="event-status">
+      {{ statusBadge({
+        status: row.status,
+        label: row.statusLabel,
+        role: row.statusRole,
+        retrying: row.statusRetrying
+      }) }}
+      {{ statusDetail(row) }}
+    </td>
+    <td>{{ sourceCell(row) }}</td>
+    <td class="text-right">
+      {# The absolute instant is on the `title`, which a keyboard or a touch
+         user never sees. It is also the one value on this row worth quoting,
+         so it is in the markup as well - read out by a screen reader, and
+         invisible to everyone else. #}
+      <div class="font-mono text-xs tabular-nums" title="{{ row.createdAtTitle }}" data-testid="event-created-at">{{ row.createdAt }}<span class="sr-only" data-testid="event-created-absolute"> ({{ row.createdAtTitle }})</span></div>
+      {# The wall clock under the relative age; the date arrives once the row
+         is more than a day old, and the seconds go with it. #}
+      {% if row.createdAtClock %}<div class="font-mono text-xs tabular-nums text-base-content/40" title="{{ row.createdAtTitle }}" data-testid="event-created-clock"><span data-testid="event-created-clock-text">{{ row.createdAtClock }}</span></div>{% endif %}
+    </td>
+  </tr>
+{% endmacro %}
+
+{# The viewport is the frame: the document itself never scrolls — the table
+   does, inside the card — so the filters stay on screen. A short page keeps
+   the same frame: three rows in a card that stops after three rows reads as a
+   broken page. #}
+{% block bodyClass %} h-dvh overflow-hidden{% endblock %}
+
+{% block content %}
+  {# The page's own header: the subtitle says what the page is, the toolbar
+     says which slice is on screen. The `h1` stays for the skip link and the
+     page's one subject, set at the size of the words around it. #}
+  <hgroup class="mb-2 flex flex-wrap items-baseline gap-x-2" data-testid="events-heading">
+    <h1 class="text-base font-semibold" data-testid="events-title">{{ pageTitle }}</h1>
+    <p class="text-sm text-base-content/60" data-testid="events-subtitle">Inbox and outbox messages across GAS, Caseworking and connected services.</p>
+  </hgroup>
+
+  {% if unavailableSources %}
+    <div role="alert" class="alert alert-warning alert-soft mb-3 text-sm" data-testid="events-partial">
+      {{ icon({ name: 'exclamation-triangle', class: 'size-4 shrink-0' }) }}
+      <span>Some event sources are unavailable: {{ unavailableSources }}. Showing the rest.</span>
+    </div>
+  {% endif %}
+
+  {# Two rows, declared rather than emergent: what the page is filtered *to*
+     on the first, how it is narrowed and searched on the second. Segments are
+     links — a url needs no script — except the search, whose value the server
+     cannot enumerate, and the audit checkbox, whose state a form has to be
+     asked for. Rendered whatever the table did, so a filter that found
+     nothing can still be undone. #}
+  <div class="mb-3 grid gap-y-2" data-testid="events-toolbar">
+    <div class="flex flex-wrap items-center gap-x-5 gap-y-2" data-testid="events-filters">
+      {# A label and the group it introduces are one object, so they are
+         nested as one. #}
+      <div class="flex items-center gap-2">
+        <span class="{{ filterLabel }}" data-testid="events-filter-label">Service</span>
+        <div class="join" role="group" aria-label="Filter by service" data-testid="events-filter-service">
+          {% for chip in serviceFilters %}{{ segment(chip, "events-filter-service-chip") }}{% endfor %}
+        </div>
+      </div>
+
+      <div class="flex items-center gap-2">
+        <span class="{{ filterLabel }}" data-testid="events-filter-label">Status</span>
+        <div class="join" role="group" aria-label="Filter by status" data-testid="events-filter-status">
+          {% for chip in statusFilters %}{{ segment(chip, "events-filter-status-chip") }}{% endfor %}
+        </div>
+      </div>
+
+      {# The audit filter: the one control in this row that is a form rather
+         than a link. The component owns the rest; see its template. #}
+      {{ auditFilterControl({ filter: auditFilter }) }}
+    </div>
+
+    {# The second row: the window and the needle, hard right. #}
+    <div class="flex flex-wrap items-center justify-end gap-x-5 gap-y-2" data-testid="events-controls">
+      {# The window as one control: the button says which window is on, the
+         panel holds the machinery. The panel is a native popover, and the
+         popover is the whole of the behaviour — the browser opens it from
+         `popovertarget`, closes it on Escape and outside clicks, and returns
+         focus. No script at all. #}
+      <div class="flex items-center gap-2" data-testid="events-range">
+        <span class="{{ filterLabel }}" data-testid="events-filter-label">Time</span>
+        <button class="{{ activeRangeButton if timeRange.active else rangeButton }}" type="button" popovertarget="events-range-panel" style="anchor-name:--events-range" title="{{ timeRange.title }}" data-testid="events-range-button">
+          {{ icon({ name: 'clock', class: 'size-3.5 opacity-60' }) }}
+          {{ timeRange.label }}
+          {{ icon({ name: 'chevron-down', class: 'size-3 opacity-60' }) }}
+        </button>
+        <div class="dropdown card card-sm w-72 border border-base-300 bg-base-100 shadow-md" popover id="events-range-panel" style="position-anchor:--events-range" data-testid="events-range-panel">
+          <div class="card-body gap-2 p-2">
+            {# Each rung is a plain GET link carrying every other filter: it
+               writes an absolute `from`, clears `to`, drops the cursor, and
+               names itself in `range=`. #}
+            <ul class="menu menu-sm w-full p-0" data-testid="events-range-presets">
+              {% for preset in timeRange.presets %}
+                <li>
+                  <a class="{{ "menu-active" if preset.active }}" href="{{ preset.href }}" title="{{ preset.title }}"{% if preset.active %} aria-current="true"{% endif %} data-value="{{ preset.key }}" data-testid="events-range-preset">{{ preset.label }}</a>
+                </li>
+              {% endfor %}
+              {# `Any time` is a rung and not a `Clear ×` off to one side:
+                 "no window" is a choice about the range like any other. #}
+              <li>
+                <a class="{{ "menu-active" if timeRange.anyTimeActive }}" href="{{ timeRange.anyTimeHref }}"{% if timeRange.anyTimeActive %} aria-current="true"{% endif %} data-testid="events-range-any">Any time</a>
+              </li>
+            </ul>
+
+            {# The absolute boxes: their own GET form, carrying the search as
+               a hidden field and deliberately no `range` — applying a window
+               of your own is what stops it being `Last 24h`. `datetime-local`
+               submits a bare wall time and the route reads it as UTC; the
+               boxes keep that rule on their titles, the one place an operator
+               might need it told. #}
+            <form method="get" action="/dev-ops/events" data-testid="events-range-form">
+              {% for field in rangeFilters %}
+                <input type="hidden" name="{{ field.name }}" value="{{ field.value }}" data-testid="events-range-filter">
+              {% endfor %}
+              <fieldset class="fieldset border-t border-base-300 pt-2">
+                <legend class="fieldset-legend" data-testid="events-range-absolute-heading">Absolute range</legend>
+                <label class="label" for="events-range-from" data-testid="events-range-from-label">From</label>
+                <input class="input input-sm w-full font-mono text-xs" id="events-range-from" type="datetime-local" step="1" name="from" value="{{ fromInput }}" data-testid="events-range-from">
+                <label class="label" for="events-range-to" data-testid="events-range-to-label">To</label>
+                <input class="input input-sm w-full font-mono text-xs" id="events-range-to" type="datetime-local" step="1" name="to" value="{{ toInput }}" data-testid="events-range-to">
+                <button class="btn btn-sm mt-2 self-end" type="submit" data-testid="events-range-apply">Apply</button>
+              </fieldset>
+            </form>
+          </div>
+        </div>
+      </div>
+
+      {# The search: GET, so a search is a url. A form submits its own fields
+         and nothing else, so every toolbar filter is restated as a hidden
+         field — without them, searching from Dead letter would quietly widen
+         to All; the cursor is deliberately not among them. #}
+      <form class="join" method="get" action="/dev-ops/events" role="search" data-testid="events-search">
+        {% for field in searchFilters %}
+          <input type="hidden" name="{{ field.name }}" value="{{ field.value }}" data-testid="events-search-filter">
+        {% endfor %}
+        <label class="input input-sm join-item w-80" data-testid="events-search-label">
+          {{ icon({ name: 'search', class: 'size-3.5 opacity-50' }) }}
+          <input type="search" name="q" value="{{ q }}" placeholder="Event id, message id or reference…" aria-label="Search events" data-testid="events-search-input">
+        </label>
+        <button class="btn btn-sm join-item" type="submit" data-testid="events-search-submit">Search</button>
+      </form>
+    </div>
+  </div>
+
+  {# The filters with no control showing their value — the search and the
+     clicked failure — said in words under the toolbar, each with the way out
+     of itself: a page read under a forgotten filter is a page lying about the
+     stream. #}
+  {% if q or errorFilter %}
+    <div class="mb-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs" data-testid="events-filter-notes">
+      {% if q %}
+        <span class="text-base-content/60" data-testid="events-note-search">Matching <span class="font-mono text-base-content/80">"{{ q }}"</span></span>
+        <a class="link link-hover text-base-content/50" href="{{ clearSearchHref }}" data-testid="events-note-search-clear">Clear ×</a>
+      {% endif %}
+      {# Sixty characters of the failure, the whole of it on the title. #}
+      {% if errorFilter %}
+        {% if q %}<span class="text-base-content/30" aria-hidden="true">·</span>{% endif %}
+        <span class="text-base-content/60" data-testid="events-note-error">Error: <span class="font-mono text-base-content/80" title="{{ errorFilter.title }}">"{{ errorFilter.label }}"</span></span>
+        <a class="link link-hover text-base-content/50" href="{{ errorFilter.clearHref }}" data-testid="events-note-error-clear">Clear ×</a>
+      {% endif %}
+    </div>
+  {% endif %}
+
+  {% if rows | length %}
+    {# The card is the frame and the table inside it is the only thing that
+       scrolls; the caption, the failures panel and the pager keep their
+       places. #}
+    <div class="card card-border flex min-h-0 flex-1 flex-col overflow-hidden bg-base-100" data-testid="events-card">
+        {# One row for the failures summary and the caption. A one-cell grid
+           places both children in the same cell, so the disclosure keeps the
+           full width to open into while the right-hand cluster sits on its
+           first line — a flex row would give the panel only the width the
+           buttons left. `w-fit` stops the disclosure at its own words, and
+           everything on the right is outside `<summary>`, so neither the
+           figure nor the buttons toggle anything. #}
+        {% if eventsTotal or topFailures %}
+          <div class="grid shrink-0 grid-cols-1 grid-rows-1 border-b border-base-300" data-testid="events-card-header">
+
+        {# Which failures the dead letters actually are; each row links the
+           page to exactly that failure, message and all. Open when the page
+           is already about dead letters, folded shut when it is not. daisyUI
+           `collapse` on a native `details`, so the disclosure is the
+           browser's and the open state the server's. #}
+        {% if topFailures %}
+          <details class="group collapse col-start-1 row-start-1 max-h-64 overflow-y-auto rounded-none"{% if topFailures.open %} open{% endif %} data-testid="events-failures">
+            {# `collapse-arrow` draws its mark against the far edge, a hand's
+               breadth from the words and under the caption — so the glyph is
+               inline instead, immediately after the label. #}
+            <summary class="collapse-title flex min-h-10 w-fit items-center gap-1.5 px-4 py-0 text-sm text-base-content/70" data-testid="events-failures-summary">{{ topFailures.summary }}{{ icon({ name: 'chevron-down', class: 'size-3.5 opacity-60 transition-transform group-open:rotate-180' }) }}</summary>
+            <div class="collapse-content px-0 pb-2" data-testid="events-failures-list">
+              <div class="max-w-full overflow-x-auto">
+                {# `table-sm`, the size the events table below is drawn at:
+                   the two sit stacked in one card, so a cell padding of its
+                   own (`table-xs` insets .5rem against .75rem) put this
+                   panel's first column a few pixels inside the Event column
+                   under it and read as a wonky edge. One size class, one
+                   column system. The panel scrolls inside `max-h-64`, so the
+                   taller rows cost the page no height. #}
+                <table class="table table-sm" data-testid="events-failures-table">
+                  <thead>
+                    <tr>
+                      <th scope="col">Error</th>
+                      <th scope="col">Type</th>
+                      <th scope="col" class="text-right">Count</th>
+                      <th scope="col" class="text-right">First</th>
+                      <th scope="col" class="text-right">Last</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {% for group in topFailures.groups %}
+                      <tr class="hover:bg-base-200" data-testid="events-failure-row">
+                        {# A group that recorded no message is a dash, and a
+                           dash is not a link: `?error=` has nothing to match
+                           on, so the only page it could open is a wider one
+                           than this row is about. The other cells are
+                           unaffected. #}
+                        <td class="max-w-96 truncate">
+                          {%- if group.href -%}
+                            <a class="link link-hover font-mono text-error" href="{{ group.href }}"{% if group.messageTitle %} title="{{ group.messageTitle }}"{% endif %} data-testid="events-failure-message">{{ group.message }}</a>
+                          {%- else -%}
+                            <span class="font-mono text-base-content/50" data-testid="events-failure-message">{{ group.message }}</span>
+                          {%- endif -%}
+                        </td>
+                        {# The failure message names the group; the type is
+                           the extra fact — `audit` for records that are not
+                           CloudEvents. #}
+                        <td class="text-base-content/70" data-testid="events-failure-type">{{ group.type }}</td>
+                        <td class="text-right font-mono font-medium tabular-nums" data-testid="events-failure-count">{{ group.countLabel }}</td>
+                        <td class="text-right font-mono tabular-nums whitespace-nowrap text-base-content/50" title="{{ group.firstTitle }}" data-testid="events-failure-first">{{ group.firstAt }}</td>
+                        <td class="text-right font-mono tabular-nums whitespace-nowrap text-base-content/50" title="{{ group.lastTitle }}" data-testid="events-failure-last">{{ group.lastAt }}</td>
+                      </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </details>
+        {% endif %}
+
+        {# What the filters add up to: it moves when any filter moves. #}
+        <div class="col-start-1 row-start-1 flex min-h-10 items-center gap-3 self-start justify-self-end px-4" data-testid="events-card-aside">
+          {% if eventsTotal %}
+            <span class="text-xs tabular-nums text-base-content/60" title="Events matching every filter on this page" data-testid="events-total">{{ eventsTotal }}</span>
+          {% endif %}
+        </div>
+          </div>
+        {% endif %}
+
+        {# The table scrolls inside this box, not the page. The box takes
+           whatever height the card has left, which gives `table-pin-rows`
+           something to pin to and keeps the pager on screen. #}
+        <div class="min-h-0 w-full flex-1 overflow-x-auto overflow-y-auto overscroll-contain" data-testid="events-scroller">
+          {# `table-fixed`, every column's share declared on its header: an
+             auto table measures its contents, so the columns moved between
+             one page and the next. The proportions are tuned at the table's
+             minimum width, where Event still holds a 36-character id and
+             Status a truncated error under its label. #}
+          <table class="table table-sm table-pin-rows min-w-[64rem] table-fixed" data-testid="events-table">
+            <thead>
+              <tr data-testid="events-head">
+                <th scope="col" class="w-[46%]">Event</th>
+                <th scope="col" class="w-[19%]">Status</th>
+                <th scope="col" class="w-[21%]">Queue</th>
+                {# The one column of figures is right-aligned in the header
+                   as well as in the body. #}
+                <th scope="col" class="w-[14%] text-right">Created</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in rows %}{{ eventRow(row) }}{% endfor %}
+            </tbody>
+          </table>
+        </div>
+
+        {{ pager({
+          previousHref: previousHref,
+          nextHref: nextHref
+        }) }}
+    </div>
+  {% else %}
+    {# Every other outcome keeps the frame: nothing-could-be-read is a state
+       of the result set like any other, reported inside the frame the result
+       set lives in. #}
+    <div class="card card-border min-h-0 flex-1 bg-base-100" data-testid="events-card">
+      {% if refused %}
+        {# The link, not the platform. An operator opens this page to find out
+           whether the estate is up; saying it is down because they edited a
+           parameter is the one answer worse than no answer. #}
+        <div class="p-4">
+          <div role="alert" class="alert alert-warning alert-soft text-sm" data-testid="events-refused">
+            {{ icon({ name: 'exclamation-triangle', class: 'size-4 shrink-0' }) }}
+            <span>GAS refused this link's parameters. <a class="link" href="/dev-ops/events" data-testid="events-refused-clear">Start again</a>.</span>
+          </div>
+        </div>
+      {% elif unavailable %}
+        <div class="p-4">
+          <div role="alert" class="alert alert-error alert-soft text-sm" data-testid="events-error">
+            {{ icon({ name: 'exclamation-circle', class: 'size-4 shrink-0' }) }}
+            <span>Events could not be loaded from GAS.</span>
+          </div>
+        </div>
+      {% else %}
+        {# An empty search page names the search: `No events found.` under a
+           needle the operator typed reads as "this service has no events". #}
+        <p class="px-4 py-10 text-center text-sm text-base-content/60" data-testid="events-empty">{% if q %}No events match "{{ q }}". <a class="link link-hover text-base-content/50" href="{{ clearSearchHref }}" data-testid="events-empty-clear">Clear search</a>{% else %}No events found.{% endif %}</p>
+      {% endif %}
+    </div>
+  {% endif %}
+{% endblock %}

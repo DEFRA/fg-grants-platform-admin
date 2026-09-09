@@ -1,0 +1,376 @@
+{% extends 'layouts/page.njk' %}
+
+{% from "icon/macro.njk" import icon %}
+{% from "status-badge/macro.njk" import statusBadge %}
+
+{# The two registers this page reads in are written as literals here, because
+   Tailwind scans this file's text for candidates and never sees a class
+   assembled in TypeScript: a label names a fact and never competes with it,
+   and a machine string is set in mono because it is a thing to be copied. #}
+{% set factLabel = "pt-0.5 text-xs font-medium text-base-content/50" %}
+{% set monoValue = "font-mono text-xs break-all" %}
+{% set monoMuted = "font-mono text-xs text-base-content/50" %}
+
+{# One fact: a label, and whatever the caller put under it. A `dl` rather than
+   a table, because these are name/value pairs and not a grid of rows. The pair
+   is wrapped so it can carry a test id and nothing else — `contents` takes the
+   wrapper out of the layout entirely, so every `dt` and `dd` on the page sits
+   on the list's own two columns whether its value is one line or four. #}
+{% macro fact(label, testId) %}
+  <div class="contents" data-testid="{{ testId }}">
+    <dt class="{{ factLabel }}">{{ label }}</dt>
+    <dd class="min-w-0">{{ caller() }}</dd>
+  </div>
+{% endmacro %}
+
+{# An instant this page states absolutely and only absolutely: a relative
+   time cannot be quoted and goes stale in an open tab, and a date the event
+   does not carry is a dash rather than an empty cell. Every value on this
+   card is selectable text — nothing here is behind a button. #}
+{% macro dateFact(label, value, testId) %}
+  {% call fact(label, testId) %}
+    <span class="{{ monoValue if value != "—" else monoMuted }}" data-testid="{{ testId }}-value">{{ value }}</span>
+  {% endcall %}
+{% endmacro %}
+
+{% block content %}
+  {# The way back, first and small: the whole list query travels on `?from=`
+     so this link puts the operator back exactly where they were. #}
+  {# The leaf says which page this is, not what the id is — the id heads the
+     page below, whole. The crumb keeps its two ends, and the whole of it
+     stays on the title. #}
+  {%- set crumbId = (eventId.slice(0, 8) ~ "…" ~ eventId.slice(-4)) if eventId | length > 16 else eventId -%}
+  <div class="breadcrumbs text-sm text-base-content/60" data-testid="event-breadcrumbs">
+    <ul>
+      <li><a href="{{ backHref }}" data-testid="event-back">Events</a></li>
+      <li><span class="font-mono" title="{{ eventId }}" data-testid="event-breadcrumb-id">{{ crumbId }}</span></li>
+    </ul>
+  </div>
+
+  {% if banner %}
+    {# What the redirect after a write was carrying. A write that redirects has
+       to say its own result: the page that lands is a fresh read and knows
+       nothing about the click that caused it. #}
+    <div role="alert" class="alert alert-soft {{ "alert-success" if banner.role == "success" else ("alert-warning" if banner.role == "warning" else "alert-error") }} mt-3 text-sm" data-testid="event-banner">
+      {{ icon({ name: 'exclamation-circle' if banner.role == 'error' else 'exclamation-triangle', class: 'size-4 shrink-0' }) }}
+      <span>{{ banner.message }}</span>
+    </div>
+  {% endif %}
+
+  {% if unavailable %}
+    <div role="alert" class="alert alert-error alert-soft mt-3 text-sm" data-testid="event-error">
+      {{ icon({ name: 'exclamation-circle', class: 'size-4 shrink-0' }) }}
+      <span>This event could not be loaded from GAS.</span>
+    </div>
+  {% else %}
+    {# The header: which id this is, what message it is, what state it is in.
+       The id heads the page whole — the one identifier every event has, and
+       what the operator came to copy. The status is a soft badge rather than
+       the list's dot: no column to line up here. #}
+    <header class="mt-2 mb-4" data-testid="event-header">
+      <div class="flex items-center gap-1">
+        <h1 class="font-mono text-xl font-semibold break-all" data-testid="event-title">{{ eventId }}</h1>
+      </div>
+      <p class="mt-1 text-sm break-all text-base-content/70" {% if typeTitle %}title="{{ typeTitle }}" {% endif %}data-testid="event-type">{{ type }}</p>
+      <div class="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
+        {{ statusBadge({ status: status, label: statusLabel, role: statusRole, retrying: statusRetrying, variant: "badge" }) }}
+        {% if hasFailure or showAttempts %}
+          <span class="font-mono text-xs tabular-nums text-base-content/50" title="{{ failureTitle }}" data-testid="event-failure">attempts <span data-testid="event-attempts">{{ attempts }}</span> <span class="text-base-content/30" aria-hidden="true">·</span> <span data-testid="event-last-failure">{{ lastFailureAt }}</span></span>
+        {% endif %}
+      </div>
+    </header>
+
+    {# The futile-redrive note. A note, not a block: the operator may know
+       something the page does not, and a disabled Redrive would be this app
+       overruling them on the strength of two matching strings. #}
+    {% if futileWarning %}
+      <div role="note" class="alert alert-warning alert-soft mb-3 text-sm" data-testid="event-futile-warning">
+        {{ icon({ name: 'exclamation-triangle', class: 'size-4 shrink-0' }) }}
+        <span>{{ futileWarning }}</span>
+      </div>
+    {% endif %}
+
+    {# The one decision a dead letter admits. A link, not a button:
+       `?confirm=redrive` is the same page with a panel on it, which
+       back-buttons and reloads; the click that writes is the POST inside. A
+       panel and not a modal: this state is a url, and a dialog would need
+       script the page does not carry. #}
+    {% if confirmRedrive %}
+      <section class="card card-border mb-4 bg-base-100" data-testid="event-redrive-confirm">
+        <div class="card-body p-4">
+          {# The attempt ceiling is the backend's policy and the backend states it on
+             every row - `attempts` reads `0/5` after a redrive - so this says what
+             a redrive DOES and lets the row say how many goes it gets. A number
+             restated here is a number that goes quietly wrong the day the
+             policy changes. #}
+          <p class="text-sm" data-testid="event-redrive-question">Redrive this event? The poller will retry it up to the attempt limit shown on the row. This action is audited.</p>
+          <div class="mt-1 flex items-center gap-2">
+            <form method="post" action="{{ redriveAction }}" data-testid="event-redrive-form">
+              <input type="hidden" name="from" value="{{ from }}" data-testid="event-redrive-from">
+              <button class="btn btn-sm btn-error" type="submit" data-testid="event-redrive-submit">Redrive</button>
+            </form>
+            <a class="btn btn-sm btn-ghost" href="{{ cancelHref }}" data-testid="event-redrive-cancel">Cancel</a>
+          </div>
+        </div>
+      </section>
+    {% elif canRedrive %}
+      <div class="mb-4 flex items-center gap-2" data-testid="event-actions">
+        <a class="btn btn-sm btn-error btn-outline" href="{{ redriveHref }}" data-testid="event-redrive">Redrive</a>
+      </div>
+    {% endif %}
+
+    {# The facts: a label and a value, never cut — this page exists because an
+       operator needed the whole of one of them. Two pairs to a line on a wide
+       screen; the labels stack above their values below `sm`, because a value
+       here is an ARN or a traceparent. #}
+    <section class="card card-border mb-4 bg-base-100" data-testid="event-facts-card">
+      <div class="card-body p-4">
+        <dl class="grid grid-cols-1 gap-x-4 gap-y-2.5 text-sm sm:grid-cols-[9.5rem_minmax(0,1fr)] lg:grid-cols-[9.5rem_minmax(0,1fr)_9.5rem_minmax(0,1fr)]" data-testid="event-facts">
+          {# `Queue`: the list's column, the journey table's first cell and
+             this fact all say one thing in one vocabulary, off one builder
+             (`toQueueCell`) — plain text on every one of them, because
+             narrowing the list to a service is the toolbar's job over there.
+             What the page keeps that the list cannot is the whole ARN, on the
+             button that carries it. The test id keeps the older name; it is
+             an internal handle, not a label. #}
+          {% call fact("Queue", "event-fact-route") %}
+            <div data-testid="event-hop">{{ hop }}</div>
+            {% if queue %}
+              <div class="mt-0.5 flex items-start gap-1"><span class="text-xs text-base-content/50"{% if queueValue %} title="{{ queueValue }}"{% endif %} data-testid="event-queue">{{ queue }}</span></div>
+            {% endif %}
+          {% endcall %}
+
+          {# From here the two halves of the pattern part company: each kind
+             draws its own rows in the order its own message travels, and a
+             fact that cannot exist for a kind is left out rather than dashed.
+             A dash means "this exists and is empty"; an absent row means
+             "this does not apply here" — the two must never be spelled the
+             same way. #}
+          {% if isInbox %}
+            {% call fact("Reference", "event-fact-reference") %}
+              {% if segregationRef %}
+                <a class="link link-hover {{ monoValue }}" href="{{ segregationRefHref }}" title="{{ segregationRefTitle }}" data-testid="event-segregation-ref">{{ segregationRef }}</a>
+              {% else %}
+                <span class="{{ monoMuted }}" data-testid="event-segregation-ref-none">—</span>
+              {% endif %}
+            {% endcall %}
+
+            {# No Message id row: on an inbox document the message id IS the
+               event id, which already heads the page. #}
+
+            {# The traceparent is itself the door to the logs; with no
+               explorer or no trace id it stays plain text, and no traceparent
+               at all is the em dash. Inbox only: an outbox row's traceparent
+               belongs to the event it wraps and is visible in the payload —
+               lifting it into a fact would claim it as this record's. #}
+            {% call fact("Traceparent", "event-fact-traceparent") %}
+              {% if traceparent and traceHref %}
+                <span class="flex items-center gap-1"><a class="link link-primary {{ monoValue }}" href="{{ traceHref }}" target="_blank" rel="noopener noreferrer" title="{{ traceId }}" data-testid="event-traceparent">{{ traceparent }}</a>{{ icon({ name: 'external-link', class: 'size-3 shrink-0 opacity-50' }) }}</span>
+              {% elif traceparent %}
+                <span class="{{ monoValue }}" data-testid="event-traceparent">{{ traceparent }}</span>
+              {% else %}
+                <span class="{{ monoMuted }}" data-testid="event-traceparent-none">—</span>
+              {% endif %}
+            {% endcall %}
+
+            {% if showCreated %}{{ dateFact("Created", createdAtAbsolute, "event-fact-created") }}{% endif %}
+            {# When the producer says it happened. Absent on a document with
+               no usable time: a malformed message, not a fact worth a dash. #}
+            {% if occurredKnown %}{{ dateFact("Occurred", occurred, "event-fact-occurred") }}{% endif %}
+            {{ dateFact("Received", publicationDate, "event-fact-publication") }}
+            {{ dateFact("Claimed", claimedAt, "event-fact-claimed-at") }}
+            {{ dateFact("Claim expires", claimExpiresAt, "event-fact-claim-expires") }}
+            {{ dateFact("Completed", completedDate, "event-fact-completion") }}
+            {{ dateFact("Last resubmission", lastResubmissionDate, "event-fact-last-resubmission") }}
+          {% else %}
+            {# The FIFO group. Absent on an audit record and on a topic that
+               is not FIFO — neither ever had one, so neither gets a row. #}
+            {% if messageGroup %}
+              {% call fact("Message group", "event-fact-message-group") %}
+                <span class="{{ monoValue }}" data-testid="event-message-group">{{ messageGroup }}</span>
+              {% endcall %}
+            {% endif %}
+
+            {% if showCreated %}{{ dateFact("Created", createdAtAbsolute, "event-fact-created") }}{% endif %}
+            {{ dateFact("Queued", publicationDate, "event-fact-publication") }}
+            {{ dateFact("Claimed", claimedAt, "event-fact-claimed-at") }}
+            {{ dateFact("Claim expires", claimExpiresAt, "event-fact-claim-expires") }}
+            {{ dateFact("Published", completedDate, "event-fact-completion") }}
+            {{ dateFact("Last resubmission", lastResubmissionDate, "event-fact-last-resubmission") }}
+          {% endif %}
+
+          {% call fact("Attempts", "event-fact-attempts") %}
+            <span class="font-mono text-xs tabular-nums" data-testid="event-attempts-value">{{ attempts }}</span>
+          {% endcall %}
+
+          {# The last time somebody put this back on the queue, and who: an
+             event redriven by a named person that failed the same way again
+             is a broken system, not a broken message. #}
+          {% if lastRedriveAt %}
+            {% call fact("Last redrive", "event-fact-last-redrive") %}
+              {# The card's two registers, as every composite value here uses
+                 them: the instant as the mono value, whoever asked for it
+                 muted beside it. #}
+              <span data-testid="event-last-redrive"><span class="{{ monoValue }}" data-testid="event-last-redrive-at">{{ lastRedriveAt }}</span>{% if lastRedriveBy %} <span class="{{ monoMuted }}" data-testid="event-last-redrive-by">· by {{ lastRedriveBy }}</span>{% endif %}</span>
+            {% endcall %}
+          {% endif %}
+
+          {# The reason, whole: the list cuts it to 64 characters, and a
+             truncated stack summary is the commonest reason this page is
+             opened. The one thing on the page allowed the error colour. #}
+          {% call fact("Last error", "event-fact-last-error") %}
+            {% if errorMessage %}
+              <div class="text-xs wrap-anywhere text-error" data-testid="event-error-message"><span class="font-mono font-medium" data-testid="event-error-name">{{ errorName }}</span>: {{ errorMessage }}</div>
+              {% if errorAt %}
+                <div class="mt-0.5 {{ monoMuted }}" data-testid="event-error-at">at {{ errorAt }}</div>
+              {% endif %}
+              {# The click that says whether this is an incident or an
+                 oddity. It carries the whole message — the endpoint matches
+                 exactly, and a shortened needle would quietly answer a wider
+                 question. #}
+              {% if errorSearchHref %}
+                <div class="mt-1">
+                  <a class="link link-primary text-xs" href="{{ errorSearchHref }}" data-testid="event-error-search">Show all events with this error →</a>
+                </div>
+              {% endif %}
+            {% else %}
+              <span class="{{ monoMuted }}" data-testid="event-error-none">—</span>
+            {% endif %}
+          {% endcall %}
+        </dl>
+      </div>
+    </section>
+
+    {# Every attempt, in the order they happened: the attempts before the
+       last are usually where the answer is. A timeline, because the order is
+       the content; the message wraps rather than truncating. #}
+    <section class="card card-border mb-4 bg-base-100" data-testid="event-attempts-card">
+      <div class="card-body p-4">
+        <h2 class="card-title text-sm" data-testid="event-attempts-heading">Attempts</h2>
+        {% if attemptHistory | length %}
+          <ul class="timeline timeline-vertical timeline-compact -ms-2" data-testid="event-attempt-list">
+            {% for attempt in attemptHistory %}
+              <li data-testid="event-attempt">
+                {% if not loop.first %}<hr>{% endif %}
+                <div class="timeline-middle">{{ icon({ name: 'circle-x', class: 'size-3.5 text-error' }) }}</div>
+                <div class="timeline-end mb-2 pt-0.5">
+                  <div class="font-mono text-xs tabular-nums">
+                    <span class="font-medium text-base-content/70" data-testid="event-attempt-number">{{ attempt.number }}</span>
+                    <span class="text-base-content/30" aria-hidden="true">·</span>
+                    {# The instant, whole, then the gap in front of it: five
+                       attempts inside one minute all round to one relative
+                       phrase, and the delta is the arithmetic nobody should
+                       have to do. #}
+                    <span title="{{ attempt.title }}" data-testid="event-attempt-when">{{ attempt.absolute }}</span>
+                    {% if attempt.delta %}
+                      <span class="text-base-content/30" aria-hidden="true">·</span>
+                      <span class="text-base-content/50" data-testid="event-attempt-delta">{{ attempt.delta }}</span>
+                    {% endif %}
+                  </div>
+                  {# The stack, on the attempts that recorded one. A native
+                     `details` for the same reason the failures panel uses one:
+                     the disclosure, its keyboard operation and its expanded
+                     state are the browser's. Collapsed by default - the
+                     message is what the page is scanned for, and ten open
+                     stacks would bury it. An attempt with no stack (a row
+                     written before they were recorded, a claim-expiry sweep,
+                     a thrown string) keeps the plain line: an expander that
+                     opens onto nothing is worse than no expander. #}
+                  {%- if attempt.stack -%}
+                    <details class="group" data-testid="event-attempt-details">
+                      <summary class="flex cursor-pointer items-start gap-1 font-mono text-xs wrap-anywhere text-error/80 [list-style:none] [&::-webkit-details-marker]:hidden" data-testid="event-attempt-error"><span><span class="font-medium" data-testid="event-attempt-name">{{ attempt.name }}</span>: {{ attempt.message }}</span>{{ icon({ name: 'chevron-down', class: 'mt-0.5 size-3 shrink-0 opacity-60 transition-transform group-open:rotate-180' }) }}<span class="sr-only">stacktrace</span></summary>
+                      {# Its own scroller: one unbreakable frame - a long path,
+                         a minified bundle - must not widen the page. #}
+                      <div class="mt-1 max-w-full overflow-x-auto">
+                        <pre class="font-mono text-xs whitespace-pre-wrap text-base-content/50" data-testid="event-attempt-stack">{{ attempt.stack }}</pre>
+                      </div>
+                    </details>
+                  {%- else -%}
+                    <div class="font-mono text-xs wrap-anywhere text-error/80" data-testid="event-attempt-error"><span class="font-medium" data-testid="event-attempt-name">{{ attempt.name }}</span>: {{ attempt.message }}</div>
+                  {%- endif -%}
+                </div>
+                {% if not loop.last or attemptOutcome %}<hr>{% endif %}
+              </li>
+            {% endfor %}
+            {# Where the story ends: a list of failures that simply stops
+               reads as an event still failing. #}
+            {% if attemptOutcome %}
+              <li>
+                <hr>
+                <div class="timeline-middle">{{ icon({ name: 'octagon-alert', class: 'size-3.5 text-base-content/40' }) }}</div>
+                <div class="timeline-end pt-0.5 text-xs text-base-content/60" data-testid="event-attempt-outcome">{{ attemptOutcome }}</div>
+              </li>
+            {% endif %}
+          </ul>
+        {% else %}
+          {# One line, under the heading: this absence is the ordinary case
+             for every event written before attempt history existed. #}
+          <p class="text-sm text-base-content/55" data-testid="event-attempts-empty">No attempt details recorded (event predates attempt history).</p>
+        {% endif %}
+      </div>
+    </section>
+
+    {# Every hop under this event id, in the endpoint's order. The current
+       row is marked rather than unlinked: a row with no link reads as broken.
+       Above the payload: a two-row table pushed below a hundred lines of
+       JSON is a table nobody scrolls to. #}
+    <section class="card card-border mb-4 bg-base-100" data-testid="event-journey-card">
+      <div class="card-body p-4">
+        <h2 class="card-title text-sm" data-testid="event-journey-heading">Journey — every hop with this event id</h2>
+        {% if journey | length %}
+          <div class="max-w-full overflow-x-auto">
+            <table class="table table-sm" data-testid="event-journey">
+              <thead>
+                <tr>
+                  <th scope="col">Queue</th>
+                  <th scope="col">Status</th>
+                  {# Both measured by the box's own clock: an inbox hop
+                     starts when this platform received the message, so a
+                     slow producer leg is not booked to the consumer. #}
+                  <th scope="col" class="text-right">Took</th>
+                  <th scope="col" class="text-right">Started</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for hop in journey %}
+                  <tr class="{{ "bg-base-200" if hop.isCurrent else "hover:bg-base-200" }}" data-testid="event-journey-row">
+                    <td class="whitespace-nowrap">
+                      <a class="link link-hover" href="{{ hop.href }}" data-testid="event-journey-link">{{ hop.source }}</a>
+                      {% if hop.isCurrent %}<span class="badge badge-ghost badge-xs ms-1" data-testid="event-journey-current">this event</span>{% endif %}
+                    </td>
+                    <td>{{ statusBadge({ status: hop.status, label: hop.statusLabel, role: hop.statusRole, retrying: hop.statusRetrying }) }}</td>
+                    <td class="text-right font-mono text-xs tabular-nums whitespace-nowrap text-base-content/60" title="Time this hop held the message: from when its box took it to when that box finished with it" data-testid="event-journey-took">{{ hop.took }}</td>
+                    <td class="text-right font-mono text-xs tabular-nums whitespace-nowrap" title="{{ hop.createdAtTitle }}" data-testid="event-journey-created">{{ hop.createdAt }}</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        {% else %}
+          <p class="py-6 text-center text-sm text-base-content/55" data-testid="event-journey-empty">No other hops could be read for this event id.</p>
+        {% endif %}
+      </div>
+    </section>
+    {# The payload, in full and as text: rendered through nunjucks' own
+       escaping, so a payload carrying `<script>` is readable and never run.
+       The line numbers are drawn by the stylesheet from a `data-line`
+       attribute rather than written into the markup, so a selection dragged
+       across the block copies the payload and not a numbered listing of
+       it. #}
+    <section class="card card-border bg-base-100" data-testid="event-payload-card">
+      <div class="card-body p-4">
+        <div class="flex items-center gap-2">
+          <h2 class="card-title text-sm" data-testid="event-payload-heading">Payload</h2>
+        </div>
+        {% if payloadJson %}
+          <div class="max-h-96 w-full overflow-auto rounded-box border border-base-300 bg-base-200 py-2 font-mono text-xs" data-testid="event-payload">
+            {% for line in payloadJson.split("\n") %}<pre class="flex gap-3 px-3" data-testid="event-payload-line"><span class="w-8 shrink-0 text-right tabular-nums text-base-content/30 before:content-[attr(data-line)]" data-line="{{ loop.index }}" aria-hidden="true"></span><code>{{ line }}</code></pre>{% endfor %}
+          </div>
+        {% else %}
+          <p class="py-6 text-center text-sm text-base-content/55" data-testid="event-payload-empty">This event carries no payload.</p>
+        {% endif %}
+      </div>
+    </section>
+
+  {% endif %}
+{% endblock %}
