@@ -1,5 +1,6 @@
 import type {
   Banner,
+  ClaimableEntitlement,
   EntitlementTemplate
 } from '../use-cases/get-claims.use-case.ts'
 import { toClaimsPage, toTypeLabel } from './claims-page.view-model.ts'
@@ -41,14 +42,29 @@ const template = (overrides: Partial<EntitlementTemplate> = {}) =>
     ...overrides
   }) as EntitlementTemplate
 
+const awaitingClaim = (
+  overrides: Partial<ClaimableEntitlement> = {}
+): ClaimableEntitlement => ({
+  source: 'persisted',
+  claimCode: 'ENT_CS_CAPITAL_PA3',
+  name: 'Woodland Management Plan (PA3)',
+  description: 'Entitlement for Woodland Management Plan (PA3).',
+  data: { totalHectares: { value: 455000 } },
+  entitlementId: 'entitlement-1',
+  instanceNumber: 1,
+  claim: {},
+  ...overrides
+})
+
 const page = (
   availableEntitlements: EntitlementTemplate[] = [],
-  claimsBanner: Banner = banner
+  claimsBanner: Banner = banner,
+  claimableEntitlements: ClaimableEntitlement[] = []
 ) =>
   toClaimsPage('woodland', 'WMP-1T9-RXN', {
     banner: claimsBanner,
     availableEntitlements,
-    claimableEntitlements: [],
+    claimableEntitlements,
     claims: []
   })
 
@@ -153,6 +169,31 @@ describe('toClaimsPage', () => {
         unavailableReason: undefined
       }
     ])
+  })
+
+  test('turns a claimable entitlement into an awaiting claim row', () => {
+    expect(
+      page([template()], banner, [awaitingClaim()]).awaitingClaims
+    ).toEqual([
+      {
+        claimCode: 'ENT_CS_CAPITAL_PA3',
+        description: 'Entitlement for Woodland Management Plan (PA3).',
+        amount: '455,000 ha'
+      }
+    ])
+  })
+
+  test('uses the data field that has a unit', () => {
+    const claimable = awaitingClaim({
+      data: {
+        actionCode: { value: 'PA3' },
+        totalHectares: { value: 31 }
+      }
+    })
+
+    expect(
+      page([template()], banner, [claimable]).awaitingClaims[0].amount
+    ).toBe('31 ha')
   })
 
   test('counts nothing created until the backend reports a count', () => {
