@@ -4,7 +4,10 @@ import type { Server } from '@hapi/hapi'
 import { createServer } from '../../server/index.ts'
 import { statusCodes } from '../../common/status-codes.ts'
 import { grantOps } from '../index.ts'
-import type { EntitlementTemplate } from '../use-cases/get-claims.use-case.ts'
+import type {
+  ClaimableEntitlement,
+  EntitlementTemplate
+} from '../use-cases/get-claims.use-case.ts'
 import { getClaimsUseCase } from '../use-cases/get-claims.use-case.ts'
 
 vi.mock(import('../use-cases/get-claims.use-case.ts'))
@@ -53,11 +56,28 @@ const banner = {
   }
 }
 
-const givenClaims = (availableEntitlements: EntitlementTemplate[] = []) =>
+const claimableEntitlement = (
+  overrides: Partial<ClaimableEntitlement> = {}
+): ClaimableEntitlement => ({
+  source: 'persisted',
+  claimCode: 'ENT_CS_CAPITAL_PA3',
+  name: 'Woodland Management Plan (PA3)',
+  description: 'Entitlement for Woodland Management Plan (PA3).',
+  data: { totalHectares: { value: 455000 } },
+  entitlementId: 'entitlement-1',
+  instanceNumber: 1,
+  claim: {},
+  ...overrides
+})
+
+const givenClaims = (
+  availableEntitlements: EntitlementTemplate[] = [],
+  claimableEntitlements: ClaimableEntitlement[] = []
+) =>
   vi.mocked(getClaimsUseCase).mockResolvedValue({
     banner,
     availableEntitlements,
-    claimableEntitlements: [],
+    claimableEntitlements,
     claims: []
   })
 
@@ -294,5 +314,40 @@ describe('viewClaimsRoute', () => {
       'No claimable items are available for this application.'
     )
     expect($('[data-testid="available-entitlements"]')).toHaveLength(0)
+  })
+
+  test('shows claimable entitlements that are awaiting a claim', async () => {
+    givenClaims([template()], [claimableEntitlement()])
+
+    const { $ } = await viewPage()
+
+    expect($('[data-testid="awaiting-claims-heading"]').text().trim()).toBe(
+      'Awaiting a claim'
+    )
+    expect($('[data-testid="awaiting-claims-subtext"]').text().trim()).toBe(
+      'The applicant has not made a claim against these items yet.'
+    )
+    expect(
+      $('[data-testid="awaiting-claims"] thead th')
+        .map((_, header) => $(header).text().trim())
+        .get()
+    ).toEqual(['Claimable item', 'Amount'])
+    expect($('[data-testid="awaiting-claim-description"]').text().trim()).toBe(
+      'Entitlement for Woodland Management Plan (PA3).'
+    )
+    expect($('[data-testid="awaiting-claim-code"]').text().trim()).toBe(
+      'ENT_CS_CAPITAL_PA3'
+    )
+    expect($('[data-testid="awaiting-claim-amount"]').text().trim()).toBe(
+      '455,000 ha'
+    )
+  })
+
+  test('shows the awaiting claims empty state', async () => {
+    const { $ } = await viewPage()
+
+    expect($('[data-testid="no-awaiting-claims"]').text().trim()).toBe(
+      'Nothing currently claimable'
+    )
   })
 })

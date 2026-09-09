@@ -55,8 +55,19 @@ export interface Claims {
   // Absent until a grant configures a claims page.
   banner?: Banner
   availableEntitlements: EntitlementTemplate[]
-  claimableEntitlements: unknown[]
+  claimableEntitlements: ClaimableEntitlement[]
   claims: unknown[]
+}
+
+export interface ClaimableEntitlement {
+  source: 'persisted'
+  claimCode: string
+  name: string
+  description: string
+  data: Record<string, EntitlementFieldValue>
+  entitlementId: string
+  instanceNumber: number
+  claim: Record<string, unknown>
 }
 
 export interface Claim extends Claims {

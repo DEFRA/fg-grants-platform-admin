@@ -1,6 +1,7 @@
 import type {
   Banner,
   BannerField,
+  ClaimableEntitlement,
   Claims,
   EntitlementTemplate,
   EntitlementTemplateField
@@ -34,6 +35,12 @@ export interface EntitlementRow {
   unavailableReason?: string
 }
 
+export interface AwaitingClaimRow {
+  claimCode: string
+  description: string
+  amount: string
+}
+
 export interface Tab {
   text: string
   href: string
@@ -47,6 +54,7 @@ export interface ClaimsPage {
   header: Header
   tabs: Tab[]
   entitlements: EntitlementRow[]
+  awaitingClaims: AwaitingClaimRow[]
 }
 
 // The unit a case officer is asked to enter says what kind of entitlement this
@@ -91,6 +99,57 @@ const toEntitlementRow = (
   }
 }
 
+const formatAmount = (value: string | number | boolean): string =>
+  typeof value === 'number'
+    ? new Intl.NumberFormat('en-GB').format(value)
+    : String(value)
+
+const templateFor = (
+  claimCode: string,
+  templates: EntitlementTemplate[]
+): EntitlementTemplate | undefined =>
+  templates.find((template) => template.claimCode === claimCode)
+
+const unitFor = (
+  template: EntitlementTemplate | undefined,
+  fieldName: string
+): string | undefined => template?.fields?.[fieldName]?.unit
+
+const amountFieldFor = (
+  data: ClaimableEntitlement['data'],
+  template: EntitlementTemplate | undefined
+) => Object.entries(data).find(([fieldName]) => unitFor(template, fieldName))
+
+const formattedAmount = (
+  amountField: [string, ClaimableEntitlement['data'][string]] | undefined,
+  template: EntitlementTemplate | undefined
+): string => {
+  if (!amountField) {
+    return ''
+  }
+
+  const [fieldName, fieldValue] = amountField
+  const unit = unitFor(template, fieldName)
+
+  return unit ? `${formatAmount(fieldValue.value)} ${unit.toLowerCase()}` : ''
+}
+
+const toAwaitingClaimRow = (
+  claimableEntitlement: ClaimableEntitlement,
+  templates: EntitlementTemplate[]
+): AwaitingClaimRow => {
+  const template = templateFor(claimableEntitlement.claimCode, templates)
+
+  return {
+    claimCode: claimableEntitlement.claimCode,
+    description: claimableEntitlement.description,
+    amount: formattedAmount(
+      amountFieldFor(claimableEntitlement.data, template),
+      template
+    )
+  }
+}
+
 const toBase = (code: string, clientRef: string): string =>
   `/grant-ops/grants/${encodeURIComponent(code)}/applications/${encodeURIComponent(clientRef)}`
 
@@ -125,7 +184,11 @@ const toHeader = (banner: Banner): Header => ({
 export const toClaimsPage = (
   code: string,
   clientRef: string,
-  { banner, availableEntitlements }: Claims & { banner: Banner }
+  {
+    banner,
+    availableEntitlements,
+    claimableEntitlements
+  }: Claims & { banner: Banner }
 ): ClaimsPage => {
   const base = toBase(code, clientRef)
   const claimsHref = `${base}/claims`
@@ -138,6 +201,9 @@ export const toClaimsPage = (
     tabs: toTabs(claimsHref),
     entitlements: availableEntitlements.map((template) =>
       toEntitlementRow(base, template)
+    ),
+    awaitingClaims: claimableEntitlements.map((claimableEntitlement) =>
+      toAwaitingClaimRow(claimableEntitlement, availableEntitlements)
     )
   }
 }

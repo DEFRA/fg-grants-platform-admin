@@ -1,6 +1,7 @@
 {% extends 'layouts/page.njk' %}
 
 {% from "application-header/macro.njk" import appApplicationHeader %}
+{% from "awaiting-claims/macro.njk" import appAwaitingClaims %}
 {% from "available-entitlements/macro.njk" import appAvailableEntitlements %}
 {% from "govuk/components/notification-banner/macro.njk" import govukNotificationBanner %}
 {% from "govuk/components/service-navigation/macro.njk" import govukServiceNavigation %}
@@ -44,6 +45,7 @@
         {% endif %}
 
         {{ appAvailableEntitlements({ entitlements: entitlements }) }}
+        {{ appAwaitingClaims({ awaitingClaims: awaitingClaims }) }}
       </div>
 
     </div>
