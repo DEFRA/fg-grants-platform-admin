@@ -17,6 +17,11 @@ const operationsAdminAuth = {
   }
 }
 
+const migrationPaths = [
+  ['dry-run', '/operations/woodland-migration/dry-run'],
+  ['catch-up', '/operations/woodland-migration/catch-up']
+] as const
+
 describe('woodlandMigrationRoutes', () => {
   let server: Server
 
@@ -27,6 +32,7 @@ describe('woodlandMigrationRoutes', () => {
   })
 
   beforeEach(() => {
+    vi.clearAllMocks()
     vi.stubEnv('GAS_API_URL', 'http://gas.test')
     vi.stubEnv('GAS_SERVICE_TOKEN', '<token>')
   })
@@ -39,40 +45,41 @@ describe('woodlandMigrationRoutes', () => {
     await server.stop()
   })
 
-  test.each([
-    ['dry-run', '/operations/woodland-migration/dry-run'],
-    ['apply', '/operations/woodland-migration/apply'],
-    ['catch-up', '/operations/woodland-migration/catch-up']
-  ])('redirects an anonymous %s request to login', async (_name, url) => {
-    const { statusCode, headers } = await server.inject({ method: 'POST', url })
+  test.each(migrationPaths)(
+    'redirects an anonymous %s request to login',
+    async (_name, url) => {
+      const { statusCode, headers } = await server.inject({
+        method: 'POST',
+        url
+      })
 
-    expect(statusCode).toBe(302)
-    expect(headers.location).toBe('/auth/login')
-    expect(wreck.post).not.toHaveBeenCalled()
-  })
+      expect(statusCode).toBe(302)
+      expect(headers.location).toBe('/auth/login')
+      expect(wreck.post).not.toHaveBeenCalled()
+    }
+  )
 
-  test.each([
-    ['dry-run', '/operations/woodland-migration/dry-run'],
-    ['apply', '/operations/woodland-migration/apply'],
-    ['catch-up', '/operations/woodland-migration/catch-up']
-  ])('forbids %s for an applications admin', async (_name, url) => {
-    const { statusCode } = await server.inject({
-      method: 'POST',
-      url,
-      auth: {
-        strategy: 'session',
-        credentials: {
-          user: { name: 'Ada Lovelace' },
-          scope: ['FCP.GrantApplicationsAdmin']
+  test.each(migrationPaths)(
+    'forbids %s for an applications admin',
+    async (_name, url) => {
+      const { statusCode } = await server.inject({
+        method: 'POST',
+        url,
+        auth: {
+          strategy: 'session',
+          credentials: {
+            user: { name: 'Ada Lovelace' },
+            scope: ['FCP.GrantApplicationsAdmin']
+          }
         }
-      }
-    })
+      })
 
-    expect(statusCode).toBe(403)
-    expect(wreck.post).not.toHaveBeenCalled()
-  })
+      expect(statusCode).toBe(403)
+      expect(wreck.post).not.toHaveBeenCalled()
+    }
+  )
 
-  test('runs a clean dry-run without a request body and offers apply', async () => {
+  test('runs a clean dry-run and offers catch-up rather than apply', async () => {
     vi.mocked(wreck.post).mockResolvedValue({
       res: { statusCode: 200 },
       payload: {
@@ -93,28 +100,64 @@ describe('woodlandMigrationRoutes', () => {
     })
 
     expect(statusCode).toBe(200)
-    expect(wreck.post).toHaveBeenCalledTimes(1)
-    const [url, options] = vi.mocked(wreck.post).mock.calls[0]
-    expect(url).toBe('http://gas.test/admin/migrations/woodland/dry-run')
-    expect(options).toMatchObject({
-      headers: { Authorization: 'Bearer <token>' },
-      json: true,
-      timeout: 50_000
-    })
+    expect(wreck.post).toHaveBeenCalledWith(
+      'http://gas.test/admin/migrations/woodland/dry-run',
+      expect.objectContaining({
+        headers: { Authorization: 'Bearer <token>' },
+        json: true,
+        timeout: 50_000
+      })
+    )
+    const options = vi.mocked(wreck.post).mock.calls[0][1]
     expect(Object.prototype.hasOwnProperty.call(options, 'payload')).toBe(false)
     expect(result).toEqual(expect.stringContaining('5274'))
     expect(result).toEqual(expect.stringContaining(checksum))
     expect(result).toEqual(expect.stringContaining('Offered agreements'))
-    expect(result).toEqual(expect.stringContaining('12'))
-    expect(result).toEqual(expect.stringContaining('Accepted agreements'))
-    expect(result).toEqual(expect.stringContaining('38'))
     expect(result).toEqual(
+      expect.stringContaining(
+        'action="/operations/woodland-migration/catch-up"'
+      )
+    )
+    expect(result).not.toEqual(
       expect.stringContaining('action="/operations/woodland-migration/apply"')
     )
-    expect(result).toEqual(expect.stringContaining('name="confirmation"'))
+    expect(result).not.toEqual(expect.stringContaining('name="confirmation"'))
   })
 
-  test('runs a catch-up without a request body and shows the result', async () => {
+  test('does not offer catch-up when the dry-run is not clean', async () => {
+    vi.mocked(wreck.post).mockResolvedValue({
+      res: { statusCode: 200 },
+      payload: {
+        valid: false,
+        agreements: 50,
+        offeredAgreements: 12,
+        acceptedAgreements: 38,
+        versions: 5274,
+        failures: 3,
+        sourceChecksum: checksum
+      }
+    } as never)
+
+    const { result, statusCode } = await server.inject({
+      method: 'POST',
+      url: '/operations/woodland-migration/dry-run',
+      auth: operationsAdminAuth
+    })
+
+    expect(statusCode).toBe(200)
+    expect(result).toEqual(
+      expect.stringContaining(
+        'The dry-run is not clean. Catch-up is unavailable.'
+      )
+    )
+    expect(result).not.toEqual(
+      expect.stringContaining(
+        'action="/operations/woodland-migration/catch-up"'
+      )
+    )
+  })
+
+  test('runs catch-up without a request body and shows the result', async () => {
     vi.mocked(wreck.post).mockResolvedValue({
       res: { statusCode: 200 },
       payload: {
@@ -139,19 +182,18 @@ describe('woodlandMigrationRoutes', () => {
     })
 
     expect(statusCode).toBe(200)
-    expect(wreck.post).toHaveBeenCalledTimes(1)
-    const [url, options] = vi.mocked(wreck.post).mock.calls[0]
-    expect(url).toBe('http://gas.test/admin/migrations/woodland/catch-up')
-    expect(options).toMatchObject({
-      headers: { Authorization: 'Bearer <token>' },
-      json: true,
-      timeout: 50_000
-    })
+    expect(wreck.post).toHaveBeenCalledWith(
+      'http://gas.test/admin/migrations/woodland/catch-up',
+      expect.objectContaining({
+        headers: { Authorization: 'Bearer <token>' },
+        json: true,
+        timeout: 50_000
+      })
+    )
+    const options = vi.mocked(wreck.post).mock.calls[0][1]
     expect(Object.prototype.hasOwnProperty.call(options, 'payload')).toBe(false)
-    expect(result).toEqual(expect.stringContaining('5274'))
-    expect(result).toEqual(expect.stringContaining('10'))
-    expect(result).toEqual(expect.stringContaining('Preserved'))
     expect(result).toEqual(expect.stringContaining('Catch-up result'))
+    expect(result).toEqual(expect.stringContaining('Preserved'))
     expect(result).toEqual(expect.stringContaining('No failures.'))
   })
 
@@ -160,19 +202,16 @@ describe('woodlandMigrationRoutes', () => {
       res: { statusCode: 200 },
       payload: {
         valid: true,
-        agreements: 50,
-        offeredAgreements: 12,
-        acceptedAgreements: 38,
-        versions: 5274,
-        inserted: 10,
-        updated: 4,
-        preserved: 36,
+        agreements: 1,
+        offeredAgreements: 0,
+        acceptedAgreements: 1,
+        versions: 2,
+        inserted: 0,
+        updated: 0,
+        preserved: 0,
         failed: 1,
         failures: [
-          {
-            agreementNumber: 'A00123456',
-            reason: 'newer version present in target'
-          }
+          { agreementNumber: 'WMP00123456', reason: 'identity.mismatch' }
         ],
         sourceChecksum: checksum
       }
@@ -185,223 +224,68 @@ describe('woodlandMigrationRoutes', () => {
     })
 
     expect(statusCode).toBe(200)
-    expect(result).toEqual(expect.stringContaining('A00123456'))
-    expect(result).toEqual(
-      expect.stringContaining('newer version present in target')
-    )
+    expect(result).toEqual(expect.stringContaining('WMP00123456'))
+    expect(result).toEqual(expect.stringContaining('identity.mismatch'))
     expect(result).toEqual(expect.stringContaining('Failures to inspect'))
-    expect(result).toEqual(expect.stringContaining('Do not simply re-run it'))
-  })
-
-  test('shows a failed dry-run without offering apply', async () => {
-    vi.mocked(wreck.post).mockResolvedValue({
-      res: { statusCode: 200 },
-      payload: {
-        valid: true,
-        agreements: 50,
-        versions: 5274,
-        failures: 3,
-        sourceChecksum: checksum
-      }
-    } as never)
-
-    const { result, statusCode } = await server.inject({
-      method: 'POST',
-      url: '/operations/woodland-migration/dry-run',
-      auth: operationsAdminAuth
-    })
-
-    expect(statusCode).toBe(200)
-    expect(result).toEqual(expect.stringContaining('5274'))
-    expect(result).toEqual(expect.stringContaining('Apply is unavailable'))
     expect(result).not.toEqual(
-      expect.stringContaining('action="/operations/woodland-migration/apply"')
+      expect.stringContaining('Do not simply re-run it')
     )
   })
 
-  test('shows a controlled GAS error from dry-run', async () => {
-    vi.mocked(wreck.post).mockResolvedValue({
-      res: { statusCode: 502 },
-      payload: { message: 'boom' }
-    } as never)
+  test.each(migrationPaths)(
+    'shows a controlled GAS error from %s',
+    async (_name, url) => {
+      vi.mocked(wreck.post).mockResolvedValue({
+        res: { statusCode: 502 },
+        payload: { message: 'boom' }
+      } as never)
 
-    const { result, statusCode } = await server.inject({
+      const { result, statusCode } = await server.inject({
+        method: 'POST',
+        url,
+        auth: operationsAdminAuth
+      })
+
+      expect(statusCode).toBe(200)
+      expect(result).toEqual(expect.stringContaining('boom'))
+    }
+  )
+
+  test.each([
+    [
+      'dry-run',
+      '/operations/woodland-migration/dry-run',
+      'Dry-run request to GAS failed.'
+    ],
+    [
+      'catch-up',
+      '/operations/woodland-migration/catch-up',
+      'Catch-up request to GAS failed.'
+    ]
+  ])(
+    'shows a controlled transport error from %s',
+    async (_name, url, message) => {
+      vi.mocked(wreck.post).mockRejectedValue(new Error('ECONNRESET'))
+
+      const { result, statusCode } = await server.inject({
+        method: 'POST',
+        url,
+        auth: operationsAdminAuth
+      })
+
+      expect(statusCode).toBe(200)
+      expect(result).toEqual(expect.stringContaining(message))
+    }
+  )
+
+  test('removes the obsolete apply route', async () => {
+    const { statusCode } = await server.inject({
       method: 'POST',
-      url: '/operations/woodland-migration/dry-run',
+      url: '/operations/woodland-migration/apply',
       auth: operationsAdminAuth
     })
 
-    expect(statusCode).toBe(200)
-    expect(result).toEqual(expect.stringContaining('boom'))
-    expect(result).not.toEqual(
-      expect.stringContaining('action="/operations/woodland-migration/apply"')
-    )
-  })
-
-  test('shows a controlled GAS error from catch-up', async () => {
-    vi.mocked(wreck.post).mockResolvedValue({
-      res: { statusCode: 502 },
-      payload: { message: 'boom' }
-    } as never)
-
-    const { result, statusCode } = await server.inject({
-      method: 'POST',
-      url: '/operations/woodland-migration/catch-up',
-      auth: operationsAdminAuth
-    })
-
-    expect(statusCode).toBe(200)
-    expect(result).toEqual(expect.stringContaining('boom'))
-    expect(result).not.toEqual(expect.stringContaining('Catch-up result'))
-  })
-
-  test('shows a controlled transport error from dry-run', async () => {
-    vi.mocked(wreck.post).mockRejectedValue(new Error('ECONNRESET'))
-
-    const { result, statusCode } = await server.inject({
-      method: 'POST',
-      url: '/operations/woodland-migration/dry-run',
-      auth: operationsAdminAuth
-    })
-
-    expect(statusCode).toBe(200)
-    expect(result).toEqual(
-      expect.stringContaining('Dry-run request to GAS failed.')
-    )
-  })
-
-  test('shows a controlled transport error from catch-up', async () => {
-    vi.mocked(wreck.post).mockRejectedValue(new Error('ECONNRESET'))
-
-    const { result, statusCode } = await server.inject({
-      method: 'POST',
-      url: '/operations/woodland-migration/catch-up',
-      auth: operationsAdminAuth
-    })
-
-    expect(statusCode).toBe(200)
-    expect(result).toEqual(
-      expect.stringContaining('Catch-up request to GAS failed.')
-    )
-  })
-
-  test('applies with the exact checkbox, count, and checksum payload', async () => {
-    vi.mocked(wreck.post).mockResolvedValue({
-      res: { statusCode: 200 },
-      payload: {
-        valid: true,
-        agreements: 50,
-        versions: 5274,
-        inserted: 50,
-        replaced: 0,
-        skipped: 0,
-        sourceChecksum: checksum
-      }
-    } as never)
-
-    const { result, statusCode } = await server.inject({
-      method: 'POST',
-      url: '/operations/woodland-migration/apply',
-      auth: operationsAdminAuth,
-      payload: {
-        confirmation: 'APPLY_WOODLAND_MIGRATION',
-        expectedAgreements: '50',
-        expectedVersions: '5274',
-        sourceChecksum: checksum
-      }
-    })
-
-    expect(statusCode).toBe(200)
-    expect(wreck.post).toHaveBeenCalledTimes(1)
-    const [url, options] = vi.mocked(wreck.post).mock.calls[0]
-    expect(url).toBe('http://gas.test/admin/migrations/woodland/apply')
-    expect(options).toMatchObject({
-      headers: { Authorization: 'Bearer <token>' },
-      json: true,
-      timeout: 50_000
-    })
-    expect(options?.payload).toEqual({
-      confirmation: 'APPLY_WOODLAND_MIGRATION',
-      expectedAgreements: 50,
-      expectedVersions: 5274,
-      sourceChecksum: checksum
-    })
-    expect(result).toEqual(expect.stringContaining('Inserted'))
-    expect(result).toEqual(expect.stringContaining('50'))
-  })
-
-  test('forwards an absent confirmation unchanged', async () => {
-    vi.mocked(wreck.post).mockResolvedValue({
-      res: { statusCode: 400 },
-      payload: { message: 'confirmation is required' }
-    } as never)
-
-    const { result, statusCode } = await server.inject({
-      method: 'POST',
-      url: '/operations/woodland-migration/apply',
-      auth: operationsAdminAuth,
-      payload: {
-        expectedAgreements: '50',
-        expectedVersions: '5274',
-        sourceChecksum: checksum
-      }
-    })
-
-    expect(statusCode).toBe(200)
-    expect(vi.mocked(wreck.post).mock.calls[0][1]?.payload).toEqual({
-      confirmation: undefined,
-      expectedAgreements: 50,
-      expectedVersions: 5274,
-      sourceChecksum: checksum
-    })
-    expect(result).toEqual(expect.stringContaining('confirmation is required'))
-  })
-
-  test('shows an apply GAS error and keeps the apply form available', async () => {
-    vi.mocked(wreck.post).mockResolvedValue({
-      res: { statusCode: 412 },
-      payload: { message: 'confirmation invalid' }
-    } as never)
-
-    const { result, statusCode } = await server.inject({
-      method: 'POST',
-      url: '/operations/woodland-migration/apply',
-      auth: operationsAdminAuth,
-      payload: {
-        confirmation: 'wrong',
-        expectedAgreements: '50',
-        expectedVersions: '5274',
-        sourceChecksum: checksum
-      }
-    })
-
-    expect(statusCode).toBe(200)
-    expect(result).toEqual(expect.stringContaining('confirmation invalid'))
-    expect(result).toEqual(
-      expect.stringContaining('action="/operations/woodland-migration/apply"')
-    )
-    expect(result).toEqual(expect.stringContaining(`value="${checksum}"`))
-    expect(result).not.toEqual(expect.stringContaining('Offered agreements'))
-  })
-
-  test('shows a controlled transport error from apply', async () => {
-    vi.mocked(wreck.post).mockRejectedValue(new Error('ECONNRESET'))
-
-    const { result, statusCode } = await server.inject({
-      method: 'POST',
-      url: '/operations/woodland-migration/apply',
-      auth: operationsAdminAuth,
-      payload: {
-        confirmation: 'APPLY_WOODLAND_MIGRATION',
-        expectedAgreements: '50',
-        expectedVersions: '5274',
-        sourceChecksum: checksum
-      }
-    })
-
-    expect(statusCode).toBe(200)
-    expect(result).toEqual(
-      expect.stringContaining('Apply request to GAS failed.')
-    )
+    expect(statusCode).toBe(404)
+    expect(wreck.post).not.toHaveBeenCalled()
   })
 })

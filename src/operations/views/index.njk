@@ -40,16 +40,14 @@
               <dt class="govuk-summary-list__key">Agreements</dt>
               <dd class="govuk-summary-list__value">{{ dryRun.agreements }}</dd>
             </div>
-            {% if dryRun.offeredAgreements is defined %}
-              <div class="govuk-summary-list__row">
-                <dt class="govuk-summary-list__key">Offered agreements</dt>
-                <dd class="govuk-summary-list__value">{{ dryRun.offeredAgreements }}</dd>
-              </div>
-              <div class="govuk-summary-list__row">
-                <dt class="govuk-summary-list__key">Accepted agreements</dt>
-                <dd class="govuk-summary-list__value">{{ dryRun.acceptedAgreements }}</dd>
-              </div>
-            {% endif %}
+            <div class="govuk-summary-list__row">
+              <dt class="govuk-summary-list__key">Offered agreements</dt>
+              <dd class="govuk-summary-list__value">{{ dryRun.offeredAgreements }}</dd>
+            </div>
+            <div class="govuk-summary-list__row">
+              <dt class="govuk-summary-list__key">Accepted agreements</dt>
+              <dd class="govuk-summary-list__value">{{ dryRun.acceptedAgreements }}</dd>
+            </div>
             <div class="govuk-summary-list__row">
               <dt class="govuk-summary-list__key">Versions</dt>
               <dd class="govuk-summary-list__value">{{ dryRun.versions }}</dd>
@@ -64,65 +62,19 @@
             </div>
           </dl>
 
-          {% if not dryRun.valid or dryRun.failures != 0 %}
-            <p class="govuk-body">The dry-run is not clean. Apply is unavailable.</p>
+          {% if dryRun.valid and dryRun.failures == 0 %}
+            <p class="govuk-body">
+              Reconcile Woodland agreements from the legacy source. Missing agreements
+              are inserted, migration-owned agreements are updated, and agreements changed
+              in GAS are preserved.
+            </p>
+            <form method="post" action="/operations/woodland-migration/catch-up">
+              <button class="govuk-button" type="submit">Run catch-up</button>
+            </form>
+          {% else %}
+            <p class="govuk-body">The dry-run is not clean. Catch-up is unavailable.</p>
           {% endif %}
         {% endif %}
-
-        {% if dryRun and dryRun.valid and dryRun.failures == 0 %}
-          <form method="post" action="/operations/woodland-migration/apply">
-            <input type="hidden" name="expectedAgreements" value="{{ dryRun.agreements }}">
-            <input type="hidden" name="expectedVersions" value="{{ dryRun.versions }}">
-            <input type="hidden" name="sourceChecksum" value="{{ dryRun.sourceChecksum }}">
-            <div class="govuk-checkboxes" data-module="govuk-checkboxes">
-              <div class="govuk-checkboxes__item">
-                <input class="govuk-checkboxes__input" id="confirmation" name="confirmation" type="checkbox" value="{{ confirmationValue }}" required>
-                <label class="govuk-label govuk-checkboxes__label" for="confirmation">I confirm this migration should be applied</label>
-              </div>
-            </div>
-            <button class="govuk-button govuk-button--warning" type="submit">Apply migration</button>
-          </form>
-        {% endif %}
-
-        {% if applyResult %}
-          <h3 class="govuk-heading-s">Apply result</h3>
-          <dl class="govuk-summary-list">
-            <div class="govuk-summary-list__row">
-              <dt class="govuk-summary-list__key">Inserted</dt>
-              <dd class="govuk-summary-list__value">{{ applyResult.inserted }}</dd>
-            </div>
-            <div class="govuk-summary-list__row">
-              <dt class="govuk-summary-list__key">Replaced</dt>
-              <dd class="govuk-summary-list__value">{{ applyResult.replaced }}</dd>
-            </div>
-            <div class="govuk-summary-list__row">
-              <dt class="govuk-summary-list__key">Skipped</dt>
-              <dd class="govuk-summary-list__value">{{ applyResult.skipped }}</dd>
-            </div>
-            <div class="govuk-summary-list__row">
-              <dt class="govuk-summary-list__key">Agreements</dt>
-              <dd class="govuk-summary-list__value">{{ applyResult.agreements }}</dd>
-            </div>
-            <div class="govuk-summary-list__row">
-              <dt class="govuk-summary-list__key">Versions</dt>
-              <dd class="govuk-summary-list__value">{{ applyResult.versions }}</dd>
-            </div>
-            <div class="govuk-summary-list__row">
-              <dt class="govuk-summary-list__key">Source checksum</dt>
-              <dd class="govuk-summary-list__value">{{ applyResult.sourceChecksum }}</dd>
-            </div>
-          </dl>
-        {% endif %}
-
-        <h3 class="govuk-heading-s">Catch-up</h3>
-        <p class="govuk-body">
-          One-off reconciliation to run after the woodland cutover. It applies
-          agreements and versions that were offered or accepted in source between the
-          dry-run and the apply.
-        </p>
-        <form method="post" action="/operations/woodland-migration/catch-up">
-          <button class="govuk-button" type="submit">Run catch-up</button>
-        </form>
 
         {% if catchUpResult %}
           <h3 class="govuk-heading-s">Catch-up result</h3>
@@ -168,8 +120,7 @@
           {% if catchUpResult.failures and catchUpResult.failures.length %}
             <h4 class="govuk-heading-s">Failures to inspect</h4>
             <p class="govuk-body">
-              Catch-up is a one-off operation. Do not simply re-run it — inspect each
-              agreement below in GAS and resolve it individually.
+              Inspect each failed agreement in GAS and resolve it individually.
             </p>
             <table class="govuk-table">
               <thead class="govuk-table__head">
