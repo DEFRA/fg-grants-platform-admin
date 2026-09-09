@@ -6,20 +6,12 @@ import { wreck } from '../../common/wreck.ts'
 
 // The migration runs synchronously inside the GAS request.
 const migrationTimeoutMs = 50_000
-const confirmationValue = 'APPLY_WOODLAND_MIGRATION'
 
-interface GasRequestOptions {
-  headers?: Record<string, string>
-  payload?: Record<string, unknown>
-}
-
-const gasRequest = (path: string, options: GasRequestOptions) =>
+const gasRequest = (path: string) =>
   wreck.post(`${process.env.GAS_API_URL}${path}`, {
-    ...options,
     json: true,
     headers: {
-      Authorization: `Bearer ${process.env.GAS_SERVICE_TOKEN}`,
-      ...options.headers
+      Authorization: `Bearer ${process.env.GAS_SERVICE_TOKEN}`
     },
     timeout: migrationTimeoutMs
   })
@@ -33,7 +25,6 @@ const renderOperations = (
     pageTitle: 'Operations Admin',
     heading: 'Operations Admin',
     name: request.auth.credentials.user.name,
-    confirmationValue,
     ...extra
   })
 
@@ -50,102 +41,47 @@ const auth = {
   scope: ['FCP.GrantOperationsAdmin']
 }
 
-const echoedDryRun = (payload: Record<string, unknown>) => ({
-  valid: true,
-  failures: 0,
-  agreements: payload.expectedAgreements,
-  versions: payload.expectedVersions,
-  sourceChecksum: payload.sourceChecksum
+const migrationRoute = ({
+  name,
+  path,
+  gasPath
+}: {
+  name: 'dryRun' | 'catchUpResult'
+  path: string
+  gasPath: string
+}): ServerRoute => ({
+  method: 'POST',
+  path,
+  options: { auth },
+  async handler(request: Request, h: ResponseToolkit) {
+    try {
+      const { res, payload } = await gasRequest(gasPath)
+
+      if (res.statusCode! >= 400) {
+        return renderOperations(request, h, {
+          migrationError: gasErrorMessage(payload, res.statusCode!)
+        })
+      }
+
+      return renderOperations(request, h, { [name]: payload })
+    } catch (error) {
+      request.logger.error(error)
+      return renderOperations(request, h, {
+        migrationError: `${name === 'dryRun' ? 'Dry-run' : 'Catch-up'} request to GAS failed.`
+      })
+    }
+  }
 })
 
 export const woodlandMigrationRoutes: ServerRoute[] = [
-  {
-    method: 'POST',
+  migrationRoute({
+    name: 'dryRun',
     path: '/operations/woodland-migration/dry-run',
-    options: { auth },
-    async handler(request: Request, h: ResponseToolkit) {
-      try {
-        const { res, payload } = await gasRequest(
-          '/admin/migrations/woodland/dry-run',
-          {}
-        )
-
-        if (res.statusCode! >= 400) {
-          return renderOperations(request, h, {
-            migrationError: gasErrorMessage(payload, res.statusCode!)
-          })
-        }
-
-        return renderOperations(request, h, { dryRun: payload })
-      } catch (error) {
-        request.logger.error(error)
-        return renderOperations(request, h, {
-          migrationError: 'Dry-run request to GAS failed.'
-        })
-      }
-    }
-  },
-  {
-    method: 'POST',
-    path: '/operations/woodland-migration/apply',
-    options: { auth },
-    async handler(request: Request, h: ResponseToolkit) {
-      const requestPayload = request.payload as Record<string, unknown>
-      const payload = {
-        confirmation: requestPayload.confirmation,
-        expectedAgreements: Number(requestPayload.expectedAgreements),
-        expectedVersions: Number(requestPayload.expectedVersions),
-        sourceChecksum: requestPayload.sourceChecksum
-      }
-      const dryRun = echoedDryRun(requestPayload)
-
-      try {
-        const { res, payload: result } = await gasRequest(
-          '/admin/migrations/woodland/apply',
-          { payload }
-        )
-
-        if (res.statusCode! >= 400) {
-          return renderOperations(request, h, {
-            dryRun,
-            migrationError: gasErrorMessage(result, res.statusCode!)
-          })
-        }
-
-        return renderOperations(request, h, { applyResult: result })
-      } catch (error) {
-        request.logger.error(error)
-        return renderOperations(request, h, {
-          dryRun,
-          migrationError: 'Apply request to GAS failed.'
-        })
-      }
-    }
-  },
-  {
-    method: 'POST',
+    gasPath: '/admin/migrations/woodland/dry-run'
+  }),
+  migrationRoute({
+    name: 'catchUpResult',
     path: '/operations/woodland-migration/catch-up',
-    options: { auth },
-    async handler(request: Request, h: ResponseToolkit) {
-      try {
-        const { res, payload } = await gasRequest(
-          '/admin/migrations/woodland/catch-up',
-          {}
-        )
-
-        if (res.statusCode! >= 400) {
-          return renderOperations(request, h, {
-            migrationError: gasErrorMessage(payload, res.statusCode!)
-          })
-        }
-
-        return renderOperations(request, h, { catchUpResult: payload })
-      } catch (error) {
-        request.logger.error(error)
-        return renderOperations(request, h, {
-          migrationError: 'Catch-up request to GAS failed.'
-        })
-      }
-    }
-  }
+    gasPath: '/admin/migrations/woodland/catch-up'
+  })
 ]
