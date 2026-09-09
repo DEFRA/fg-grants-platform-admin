@@ -121,5 +121,31 @@ export const woodlandMigrationRoutes: ServerRoute[] = [
         })
       }
     }
+  },
+  {
+    method: 'POST',
+    path: '/operations/woodland-migration/catch-up',
+    options: { auth },
+    async handler(request: Request, h: ResponseToolkit) {
+      try {
+        const { res, payload } = await gasRequest(
+          '/admin/migrations/woodland/catch-up',
+          {}
+        )
+
+        if (res.statusCode! >= 400) {
+          return renderOperations(request, h, {
+            migrationError: gasErrorMessage(payload, res.statusCode!)
+          })
+        }
+
+        return renderOperations(request, h, { catchUpResult: payload })
+      } catch (error) {
+        request.logger.error(error)
+        return renderOperations(request, h, {
+          migrationError: 'Catch-up request to GAS failed.'
+        })
+      }
+    }
   }
 ]

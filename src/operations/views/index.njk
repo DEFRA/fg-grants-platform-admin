@@ -40,6 +40,16 @@
               <dt class="govuk-summary-list__key">Agreements</dt>
               <dd class="govuk-summary-list__value">{{ dryRun.agreements }}</dd>
             </div>
+            {% if dryRun.offeredAgreements is defined %}
+              <div class="govuk-summary-list__row">
+                <dt class="govuk-summary-list__key">Offered agreements</dt>
+                <dd class="govuk-summary-list__value">{{ dryRun.offeredAgreements }}</dd>
+              </div>
+              <div class="govuk-summary-list__row">
+                <dt class="govuk-summary-list__key">Accepted agreements</dt>
+                <dd class="govuk-summary-list__value">{{ dryRun.acceptedAgreements }}</dd>
+              </div>
+            {% endif %}
             <div class="govuk-summary-list__row">
               <dt class="govuk-summary-list__key">Versions</dt>
               <dd class="govuk-summary-list__value">{{ dryRun.versions }}</dd>
@@ -102,6 +112,84 @@
               <dd class="govuk-summary-list__value">{{ applyResult.sourceChecksum }}</dd>
             </div>
           </dl>
+        {% endif %}
+
+        <h3 class="govuk-heading-s">Catch-up</h3>
+        <p class="govuk-body">
+          One-off reconciliation to run after the woodland cutover. It applies
+          agreements and versions that were offered or accepted in source between the
+          dry-run and the apply.
+        </p>
+        <form method="post" action="/operations/woodland-migration/catch-up">
+          <button class="govuk-button" type="submit">Run catch-up</button>
+        </form>
+
+        {% if catchUpResult %}
+          <h3 class="govuk-heading-s">Catch-up result</h3>
+          <dl class="govuk-summary-list">
+            <div class="govuk-summary-list__row">
+              <dt class="govuk-summary-list__key">Agreements</dt>
+              <dd class="govuk-summary-list__value">{{ catchUpResult.agreements }}</dd>
+            </div>
+            <div class="govuk-summary-list__row">
+              <dt class="govuk-summary-list__key">Offered agreements</dt>
+              <dd class="govuk-summary-list__value">{{ catchUpResult.offeredAgreements }}</dd>
+            </div>
+            <div class="govuk-summary-list__row">
+              <dt class="govuk-summary-list__key">Accepted agreements</dt>
+              <dd class="govuk-summary-list__value">{{ catchUpResult.acceptedAgreements }}</dd>
+            </div>
+            <div class="govuk-summary-list__row">
+              <dt class="govuk-summary-list__key">Versions</dt>
+              <dd class="govuk-summary-list__value">{{ catchUpResult.versions }}</dd>
+            </div>
+            <div class="govuk-summary-list__row">
+              <dt class="govuk-summary-list__key">Inserted</dt>
+              <dd class="govuk-summary-list__value">{{ catchUpResult.inserted }}</dd>
+            </div>
+            <div class="govuk-summary-list__row">
+              <dt class="govuk-summary-list__key">Updated</dt>
+              <dd class="govuk-summary-list__value">{{ catchUpResult.updated }}</dd>
+            </div>
+            <div class="govuk-summary-list__row">
+              <dt class="govuk-summary-list__key">Preserved</dt>
+              <dd class="govuk-summary-list__value">{{ catchUpResult.preserved }}</dd>
+            </div>
+            <div class="govuk-summary-list__row">
+              <dt class="govuk-summary-list__key">Failed</dt>
+              <dd class="govuk-summary-list__value">{{ catchUpResult.failed }}</dd>
+            </div>
+            <div class="govuk-summary-list__row">
+              <dt class="govuk-summary-list__key">Source checksum</dt>
+              <dd class="govuk-summary-list__value">{{ catchUpResult.sourceChecksum }}</dd>
+            </div>
+          </dl>
+
+          {% if catchUpResult.failures and catchUpResult.failures.length %}
+            <h4 class="govuk-heading-s">Failures to inspect</h4>
+            <p class="govuk-body">
+              Catch-up is a one-off operation. Do not simply re-run it — inspect each
+              agreement below in GAS and resolve it individually.
+            </p>
+            <table class="govuk-table">
+              <thead class="govuk-table__head">
+                <tr class="govuk-table__row">
+                  <th scope="col" class="govuk-table__header">Agreement number</th>
+                  <th scope="col" class="govuk-table__header">Reason</th>
+                </tr>
+              </thead>
+              <tbody class="govuk-table__body">
+                {% for failure in catchUpResult.failures %}
+                  <tr class="govuk-table__row">
+                    <td class="govuk-table__cell">{{ failure.agreementNumber }}</td>
+                    <td class="govuk-table__cell">{{ failure.reason }}</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          {% else %}
+            <p class="govuk-body">No failures.</p>
+          {% endif %}
         {% endif %}
       </section>
     </div>
