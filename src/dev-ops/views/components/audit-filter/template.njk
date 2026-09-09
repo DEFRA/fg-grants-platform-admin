@@ -1,0 +1,25 @@
+{# The audit checkbox is wired the opposite way round from every other
+   filter, deliberately: the TICK is the default state, and the default state
+   is the url with no `audit` parameter — but a checkbox can only submit a
+   value when it is ON. So the checkbox carries no name at all and the form's
+   own submit button carries `audit=include`, the flip. Every other filter
+   rides along as a hidden field; the cursor does not.
+
+   Apply is the control without script: tick, then press it. `do-audit-filter`
+   hides it and clicks it on change — hidden by the element rather than the
+   template, so a page whose script never arrives keeps the button that works
+   without one. #}
+<do-audit-filter data-testid="do-audit-filter">
+  <form class="flex items-center gap-2" method="get" action="/dev-ops/events" data-testid="events-audit-form">
+    {% for field in params.filter.filters %}
+      <input type="hidden" name="{{ field.name }}" value="{{ field.value }}" data-testid="events-filter-audit-field">
+    {% endfor %}
+    {# The label wraps its control, so the words are the checkbox's name to a
+       screen reader and its hit area to a mouse. #}
+    <label class="label cursor-pointer text-sm text-base-content/70" title="{{ params.filter.title }}" data-testid="events-filter-audit-label">
+      <input type="checkbox" class="checkbox checkbox-sm"{% if params.filter.excluded %} checked{% endif %} data-testid="events-filter-audit">
+      {{ params.filter.label }}
+    </label>
+    <button class="btn btn-sm" type="submit"{% if params.filter.includes %} name="audit" value="include"{% endif %} data-testid="events-filter-audit-apply">Apply</button>
+  </form>
+</do-audit-filter>
