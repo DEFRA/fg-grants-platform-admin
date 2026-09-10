@@ -19,9 +19,14 @@ import { config } from '../../../common/config.ts'
  * cannot even resolve a GDS template, so a stray govuk import fails at render
  * instead of silently working.
  */
+export type ViewContextRequest = {
+  path?: string
+  state?: Record<string, unknown>
+}
+
 export const buildViewOptions = (
   environment: nunjucks.Environment,
-  context: (request?: { path?: string }) => Promise<object>
+  context: (request?: ViewContextRequest) => Promise<object>
 ) => ({
   engines: {
     njk: {
