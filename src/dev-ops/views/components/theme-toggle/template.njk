@@ -14,7 +14,7 @@
      control through its content, and this one has none — aria-label on the
      label element would leave the checkbox nameless. #}
   <label class="toggle text-base-content">
-    <input type="checkbox" class="theme-controller" value="dark" aria-label="Dark theme">
+    <input type="checkbox" class="theme-controller" value="dark" aria-label="Dark theme"{% if params.theme == "dark" %} checked{% endif %}>
     {{ icon({ name: 'sun', class: 'size-4' }) }}
     {{ icon({ name: 'moon', class: 'size-4' }) }}
   </label>
