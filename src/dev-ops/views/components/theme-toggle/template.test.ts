@@ -19,4 +19,10 @@ describe('theme-toggle component', () => {
     )
     expect($toggle('svg[aria-hidden="true"]')).toHaveLength(2)
   })
+
+  test('checks the controller when dark is rendered server-side', () => {
+    const $toggle = render('theme-toggle', { theme: 'dark' })
+
+    expect($toggle('input.theme-controller').attr('checked')).toBe('checked')
+  })
 })

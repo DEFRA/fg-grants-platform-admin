@@ -1,7 +1,7 @@
 {% from "theme-toggle/macro.njk" import themeToggle %}
 
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en"{% if devOpsTheme %} data-theme="{{ devOpsTheme }}"{% endif %}>
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -48,7 +48,7 @@
           {% endif %}
         </div>
         <div class="navbar-end gap-1">
-          {{ themeToggle({}) }}
+          {{ themeToggle({ theme: devOpsTheme }) }}
           <a class="btn btn-ghost btn-sm" href="/auth/logout">Sign out</a>
         </div>
       </header>

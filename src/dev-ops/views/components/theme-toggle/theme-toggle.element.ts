@@ -1,12 +1,30 @@
 const storageKey = 'dev-ops-theme'
 
+const DARK = 'dark'
+const LIGHT = 'light'
+
+const readCookieTheme = () =>
+  document.cookie
+    .split('; ')
+    .find((cookie) => cookie.startsWith(`${storageKey}=`))
+    ?.split('=')[1]
+
+const storedTheme = (theme: string | null | undefined) =>
+  theme === DARK || theme === LIGHT ? theme : null
+
 const readTheme = () => {
   try {
-    return localStorage.getItem(storageKey)
+    return (
+      storedTheme(localStorage.getItem(storageKey)) ??
+      storedTheme(readCookieTheme())
+    )
   } catch {
-    return null
+    return storedTheme(readCookieTheme())
   }
 }
+
+const cookieFlags = () =>
+  `Path=/; SameSite=Strict${location.protocol === 'https:' ? '; Secure' : ''}`
 
 const writeTheme = (theme: string | null) => {
   try {
@@ -19,10 +37,12 @@ const writeTheme = (theme: string | null) => {
     // Storage can be unavailable (private mode, blocked site data). The
     // toggle still switches the theme; only persistence is lost.
   }
-}
 
-const DARK = 'dark'
-const LIGHT = 'light'
+  document.cookie =
+    theme === null
+      ? `${storageKey}=; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT; ${cookieFlags()}`
+      : `${storageKey}=${encodeURIComponent(theme)}; Max-Age=31536000; ${cookieFlags()}`
+}
 
 /** What the operating system asks for when nothing has been chosen here. */
 const prefersDark = (): boolean => {
@@ -64,12 +84,8 @@ const currentTheme = (): string => {
  * rule. The checkbox is then set from what is actually applied, so the control
  * and the page agree — which is the whole job of a control that reports state.
  *
- * KNOWN GAP: a page still paints in the OS theme for the moment before this
- * module runs, so an operator who chose against their OS sees a flash. Killing
- * that needs a script in the head, and the CSP here allows inline script only
- * by sha256 hash (server/plugins/content-security-policy.ts) — a coupling
- * between a template's bytes and a policy string that is worth more than the
- * flash costs.
+ * The server stamps `data-theme` from the same cookie before first paint; this
+ * element keeps that cookie and localStorage in step after upgrade.
  */
 export class ThemeToggle extends HTMLElement {
   connectedCallback() {
@@ -88,7 +104,12 @@ export class ThemeToggle extends HTMLElement {
       return
     }
 
-    this.#apply(currentTheme(), checkbox)
+    const stored = readTheme()
+    this.#apply(stored ?? currentTheme(), checkbox)
+
+    if (stored !== null) {
+      writeTheme(stored)
+    }
 
     checkbox.addEventListener('change', () => {
       const theme = checkbox.checked ? DARK : LIGHT

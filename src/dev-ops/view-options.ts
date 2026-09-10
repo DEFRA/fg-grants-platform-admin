@@ -3,7 +3,10 @@ import nunjucks from 'nunjucks'
 
 import { config } from '../common/config.ts'
 import { assets } from '../server/plugins/views/assets.ts'
-import { buildViewOptions } from '../server/plugins/views/index.ts'
+import {
+  buildViewOptions,
+  type ViewContextRequest
+} from '../server/plugins/views/index.ts'
 
 /**
  * The dev-ops app's own nunjucks environment. Its search path is this
@@ -42,12 +45,20 @@ export const environment = new nunjucks.Environment(
  * without a word of warning.
  */
 const productionLabels = ['prod', 'production']
+const themeCookieName = 'dev-ops-theme'
+const themes = { dark: 'dark', light: 'light' } as const
 
-const context = async () => {
+const selectedTheme = (request?: ViewContextRequest) => {
+  const theme = String(request?.state?.[themeCookieName])
+  return themes[theme as keyof typeof themes] ?? null
+}
+
+const context = async (request?: ViewContextRequest) => {
   const environmentLabel = config.get('environmentLabel')
 
   return {
     serviceName: config.get('serviceName'),
+    devOpsTheme: selectedTheme(request),
     environmentLabel,
     environmentIsProduction: productionLabels.includes(
       environmentLabel.trim().toLowerCase()

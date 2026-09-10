@@ -10,6 +10,11 @@ const mountToggle = async () => {
   return body.querySelector('input')
 }
 
+const clearThemeCookie = () => {
+  document.cookie = `${storageKey}=; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Path=/`
+  document.cookie = `${storageKey}=; Expires=Thu, 01 Jan 1970 00:00:00 GMT`
+}
+
 const flip = (checkbox: HTMLInputElement, checked: boolean) => {
   checkbox.checked = checked
   checkbox.dispatchEvent(new Event('change'))
@@ -17,8 +22,11 @@ const flip = (checkbox: HTMLInputElement, checked: boolean) => {
 
 describe('do-theme-toggle', () => {
   beforeEach(() => {
+    vi.restoreAllMocks()
     localStorage.clear()
+    clearThemeCookie()
     document.body.innerHTML = ''
+    delete document.documentElement.dataset.theme
   })
 
   test('registers the custom element', async () => {
@@ -41,6 +49,16 @@ describe('do-theme-toggle', () => {
     expect(checkbox?.checked).toBe(true)
   })
 
+  test('falls back to the theme cookie and migrates it to localStorage', async () => {
+    document.cookie = `${storageKey}=dark; Path=/`
+
+    const checkbox = await mountToggle()
+
+    expect(checkbox?.checked).toBe(true)
+    expect(document.documentElement.dataset.theme).toBe('dark')
+    expect(localStorage.getItem(storageKey)).toBe('dark')
+  })
+
   test('ignores a stored theme the controller does not offer', async () => {
     localStorage.setItem(storageKey, 'synthwave')
 
@@ -55,6 +73,7 @@ describe('do-theme-toggle', () => {
     flip(checkbox!, true)
 
     expect(localStorage.getItem(storageKey)).toBe('dark')
+    expect(document.cookie).toContain(`${storageKey}=dark`)
   })
 
   // Light is a choice now, not the absence of one. It has to be: on a machine
@@ -67,6 +86,7 @@ describe('do-theme-toggle', () => {
     flip(checkbox!, false)
 
     expect(localStorage.getItem(storageKey)).toBe('light')
+    expect(document.cookie).toContain(`${storageKey}=light`)
     expect(document.documentElement.dataset.theme).toBe('light')
   })
 
@@ -134,6 +154,7 @@ describe('do-theme-toggle with nothing stored', () => {
   beforeEach(() => {
     vi.restoreAllMocks()
     localStorage.clear()
+    clearThemeCookie()
     document.body.innerHTML = ''
     delete document.documentElement.dataset.theme
   })
