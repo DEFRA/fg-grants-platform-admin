@@ -1,6 +1,5 @@
 {% extends 'layouts/page.njk' %}
 
-{% from "audit-filter/macro.njk" import auditFilter as auditFilterControl %}
 {% from "icon/macro.njk" import icon %}
 {% from "pager/macro.njk" import pager %}
 {% from "status-badge/macro.njk" import statusBadge %}
@@ -13,13 +12,15 @@
 {% set filterLabel = "text-xs font-medium text-base-content/60" %}
 
 {# One border around the group, drawn by the `join`; the selected segment is
-   `btn-active`, daisyUI's own word for "this is the one on". #}
-{% set activeChip = "btn btn-sm join-item btn-active" %}
+   `btn-active`, daisyUI's own word for "this is the one on", filled inverse —
+   base-content under base-100 — because `btn-active`'s own grey is barely a
+   shade off its neighbours in either theme. #}
+{% set activeChip = "btn btn-sm join-item btn-active bg-base-content text-base-100 border-base-content" %}
 {% set inactiveChip = "btn btn-sm join-item font-normal" %}
 {# Spelled whole rather than concatenated into the attribute, so every class
    name in this file is a literal Tailwind can see. #}
 {% set rangeButton = "btn btn-sm" %}
-{% set activeRangeButton = "btn btn-sm btn-active" %}
+{% set activeRangeButton = "btn btn-sm btn-active bg-base-content text-base-100 border-base-content" %}
 {# Dimmed, and still a link: a segment that vanished when it emptied could
    not be told from one the page forgot to draw. #}
 {% set emptyChip = "btn btn-sm join-item font-normal text-base-content/60" %}
@@ -59,26 +60,21 @@
 {% macro sourceCell(row) %}
   <div class="truncate" title="{{ row.hop }}" data-testid="event-hop">{{ row.hop }}</div>
   {%- if row.queue %}
-    <div class="truncate text-xs text-base-content/50"{% if row.queueValue %} title="{{ row.queueValue }}"{% endif %} data-testid="event-queue">{{ row.queue }}</div>
+    <div class="truncate text-xs text-base-content/70"{% if row.queueValue %} title="{{ row.queueValue }}"{% endif %} data-testid="event-queue">{{ row.queue }}</div>
   {%- endif -%}
 {% endmacro %}
 
-{# The status, and — only on the rows that have one — what happened under it:
-   why it failed, and how long it took. The sub-lines are indented to the
-   label, so the column keeps one left edge. Never red except the error
-   itself: the dot and the row tint already say which rows are a problem.
+{# The status, and — only on the rows that finished — how long it took,
+   indented to the label so the column keeps one left edge.
 
-   The attempt count that used to lead this stack is on the detail page only.
-   It repeated the badge on almost every row (`attempts 1/5` under Completed)
-   and the one number that mattered, on a dead letter, was the one the badge
-   already made obvious. #}
+   Why a row failed is the detail page's to say, and the Top errors panel's
+   across the dead letters. Under every failed row it was a column of
+   near-identical truncated red lines, and the dot and the row tint already
+   say which rows are a problem. The attempt count left this stack for the
+   same reason: it repeated what the badge made obvious. #}
 {% macro statusDetail(row) %}
-  {%- if row.errorMessage -%}
-    <div class="truncate pl-3.5 font-mono text-xs text-error/70" title="{{ row.errorTitle }}" data-testid="event-error">{{ row.errorMessage }}</div>
-  {%- endif -%}
-  {# How long it took, on the rows that finished. #}
   {%- if row.latency -%}
-    <div class="truncate pl-3.5 font-mono text-xs tabular-nums text-base-content/50" title="{{ row.latencyTitle }}" data-testid="event-latency">took {{ row.latency }}</div>
+    <div class="truncate pl-3.5 font-mono text-xs tabular-nums text-base-content/70" title="{{ row.latencyTitle }}" data-testid="event-latency">took {{ row.latency }}</div>
   {%- endif -%}
 {% endmacro %}
 
@@ -106,7 +102,7 @@
       <div class="font-mono text-xs tabular-nums" title="{{ row.createdAtTitle }}" data-testid="event-created-at">{{ row.createdAt }}<span class="sr-only" data-testid="event-created-absolute"> ({{ row.createdAtTitle }})</span></div>
       {# The wall clock under the relative age; the date arrives once the row
          is more than a day old, and the seconds go with it. #}
-      {% if row.createdAtClock %}<div class="font-mono text-xs tabular-nums text-base-content/40" title="{{ row.createdAtTitle }}" data-testid="event-created-clock"><span data-testid="event-created-clock-text">{{ row.createdAtClock }}</span></div>{% endif %}
+      {% if row.createdAtClock %}<div class="font-mono text-xs tabular-nums text-base-content/70" title="{{ row.createdAtTitle }}" data-testid="event-created-clock"><span data-testid="event-created-clock-text">{{ row.createdAtClock }}</span></div>{% endif %}
     </td>
   </tr>
 {% endmacro %}
@@ -114,8 +110,10 @@
 {# The viewport is the frame: the document itself never scrolls — the table
    does, inside the card — so the filters stay on screen. A short page keeps
    the same frame: three rows in a card that stops after three rows reads as a
-   broken page. #}
-{% block bodyClass %} h-dvh overflow-hidden{% endblock %}
+   broken page. Only on a viewport with room for it (64rem by 40rem): zoomed
+   in, or in a short window, a locked frame leaves the table no height at all
+   and nothing to scroll to it with, so the document scrolls instead. #}
+{% block bodyClass %} [@media(min-width:64rem)_and_(min-height:40rem)]:h-dvh [@media(min-width:64rem)_and_(min-height:40rem)]:overflow-hidden{% endblock %}
 
 {% block content %}
   {# The page's own header: the subtitle says what the page is, the toolbar
@@ -136,30 +134,33 @@
   {# Two rows, declared rather than emergent: what the page is filtered *to*
      on the first, how it is narrowed and searched on the second. Segments are
      links — a url needs no script — except the search, whose value the server
-     cannot enumerate, and the audit checkbox, whose state a form has to be
-     asked for. Rendered whatever the table did, so a filter that found
+     cannot enumerate. Rendered whatever the table did, so a filter that found
      nothing can still be undone. #}
   <div class="mb-3 grid gap-y-2" data-testid="events-toolbar">
     <div class="flex flex-wrap items-center gap-x-5 gap-y-2" data-testid="events-filters">
       {# A label and the group it introduces are one object, so they are
-         nested as one. #}
-      <div class="flex items-center gap-2">
+         nested as one. `flex-wrap`, so on a narrow or zoomed viewport the label
+         goes above its group rather than pushing the group off the edge. #}
+      <div class="flex flex-wrap items-center gap-2">
         <span class="{{ filterLabel }}" data-testid="events-filter-label">Service</span>
         <div class="join" role="group" aria-label="Filter by service" data-testid="events-filter-service">
           {% for chip in serviceFilters %}{{ segment(chip, "events-filter-service-chip") }}{% endfor %}
         </div>
       </div>
 
-      <div class="flex items-center gap-2">
+      <div class="flex flex-wrap items-center gap-2">
         <span class="{{ filterLabel }}" data-testid="events-filter-label">Status</span>
         <div class="join" role="group" aria-label="Filter by status" data-testid="events-filter-status">
           {% for chip in statusFilters %}{{ segment(chip, "events-filter-status-chip") }}{% endfor %}
         </div>
       </div>
 
-      {# The audit filter: the one control in this row that is a form rather
-         than a link. The component owns the rest; see its template. #}
-      {{ auditFilterControl({ filter: auditFilter }) }}
+      <div class="flex flex-wrap items-center gap-2">
+        <span class="{{ filterLabel }}" data-testid="events-filter-label">Audit records</span>
+        <div class="join" role="group" aria-label="Filter by audit records" data-testid="events-filter-audit">
+          {% for chip in auditFilters %}{{ segment(chip, "events-filter-audit-chip") }}{% endfor %}
+        </div>
+      </div>
     </div>
 
     {# The second row: the window and the needle, hard right. #}
@@ -318,8 +319,8 @@
                            CloudEvents. #}
                         <td class="text-base-content/70" data-testid="events-failure-type">{{ group.type }}</td>
                         <td class="text-right font-mono font-medium tabular-nums" data-testid="events-failure-count">{{ group.countLabel }}</td>
-                        <td class="text-right font-mono tabular-nums whitespace-nowrap text-base-content/50" title="{{ group.firstTitle }}" data-testid="events-failure-first">{{ group.firstAt }}</td>
-                        <td class="text-right font-mono tabular-nums whitespace-nowrap text-base-content/50" title="{{ group.lastTitle }}" data-testid="events-failure-last">{{ group.lastAt }}</td>
+                        <td class="text-right font-mono tabular-nums whitespace-nowrap text-base-content/70" title="{{ group.firstTitle }}" data-testid="events-failure-first">{{ group.firstAt }}</td>
+                        <td class="text-right font-mono tabular-nums whitespace-nowrap text-base-content/70" title="{{ group.lastTitle }}" data-testid="events-failure-last">{{ group.lastAt }}</td>
                       </tr>
                     {% endfor %}
                   </tbody>
@@ -340,8 +341,10 @@
 
         {# The table scrolls inside this box, not the page. The box takes
            whatever height the card has left, which gives `table-pin-rows`
-           something to pin to and keeps the pager on screen. #}
-        <div class="min-h-0 w-full flex-1 overflow-x-auto overflow-y-auto overscroll-contain" data-testid="events-scroller">
+           something to pin to and keeps the pager on screen. `scroll-pt-10`
+           is the pinned header's height, so a row scrolled to by focus lands
+           below it rather than behind it. #}
+        <div class="min-h-0 w-full flex-1 scroll-pt-10 overflow-x-auto overflow-y-auto overscroll-contain" data-testid="events-scroller">
           {# `table-fixed`, every column's share declared on its header: an
              auto table measures its contents, so the columns moved between
              one page and the next. The proportions are tuned at the table's

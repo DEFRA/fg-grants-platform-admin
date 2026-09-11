@@ -15,8 +15,9 @@
   {# One column: the bar, then everything else. A page that wants to fill the
      viewport — the events list, whose subject is a table that should be as
      tall as the screen allows — says so by adding `h-dvh overflow-hidden`
-     here, and then owns its own scrolling. Every other page is `min-h-dvh` and
-     scrolls the document, exactly as it did. #}
+     here (behind a media variant, so only where the viewport has room), and
+     then owns its own scrolling. Every other page is `min-h-dvh` and scrolls
+     the document, exactly as it did. #}
   <body class="flex min-h-dvh flex-col bg-base-200{% block bodyClass %}{% endblock %}">
     <a href="#main-content" class="sr-only focus:not-sr-only focus:absolute focus:z-50 focus:m-3 btn btn-primary">Skip to main content</a>
     {% block header %}
@@ -29,7 +30,7 @@
       <header class="navbar min-h-12 border-b border-base-300 bg-base-100 px-4">
         <div class="navbar-start gap-2">
           <a class="text-base font-bold" href="/dev-ops" data-testid="do-brand">Grants Platform</a>
-          <span class="text-sm text-base-content/50" data-testid="do-brand-suffix">· Dev Ops</span>
+          <span class="text-sm text-base-content/70" data-testid="do-brand-suffix">· Dev Ops</span>
           {# Which deployment this is, said once, beside the name of the app.
              Every dev-ops page looks identical in every environment, and the
              one action on them now writes to a queue: an operator with four

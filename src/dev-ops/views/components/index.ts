@@ -1,4 +1,3 @@
-import { AuditFilter } from './audit-filter/audit-filter.element.ts'
 import { ThemeToggle } from './theme-toggle/theme-toggle.element.ts'
 
 /**
@@ -8,5 +7,4 @@ import { ThemeToggle } from './theme-toggle/theme-toggle.element.ts'
  * an entry's own statements always run. A component that ships no behaviour
  * simply has no element to define.
  */
-customElements.define('do-audit-filter', AuditFilter)
 customElements.define('do-theme-toggle', ThemeToggle)

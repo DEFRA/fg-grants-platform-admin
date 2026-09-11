@@ -1292,7 +1292,9 @@ describe('viewEventRoute', () => {
 
     expect(button.is('a')).toBe(true)
     expect(button.attr('href')).toBe(`${path}?confirm=redrive`)
-    expect(button.attr('class')).toBe('btn btn-sm btn-error btn-outline')
+    // Solid, not outline: the outline's red on white is too faint to read.
+    expect(button.hasClass('btn-error')).toBe(true)
+    expect(button.hasClass('btn-outline')).toBe(false)
     expect(button.text().trim()).toBe('Redrive')
   })
 
@@ -1947,6 +1949,10 @@ describe('viewEventRoute', () => {
     expect(valueOf($, 'event-futile-warning')).toBe(
       'A previous redrive (by Ada Lovelace, 2026-06-16T10:10:00Z) failed with the identical error — redriving again is unlikely to succeed until the underlying cause is fixed.'
     )
+    // Solid, not soft: the soft amber cannot be read in the light theme.
+    expect(
+      $('[data-testid="event-futile-warning"]').hasClass('alert-soft')
+    ).toBe(false)
     // A note, not a block: the button is exactly where it was.
     expect($('[data-testid="event-redrive"]')).toHaveLength(1)
   })

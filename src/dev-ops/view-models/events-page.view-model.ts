@@ -14,7 +14,6 @@ import type {
   EventCounts,
   EventFacets,
   EventKey,
-  EventLastError,
   EventRow as EventRowResponse,
   EventsPagination,
   EventsQuery,
@@ -51,14 +50,6 @@ interface EventRow extends Omit<EventRowResponse, 'createdAt'> {
    * filtered to Dead letter is exactly the page whose rows are old.
    */
   createdAtClock: string
-  /**
-   * Why the last attempt failed, truncated. Null on a row with no recorded
-   * error — every healthy row, and a row that failed before a reason was
-   * recorded.
-   */
-  errorMessage: string | null
-  /** The error's class, whole message and instant. Null with errorMessage. */
-  errorTitle: string | null
   /** The only status the template tints. */
   isDeadLetter: boolean
 }
@@ -164,23 +155,6 @@ export interface FilterChip {
   title: string | null
 }
 
-/**
- * Whether the audit records are in the population. Excluded by default: an
- * audit trail records what people did, a queue what messages did, and mixed
- * together the audit records outnumber everything else and bury the queue's
- * own shape.
- */
-interface AuditFilter {
-  label: string
-  /** Whether the audit records are currently being left out — the tick. */
-  excluded: boolean
-  /** Every other filter, restated as hidden fields on the control's own form. */
-  filters: SearchFilter[]
-  /** What the submit button carries — the inverse of the tick. See toAuditFilter. */
-  includes: boolean
-  title: string
-}
-
 /** One filter re-stated as a hidden field on the search form. */
 interface SearchFilter {
   name: string
@@ -194,7 +168,8 @@ export interface EventsPageModel {
   statusFilters: FilterChip[]
   /** All · GAS · Caseworking. */
   serviceFilters: FilterChip[]
-  auditFilter: AuditFilter
+  /** Hide · Show. See toAuditChips. */
+  auditFilters: FilterChip[]
   /**
    * `243,297 events` — how many events every filter on the page selects,
    * stated once over the table. Null when the counts could not be read.
@@ -235,38 +210,8 @@ export interface EventsPageModel {
   refused: boolean
 }
 
-/**
- * Long enough to tell one failure from another — `MongoServerError: E11000
- * duplicate key` fits — and short enough that the row stays one line taller
- * than its neighbours rather than three.
- */
-const displayedErrorChars = 64
-
 const truncate = (value: string, max: number): string =>
   value.length > max ? `${value.slice(0, max)}…` : value
-
-const toShortMessage = (message: string): string =>
-  truncate(message, displayedErrorChars)
-
-/**
- * The error class is on the title rather than on the page because it is the
- * half a developer greps for and the half an operator never reads.
- */
-const toErrorTitle = (error: EventLastError, now: Date): string => {
-  const at = error.at === null ? '' : toTimestamp(error.at, now).title
-
-  return [`${error.name}: ${error.message}`, at]
-    .filter((line) => line !== '')
-    .join('\n')
-}
-
-const toReason = (error: EventLastError | null, now: Date) =>
-  error === null
-    ? { errorMessage: null, errorTitle: null }
-    : {
-        errorMessage: toShortMessage(error.message),
-        errorTitle: toErrorTitle(error, now)
-      }
 
 /**
  * The list's own url, for the inspect page to hand back. Every parameter is
@@ -301,7 +246,6 @@ const toRow =
       createdAt: created.text,
       createdAtTitle: created.title,
       createdAtClock: toClockOf(event.createdAt, now),
-      ...toReason(event.lastError, now),
       isDeadLetter: event.status === 'DEAD_LETTER'
     }
   }
@@ -316,30 +260,6 @@ const counted = new Intl.NumberFormat('en-GB')
 
 const toUnavailableSources = (sourceErrors: SourceError[] = []): string =>
   sourceErrors.map((source) => source.hop).join(', ')
-
-/**
- * Excluded is the default and therefore the parameterless url: asking for the
- * records writes `audit=include`.
- *
- * `includes` is what the form's submit button carries, and it is the inverse
- * of the tick rather than a copy of it: a checkbox can only submit a value
- * when it is ON, and this one is on when the parameter is ABSENT. The button
- * carries the flip instead, so the control works with the script that submits
- * it on change and equally without it.
- */
-const toAuditFilter = (query: EventsPageQuery): AuditFilter => {
-  const excluded = query.audit !== 'include'
-
-  return {
-    label: 'Exclude audit',
-    excluded,
-    filters: toAuditFields(query),
-    includes: excluded,
-    title: excluded
-      ? 'Audit records are hidden. Show them alongside the queue.'
-      : 'Audit records are shown. Hide them and leave the queue.'
-  }
-}
 
 /**
  * The filters, added to whatever the link already carries. The search is one
@@ -514,6 +434,43 @@ const toServiceChips = (
   }))
 ]
 
+/**
+ * Whether the audit records are in the population. Excluded by default: an
+ * audit trail records what people did, a queue what messages did, and mixed
+ * together the audit records outnumber everything else and bury the queue's
+ * own shape.
+ *
+ * Hide is the default and therefore the parameterless url — it takes `audit`
+ * off the link rather than spelling the default out, so one page has one url.
+ * An explicit `?audit=exclude` still lights it. The segments say Hide and
+ * Show, which read on from the "Audit records" label; the wire keeps
+ * `exclude`/`include`. Like the service segments, these carry no counts.
+ */
+const toAuditChips = (query: EventsPageQuery): FilterChip[] => {
+  const included = query.audit === 'include'
+
+  return [
+    {
+      value: 'exclude',
+      label: 'Hide',
+      href: toFilterHref({ ...query, audit: undefined }),
+      active: !included,
+      alarming: false,
+      title: 'Hide audit records: the queue alone',
+      ...toSegmentCount(null)
+    },
+    {
+      value: 'include',
+      label: 'Show',
+      href: toFilterHref({ ...query, audit: 'include' }),
+      active: included,
+      alarming: false,
+      title: 'Show audit records alongside the queue',
+      ...toSegmentCount(null)
+    }
+  ]
+}
+
 const toFields = (fields: [string, string | undefined][]): SearchFilter[] =>
   fields.flatMap(([name, value]) => (value ? [{ name, value }] : []))
 
@@ -563,31 +520,6 @@ const toRangeFilters = ({
     ['audit', audit],
     ['error', error],
     ['q', q]
-  ])
-
-/**
- * The filters the AUDIT form re-states: every one except its own. `audit`
- * itself is deliberately absent — the checkbox's submit button is what says
- * it, and a hidden field would send the setting the page arrived with rather
- * than the one the operator just asked for.
- */
-const toAuditFields = ({
-  status,
-  service,
-  q,
-  error,
-  from,
-  to,
-  range
-}: EventsPageQuery): SearchFilter[] =>
-  toFields([
-    ['status', status],
-    ['service', service],
-    ['q', q],
-    ['error', error],
-    ['from', from],
-    ['to', to],
-    ['range', range]
   ])
 
 /**
@@ -883,7 +815,7 @@ export const toEventsPage = (
     eventsTotal: toEventsTotal(filters, facets, statuses),
     statusFilters: toStatusChips(filters, facets, statuses),
     serviceFilters: toServiceChips(filters, services),
-    auditFilter: toAuditFilter(filters),
+    auditFilters: toAuditChips(filters),
     q,
     clearSearchHref: toFilterHref({ ...filters, q: undefined }),
     errorFilter: toErrorNote(filters),

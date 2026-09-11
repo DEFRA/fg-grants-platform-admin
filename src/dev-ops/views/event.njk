@@ -7,9 +7,9 @@
    Tailwind scans this file's text for candidates and never sees a class
    assembled in TypeScript: a label names a fact and never competes with it,
    and a machine string is set in mono because it is a thing to be copied. #}
-{% set factLabel = "pt-0.5 text-xs font-medium text-base-content/50" %}
+{% set factLabel = "pt-0.5 text-xs font-medium text-base-content/70" %}
 {% set monoValue = "font-mono text-xs break-all" %}
-{% set monoMuted = "font-mono text-xs text-base-content/50" %}
+{% set monoMuted = "font-mono text-xs text-base-content/70" %}
 
 {# One fact: a label, and whatever the caller put under it. A `dl` rather than
    a table, because these are name/value pairs and not a grid of rows. The pair
@@ -82,9 +82,11 @@
 
     {# The futile-redrive note. A note, not a block: the operator may know
        something the page does not, and a disabled Redrive would be this app
-       overruling them on the strength of two matching strings. #}
+       overruling them on the strength of two matching strings. Solid rather
+       than soft: the soft amber is unreadable in the light theme, and this is
+       the one warning on the page that sits over a write. #}
     {% if futileWarning %}
-      <div role="note" class="alert alert-warning alert-soft mb-3 text-sm" data-testid="event-futile-warning">
+      <div role="note" class="alert alert-warning mb-3 text-sm" data-testid="event-futile-warning">
         {{ icon({ name: 'exclamation-triangle', class: 'size-4 shrink-0' }) }}
         <span>{{ futileWarning }}</span>
       </div>
@@ -115,7 +117,7 @@
       </section>
     {% elif canRedrive %}
       <div class="mb-4 flex items-center gap-2" data-testid="event-actions">
-        <a class="btn btn-sm btn-error btn-outline" href="{{ redriveHref }}" data-testid="event-redrive">Redrive</a>
+        <a class="btn btn-sm btn-error" href="{{ redriveHref }}" data-testid="event-redrive">Redrive</a>
       </div>
     {% endif %}
 

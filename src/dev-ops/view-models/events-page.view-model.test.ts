@@ -365,58 +365,6 @@ describe('toEventsPage', () => {
     ).toBe('reporting Outbox')
   })
 
-  test('reports why the last attempt failed', () => {
-    const row = rowFor({
-      lastError: {
-        name: 'MongoServerError',
-        message: 'connect ETIMEDOUT 10.0.3.14:443',
-        at: '2026-06-16T10:16:05.000Z'
-      }
-    })
-
-    expect(row.errorMessage).toBe('connect ETIMEDOUT 10.0.3.14:443')
-    expect(row.errorTitle).toBe(
-      'MongoServerError: connect ETIMEDOUT 10.0.3.14:443\n2026-06-16T10:16:05Z'
-    )
-  })
-
-  test('cuts a reason too long for the column, whole on the title', () => {
-    const message =
-      'E11000 duplicate key error collection: gas.events index: eventId_1 dup key'
-
-    const row = rowFor({
-      lastError: { name: 'MongoServerError', message, at: null }
-    })
-
-    expect(row.errorMessage).toBe(
-      'E11000 duplicate key error collection: gas.events index: eventId…'
-    )
-    expect(row.errorTitle).toBe(`MongoServerError: ${message}`)
-  })
-
-  test('leaves a reason the column can hold uncut', () => {
-    const row = rowFor({
-      lastError: { name: 'Error', message: 'nope', at: null }
-    })
-
-    expect(row.errorMessage).toBe('nope')
-  })
-
-  test('reports no reason for a row that failed without one', () => {
-    const row = rowFor({ status: 'DEAD_LETTER', lastError: null })
-
-    expect(row.errorMessage).toBeNull()
-    expect(row.errorTitle).toBeNull()
-  })
-
-  test('ignores an instant it cannot read in a failure reason', () => {
-    const row = rowFor({
-      lastError: { name: 'Error', message: 'nope', at: 'never' }
-    })
-
-    expect(row.errorTitle).toBe('Error: nope')
-  })
-
   test('carries the whole event id, unshortened', () => {
     const row = rowFor({ eventId: '3f2c1a0e-1111-2222-3333-444455556666' })
 
@@ -1125,23 +1073,6 @@ describe('toEventsPage', () => {
     expect(rowFor({ createdAt: 'never' }).createdAtClock).toBe('')
   })
 
-  test('dates the status sub-line absolutely on its title, in UTC', () => {
-    const row = rowFor({
-      status: 'FAILED',
-      statusLabel: 'Failed',
-      statusRole: 'warning',
-      statusRetrying: true,
-      lastError: {
-        name: 'ClaimExpired',
-        message: 'claim expired before completion',
-        at: '2026-06-16T09:39:00.000Z'
-      }
-    })
-
-    expect(row.errorTitle).toContain('2026-06-16T09:39:00Z')
-    expect(row.errorTitle).not.toContain('Europe/London')
-  })
-
   test('threads no reload parameter through its links or its hidden fields', () => {
     const model = modelFor({
       status: 'FAILED',
@@ -1555,77 +1486,60 @@ describe('the time range control', () => {
 })
 
 describe('the audit population', () => {
-  test('is excluded on a page that did not ask for it', () => {
-    const { auditFilter } = modelFor({})
+  const activeOf = (chips: FilterChip[]) =>
+    chips.filter((chip) => chip.active).map((chip) => chip.value)
 
-    expect(auditFilter.excluded).toBe(true)
-    expect(auditFilter.label).toBe('Exclude audit')
-    expect(auditFilter.title).toContain('hidden')
+  // The words are Hide and Show, reading on from the "Audit records" label;
+  // the wire keeps `exclude` and `include`.
+  test('offers Hide and Show, and no counts on either', () => {
+    const { auditFilters } = modelFor({})
+
+    expect(auditFilters.map(({ value, label }) => [value, label])).toEqual([
+      ['exclude', 'Hide'],
+      ['include', 'Show']
+    ])
+    expect(auditFilters.every((chip) => chip.countLabel === null)).toBe(true)
+    expect(auditFilters.every((chip) => chip.title)).toBe(true)
+  })
+
+  test('is excluded on a page that did not ask for it', () => {
+    expect(activeOf(modelFor({}).auditFilters)).toEqual(['exclude'])
   })
 
   test('is included on a page that asked for it', () => {
-    const { auditFilter } = modelFor({ audit: 'include' })
-
-    expect(auditFilter.excluded).toBe(false)
-    expect(auditFilter.title).toContain('shown')
-  })
-
-  // A checkbox can only submit a value when it is ON, and this one is on when
-  // the parameter is ABSENT — so what the submission carries is the flip, and
-  // `includes` is the inverse of the tick rather than a copy of it.
-  test('asks for the records from the state that is leaving them out', () => {
-    expect(modelFor({}).auditFilter.includes).toBe(true)
-  })
-
-  // The default is the parameterless url, so turning the records off again
-  // drops the parameter rather than spelling the default out: from the
-  // included state there is nothing for the submission to say.
-  test('says nothing at all from the state that already has them', () => {
-    expect(modelFor({ audit: 'include' }).auditFilter.includes).toBe(false)
-  })
-
-  test('keeps every other filter when it is flipped', () => {
-    const { auditFilter } = modelFor({
-      status: 'DEAD_LETTER',
-      service: 'gas',
-      q: 'gld-9b2',
-      error: 'E11000 duplicate key',
-      from: '2026-06-16T09:00:00.000Z',
-      to: '2026-06-16T10:00:00.000Z',
-      range: '24h'
-    } as EventsPageQuery)
-
-    expect(auditFilter.filters).toEqual([
-      { name: 'status', value: 'DEAD_LETTER' },
-      { name: 'service', value: 'gas' },
-      { name: 'q', value: 'gld-9b2' },
-      { name: 'error', value: 'E11000 duplicate key' },
-      { name: 'from', value: '2026-06-16T09:00:00.000Z' },
-      { name: 'to', value: '2026-06-16T10:00:00.000Z' },
-      { name: 'range', value: '24h' }
+    expect(activeOf(modelFor({ audit: 'include' }).auditFilters)).toEqual([
+      'include'
     ])
   })
 
-  // Its own parameter is the one thing the form must NOT restate: a hidden
-  // field would send the setting the page arrived with, which is the page the
-  // operator is already looking at.
-  test('restates every filter except the one it is', () => {
-    const { auditFilter } = modelFor({ audit: 'include', status: 'FAILED' })
-
-    expect(auditFilter.filters).toEqual([{ name: 'status', value: 'FAILED' }])
+  test('reads an explicit exclude as the default said out loud', () => {
+    expect(activeOf(modelFor({ audit: 'exclude' }).auditFilters)).toEqual([
+      'exclude'
+    ])
   })
 
-  test('drops the cursor and the direction', () => {
-    const { auditFilter } = modelFor({
+  // The default is the parameterless url, so Hide drops the parameter
+  // rather than spelling the default out: one page, one url.
+  test('asks for the records with Show, and takes the parameter off with Hide', () => {
+    const [exclude, include] = modelFor({ audit: 'include' }).auditFilters
+
+    expect(exclude.href).toBe('/dev-ops/events')
+    expect(include.href).toBe('/dev-ops/events?audit=include')
+  })
+
+  test('keeps every other filter, and drops the cursor, on both segments', () => {
+    const { auditFilters } = modelFor({
+      status: 'DEAD_LETTER',
+      service: 'gas',
+      q: 'gld-9b2',
       cursor: 'END',
-      direction: 'forward',
-      audit: 'include'
+      direction: 'forward'
     })
 
-    expect(auditFilter.filters.map(({ name }) => name)).not.toContain('cursor')
-    expect(auditFilter.filters.map(({ name }) => name)).not.toContain(
-      'direction'
-    )
+    expect(auditFilters.map((chip) => chip.href)).toEqual([
+      '/dev-ops/events?status=DEAD_LETTER&service=gas&q=gld-9b2',
+      '/dev-ops/events?status=DEAD_LETTER&service=gas&audit=include&q=gld-9b2'
+    ])
   })
 
   test('rides the other filter links and both forms', () => {
