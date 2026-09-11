@@ -1,0 +1,17 @@
+{# The top of a page that sticks while its table scrolls under it: the
+   caller's heading and filters, pinned under the navbar as one opaque block
+   above the rows. Only where the viewport has room for it (64rem by 40rem) —
+   zoomed in, or in a short window, a pinned block would leave the rows no
+   room at all, so there nothing sticks.
+
+   `-mt-5 pt-5` takes the block up to the navbar through `main`'s own top
+   padding, so rows scrolling under it never show through that gap. A flex
+   column, so the last child's bottom margin is inside its height.
+
+   `do-sticky-top` measures the navbar and this block into `--nav-h` and
+   `--sticky-top` on the root: where this block sticks, where the table's
+   header row pins, and — plus that row — the document's scroll padding. The
+   fallbacks keep the page usable before it has run. #}
+<do-sticky-top class="-mt-5 mb-3 flex flex-col bg-base-200 pt-5 [@media(min-width:64rem)_and_(min-height:40rem)]:sticky [@media(min-width:64rem)_and_(min-height:40rem)]:top-[var(--nav-h,57px)] [@media(min-width:64rem)_and_(min-height:40rem)]:z-20 [@media(min-width:64rem)_and_(min-height:40rem)]:border-b [@media(min-width:64rem)_and_(min-height:40rem)]:border-base-300" data-testid="events-sticky">
+  {{ caller() }}
+</do-sticky-top>

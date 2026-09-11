@@ -1,0 +1,25 @@
+{# "Show audit events" as a switch, off by default. The whole control is one
+   link to the OTHER state's url — the view model builds it, carrying every
+   other filter and dropping the cursor — so it is a filter like any other and
+   needs no script.
+
+   The switch is a `span`, not an input: interactive content inside a link is
+   invalid. daisyUI's `toggle` keys its on state off `[aria-checked="true"]` as
+   well as `:checked`, so the span draws the same switch. It is hidden from
+   assistive tech, and the link's name carries the state instead: "Show audit
+   events, off".
+
+   No button chrome and no hover: `.btn:hover` fills even a `btn-ghost`, so
+   this is plain utilities at a md trigger's metrics — 40px tall, 1rem sides,
+   14px text, the btn's 6px gap — with the triggers' focus outline spelled out.
+
+   `do-audit-switch` flips the knob on press, before the next page arrives.
+   `contents`, so the element draws no box of its own and the link stays the
+   toolbar's flex item. The state the server rendered rides on `data-checked`,
+   for the element to put back on a page restored from the bfcache. #}
+<do-audit-switch class="contents" data-checked="{{ "true" if params.checked else "false" }}" data-testid="do-audit-switch">
+  <a class="inline-flex h-10 cursor-pointer items-center gap-1.5 rounded-field px-4 text-sm font-normal focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-base-content" href="{{ params.href }}" title="{{ params.title }}" data-testid="events-filter-audit-switch">
+    <span class="toggle" aria-hidden="true" aria-checked="{{ "true" if params.checked else "false" }}" data-testid="events-filter-audit-toggle"></span>
+    <span>{{ params.label }}<span class="sr-only" data-audit-switch-state data-testid="events-filter-audit-state">{{ ", on" if params.checked else ", off" }}</span></span>
+  </a>
+</do-audit-switch>

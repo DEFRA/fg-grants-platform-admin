@@ -280,8 +280,10 @@ const rendersAsText = {
 }
 
 /** A healthy row wears only the hover tint; a dead letter, the error wash. */
-const rowClass = 'hover:bg-base-200'
-const deadLetterRowClass = 'bg-error/5 hover:bg-error/10'
+const rowClass =
+  'relative cursor-pointer hover:bg-base-200 has-[:focus-visible]:bg-base-200 has-[:focus-visible]:outline-2 has-[:focus-visible]:-outline-offset-2 has-[:focus-visible]:outline-base-content'
+const deadLetterRowClass =
+  'relative cursor-pointer bg-error/5 hover:bg-error/10 has-[:focus-visible]:bg-error/10 has-[:focus-visible]:outline-2 has-[:focus-visible]:-outline-offset-2 has-[:focus-visible]:outline-base-content'
 
 /**
  * The identity line is set with real spaces around its separators, so the
@@ -399,17 +401,31 @@ describe('viewEventsRoute', () => {
     expect(getEventsUseCase).toHaveBeenCalledWith({})
   })
 
-  test('forwards the cursor, direction, status and service', async () => {
-    await viewPage(
-      '/dev-ops/events?cursor=END&direction=forward&status=FAILED&service=gas'
-    )
+  // No `direction`: the list only pages forward, fg-gas-backend's default.
+  test('forwards the cursor, status and service', async () => {
+    await viewPage('/dev-ops/events?cursor=END&status=FAILED&service=gas')
 
     expect(getEventsUseCase).toHaveBeenCalledWith({
       cursor: 'END',
-      direction: 'forward',
       status: 'FAILED',
       service: 'gas'
     })
+  })
+
+  // A link from the days of Newer and Older still opens a page rather than an
+  // error: `forward` keeps its cursor, and `backward` — the old Newer — opens
+  // the newest page, which is where Newer led. Neither reaches GAS.
+  test.each([
+    ['/dev-ops/events?cursor=END&direction=forward', { cursor: 'END' }],
+    [
+      '/dev-ops/events?cursor=START&direction=backward&status=FAILED',
+      { status: 'FAILED' }
+    ]
+  ])('reads the stale link %s gracefully', async (url, expected) => {
+    const { statusCode } = await viewPage(url)
+
+    expect(statusCode).toBe(statusCodes.ok)
+    expect(getEventsUseCase).toHaveBeenCalledWith(expected)
   })
 
   // Refused here rather than forwarded: fg-gas-backend's 400 for a mistyped
@@ -432,8 +448,7 @@ describe('viewEventsRoute', () => {
 
   test.each([
     ['/dev-ops/events?status=DEAD_LETTER', { status: 'DEAD_LETTER' }],
-    ['/dev-ops/events?service=caseworking', { service: 'caseworking' }],
-    ['/dev-ops/events?direction=backward', { direction: 'backward' }]
+    ['/dev-ops/events?service=caseworking', { service: 'caseworking' }]
   ])('forwards %s, which it does hold', async (url, expected) => {
     const { statusCode } = await viewPage(url)
 
@@ -615,42 +630,41 @@ describe('viewEventsRoute', () => {
     expect($('main').text()).not.toContain('Filtered:')
   })
 
-  // Sentence case throughout the toolbar: nothing in it shouts, labels
-  test('counts every status segment but All, and no service segment', async () => {
+  // Each tile says what selecting it would find, and All is no exception:
+  // every status summed. The services carry no figures at all.
+  test('counts every status tile, All as their sum, and no service', async () => {
     const { $ } = await viewPage()
 
-    // A zero says nothing the dimmed segment beside it has not said already;
-    // the count on an empty segment lives on its title.
-    expect(segments($, 'events-filter-status-chip')).toEqual([
-      'All',
-      'Published',
-      'Processing',
-      'Failed',
-      'Resubmitted',
+    expect(segments($, 'events-status-tile')).toEqual([
+      'All 243,260',
+      'Published 0',
+      'Processing 0',
+      'Failed 0',
+      'Resubmitted 0',
       'Completed 236,196',
       'Dead letter 7,064'
     ])
     expect(segments($, 'events-filter-service-chip')).toEqual([
       'All',
       'GAS',
-      'Caseworking'
+      'CW-BE'
     ])
-    expect($('[data-testid="events-filter-service-chip-count"]')).toHaveLength(
-      0
-    )
+    expect(
+      $('[data-testid="events-filter-service-panel"] .badge')
+    ).toHaveLength(0)
   })
 
-  // The counts endpoint refuses `status`, which is what keeps every status
-  // counted whatever is selected.
-  test('keeps every status counted on a page filtered to one of them', async () => {
+  // The counts endpoint refuses `status`, which is what keeps every tile
+  // counted whatever is selected — All included: the figures are facets.
+  test('keeps every tile counted on a page filtered to one of them', async () => {
     const { $ } = await viewPage('/dev-ops/events?status=DEAD_LETTER')
 
-    expect(segments($, 'events-filter-status-chip')).toEqual([
-      'All',
-      'Published',
-      'Processing',
-      'Failed',
-      'Resubmitted',
+    expect(segments($, 'events-status-tile')).toEqual([
+      'All 243,260',
+      'Published 0',
+      'Processing 0',
+      'Failed 0',
+      'Resubmitted 0',
       'Completed 236,196',
       'Dead letter 7,064'
     ])
@@ -662,39 +676,40 @@ describe('viewEventsRoute', () => {
     expect(segments($, 'events-filter-service-chip')).toEqual([
       'All',
       'GAS',
-      'Caseworking'
+      'CW-BE'
     ])
     expect(
       segmentFor($, 'events-filter-service-chip', 'gas').attr('aria-current')
     ).toBe('page')
   })
 
-  test('sets the figure on a segment as a quiet badge', async () => {
+  // Compact: a text-xl value at least 7ch wide, so a tile keeps its width as
+  // its count moves.
+  test("sets the figure as the tile's value", async () => {
     const { $ } = await viewPage()
 
     expect(
-      segmentFor($, 'events-filter-status-chip', 'COMPLETED')
-        .find('[data-testid="events-filter-status-chip-count"]')
+      segmentFor($, 'events-status-tile', 'COMPLETED')
+        .find('[data-testid="events-status-tile-count"]')
         .attr('class')
-    ).toBe('badge badge-ghost badge-sm tabular-nums')
+    ).toBe('stat-value min-w-[7ch] text-xl tabular-nums')
   })
 
-  // A segment that vanished when it emptied could not be told from one the
-  // page had forgotten to draw: it stays, dimmed, and stays a link.
-  test('dims an empty segment and still links it', async () => {
+  // A tile that vanished when it emptied could not be told from one the page
+  // had forgotten to draw: it stays, as a quiet 0, and stays a link.
+  test('draws an empty status as a quiet 0, and still links it', async () => {
     const { $ } = await viewPage()
 
-    const failed = segmentFor($, 'events-filter-status-chip', 'FAILED')
+    const failed = segmentFor($, 'events-status-tile', 'FAILED')
+    const count = failed.find('[data-testid="events-status-tile-count"]')
 
-    expect(flatten(failed.text())).toBe('Failed')
-    expect(
-      failed.find('[data-testid="events-filter-status-chip-count"]')
-    ).toHaveLength(0)
-    expect(failed.attr('title')).toBe('Awaiting automatic retry · 0 events')
-    expect(failed.attr('class')).toContain('text-base-content/60')
+    expect(flatten(failed.text())).toBe('Failed 0')
+    expect(count.attr('class')).toContain('text-base-content/60')
     expect(failed.attr('href')).toBe('/dev-ops/events?status=FAILED')
     expect(
-      segmentFor($, 'events-filter-status-chip', 'DEAD_LETTER').attr('class')
+      segmentFor($, 'events-status-tile', 'COMPLETED')
+        .find('[data-testid="events-status-tile-count"]')
+        .attr('class')
     ).not.toContain('text-base-content/60')
   })
 
@@ -710,145 +725,226 @@ describe('viewEventsRoute', () => {
     }
   })
 
+  // Red text, as the prototype draws it: a known, accepted contrast
+  // shortfall. No dead letters is a quiet nought, not a red one.
   test('colours the dead letter count, and only while there is one', async () => {
     const { $ } = await viewPage()
 
-    expect(
-      segmentFor($, 'events-filter-status-chip', 'DEAD_LETTER')
-        .find('[data-testid="events-filter-status-chip-count"]')
-        .attr('class')
-    ).toBe('badge badge-error badge-sm tabular-nums')
+    const count = segmentFor($, 'events-status-tile', 'DEAD_LETTER').find(
+      '[data-testid="events-status-tile-count"]'
+    )
+
+    expect(count.text()).toBe('7,064')
+    expect(count.attr('class')).toBe(
+      'stat-value min-w-[7ch] text-xl tabular-nums text-error'
+    )
+    expect($('[data-testid="events-status-tiles"] .badge')).toHaveLength(0)
 
     givenCounts({ DEAD_LETTER: 0 })
 
     const { $: quiet } = await viewPage()
 
-    // No dead letters is no badge at all, not a red nought.
-    expect(quiet('main').html()).not.toContain('badge-error')
-    expect(
-      segmentFor(quiet, 'events-filter-status-chip', 'DEAD_LETTER').attr(
-        'title'
-      )
-    ).toContain('0 events')
+    const nought = segmentFor(quiet, 'events-status-tile', 'DEAD_LETTER').find(
+      '[data-testid="events-status-tile-count"]'
+    )
+
+    expect(nought.text()).toBe('0')
+    expect(nought.attr('class')).toBe(
+      'stat-value min-w-[7ch] text-xl tabular-nums text-base-content/60'
+    )
+    expect(quiet('[data-testid="events-status-tiles"]').html()).not.toContain(
+      'text-error'
+    )
   })
 
-  test('renders every segment as a label alone when the counts fail', async () => {
+  test('draws every tile with a quiet dash when the counts fail', async () => {
     givenNoCounts()
 
     const { $ } = await viewPage()
 
-    expect(segments($, 'events-filter-status-chip')).toEqual([
-      'All',
-      'Published',
-      'Processing',
-      'Failed',
-      'Resubmitted',
-      'Completed',
-      'Dead letter'
+    expect(segments($, 'events-status-tile')).toEqual([
+      'All —',
+      'Published —',
+      'Processing —',
+      'Failed —',
+      'Resubmitted —',
+      'Completed —',
+      'Dead letter —'
     ])
+    // Named without a figure rather than with a made-up one.
+    expect(
+      $('[data-testid="events-status-tile"]').first().attr('aria-label')
+    ).toBe('All statuses')
     expect(segments($, 'events-filter-service-chip')).toEqual([
       'All',
       'GAS',
-      'Caseworking'
+      'CW-BE'
     ])
     expect($('[data-testid="events-filter-kind-chip"]')).toHaveLength(0)
-    expect($('[data-testid="events-filter-status-chip-count"]')).toHaveLength(0)
+    expect($('[data-testid="events-status-tiles"]').html()).not.toContain(
+      'text-error'
+    )
     expect($('[data-testid="events-error"]')).toHaveLength(0)
     expect($('[data-testid="events-partial"]')).toHaveLength(0)
   })
 
-  test('explains what each status segment is counting', async () => {
+  test('explains what each status tile is counting', async () => {
     const { $ } = await viewPage()
 
     expect(
-      $('[data-testid="events-filter-status-chip"]')
+      $('[data-testid="events-status-tile"]')
         .toArray()
-        .map((chip) => $(chip).attr('title'))
+        .map((tile) => $(tile).attr('title'))
     ).toEqual([
       undefined,
-      'Queued, not yet claimed · 0 events',
-      'Claimed, in flight · 0 events',
-      'Awaiting automatic retry · 0 events',
-      'Queued for another retry cycle · 0 events',
+      'Queued, not yet claimed',
+      'Claimed, in flight',
+      'Awaiting automatic retry',
+      'Queued for another retry cycle',
       'Processed successfully',
       'Failed all retry attempts; needs a redrive'
     ])
   })
 
-  test('renders each filter group as a join of small buttons', async () => {
+  // The name says the figure in words, so a screen reader hears a count and
+  // not a bare number after a word.
+  test('names each tile with its figure', async () => {
     const { $ } = await viewPage()
 
-    expect($('[data-testid="events-filter-status"]').hasClass('join')).toBe(
-      true
-    )
-    expect($('[data-testid="events-filter-service"]').hasClass('join')).toBe(
-      true
-    )
+    const names = $('[data-testid="events-status-tile"]')
+      .toArray()
+      .map((tile) => $(tile).attr('aria-label'))
+
+    expect(names[0]).toBe('All statuses: 243,260 events')
+    expect(names.at(-1)).toBe('Dead letter: 7,064 events')
+    expect(names[1]).toBe('Published: 0 events')
+  })
+
+  test('says one event in the singular on a tile', async () => {
+    givenCounts({ FAILED: 1, COMPLETED: 0, DEAD_LETTER: 0 })
+
+    const { $ } = await viewPage()
+
     expect(
-      $('[data-testid="events-filter-status-chip"]').first().attr('class')
-    ).toContain('btn btn-sm join-item')
+      segmentFor($, 'events-status-tile', 'FAILED').attr('aria-label')
+    ).toBe('Failed: 1 event')
+  })
+
+  test('groups the tiles as the status filter', async () => {
+    const { $ } = await viewPage()
+
+    const strip = $('[data-testid="events-status-tiles"]')
+
+    expect(strip.attr('role')).toBe('group')
+    expect(strip.attr('aria-label')).toBe('Filter by status')
+    expect(strip.hasClass('stats')).toBe(true)
+    expect(strip.hasClass('stats-horizontal')).toBe(true)
+    expect(
+      strip
+        .find('[data-testid="events-status-tile"]')
+        .toArray()
+        .every((tile) => $(tile).is('a') && $(tile).hasClass('stat'))
+    ).toBe(true)
+  })
+
+  // Time and Service are md triggers, each opening a native popover menu
+  // anchored to it: the popover is the whole of the behaviour, no script.
+  test('draws Time and Service as md triggers opening a popover', async () => {
+    const { $ } = await viewPage()
+
+    for (const [button, panel] of [
+      ['events-range-button', 'events-range-panel'],
+      ['events-filter-service-button', 'events-service-panel']
+    ]) {
+      const trigger = $(`[data-testid="${button}"]`)
+
+      expect(trigger.is('button')).toBe(true)
+      expect(trigger.hasClass('btn')).toBe(true)
+      expect(trigger.hasClass('btn-sm')).toBe(false)
+      expect(trigger.attr('popovertarget')).toBe(panel)
+      // The pressed look while open is keyed off the popover being the
+      // trigger's next sibling.
+      expect(trigger.next().attr('id')).toBe(panel)
+      expect(trigger.next().attr('popover')).toBeDefined()
+      expect(classOf(trigger)).toContain('[&:has(+:popover-open)]')
+    }
   })
 
   test('gives the toolbar no border or surface of its own', async () => {
     const { $ } = await viewPage()
 
-    const toolbar = $('[data-testid="events-filters"]')
+    const toolbar = $('[data-testid="events-toolbar"]')
 
     expect(toolbar).toHaveLength(1)
     expect(toolbar.attr('class')).toContain('items-center')
     expect(toolbar.attr('class')).not.toContain('border')
     expect(toolbar.attr('class')).not.toContain('bg-base-100')
-    expect(toolbar.find('[data-testid="events-filter-status"]')).toHaveLength(1)
-    expect(toolbar.find('[data-testid="events-filter-service"]')).toHaveLength(
-      1
-    )
-    expect($('[data-testid="events-filter-label"]').first().text()).toBe(
-      'Service'
-    )
+    // The triggers name their own filters; there are no labels beside them.
+    expect($('[data-testid="events-filter-label"]')).toHaveLength(0)
   })
 
   // ── The audit population ─────────────────────────────────────────────────
 
-  test('excludes the audit records by default, and marks the segment that says so', async () => {
+  // Off is the default and the parameterless url; the link goes to the other
+  // state, so following it IS the flip.
+  test('shows the audit switch off by default, linking to on', async () => {
     const { $ } = await viewPage()
 
-    const active = $('[data-testid="events-filter-audit-chip"][aria-current]')
+    const link = $('[data-testid="events-filter-audit-switch"]')
+    const toggle = $('[data-testid="events-filter-audit-toggle"]')
 
-    expect(active).toHaveLength(1)
-    expect(active.attr('data-value')).toBe('exclude')
-    expect(active.attr('class')).toContain('btn-active')
-    expect(flatten(active.text())).toBe('Hide')
-    // Asking for the records is what the parameter is for.
-    expect(
-      segmentFor($, 'events-filter-audit-chip', 'include').attr('href')
-    ).toBe('/dev-ops/events?audit=include')
+    expect(link.attr('href')).toBe('/dev-ops/events?audit=include')
+    expect(toggle.attr('aria-checked')).toBe('false')
+    expect(flatten(link.text())).toBe('Show audit events, off')
+    expect(link.attr('title')).toBe('Show audit events alongside the queue')
+    expect($('do-audit-switch').attr('data-checked')).toBe('false')
   })
 
-  test('marks Show on a page that asked for the audit records', async () => {
+  test('shows the audit switch on when asked, linking back to off', async () => {
     const { $ } = await viewPage('/dev-ops/events?audit=include')
 
+    const link = $('[data-testid="events-filter-audit-switch"]')
+
     expect(
-      $('[data-testid="events-filter-audit-chip"][aria-current]').attr(
-        'data-value'
-      )
-    ).toBe('include')
-    // Hiding them again drops the parameter rather than spelling out the
+      $('[data-testid="events-filter-audit-toggle"]').attr('aria-checked')
+    ).toBe('true')
+    expect(flatten(link.text())).toBe('Show audit events, on')
+    // Switching off drops the parameter rather than spelling out the
     // default: one page, one url.
+    expect(link.attr('href')).toBe('/dev-ops/events')
+    expect($('do-audit-switch').attr('data-checked')).toBe('true')
+  })
+
+  // A link, and nothing interactive inside it: the switch is a span drawn by
+  // daisyUI's `toggle`, hidden from assistive tech, and the hidden ", on" /
+  // ", off" carries the state in the link's name.
+  test('draws the audit switch as one plain link', async () => {
+    const { $ } = await viewPage()
+
+    const link = $('[data-testid="events-filter-audit-switch"]')
+    const toggle = $('[data-testid="events-filter-audit-toggle"]')
+
+    expect(link.is('a')).toBe(true)
+    expect(link.find('input, button')).toHaveLength(0)
+    expect(link.hasClass('btn')).toBe(false)
+    expect(link.hasClass('cursor-pointer')).toBe(true)
+    expect(link.hasClass('h-10')).toBe(true)
+    expect(toggle.is('span')).toBe(true)
+    expect(toggle.hasClass('toggle')).toBe(true)
+    expect(toggle.attr('aria-hidden')).toBe('true')
     expect(
-      segmentFor($, 'events-filter-audit-chip', 'exclude').attr('href')
-    ).toBe('/dev-ops/events')
+      $('[data-testid="events-filter-audit-state"]').hasClass('sr-only')
+    ).toBe(true)
   })
 
   // The population changes underneath a keyset position, so the cursor is
   // not carried.
-  test('carries every other filter, and drops the cursor, on its segments', async () => {
+  test('carries every other filter, and drops the cursor, on the switch', async () => {
     const { $ } = await viewPage(
       '/dev-ops/events?status=DEAD_LETTER&service=gas&q=gld-9b2&cursor=END&direction=forward'
     )
 
-    expect(
-      segmentFor($, 'events-filter-audit-chip', 'include').attr('href')
-    ).toBe(
+    expect($('[data-testid="events-filter-audit-switch"]').attr('href')).toBe(
       '/dev-ops/events?status=DEAD_LETTER&service=gas&audit=include&q=gld-9b2'
     )
   })
@@ -857,7 +953,7 @@ describe('viewEventsRoute', () => {
     const { $ } = await viewPage('/dev-ops/events?audit=include')
 
     expect(
-      segmentFor($, 'events-filter-status-chip', 'DEAD_LETTER').attr('href')
+      segmentFor($, 'events-status-tile', 'DEAD_LETTER').attr('href')
     ).toContain('audit=include')
     expect(
       segmentFor($, 'events-filter-service-chip', 'gas').attr('href')
@@ -901,185 +997,181 @@ describe('viewEventsRoute', () => {
 
     expect(statusCode).toBe(statusCodes.ok)
     expect(
-      segmentFor($, 'events-filter-audit-chip', 'exclude').attr('aria-current')
-    ).toBe('page')
+      $('[data-testid="events-filter-audit-toggle"]').attr('aria-checked')
+    ).toBe('false')
+    expect($('[data-testid="events-filter-audit-switch"]').attr('href')).toBe(
+      '/dev-ops/events?audit=include'
+    )
   })
 
-  // Two declared rows: what the page is filtered to on the first, how it is
-  // narrowed and searched on the second.
-  test('lays the toolbar out as two declared rows', async () => {
+  // One row: the window, the service and the audit switch, then the search
+  // hard right. The status filter is the strip of tiles above it.
+  test('lays the toolbar out as Time, Service, the audit switch, then search', async () => {
     const { $ } = await viewPage()
 
     const toolbar = $('[data-testid="events-toolbar"]')
-    const rows = toolbar.children()
 
-    expect(toolbar.attr('class')).toContain('grid')
-    expect(rows.toArray().map((row) => $(row).attr('data-testid'))).toEqual([
-      'events-filters',
-      'events-controls'
+    expect(
+      toolbar
+        .children()
+        .toArray()
+        .map((child) => $(child).attr('data-testid'))
+    ).toEqual([
+      'events-range',
+      'events-filter-service',
+      'do-audit-switch',
+      'events-search'
     ])
-    expect(
-      rows.first().find('[data-testid="events-filter-status"]')
-    ).toHaveLength(1)
-    expect(
-      rows.first().find('[data-testid="events-filter-service"]')
-    ).toHaveLength(1)
-    expect(
-      rows.first().find('[data-testid="events-filter-audit"]')
-    ).toHaveLength(1)
-    expect(rows.last().find('[data-testid="events-range"]')).toHaveLength(1)
-    expect(rows.last().find('[data-testid="events-search"]')).toHaveLength(1)
-    expect(rows.last().attr('class')).toContain('justify-end')
+    expect(toolbar.hasClass('flex-wrap')).toBe(true)
+    expect($('[data-testid="events-search"]').hasClass('ml-auto')).toBe(true)
   })
 
-  test('outlines each filter group once, as a segmented control', async () => {
+  test('offers no Status control in the toolbar', async () => {
     const { $ } = await viewPage()
 
-    const groups = [
-      $('[data-testid="events-filter-status"]'),
-      $('[data-testid="events-filter-service"]'),
-      $('[data-testid="events-filter-audit"]')
-    ]
+    const toolbar = $('[data-testid="events-toolbar"]')
 
-    groups.forEach((group) => {
-      // The join draws the outline; the app adds nothing of its own to it.
-      expect(group.attr('class')).toContain('join')
-      expect(group.attr('role')).toBe('group')
-      expect(group.attr('aria-label')).toContain('Filter by')
-    })
-    expect($('[data-testid="events-filter-divider"]')).toHaveLength(0)
+    expect($('[data-testid="events-filter-status"]')).toHaveLength(0)
+    expect(toolbar.find('[aria-label="Filter by status"]')).toHaveLength(0)
+    expect(toolbar.find('[data-testid="events-status-tile"]')).toHaveLength(0)
+    expect(toolbar.text()).not.toContain('Dead letter')
   })
 
-  test('sets the toolbar labels apart from the chips they introduce', async () => {
+  // The filter's name and its value as one phrase, the name quieter than
+  // the value.
+  test("names each trigger's filter and its value in one phrase", async () => {
     const { $ } = await viewPage()
 
-    const labels = $('[data-testid="events-filter-label"]')
-      .toArray()
-      .map((label) => $(label))
+    const service = $('[data-testid="events-filter-service-button"]')
+    const time = $('[data-testid="events-range-button"]')
 
-    expect(labels.map((label) => label.text().trim())).toEqual([
-      'Service',
-      'Status',
-      'Audit records',
-      'Time'
-    ])
-    labels.forEach((label) => {
-      expect(label.attr('class')).toBe(
-        'text-xs font-medium text-base-content/60'
-      )
-      expect(label.attr('class')).not.toContain('uppercase')
-    })
-  })
+    expect(flatten(service.text())).toBe('Service: All')
+    expect(flatten(time.text())).toBe('Time: Any')
+    for (const trigger of [service, time]) {
+      const name = trigger.find('span > span').first()
 
-  test('keeps each label with its own group, and the groups apart', async () => {
-    const { $ } = await viewPage()
-
-    expect($('[data-testid="events-filters"]').attr('class')).toContain(
-      'gap-x-5'
-    )
-
-    const pairs = $(
-      '[data-testid="events-filters"] > div, [data-testid="events-controls"] > div'
-    )
-
-    expect(pairs).toHaveLength(4)
-    pairs.toArray().forEach((pair) => {
-      expect($(pair).attr('class')).toContain('gap-2')
-      expect($(pair).find('[data-testid="events-filter-label"]')).toHaveLength(
+      expect(name.attr('class')).toBe('font-normal opacity-70')
+      expect(trigger.find('[data-testid="do-icon-chevron-down"]')).toHaveLength(
         1
       )
-    })
-    // Zoomed in, a label goes above its group rather than pushing the group
-    // off the edge.
-    pairs
-      .slice(0, 3)
-      .toArray()
-      .forEach((pair) => {
-        expect($(pair).hasClass('flex-wrap')).toBe(true)
-      })
-    expect(
-      pairs.first().find('[data-testid="events-filter-service"]')
-    ).toHaveLength(1)
-    expect(
-      pairs.eq(1).find('[data-testid="events-filter-status"]')
-    ).toHaveLength(1)
-    expect(
-      pairs.eq(2).find('[data-testid="events-filter-audit"]')
-    ).toHaveLength(1)
-    expect(pairs.last().attr('data-testid')).toBe('events-range')
-    expect(
-      pairs.last().find('[data-testid="events-range-button"]')
-    ).toHaveLength(1)
-    expect($('[data-testid="events-filter-kind"]')).toHaveLength(0)
+    }
   })
 
+  // An active filter wears the inverse fill; a default one stays plain.
+  test('fills a trigger whose filter is on, and only then', async () => {
+    const { $: plain } = await viewPage()
+
+    for (const id of ['events-filter-service-button', 'events-range-button']) {
+      expect(plain(`[data-testid="${id}"]`).hasClass('bg-base-content')).toBe(
+        false
+      )
+    }
+
+    const { $ } = await viewPage(
+      '/dev-ops/events?service=gas&from=2026-06-15T10:19:57.000Z&range=24h'
+    )
+    const service = $('[data-testid="events-filter-service-button"]')
+
+    expect(flatten(service.text())).toBe('Service: GAS')
+    for (const id of ['events-filter-service-button', 'events-range-button']) {
+      const trigger = $(`[data-testid="${id}"]`)
+
+      expect(trigger.hasClass('bg-base-content')).toBe(true)
+      expect(trigger.hasClass('text-base-100')).toBe(true)
+      expect(trigger.hasClass('border-base-content')).toBe(true)
+    }
+  })
+
+  // The selected item is ticked and bold and carries `aria-current`; there
+  // is no `menu-active` fill. Every item draws the tick, invisible where
+  // unselected, so the labels share one left edge.
+  test('ticks the selected menu item, and fills none', async () => {
+    const { $ } = await viewPage('/dev-ops/events?service=gas')
+
+    const panel = $('[data-testid="events-filter-service-panel"]')
+    const gas = segmentFor($, 'events-filter-service-chip', 'gas')
+    const all = $('[data-testid="events-filter-service-chip"]').first()
+
+    expect(panel.hasClass('menu-md')).toBe(true)
+    expect(panel.hasClass('mt-2')).toBe(true)
+    expect(panel.hasClass('w-60')).toBe(true)
+    expect(gas.attr('aria-current')).toBe('page')
+    expect(gas.hasClass('font-semibold')).toBe(true)
+    expect(
+      gas.find('[data-testid="do-icon-check"]').hasClass('invisible')
+    ).toBe(false)
+    expect(all.attr('aria-current')).toBeUndefined()
+    expect(all.hasClass('font-semibold')).toBe(false)
+    expect(
+      all.find('[data-testid="do-icon-check"]').hasClass('invisible')
+    ).toBe(true)
+    expect(
+      $('main [data-testid="do-icon-check"]')
+        .toArray()
+        .every((tick) => $(tick).attr('aria-hidden') === 'true')
+    ).toBe(true)
+    expect($('main').html()).not.toContain('menu-active')
+  })
+
+  // The figures are the tiles'; the toolbar counts nothing of its own.
   test('counts nothing in the toolbar at all', async () => {
     const { $ } = await viewPage()
 
-    expect($('[data-testid="events-filters"]').text()).not.toContain('event')
-    expect(
-      $('[data-testid="events-filters"] [data-testid="events-count"]')
-    ).toHaveLength(0)
+    const toolbar = $('[data-testid="events-toolbar"]')
+
+    expect(toolbar.text()).not.toMatch(/\d[\d,]* events?\b/)
+    expect(toolbar.find('.badge')).toHaveLength(0)
+    expect(toolbar.find('[data-testid="events-count"]')).toHaveLength(0)
   })
 
-  // `btn-active` is the state daisyUI's segmented control is meant to wear.
-  test('marks the segment the page is filtered to', async () => {
+  // The selected tile wears the triggers' inverse fill, and `aria-current`
+  // says which slice the table is showing.
+  test('marks the tile the page is filtered to', async () => {
     const { $ } = await viewPage('/dev-ops/events?status=DEAD_LETTER')
 
-    const active = $('[data-testid="events-filter-status-chip"][aria-current]')
+    const active = $('[data-testid="events-status-tile"][aria-current]')
 
-    // The STATE, not the styling: `btn-active` is what says "this is the
-    // slice you are looking at". The rest of the class list is a restyle
-    // away from changing and says nothing about behaviour.
-    expect(active.attr('class')).toContain('btn-active')
-    expect(active.attr('class')).not.toContain('btn-neutral')
-    expect(flatten(active.text())).toBe('Dead letter 7,064')
+    expect(active).toHaveLength(1)
+    expect(active.attr('aria-current')).toBe('page')
+    expect(active.attr('data-value')).toBe('DEAD_LETTER')
+    expect(active.hasClass('bg-base-content')).toBe(true)
+    expect(active.hasClass('text-base-100')).toBe(true)
 
-    const inactive = $('[data-testid="events-filter-status-chip"]').first()
+    const all = $('[data-testid="events-status-tile"]').first()
 
-    expect(inactive.attr('class')).not.toContain('btn-active')
+    expect(all.attr('aria-current')).toBeUndefined()
+    expect(all.hasClass('bg-base-content')).toBe(false)
   })
 
-  // The `join` draws the group's one outline. The active segment recolours
-  // the edge it already has to match its inverse fill; nothing adds a line.
-  test('gives no segment a border of its own', async () => {
+  // `stats` scrolls on overflow and would clip an outer ring, so the focus
+  // outline is drawn inside the tile.
+  test("draws each tile's focus ring inside it", async () => {
     const { $ } = await viewPage('/dev-ops/events?status=DEAD_LETTER')
 
-    const segments = $(
-      '[data-testid="events-filter-status-chip"], [data-testid="events-filter-service-chip"], [data-testid="events-filter-audit-chip"]'
-    )
-
-    expect(segments.length).toBeGreaterThan(0)
-    segments.toArray().forEach((segment) => {
-      const borders = ($(segment).attr('class') ?? '')
-        .split(' ')
-        .filter((name) => name.startsWith('border'))
-
-      expect(borders).toEqual(
-        $(segment).is('[aria-current]') ? ['border-base-content'] : []
-      )
-    })
+    for (const tile of $('[data-testid="events-status-tile"]').toArray()) {
+      expect($(tile).hasClass('focus-visible:-outline-offset-4')).toBe(true)
+    }
   })
 
-  test('fills All, and Hide, on a page opened with no filter', async () => {
+  test('selects All statuses and All services on a page opened with no filter', async () => {
     const { $ } = await viewPage()
 
     const active = $('[aria-current="page"]')
       .toArray()
-      .map((chip) => flatten($(chip).text()))
+      .map((option) => flatten($(option).text()))
 
-    expect(active).toEqual(['All', 'All', 'Hide'])
+    expect(active).toEqual(['All 243,260', 'All'])
   })
 
-  test('renders every chip as a link that keeps the other filter', async () => {
+  test('renders every tile as a link that keeps the other filters', async () => {
     const { $ } = await viewPage('/dev-ops/events?service=gas')
 
-    expect(
-      segmentFor($, 'events-filter-status-chip', 'FAILED').attr('href')
-    ).toBe('/dev-ops/events?status=FAILED&service=gas')
-    expect(
-      $('[data-testid="events-filter-status-chip"]').first().attr('href')
-    ).toBe('/dev-ops/events?service=gas')
+    expect(segmentFor($, 'events-status-tile', 'FAILED').attr('href')).toBe(
+      '/dev-ops/events?status=FAILED&service=gas'
+    )
+    expect($('[data-testid="events-status-tile"]').first().attr('href')).toBe(
+      '/dev-ops/events?service=gas'
+    )
   })
 
   test('drops the cursor from every filter link, restarting the paging', async () => {
@@ -1087,22 +1179,25 @@ describe('viewEventsRoute', () => {
       '/dev-ops/events?cursor=END&direction=forward&status=FAILED'
     )
 
-    const hrefs = $('[data-testid="events-filters"] a')
+    const hrefs = $(
+      '[data-testid="events-status-tiles"] a, [data-testid="events-toolbar"] a'
+    )
       .toArray()
-      .map((chip) => $(chip).attr('href') ?? '')
+      .map((link) => $(link).attr('href') ?? '')
 
     expect(hrefs).not.toHaveLength(0)
     expect(hrefs.some((href) => href.includes('cursor'))).toBe(false)
     expect(hrefs.some((href) => href.includes('direction'))).toBe(false)
   })
 
-  test('keeps the filter bar on a page whose filter found nothing', async () => {
+  test('keeps the filters on a page whose filter found nothing', async () => {
     givenEvents([])
 
     const { $ } = await viewPage('/dev-ops/events?status=DEAD_LETTER')
 
     expect($('[data-testid="events-empty"]')).toHaveLength(1)
-    expect($('[data-testid="events-filter-status-chip"]')).toHaveLength(7)
+    expect($('[data-testid="events-status-tile"]')).toHaveLength(7)
+    expect($('[data-testid="events-toolbar"]')).toHaveLength(1)
   })
 
   test('keeps the filter bar when nothing could be read at all', async () => {
@@ -1110,20 +1205,30 @@ describe('viewEventsRoute', () => {
 
     const { $ } = await viewPage()
 
-    expect($('[data-testid="events-filters"]')).toHaveLength(1)
+    expect($('[data-testid="events-toolbar"]')).toHaveLength(1)
   })
 
-  test('sits the filter bar between the heading and the table', async () => {
+  test('sits the tiles and the toolbar between the heading and the table', async () => {
     const { $ } = await viewPage()
 
     const order = $('main [data-testid]')
       .toArray()
       .map((node) => $(node).attr('data-testid'))
       .filter((id) =>
-        ['events-heading', 'events-filters', 'events-card'].includes(id ?? '')
+        [
+          'events-heading',
+          'events-status-tiles',
+          'events-toolbar',
+          'events-card'
+        ].includes(id ?? '')
       )
 
-    expect(order).toEqual(['events-heading', 'events-filters', 'events-card'])
+    expect(order).toEqual([
+      'events-heading',
+      'events-status-tiles',
+      'events-toolbar',
+      'events-card'
+    ])
   })
 
   test('draws no TYPE control at all', async () => {
@@ -1131,12 +1236,6 @@ describe('viewEventsRoute', () => {
 
     expect($('[data-testid="events-filter-kind"]')).toHaveLength(0)
     expect($('[data-testid="events-filter-kind-chip"]')).toHaveLength(0)
-    expect(segments($, 'events-filter-label')).toEqual([
-      'Service',
-      'Status',
-      'Audit records',
-      'Time'
-    ])
   })
 
   test('puts no kind on any filter segment link', async () => {
@@ -1151,14 +1250,16 @@ describe('viewEventsRoute', () => {
     }
   })
 
-  test('keeps the search on the status and service segments', async () => {
+  test('keeps the search on the status tiles and the service menu', async () => {
     const { $ } = await viewPage('/dev-ops/events?q=gld-9b2')
 
-    const hrefs = $('[data-testid="events-filters"] a')
+    const hrefs = $(
+      '[data-testid="events-status-tile"], [data-testid="events-filter-service-chip"]'
+    )
       .toArray()
-      .map((chip) => $(chip).attr('href') ?? '')
+      .map((link) => $(link).attr('href') ?? '')
 
-    expect(hrefs).not.toHaveLength(0)
+    expect(hrefs).toHaveLength(10)
     expect(hrefs.every((href) => href.includes('q=gld-9b2'))).toBe(true)
   })
 
@@ -1168,7 +1269,14 @@ describe('viewEventsRoute', () => {
     const form = $('[data-testid="events-search"]')
     const input = $('[data-testid="events-search-input"]')
 
-    expect(form.closest('[data-testid="events-controls"]')).toHaveLength(1)
+    expect(form.closest('[data-testid="events-toolbar"]')).toHaveLength(1)
+    // md, like every control in the toolbar.
+    expect($('[data-testid="events-search-label"]').attr('class')).toBe(
+      'input join-item w-80'
+    )
+    expect($('[data-testid="events-search-submit"]').attr('class')).toBe(
+      'btn join-item'
+    )
     expect(form.attr('method')).toBe('get')
     expect(form.attr('action')).toBe('/dev-ops/events')
     expect(input.attr('type')).toBe('search')
@@ -1228,7 +1336,9 @@ describe('viewEventsRoute', () => {
   })
 
   // An auto table measures its contents, so a page of 24-hex ids sized Event
-  // differently from a page of uuids and paging read as a rebuild.
+  // differently from a page of uuids and paging read as a rebuild. Two sets
+  // of shares: one tuned at 1024px, and one from `xl` that gives the short
+  // columns' spare width back to Event.
   test('fixes the column widths in proportion, on the headers', async () => {
     const { $ } = await viewPage()
 
@@ -1238,8 +1348,18 @@ describe('viewEventsRoute', () => {
     expect(
       headings($)
         .toArray()
-        .map((cell) => classOf($(cell)).replace(' text-right', ''))
-    ).toEqual(['w-[46%]', 'w-[19%]', 'w-[21%]', 'w-[14%]'])
+        .map((cell) =>
+          classOf($(cell))
+            .split(' ')
+            .filter((name) => /(^|:)w-/.test(name))
+        )
+    ).toEqual([
+      ['w-[41%]', 'xl:w-[52.5%]'],
+      ['w-[9%]', 'xl:w-[6.5%]'],
+      ['w-[21%]', 'xl:w-[18.5%]'],
+      ['w-[15%]', 'xl:w-[12.5%]'],
+      ['w-[14%]', 'xl:w-[10%]']
+    ])
   })
 
   // The proportions do not move with the filter: a table that re-lays itself
@@ -1256,48 +1376,68 @@ describe('viewEventsRoute', () => {
         .map((cell) => classOf($(cell)))
 
     expect(widths(healthy)).toEqual(widths(dead))
-    expect(dead('[data-testid="event-row"] > td')).toHaveLength(4)
+    expect(dead('[data-testid="event-row"] > td')).toHaveLength(5)
   })
 
-  // A fixed column cannot grow to fit, so everything that could outrun one is
-  // cut by the column and kept whole on its title.
-  test('cuts what outruns a fixed column, and keeps it on the title', async () => {
+  // A fixed column cannot grow to fit, so the name, the id, the service and
+  // the box are cut by the column rather than wrapping. None carries a title:
+  // a row that is one big link shows no tooltip, and the raw type and the
+  // transport are the row's own page to show.
+  test('cuts what outruns a fixed column, and hangs no tooltip on the row', async () => {
     givenEvents([failing('connect ETIMEDOUT 10.0.3.14:443')])
 
     const { $ } = await viewPage()
 
     for (const testId of [
+      'event-link',
       'event-id',
-      'event-type',
-      'event-hop',
-      'event-queue'
+      'event-service',
+      'event-box'
     ]) {
       const cell = $(`[data-testid="${testId}"]`)
 
       expect(classOf(cell)).toContain('truncate')
-      expect(cell.attr('title')).not.toBe('')
-      expect(cell.attr('title')).toBeDefined()
+      expect(cell.attr('title')).toBeUndefined()
+    }
+    // The cut sits inside the cell: an `overflow: hidden` cell would take
+    // the hit-test from the row's stretched link.
+    for (const testId of ['event-service', 'event-box']) {
+      expect(classOf($(`[data-testid="${testId}"]`).parent())).not.toContain(
+        'overflow-hidden'
+      )
     }
   })
 
-  test('right-aligns the column of figures, header and cells', async () => {
-    givenEvents([event()])
+  // Created is the one column of figures, right-aligned; Service and Queue
+  // are two short words each, centred; Event and Status keep the left edge.
+  test('aligns each column, header and cells alike', async () => {
+    givenEvents([event({ ...completed, latency: '1.2s' })])
 
     const { $ } = await viewPage()
 
+    const alignOf = (cell: Cheerio<Element>) =>
+      classOf(cell)
+        .split(' ')
+        .filter(
+          (name) =>
+            name.startsWith('text-') && /(left|center|right)$/.test(name)
+        )
     const heads = headings($)
+      .toArray()
+      .map((cell) => alignOf($(cell)))
+    const cells = $('[data-testid="event-row"]')
+      .first()
+      .find('> td')
+      .toArray()
+      .map((cell) => alignOf($(cell)))
+    const expected = [[], ['text-center'], ['text-center'], [], ['text-right']]
 
-    expect(heads.eq(3).attr('class')).toContain('text-right')
-    expect(classOf(heads.eq(0))).not.toContain('text-right')
-    expect(classOf(heads.eq(1))).not.toContain('text-right')
-    expect(classOf(heads.eq(2))).not.toContain('text-right')
-
-    const cells = $('[data-testid="event-row"]').first().find('td')
-
-    expect(cells.eq(3).attr('class')).toContain('text-right')
-    expect(classOf(cells.eq(0))).not.toContain('text-right')
-    expect(classOf(cells.eq(1))).not.toContain('text-right')
-    expect(classOf(cells.eq(2))).not.toContain('text-right')
+    expect(heads).toEqual(expected)
+    expect(cells).toEqual(expected)
+    // The status's "took …" line keeps its indent under the label.
+    expect($('[data-testid="event-latency"]').attr('class') ?? '').toContain(
+      'pl-3.5'
+    )
   })
 
   test('sets every figure in tabular monospace', async () => {
@@ -1316,26 +1456,26 @@ describe('viewEventsRoute', () => {
     })
   })
 
-  // `Queue` is the one word all three surfaces use: the column here, the fact
-  // on an event's own page, and the journey table's first column.
-  test('heads the table with its four columns in order', async () => {
+  // The service and the box as columns of their own, where one column used
+  // to join them as the hop.
+  test('heads the table with its five columns in order', async () => {
     const { $ } = await viewPage()
 
     expect(
       headings($)
         .toArray()
         .map((cell) => $(cell).text().trim())
-    ).toEqual(['Event', 'Status', 'Queue', 'Created'])
+    ).toEqual(['Event', 'Service', 'Queue', 'Status', 'Created'])
   })
 
   test('adds no further column for actions, counts, failures or a source chip', async () => {
     const { $ } = await viewPage()
 
-    expect(headings($)).toHaveLength(4)
-    expect($('[data-testid="event-row"]').first().find('> td')).toHaveLength(4)
+    expect(headings($)).toHaveLength(5)
+    expect($('[data-testid="event-row"]').first().find('> td')).toHaveLength(5)
   })
 
-  test('starts every row at the id, with no gutter and no caret', async () => {
+  test("starts every row at the event's name, with no gutter and no caret", async () => {
     givenEvents([...storm(3), event({ id: 'alone', eventId: 'alone' })])
 
     const { $ } = await viewPage()
@@ -1346,7 +1486,7 @@ describe('viewEventsRoute', () => {
 
     expect(firsts).toHaveLength(4)
     firsts.forEach((cell) => {
-      expect(cell.find('[data-testid="event-id"]')).toHaveLength(1)
+      expect(cell.children().first().attr('data-testid')).toBe('event-link')
     })
     expect($('[data-testid="events-table"] .do-caret')).toHaveLength(0)
     expect($('[data-testid="events-table"] input')).toHaveLength(0)
@@ -1359,7 +1499,7 @@ describe('viewEventsRoute', () => {
     const table = $('[data-testid="events-table"]')
 
     expect(table.is('table')).toBe(true)
-    expect(table.attr('class')).toContain('table table-sm')
+    expect(table.hasClass('table')).toBe(true)
     expect(table.attr('role')).toBeUndefined()
     expect($('[data-testid="events-head"]').is('tr')).toBe(true)
     expect($('[data-testid="events-head"]').closest('thead')).toHaveLength(1)
@@ -1468,13 +1608,13 @@ describe('viewEventsRoute', () => {
       .toArray()
       .map((node) => $(node).attr('data-testid'))
       .filter((id) =>
-        ['events-filters', 'events-filter-notes', 'events-card'].includes(
+        ['events-toolbar', 'events-filter-notes', 'events-card'].includes(
           id ?? ''
         )
       )
 
     expect(order).toEqual([
-      'events-filters',
+      'events-toolbar',
       'events-filter-notes',
       'events-card'
     ])
@@ -1509,39 +1649,19 @@ describe('viewEventsRoute', () => {
 
   // ── The total ───────────────────────────────────────────────────────────
 
-  // Over the table, not on a filter: it is the one number that answers to
-  // every filter at once.
-  test('states the total over the table, and on no segment', async () => {
-    const { $ } = await viewPage()
+  // The All tile carries the figure; the card states no total of its own.
+  test('states no total over the table', async () => {
+    for (const url of [
+      '/dev-ops/events',
+      '/dev-ops/events?status=DEAD_LETTER'
+    ]) {
+      const { $ } = await viewPage(url)
 
-    const total = $('[data-testid="events-total"]')
-
-    expect(flatten(total.text())).toBe('243,260 events')
-    expect(total.closest('[data-testid="events-card"]')).toHaveLength(1)
-    expect(total.closest('[data-testid="events-filters"]')).toHaveLength(0)
-    expect(total.attr('title')).toBe(
-      'Events matching every filter on this page'
-    )
-  })
-
-  test('moves the total when the status filter moves', async () => {
-    const { $ } = await viewPage('/dev-ops/events?status=DEAD_LETTER')
-
-    expect(flatten($('[data-testid="events-total"]').text())).toBe(
-      '7,064 events'
-    )
-    // ...while the segments stay a facet and keep their own figures.
-    expect(
-      segmentFor($, 'events-filter-status-chip', 'COMPLETED').text()
-    ).toContain('236,196')
-  })
-
-  test('draws no total at all when the counts could not be read', async () => {
-    givenNoCounts()
-
-    const { $ } = await viewPage()
-
-    expect($('[data-testid="events-total"]')).toHaveLength(0)
+      expect($('[data-testid="events-total"]')).toHaveLength(0)
+      expect($('[data-testid="events-card"]').text()).not.toMatch(
+        /\d[\d,]* events?\b/
+      )
+    }
   })
 
   test('claims no total the endpoint never reported', async () => {
@@ -1561,59 +1681,127 @@ describe('viewEventsRoute', () => {
     expect($('[data-testid="do-pager"]')).toHaveLength(0)
   })
 
-  // The id leads: it is the one identifier every row has — an audit record
-  // publishes no CloudEvent type.
-  test('leads the identity cell with the id, in semibold mono', async () => {
+  // What the event is leads the row, at full contrast and in the sans face,
+  // so it never reads as the id.
+  test('leads the identity cell with the name, in semibold sans', async () => {
+    const { $ } = await viewPage()
+
+    const link = $('[data-testid="event-link"]')
+
+    expect(link.find('[data-testid="event-type-name"]').text()).toBe(
+      'CaseStatusUpdated'
+    )
+    expect(link.hasClass('text-sm')).toBe(true)
+    expect(link.hasClass('font-semibold')).toBe(true)
+    expect(classOf(link)).not.toContain('font-mono')
+    expect(classOf(link)).not.toContain('text-base-content/')
+  })
+
+  // PascalCase to see, and — since many rows share a name — the spaced name
+  // plus the id to hear, so every row's link has a name of its own.
+  test('names the link with the spoken name and the id', async () => {
+    const { $ } = await viewPage()
+
+    const link = $('[data-testid="event-link"]')
+    const name = $('[data-testid="event-type-name"]')
+    const spoken = $('[data-testid="event-link-name"]')
+
+    expect(name.attr('aria-hidden')).toBe('true')
+    expect(spoken.text()).toBe(
+      `Case status updated, event 3f2c1a0e-1111-2222-3333-444455556666`
+    )
+    expect(spoken.hasClass('sr-only')).toBe(true)
+    expect(link.attr('title')).toBeUndefined()
+    expect(link.attr('aria-label')).toBeUndefined()
+  })
+
+  test("gives every row's link a name of its own", async () => {
+    givenEvents(storm(3))
+
+    const { $ } = await viewPage()
+
+    const names = $('[data-testid="event-link-name"]')
+      .toArray()
+      .map((name) => $(name).text())
+
+    expect(names).toHaveLength(3)
+    expect(new Set(names).size).toBe(3)
+    $('[data-testid="event-row"]')
+      .toArray()
+      .forEach((row) => {
+        expect($(row).find('[data-testid="event-link-name"]').text()).toContain(
+          $(row).find('[data-testid="event-id"]').text()
+        )
+      })
+  })
+
+  // The id under the name: plain muted mono, whole and selectable, and not a
+  // second link.
+  test('sets the id under the name, as muted mono text', async () => {
     const { $ } = await viewPage()
 
     const id = $('[data-testid="event-id"]')
 
-    expect(id.text()).toBe('3f2c1a0e-1111-2222-3333-444455556666')
-    expect(id.attr('class')).toContain('text-sm')
-    expect(id.attr('class')).toContain('font-semibold')
+    expect(id.is('a')).toBe(false)
+    expect(id.find('a')).toHaveLength(0)
+    expect(id.hasClass('font-mono')).toBe(true)
+    expect(id.hasClass('text-sm')).toBe(true)
+    expect(id.hasClass('text-base-content/70')).toBe(true)
+    expect(id.hasClass('font-semibold')).toBe(false)
   })
 
-  test('sets the type under the id, smaller and quieter', async () => {
+  // The service in the Service filter's own words, and the box in words:
+  // plain text, no titles, and no hop joining them.
+  test('says the service and the box in their own columns, with no title', async () => {
     const { $ } = await viewPage()
 
-    const type = $('[data-testid="event-type"]')
+    const cells = $('[data-testid="event-row"]').first().find('> td')
 
-    expect(type.text()).toBe('case.status.updated')
-    expect(type.attr('class')).toContain('text-xs')
-    expect(type.attr('class')).not.toContain('font-semibold')
+    expect(flatten(cells.eq(1).text())).toBe('GAS')
+    expect(flatten(cells.eq(2).text())).toBe('Outbox')
+    for (const testId of ['event-service', 'event-box']) {
+      expect($(`[data-testid="${testId}"]`).attr('title')).toBeUndefined()
+      expect($(`[data-testid="${testId}"]`).find('a')).toHaveLength(0)
+    }
+    expect($('[data-testid="event-hop"]')).toHaveLength(0)
+    expect($('[data-testid="event-queue"]')).toHaveLength(0)
+    expect($('[data-testid="events-table"]').text()).not.toContain('GAS Outbox')
+    expect($('main').html()).not.toContain('gas__sns__update_case_status_fifo')
   })
 
-  test('keeps the id in mono and the type beneath it in sans', async () => {
-    const { $ } = await viewPage()
+  // Caseworking reads CW-BE here, in the column, on the trigger and in its
+  // menu alike; the wire value does not move.
+  test('says a Caseworking inbox row as CW-BE and Inbox', async () => {
+    givenEvents([event({ ...inbox, service: 'caseworking', hop: 'CW Inbox' })])
 
-    expect($('[data-testid="event-id"]').attr('class')).toContain('font-mono')
-    expect($('[data-testid="event-type"]').attr('class')).not.toContain(
-      'font-mono'
-    )
+    const { $ } = await viewPage('/dev-ops/events?service=caseworking')
+
+    expect($('[data-testid="event-service"]').text()).toBe('CW-BE')
+    expect($('[data-testid="event-box"]').text()).toBe('Inbox')
+    expect(
+      flatten($('[data-testid="events-filter-service-button"]').text())
+    ).toBe('Service: CW-BE')
+    expect(
+      flatten(segmentFor($, 'events-filter-service-chip', 'caseworking').text())
+    ).toBe('CW-BE')
+    // The subtitle keeps the endpoint's word.
+    expect($('[data-testid="events-subtitle"]').text()).toContain('Caseworking')
   })
 
-  test('keeps the hop label above the queue, quieter', async () => {
+  // A service or box this page has no word for is drawn as it was sent.
+  test('draws an unknown service or box as the endpoint sent it', async () => {
+    givenEvents([
+      event({
+        service: 'reporting' as unknown as EventRow['service'],
+        box: 'archive' as unknown as EventRow['box'],
+        hop: 'reporting Archive'
+      })
+    ])
+
     const { $ } = await viewPage()
 
-    const hop = $('[data-testid="event-hop"]')
-    const queue = $('[data-testid="event-queue"]')
-
-    // Truncation is the load-bearing half: the column is narrow and a hop
-    // that wraps takes the row's height with it.
-    expect(hop.attr('class')).toContain('truncate')
-    expect(queue.attr('class')).toContain('text-xs')
-    expect(queue.attr('class')).toContain('text-base-content/70')
-  })
-
-  test('leaves the cut to the column, on both of its lines', async () => {
-    const { $ } = await viewPage()
-
-    const hop = $('[data-testid="event-hop"]')
-    const queue = $('[data-testid="event-queue"]')
-
-    expect(hop.attr('title')).toBeDefined()
-    expect(queue.attr('title')).toBe('gas__sns__update_case_status_fifo')
-    expect(hop.text()).not.toContain('…')
+    expect($('[data-testid="event-service"]').text()).toBe('reporting')
+    expect($('[data-testid="event-box"]').text()).toBe('archive')
   })
 
   test('shows the whole event id, unshortened', async () => {
@@ -1632,25 +1820,28 @@ describe('viewEventsRoute', () => {
     expect($('[data-testid="events-table"]').text()).not.toContain('reference')
   })
 
-  test('sets the identity cell as the id line with the type beneath it', async () => {
+  test('sets the identity cell as the name link with the id beneath it', async () => {
     const { $ } = await viewPage()
 
     const cell = $('[data-testid="event-row"] > td').eq(0)
 
-    expect(cell.find('> a').attr('data-testid')).toBe('event-id')
+    expect(cell.find('> a').attr('data-testid')).toBe('event-link')
     expect(cell.find('> div')).toHaveLength(1)
-    expect(cell.find('> div').attr('data-testid')).toBe('event-type')
-    expect(flatten(cell.text())).toBe(
-      '3f2c1a0e-1111-2222-3333-444455556666 case.status.updated'
+    expect(cell.find('> div').attr('data-testid')).toBe('event-id')
+    expect(flatten(cell.find('> div').text())).toBe(
+      '3f2c1a0e-1111-2222-3333-444455556666'
     )
   })
 
-  test('names an audit row by the label the endpoint gave it', async () => {
+  test('names an audit row from the label the endpoint gave it', async () => {
     givenEvents([event({ type: 'audit' })])
 
     const { $ } = await viewPage()
 
-    expect($('[data-testid="event-type"]').text()).toBe('audit')
+    expect($('[data-testid="event-type-name"]').text()).toBe('AuditRecord')
+    expect($('[data-testid="event-link-name"]').text()).toBe(
+      `Audit record, event 3f2c1a0e-1111-2222-3333-444455556666`
+    )
     expect($('[data-testid="event-id"]').text()).toBe(
       '3f2c1a0e-1111-2222-3333-444455556666'
     )
@@ -1659,18 +1850,17 @@ describe('viewEventsRoute', () => {
 
   // Navigation, not a search: Mongo's unique constraint means `?q=<id>` could
   // only ever answer with the row already on screen.
-  test('links the event id at its own page, and never at a search', async () => {
+  test("links the name at the event's own page, and never at a search", async () => {
     const { $ } = await viewPage('/dev-ops/events?status=DEAD_LETTER')
 
-    const id = $('[data-testid="event-id"]')
+    const link = $('[data-testid="event-link"]')
 
-    expect(id.is('a')).toBe(true)
-    expect(id.attr('href')).toBe(
+    expect(link.is('a')).toBe(true)
+    expect(link.attr('href')).toBe(
       '/dev-ops/events/gas/outbox/665f1c2e9a1b2c3d4e5f6a7b?from=' +
         encodeURIComponent('?status=DEAD_LETTER')
     )
-    expect(id.attr('href')).not.toContain('?q=')
-    expect(id.attr('title')).toBe('3f2c1a0e-1111-2222-3333-444455556666')
+    expect(link.attr('href')).not.toContain('?q=')
   })
 
   test('says nothing about searching by id anywhere on the page', async () => {
@@ -1688,18 +1878,6 @@ describe('viewEventsRoute', () => {
     expect(
       $('[data-testid="events-table"] [data-testid="do-copy-button"]')
     ).toHaveLength(0)
-  })
-
-  // The raw target is what an AWS console takes, and the line above it shows
-  // a destination name — so the value stays reachable on the title.
-  test('keeps the raw queue value on the title, with nothing to click', async () => {
-    const { $ } = await viewPage()
-
-    const queue = $('[data-testid="event-queue"]')
-
-    expect(queue.text()).toBe('to Caseworking')
-    expect(queue.attr('title')).toBe('gas__sns__update_case_status_fifo')
-    expect(queue.next('[data-testid="do-copy-button"]')).toHaveLength(0)
   })
 
   test('shows how long ago the row was created', async () => {
@@ -1800,85 +1978,15 @@ describe('viewEventsRoute', () => {
     expect($('main').html()).not.toContain('bg-error/5')
   })
 
-  test('reads an outbox row as the hop it is, over where it went', async () => {
+  test('reads an outbox row as its service and box, and nothing more', async () => {
     const { $ } = await viewPage()
 
-    const cell = $('[data-testid="event-row"] > td').eq(2)
+    const cells = $('[data-testid="event-row"]').first().find('> td')
+    const text = flatten(cells.eq(1).text() + ' ' + cells.eq(2).text())
 
-    expect(flatten(cell.text())).toBe('GAS Outbox to Caseworking')
-    expect($('[data-testid="event-hop"]').text().trim()).toBe('GAS Outbox')
-    expect($('[data-testid="event-queue"]').text().trim()).toBe(
-      'to Caseworking'
-    )
-    expect(cell.text()).not.toContain('→')
-    expect(cell.text()).not.toContain('via')
-  })
-
-  test('keeps the raw target on the title behind the destination', async () => {
-    const { $ } = await viewPage()
-
-    const queue = $('[data-testid="event-queue"]')
-
-    expect(queue.text()).toBe('to Caseworking')
-    expect(queue.attr('title')).toBe('gas__sns__update_case_status_fifo')
-  })
-
-  test('draws whichever destination the endpoint named, over its own topic', async () => {
-    givenEvents([
-      event({
-        queue: 'to Agreements',
-        queueValue: 'gas__sns__update_agreement_status_fifo.fifo'
-      })
-    ])
-
-    const { $ } = await viewPage()
-
-    const queue = $('[data-testid="event-queue"]')
-
-    expect(queue.text()).toBe('to Agreements')
-    expect(queue.attr('title')).toBe(
-      'gas__sns__update_agreement_status_fifo.fifo'
-    )
-  })
-
-  // An inbox row has no topic, so line two names the producer instead — a
-  // sentence rather than a value: nothing to copy.
-  test('names the producer of an inbox row, with nothing to copy', async () => {
-    givenEvents([
-      event({
-        ...inbox,
-        service: 'caseworking',
-        hop: 'CW Inbox',
-        queue: 'from GAS'
-      })
-    ])
-
-    const { $ } = await viewPage()
-
-    const cell = $('[data-testid="event-row"] [role="cell"]').eq(3)
-
-    expect($('[data-testid="event-hop"]').text().trim()).toBe('CW Inbox')
-    expect($('[data-testid="event-queue"]').text().trim()).toBe('from GAS')
-    expect($('[data-testid="event-queue"]').attr('title')).toBeUndefined()
-    expect(cell.find('[data-testid="do-copy-button"]')).toHaveLength(0)
-  })
-
-  // Plain text, not a link: narrowing to a service is the toolbar's job, and
-  // a link on every row of a column of four repeating values was mostly a way
-  // to leave the page by accident. The detail page's Queue fact still links -
-  // event-page.view-model.test.ts holds that, and the words both surfaces
-  // share.
-  test('draws the hop as plain text, linking nowhere', async () => {
-    const { $ } = await viewPage(
-      '/dev-ops/events?status=DEAD_LETTER&cursor=WHERE-I-WAS'
-    )
-
-    const hop = $('[data-testid="event-hop"]').first()
-
-    expect(hop.is('a')).toBe(false)
-    expect(hop.attr('href')).toBeUndefined()
-    expect(hop.text().trim()).toBe('GAS Outbox')
-    expect(hop.find('a')).toHaveLength(0)
+    expect(text).toBe('GAS Outbox')
+    expect(text).not.toContain('to Caseworking')
+    expect(text).not.toContain('→')
   })
 
   test('carries no service filter link on any row of the table', async () => {
@@ -1893,7 +2001,7 @@ describe('viewEventsRoute', () => {
     expect(hrefs.some((href) => href.includes('service='))).toBe(false)
   })
 
-  test('names an audit row by its id, with audit under it', async () => {
+  test('names an audit row by its id, with its name under it', async () => {
     givenEvents([
       event({
         eventId: '665f1c2e9a1b2c3d4e5f6a7b',
@@ -1908,48 +2016,49 @@ describe('viewEventsRoute', () => {
     expect($('[data-testid="event-id"]').text()).toBe(
       '665f1c2e9a1b2c3d4e5f6a7b'
     )
-    expect($('[data-testid="event-type"]').text()).toBe('audit')
-    expect($('[data-testid="event-hop"]').text().trim()).toBe('GAS Outbox')
-    expect($('[data-testid="event-queue"]').text()).toBe('to Audit')
+    expect($('[data-testid="event-type-name"]').text()).toBe('AuditRecord')
+    expect($('[data-testid="event-service"]').text()).toBe('GAS')
+    expect($('[data-testid="event-box"]').text()).toBe('Outbox')
   })
 
-  // The page renders whatever label the endpoint sends. `unknown` is the
-  // label for a record that stores no type and is not an audit record — an
-  // anomaly worth seeing, not noise.
-  test.each([['audit'], ['unknown'], ['case.status.updated']])(
-    'draws the %s label like any other type',
-    async (type) => {
-      givenEvents([event({ type })])
+  // The page names whatever label the endpoint sends. `unknown` is the label
+  // for a record that stores no type and is not an audit record — an anomaly
+  // worth seeing, not noise.
+  test.each([
+    ['audit', 'AuditRecord'],
+    ['unknown', 'NoTypeRecorded'],
+    ['case.status.updated', 'CaseStatusUpdated']
+  ])('names the %s label like any other type', async (type, name) => {
+    givenEvents([event({ type })])
 
-      const { $ } = await viewPage()
+    const { $ } = await viewPage()
 
-      const line = $('[data-testid="event-type"]')
+    const link = $('[data-testid="event-link"]')
 
-      expect(line.text()).toBe(type)
-      expect(line.attr('class')).toContain('text-base-content/60')
-      expect(line.attr('title')).toBe(type)
-    }
-  )
+    expect(link.find('[data-testid="event-type-name"]').text()).toBe(name)
+    expect(link.hasClass('font-semibold')).toBe(true)
+  })
 
-  test('keeps an audit row openable through its id', async () => {
+  test('keeps an audit row openable through its name', async () => {
     givenEvents([event({ eventId: '665f1c2e9a1b2c3d4e5f6a7b', type: 'audit' })])
 
     const { $ } = await viewPage()
 
-    const id = $('[data-testid="event-id"]')
+    const link = $('[data-testid="event-link"]')
 
-    expect(id.is('a')).toBe(true)
-    expect(id.attr('href')).toContain('/dev-ops/events/gas/outbox/')
+    expect(link.is('a')).toBe(true)
+    expect(link.attr('href')).toContain('/dev-ops/events/gas/outbox/')
   })
 
-  test('keeps the whole type on the title of a column that can cut it', async () => {
+  // The raw type is the detail page's Type fact to show; the row names the
+  // event and nothing more, on hover or otherwise.
+  test('shows the raw type nowhere on the row', async () => {
     const { $ } = await viewPage()
 
-    const type = $('[data-testid="event-type"]')
-
-    expect(type.attr('title')).toBe('case.status.updated')
-    expect(type.text()).toBe('case.status.updated')
-    expect(classOf(type)).toContain('truncate')
+    expect($('[data-testid="event-row"]').html()).not.toContain(
+      'case.status.updated'
+    )
+    expect($('[data-testid="event-link"]').attr('title')).toBeUndefined()
   })
 
   test('marks a dead letter row red and washes the row it sits on', async () => {
@@ -1999,13 +2108,14 @@ describe('viewEventsRoute', () => {
     expect($('[data-testid="event-row"]').attr('class')).toBe(rowClass)
   })
 
-  // The one width the table declares for itself: below it the columns of ids
-  // do not fit, and the box around it scrolls instead of the page.
-  test('keeps the table on daisyUI classes and one minimum width', async () => {
+  // Where the page sticks the table is the card's width; below that it keeps
+  // its 64rem minimum and scrolls sideways. Its header row pins under the
+  // sticky top rather than at the top of the window.
+  test('keeps the table on daisyUI classes, full width where the page sticks', async () => {
     const { $ } = await viewPage()
 
     expect($('[data-testid="events-table"]').attr('class')).toBe(
-      'table table-sm table-pin-rows min-w-[64rem] table-fixed'
+      'table table-pin-rows w-full min-w-[64rem] table-fixed [@media(min-width:64rem)_and_(min-height:40rem)]:min-w-0 [@media(min-width:64rem)_and_(min-height:40rem)]:[&_thead]:top-[var(--sticky-top,15rem)]'
     )
   })
 
@@ -2185,10 +2295,9 @@ describe('viewEventsRoute', () => {
     expect($.html()).not.toContain('data-explorer')
   })
 
-  // The cell shows the whole id, so a hostile string reaches both the text
-  // and the title — and has to arrive as text in one and stay inside the
-  // attribute in the other.
-  test('escapes an event id containing markup, in the cell and in its title', async () => {
+  // The cell shows the whole id, and the link's spoken name says it again —
+  // a hostile string has to arrive as text in both.
+  test("escapes an event id containing markup, in the cell and in the link's name", async () => {
     givenEvents([event({ eventId: xss })])
 
     const { $ } = await viewPage()
@@ -2197,7 +2306,9 @@ describe('viewEventsRoute', () => {
 
     expect(id.find('script')).toHaveLength(0)
     expect(id.text()).toBe(xss)
-    expect(id.attr('title')).toContain(xss)
+    // ...and in the link's spoken name, which says the id too.
+    expect(escapingOf($, 'event-link').scripts).toBe(0)
+    expect($('[data-testid="event-link-name"]').text()).toContain(xss)
     expect($('script')).toHaveLength(1)
   })
 
@@ -2206,31 +2317,7 @@ describe('viewEventsRoute', () => {
 
     const { $ } = await viewPage()
 
-    expect(escapingOf($, 'event-type')).toEqual(rendersAsText)
-  })
-
-  // The queue line is shown and its raw topic put on a title — two places an
-  // unescaped one would break out of.
-  test('escapes a queue containing markup, on the line and in its title', async () => {
-    givenEvents([event({ queue: `to ${xss}`, queueValue: xss })])
-
-    const { $ } = await viewPage()
-
-    const queue = $('[data-testid="event-queue"]')
-
-    expect(escapingOf($, 'event-queue')).toEqual(rendersAsText)
-    expect(queue.attr('title')).toBe(xss)
-    expect($('script')).toHaveLength(1)
-  })
-
-  test('escapes the producer of an inbox row when it contains markup', async () => {
-    givenEvents([event({ ...inbox, queue: `from ${xss}` })])
-
-    const { $ } = await viewPage()
-
-    expect(escapingOf($, 'event-queue').scripts).toBe(0)
-    expect($('[data-testid="event-queue"]').text()).toBe(`from ${xss}`)
-    expect($('script')).toHaveLength(1)
+    expect(escapingOf($, 'event-type-name')).toEqual(rendersAsText)
   })
 
   test('escapes a status containing markup', async () => {
@@ -2282,84 +2369,14 @@ describe('viewEventsRoute', () => {
     expect($('script').attr('type')).toBe('module')
   })
 
-  test('links Newer and Older to the cursors the endpoint issued', async () => {
-    givenEvents([event()], {
-      startCursor: 'START',
-      endCursor: 'END',
-      hasNextPage: true,
-      hasPreviousPage: true
-    })
-
-    const { $ } = await viewPage()
-
-    // The list is newest first, so the backward cursor walks towards the
-    // events that arrived after these and the forward one towards the ones
-    // before. That is what the two labels say, and it is why they say time
-    // rather than page order.
-    expect($('[data-testid="do-pager-newer"]').attr('href')).toBe(
-      '/dev-ops/events?cursor=START&direction=backward'
-    )
-    expect($('[data-testid="do-pager-older"]').attr('href')).toBe(
-      '/dev-ops/events?cursor=END&direction=forward'
-    )
-    expect($('[data-testid="do-pager-newer"]').text()).toBe('← Newer')
-    expect($('[data-testid="do-pager-older"]').text()).toBe('Older →')
-  })
-
-  test('keeps the status filter on both links', async () => {
-    givenEvents([event()], {
-      startCursor: 'START',
-      endCursor: 'END',
-      hasNextPage: true,
-      hasPreviousPage: true
-    })
+  test('keeps the status filter on the next page', async () => {
+    givenEvents([event()], { endCursor: 'END', hasNextPage: true })
 
     const { $ } = await viewPage('/dev-ops/events?status=DEAD_LETTER')
 
-    expect($('[data-testid="do-pager-newer"]').attr('href')).toContain(
-      'status=DEAD_LETTER'
+    expect($('[data-testid="events-load-more"]').attr('data-next-page')).toBe(
+      '/dev-ops/events?cursor=END&status=DEAD_LETTER'
     )
-    expect($('[data-testid="do-pager-older"]').attr('href')).toContain(
-      'status=DEAD_LETTER'
-    )
-  })
-
-  test('keeps the service filter on both links', async () => {
-    givenEvents([event()], {
-      startCursor: 'START',
-      endCursor: 'END',
-      hasNextPage: true,
-      hasPreviousPage: true
-    })
-
-    const { $ } = await viewPage('/dev-ops/events?service=gas')
-
-    expect($('[data-testid="do-pager-newer"]').attr('href')).toContain(
-      'service=gas'
-    )
-    expect($('[data-testid="do-pager-older"]').attr('href')).toContain(
-      'service=gas'
-    )
-  })
-
-  test('links no Newer on the newest page, and holds its place', async () => {
-    givenEvents([event()], { endCursor: 'END', hasNextPage: true })
-
-    const { $ } = await viewPage()
-
-    expect($('[data-testid="do-pager-newer"]')).toHaveLength(0)
-    expect($('[data-testid="do-pager-newer-disabled"]')).toHaveLength(1)
-    expect($('[data-testid="do-pager-older"]')).toHaveLength(1)
-  })
-
-  test('links no Older on the oldest page, and holds its place', async () => {
-    givenEvents([event()], { startCursor: 'START', hasPreviousPage: true })
-
-    const { $ } = await viewPage()
-
-    expect($('[data-testid="do-pager-older"]')).toHaveLength(0)
-    expect($('[data-testid="do-pager-older-disabled"]')).toHaveLength(1)
-    expect($('[data-testid="do-pager-newer"]')).toHaveLength(1)
   })
 
   test('omits the pager when there are no events', async () => {
@@ -2378,17 +2395,6 @@ describe('viewEventsRoute', () => {
     expect($('[data-testid="do-pager-count"]')).toHaveLength(0)
     expect($('[data-testid="do-pager"]').text()).not.toContain('event')
     expect($('[data-testid="do-pager"]').text()).not.toContain('group')
-  })
-
-  // The bar is the table's bottom edge as well as its control: without it the
-  // last row simply falls off the card.
-  test('draws the bottom edge on a page with no links at all', async () => {
-    const { $ } = await viewPage()
-
-    expect($('[data-testid="do-pager"]')).toHaveLength(1)
-    expect($('[data-testid="do-pager"] a')).toHaveLength(0)
-    expect($('[data-testid="do-pager-newer-disabled"]')).toHaveLength(1)
-    expect($('[data-testid="do-pager-older-disabled"]')).toHaveLength(1)
   })
 
   test('names the unavailable sources when Caseworking is not configured', async () => {
@@ -2431,7 +2437,7 @@ describe('viewEventsRoute', () => {
     expect($('[data-testid="event-row"]')).toHaveLength(2)
   })
 
-  test('keeps the pager working on a partial page', async () => {
+  test('keeps loading on a partial page', async () => {
     givenEvents([event()], { endCursor: 'END', hasNextPage: true }, [
       {
         service: 'caseworking',
@@ -2444,7 +2450,9 @@ describe('viewEventsRoute', () => {
     const { $ } = await viewPage()
 
     expect($('[data-testid="events-partial"]')).toHaveLength(1)
-    expect($('[data-testid="do-pager-older"]')).toHaveLength(1)
+    expect($('[data-testid="events-load-more"]').attr('data-next-page')).toBe(
+      '/dev-ops/events?cursor=END'
+    )
   })
 
   test('shows the error alert when the page could not be read', async () => {
@@ -2554,36 +2562,56 @@ describe('viewEventsRoute', () => {
     ).toHaveLength(0)
   })
 
-  // The document does not scroll: the page is the viewport, and the rows
-  // travel inside the card while the toolbar above them stays put. Only
-  // where the viewport has room for it: zoomed in, the frame would leave the
-  // table no height, so there the document scrolls.
-  test('scrolls the table inside its own container, not the page', async () => {
+  // The document scrolls and the table is as tall as its rows: no inner
+  // scroller, no locked frame. Sideways only, and only below the sticky
+  // breakpoint, where the table keeps its minimum width.
+  test('scrolls the page, not a box around the table', async () => {
     const { $ } = await viewPage()
 
     const scroller = $('[data-testid="events-scroller"]')
 
-    expect(scroller.hasClass('overflow-y-auto')).toBe(true)
-    expect(scroller.hasClass('overflow-x-auto')).toBe(true)
-    // It takes whatever height the card has left, and gives none of it back.
-    expect(scroller.hasClass('flex-1')).toBe(true)
-    expect(scroller.hasClass('min-h-0')).toBe(true)
+    expect(scroller.attr('class')).toBe(
+      'w-full overflow-x-auto [@media(min-width:64rem)_and_(min-height:40rem)]:overflow-visible'
+    )
     expect(scroller.find('[data-testid="events-table"]')).toHaveLength(1)
-    // A row brought into view by focus stops below the pinned header.
-    expect(scroller.hasClass('scroll-pt-10')).toBe(true)
+    expect(classOf($('body'))).toBe('flex min-h-dvh flex-col bg-base-200')
+    expect($('main').html()).not.toContain('overflow-y-auto overscroll-contain')
+  })
 
-    const body = $('body')
+  // The heading, the tiles and the toolbar stick as one opaque block under
+  // the navbar, which sticks too — only where the viewport has room.
+  test('sticks the top of the page, and the bar above it, where there is room', async () => {
+    const { $ } = await viewPage()
 
+    const sticky = $('[data-testid="events-sticky"]')
+    const media = '[@media(min-width:64rem)_and_(min-height:40rem)]'
+
+    expect(sticky.is('do-sticky-top')).toBe(true)
     expect(
-      body.hasClass('[@media(min-width:64rem)_and_(min-height:40rem)]:h-dvh')
-    ).toBe(true)
-    expect(
-      body.hasClass(
-        '[@media(min-width:64rem)_and_(min-height:40rem)]:overflow-hidden'
-      )
-    ).toBe(true)
-    expect(body.hasClass('h-dvh')).toBe(false)
-    expect(body.hasClass('overflow-hidden')).toBe(false)
+      sticky
+        .children()
+        .toArray()
+        .map((child) => $(child).attr('data-testid'))
+    ).toEqual(['events-heading', 'events-status-tiles', 'events-toolbar'])
+    for (const name of [
+      `${media}:sticky`,
+      `${media}:top-[var(--nav-h,57px)]`,
+      `${media}:z-20`,
+      'bg-base-200'
+    ]) {
+      expect(sticky.hasClass(name)).toBe(true)
+    }
+    expect(sticky.hasClass('sticky')).toBe(false)
+
+    const navbar = $('header.navbar')
+
+    expect(navbar.hasClass(`${media}:sticky`)).toBe(true)
+    expect(navbar.hasClass(`${media}:z-30`)).toBe(true)
+    expect(navbar.hasClass('sticky')).toBe(false)
+    // Focus scrolling clears the sticky top and the pinned header row.
+    expect(classOf($('html'))).toBe(
+      `${media}:scroll-pt-[calc(var(--sticky-top,15rem)+3rem)]`
+    )
   })
 
   test('keeps the table wide enough for its four columns to scroll', async () => {
@@ -2594,69 +2622,98 @@ describe('viewEventsRoute', () => {
     )
   })
 
-  // A card, and one that fills what the viewport has left: three rows in a
-  // card that stops after three rows reads as a page that failed to draw.
-  test('frames the table in a bordered card that fills the viewport', async () => {
+  // The card clips rather than hiding its overflow: `overflow-hidden` would
+  // make it a scroll container, and the table's header row would pin to the
+  // card instead of the viewport.
+  test('frames the table in a bordered card that grows with its rows', async () => {
     const { $ } = await viewPage()
 
     const card = $('[data-testid="events-card"]')
 
     expect(card.attr('class')).toContain('card card-border')
-    expect(card.attr('class')).toContain('bg-base-100')
-    expect(card.attr('class')).toContain('flex-1')
-    expect(card.attr('class')).toContain('min-h-0')
+    expect(card.hasClass('bg-base-100')).toBe(true)
+    expect(card.hasClass('overflow-clip')).toBe(true)
+    expect(card.hasClass('overflow-hidden')).toBe(false)
+    expect(card.hasClass('min-h-0')).toBe(false)
     expect(card.find('[data-testid="events-scroller"]')).toHaveLength(1)
   })
 
-  test('keeps the pager inside the card, below the table', async () => {
-    givenEvents([event()], {
-      startCursor: 'START',
-      endCursor: 'END',
-      hasNextPage: true,
-      hasPreviousPage: true
-    })
-
-    const { $ } = await viewPage()
-
-    const pager = $('[data-testid="events-card"] [data-testid="do-pager"]')
-
-    expect(pager).toHaveLength(1)
-    expect(
-      $('[data-testid="events-scroller"] [data-testid="do-pager"]')
-    ).toHaveLength(0)
-    expect(pager.prev().attr('data-testid')).toBe('events-scroller')
-    expect($('[data-testid="do-pager-newer"]').text()).toBe('← Newer')
-    expect($('[data-testid="do-pager-older"]').text()).toBe('Older →')
-    expect($('[data-testid="do-pager"]').text()).not.toContain('Previous')
-    expect($('[data-testid="do-pager"]').text()).not.toContain('Next')
-  })
-
-  test('holds the pager at the foot of the card', async () => {
-    const { $ } = await viewPage()
-
-    const pager = $('[data-testid="do-pager"]')
-
-    expect(pager.hasClass('shrink-0')).toBe(true)
-    expect(pager.attr('class')).toContain('border-t border-base-300')
-  })
-
-  // The pair never moves. A footer that renders only the link it has slides
-  // Next across the row the moment Previous appears, so the button an operator
-  // is aiming at is somewhere else on the very next page.
-  test('holds both directions in place, muting the one there is no page in', async () => {
+  // No pager: the next page loads as the reader nears the bottom, from the
+  // loader under the table.
+  test('draws no pager, and no Newer or Older, under the table', async () => {
     givenEvents([event()], { endCursor: 'END', hasNextPage: true })
 
     const { $ } = await viewPage()
 
-    expect($('[data-testid="do-pager"] a')).toHaveLength(1)
-    expect($('[data-testid="do-pager"] a').attr('rel')).toBe('next')
+    expect($('[data-testid="do-pager"]')).toHaveLength(0)
+    expect($('main').text()).not.toContain('Newer')
+    expect($('main').text()).not.toContain('Older')
+    expect($('main').html()).not.toContain('direction=')
+    expect(
+      $('[data-testid="events-load-more"]').prev().attr('data-testid')
+    ).toBe('events-scroller')
+  })
 
-    const newer = $('[data-testid="do-pager-newer-disabled"]')
+  test('loads the next page from the loader, carrying every filter', async () => {
+    givenEvents([event()], { endCursor: 'END', hasNextPage: true })
 
-    expect(newer.is('span')).toBe(true)
-    expect(newer.attr('href')).toBeUndefined()
-    expect(newer.attr('class')).toContain('btn-disabled')
-    expect(newer.text()).toBe('← Newer')
+    const { $ } = await viewPage('/dev-ops/events?status=DEAD_LETTER&q=gld-9b2')
+
+    const loader = $('[data-testid="events-load-more"]')
+
+    expect(loader.is('do-load-more')).toBe(true)
+    expect(loader.attr('data-next-page')).toBe(
+      '/dev-ops/events?cursor=END&status=DEAD_LETTER&q=gld-9b2'
+    )
+    expect(loader.attr('data-rows')).toBe('events-rows')
+    expect($('[data-testid="events-table"] tbody').attr('id')).toBe(
+      'events-rows'
+    )
+    expect(loader.find('[data-load-more-sentinel]')).toHaveLength(1)
+    // Everything the loader can show waits, hidden, until it is needed.
+    for (const part of [
+      'events-load-more-spinner',
+      'events-load-more-end',
+      'events-load-more-error',
+      'events-load-more-retry'
+    ]) {
+      expect($(`[data-testid="${part}"]`).attr('hidden')).toBeDefined()
+    }
+    expect($('[data-testid="events-load-more-spinner"]').attr('class')).toBe(
+      'loading loading-spinner loading-sm my-3'
+    )
+    expect($('[data-testid="events-load-more-status"]').attr('aria-live')).toBe(
+      'polite'
+    )
+  })
+
+  // With no script, the next page is a plain link — and only then.
+  test('offers a More link to a page without script', async () => {
+    givenEvents([event()], { endCursor: 'END', hasNextPage: true })
+
+    const { $ } = await viewPage('/dev-ops/events?service=gas')
+
+    const noscript = load($('[data-testid="events-load-more"] noscript').text())
+    const more = noscript('[data-testid="events-load-more-link"]')
+
+    expect(more.attr('href')).toBe('/dev-ops/events?cursor=END&service=gas')
+    expect(flatten(more.text())).toBe('More events')
+  })
+
+  test('says No more events on the last page, and offers no More', async () => {
+    givenEvents([event()], { hasNextPage: false })
+
+    const { $ } = await viewPage()
+
+    const end = $('[data-testid="events-load-more-end"]')
+
+    expect(end.attr('hidden')).toBeUndefined()
+    expect(flatten(end.text())).toBe('No more events')
+    expect(end.hasClass('text-base-content/70')).toBe(true)
+    expect(
+      $('[data-testid="events-load-more"]').attr('data-next-page')
+    ).toBeUndefined()
+    expect($('[data-testid="events-load-more"] noscript')).toHaveLength(0)
   })
 
   // Every form on the list is a GET; every write in the app is made from one
@@ -2671,13 +2728,15 @@ describe('viewEventsRoute', () => {
     expect($('main form[method="post"]')).toHaveLength(0)
     expect($('main form[method="get"]')).toHaveLength(2)
     expect($('main [form]')).toHaveLength(0)
-    // No checkbox anywhere on the list: there is nothing here to select.
+    // No checkbox anywhere on the list: there is nothing here to select, and
+    // the audit switch is a link.
     expect($('main [type="checkbox"]')).toHaveLength(0)
-    // Search, the button that opens the range panel, and Apply inside it.
-    // None of the three writes anything.
+    // Search, the two triggers that open the Time and Service menus, Apply
+    // inside the range panel, and the loader's hidden Retry. None of the five
+    // writes anything.
     expect(
       $('main button:not([data-testid="do-copy-button-control"])')
-    ).toHaveLength(3)
+    ).toHaveLength(5)
     // The search box and the range panel's two boxes.
     expect($('main input:not([type="hidden"])')).toHaveLength(3)
   })
@@ -2735,50 +2794,62 @@ describe('viewEventsRoute', () => {
     expect(brand.text()).not.toContain('fg-grants-platform-admin')
   })
 
-  test('links the event id at the page for that one event', async () => {
+  // Not a daisyUI `link`: hovering the row, or the name, fills the row and
+  // underlines nothing.
+  test('links the name at the page for that one event, with no underline', async () => {
     const { $ } = await viewPage()
 
-    const id = $('[data-testid="event-id"]')
+    const link = $('[data-testid="event-link"]')
 
-    expect(id.is('a')).toBe(true)
-    expect(id.attr('href')).toBe(
+    expect(link.is('a')).toBe(true)
+    expect(link.attr('href')).toBe(
       '/dev-ops/events/gas/outbox/665f1c2e9a1b2c3d4e5f6a7b'
     )
-    expect(id.attr('class')).toContain('link link-hover')
-    expect(id.attr('class')).toContain('font-semibold')
+    expect(link.hasClass('link')).toBe(false)
+    expect(link.hasClass('link-hover')).toBe(false)
+    expect(link.hasClass('no-underline')).toBe(true)
+    expect($('[data-testid="events-table"]').html()).not.toContain('link-hover')
   })
 
-  test('leaves the type beneath it as plain text, not a second link', async () => {
+  test('leaves the id beneath it as plain text, not a second link', async () => {
     const { $ } = await viewPage()
 
-    expect($('[data-testid="event-type"]').is('a')).toBe(false)
+    expect($('[data-testid="event-id"]').is('a')).toBe(false)
+    expect($('[data-testid="event-id"]').closest('a')).toHaveLength(0)
   })
 
-  test('carries the whole list query onto the id link', async () => {
+  // Every filter, and no cursor: a row reached far down the list sends Back
+  // to the top of the same filtered list rather than stranding the operator
+  // on a page the list has no way back up from.
+  test('carries every filter, and no cursor, onto the row link', async () => {
     const { $ } = await viewPage(
       '/dev-ops/events?status=DEAD_LETTER&service=gas&cursor=END&q=gld-9b2'
     )
 
-    expect($('[data-testid="event-id"]').attr('href')).toBe(
+    expect($('[data-testid="event-link"]').attr('href')).toBe(
       '/dev-ops/events/gas/outbox/665f1c2e9a1b2c3d4e5f6a7b?from=' +
-        encodeURIComponent(
-          '?status=DEAD_LETTER&service=gas&cursor=END&q=gld-9b2'
-        )
+        encodeURIComponent('?status=DEAD_LETTER&service=gas&q=gld-9b2')
     )
+  })
+
+  test('carries no from at all off a list that only held a cursor', async () => {
+    const { $ } = await viewPage('/dev-ops/events?cursor=END')
+
+    expect($('[data-testid="event-link"]').attr('href')).not.toContain('from=')
   })
 
   test('carries no from at all off an unfiltered list', async () => {
     const { $ } = await viewPage()
 
-    expect($('[data-testid="event-id"]').attr('href')).not.toContain('from=')
+    expect($('[data-testid="event-link"]').attr('href')).not.toContain('from=')
   })
 
-  test('links the id of every member of an open group', async () => {
+  test('links every row at its own page', async () => {
     givenEvents(storm(3))
 
     const { $ } = await viewPage()
 
-    const links = $('[data-testid="event-row"] [data-testid="event-id"]')
+    const links = $('[data-testid="event-row"] [data-testid="event-link"]')
 
     expect(links).toHaveLength(3)
     links.toArray().forEach((link) => {
@@ -2786,34 +2857,74 @@ describe('viewEventsRoute', () => {
     })
   })
 
-  test('leaves the group summary type as plain text', async () => {
-    givenEvents(storm(3))
-
-    const { $ } = await viewPage()
-
-    const summaryType = $(
-      '[data-testid="event-group-summary"] > [role="cell"] [data-testid="event-type"]'
-    )
-
-    expect(summaryType.is('a')).toBe(false)
-  })
-
   test('escapes an event type carrying markup', async () => {
     givenEvents([event({ type: xss })])
 
     const { $ } = await viewPage()
 
-    expect(escapingOf($, 'event-type')).toEqual(rendersAsText)
+    expect(escapingOf($, 'event-type-name')).toEqual(rendersAsText)
   })
 
-  test('points the id at the row, the one link the cell carries', async () => {
+  // The whole row opens the event through one link: its `::after` is
+  // stretched over the row, which is its positioning context. One tab stop,
+  // no script, and a ctrl- or middle-click still opens a tab.
+  test("makes the name the row's one link, stretched over the row", async () => {
     const { $ } = await viewPage()
-    const cell = $('[data-testid="event-row"] > td').eq(0)
 
-    expect(cell.find('a')).toHaveLength(1)
-    expect($('[data-testid="event-id"]').attr('href')).toContain(
-      '/dev-ops/events/gas/outbox/'
-    )
+    const row = $('[data-testid="event-row"]').first()
+    const link = $('[data-testid="event-link"]')
+    const id = $('[data-testid="event-id"]')
+
+    expect(row.find('a')).toHaveLength(1)
+    expect(row.find('[onclick], [tabindex]')).toHaveLength(0)
+    expect(row.hasClass('relative')).toBe(true)
+    expect(row.hasClass('cursor-pointer')).toBe(true)
+    expect(link.hasClass('after:absolute')).toBe(true)
+    expect(link.hasClass('after:inset-0')).toBe(true)
+    // The id is lifted over the overlay so it stays selectable, and only as
+    // wide as its own text.
+    expect(id.hasClass('relative')).toBe(true)
+    expect(id.hasClass('w-fit')).toBe(true)
+  })
+
+  // Keyboard focus outlines the row, inset so the scroller cannot clip it,
+  // with the hover fill; the link's own ring is off, and a mouse click —
+  // which is not `:focus-visible` — shows nothing.
+  test('outlines a keyboard-focused row, and not its link', async () => {
+    const { $ } = await viewPage()
+
+    const row = $('[data-testid="event-row"]').first()
+    const link = $('[data-testid="event-link"]')
+
+    for (const name of [
+      'has-[:focus-visible]:outline-2',
+      'has-[:focus-visible]:-outline-offset-2',
+      'has-[:focus-visible]:outline-base-content',
+      'has-[:focus-visible]:bg-base-200'
+    ]) {
+      expect(row.hasClass(name)).toBe(true)
+    }
+    expect(link.hasClass('focus-visible:outline-none')).toBe(true)
+    expect(
+      classOf(link)
+        .split(' ')
+        .filter((name) => /(^|:)(outline|ring)-(?!none)/.test(name))
+    ).toEqual([])
+    expect(classOf(row)).not.toContain('focus:')
+  })
+
+  test("keeps a dead letter row's own fill for hover and focus", async () => {
+    givenEvents([event(deadLettered)])
+
+    const { $ } = await viewPage()
+
+    const row = $('[data-testid="event-row"]')
+
+    expect(row.hasClass('bg-error/5')).toBe(true)
+    expect(row.hasClass('hover:bg-error/10')).toBe(true)
+    expect(row.hasClass('has-[:focus-visible]:bg-error/10')).toBe(true)
+    expect(row.hasClass('has-[:focus-visible]:outline-2')).toBe(true)
+    expect(row.hasClass('hover:bg-base-200')).toBe(false)
   })
 
   test('puts the wall clock under the relative age', async () => {
@@ -2823,7 +2934,7 @@ describe('viewEventsRoute', () => {
 
     expect(clock.text().trim()).toBe('10:00:00')
     expect(clock.attr('class')).toContain('font-mono')
-    expect(clock.attr('class')).toContain('text-xs')
+    expect(clock.attr('class')).toContain('text-sm')
     expect(clock.attr('class')).toContain('text-base-content/70')
     expect(clock.attr('title')).toBe('2026-06-16T10:00:00Z')
   })
@@ -2908,13 +3019,26 @@ describe('viewEventsRoute', () => {
     }
   )
 
-  test('sets Sign out as a small quiet button, beside the theme toggle', async () => {
+  // The bar holds the theme switch alone. Signing out is the index page's.
+  test('offers no Sign out in the bar, only the theme toggle', async () => {
     const { $ } = await viewPage()
 
-    const signOut = $('header a[href="/auth/logout"]')
-
-    expect(signOut.attr('class')).toBe('btn btn-ghost btn-sm')
+    expect($('header a[href="/auth/logout"]')).toHaveLength(0)
+    expect($('header').text()).not.toContain('Sign out')
     expect($('header do-theme-toggle')).toHaveLength(1)
+  })
+
+  // md, like every control under it: a taller bar, a larger brand, and the
+  // page's own h1 still a step above the brand.
+  test("draws the bar at md, under the page's own heading in size", async () => {
+    const { $ } = await viewPage()
+
+    expect($('header.navbar').hasClass('min-h-14')).toBe(true)
+    expect($('[data-testid="do-brand"]').hasClass('text-lg')).toBe(true)
+    expect($('[data-testid="do-brand-suffix"]').hasClass('text-base')).toBe(
+      true
+    )
+    expect($('[data-testid="events-title"]').hasClass('text-xl')).toBe(true)
   })
 
   test('offers a From and a To box in the range panel', async () => {
@@ -2941,7 +3065,16 @@ describe('viewEventsRoute', () => {
     )
     expect(
       flatten($('[data-testid="events-range-absolute-heading"]').text())
-    ).toBe('Absolute range')
+    ).toBe('Custom')
+    expect(
+      $('[data-testid="events-range-absolute-heading"]').hasClass('text-sm')
+    ).toBe(true)
+    // md boxes at 14px; Apply stays small.
+    expect(from.attr('class')).toBe('input w-full font-mono text-sm')
+    expect(to.attr('class')).toBe('input w-full font-mono text-sm')
+    expect($('[data-testid="events-range-apply"]').hasClass('btn-sm')).toBe(
+      true
+    )
   })
 
   test('reads both ends of the range as UTC and forwards them as instants', async () => {
@@ -2995,7 +3128,7 @@ describe('viewEventsRoute', () => {
     )
 
     expect(flatten($('[data-testid="events-range-button"]').text())).toBe(
-      '2026-06-16 09:00 → now'
+      'Time: 2026-06-16 09:00 → now'
     )
     expect($('[data-testid="events-note-range"]')).toHaveLength(0)
     expect($('[data-testid="events-note-range-clear"]')).toHaveLength(0)
@@ -3005,7 +3138,7 @@ describe('viewEventsRoute', () => {
     const { $ } = await viewPage('/dev-ops/events?to=2026-06-16T10:00')
 
     expect(flatten($('[data-testid="events-range-button"]').text())).toBe(
-      'earliest → 2026-06-16 10:00'
+      'Time: earliest → 2026-06-16 10:00'
     )
   })
 
@@ -3019,7 +3152,7 @@ describe('viewEventsRoute', () => {
     const { $ } = await viewPage('/dev-ops/events?from=2026-06-16T09:00')
 
     expect(
-      segmentFor($, 'events-filter-status-chip', 'DEAD_LETTER').attr('href')
+      segmentFor($, 'events-status-tile', 'DEAD_LETTER').attr('href')
     ).toBe(
       '/dev-ops/events?status=DEAD_LETTER&from=2026-06-16T09%3A00%3A00.000Z'
     )
@@ -3076,7 +3209,7 @@ describe('viewEventsRoute', () => {
     expect($('[data-testid="events-toolbar-actions"]')).toHaveLength(0)
     expect($('main').html()).not.toContain('redrive-batch')
     expect($('main').html()).not.toContain('redrive-query')
-    expect($('[data-testid="event-id"]').first().attr('href')).toContain(
+    expect($('[data-testid="event-link"]').first().attr('href')).toContain(
       '/dev-ops/events/gas/outbox/'
     )
   })
@@ -3152,19 +3285,17 @@ describe('viewEventsRoute', () => {
     expect($('main').text()).not.toContain('Auto')
   })
 
-  test('keeps the card header to the failures summary and the total', async () => {
+  // No failures panel, no header row: the card starts at the table rather
+  // than under an empty bar.
+  test('draws no card header on a page with no Top errors', async () => {
     givenEvents([event({ status: 'DEAD_LETTER' })])
 
     const { $ } = await viewPage('/dev-ops/events?status=DEAD_LETTER')
 
-    const aside = $('[data-testid="events-card-aside"]')
-
+    expect($('[data-testid="events-card-header"]')).toHaveLength(0)
     expect(
-      aside
-        .children()
-        .toArray()
-        .map((child) => $(child).attr('data-testid'))
-    ).toEqual(['events-total'])
+      $('[data-testid="events-card"]').children().first().attr('data-testid')
+    ).toBe('events-scroller')
   })
 
   test('puts no meta refresh in the head', async () => {
@@ -3177,14 +3308,14 @@ describe('viewEventsRoute', () => {
     const { $ } = await viewPage('/dev-ops/events?status=FAILED')
 
     expect(
-      segmentFor($, 'events-filter-status-chip', 'DEAD_LETTER').attr('href')
+      segmentFor($, 'events-status-tile', 'DEAD_LETTER').attr('href')
     ).toBe('/dev-ops/events?status=DEAD_LETTER')
     expect(
       $('[data-testid="events-search-filter"]')
         .toArray()
         .map((field) => [$(field).attr('name'), $(field).attr('value')])
     ).toEqual([['status', 'FAILED']])
-    expect($('main').html()).not.toContain('live=')
+    expect($('main').html()).not.toMatch(/[?&]live=/)
   })
 
   test('refuses a reload parameter left over on a bookmarked url', async () => {
@@ -3197,8 +3328,9 @@ describe('viewEventsRoute', () => {
   })
 
   // The list is one keyset window ordered by time; the shape of an incident
-  // is spread across three hundred pages of it.
-  test('sits the failures panel directly above the table, open on a dead-letter page', async () => {
+  // is spread across three hundred pages of it. Folded even on a page about
+  // dead letters: the summary announces it, the operator opens it.
+  test('sits the failures panel directly above the table, folded even on a dead-letter page', async () => {
     givenBreakdown()
 
     const { $ } = await viewPage('/dev-ops/events?status=DEAD_LETTER')
@@ -3209,9 +3341,9 @@ describe('viewEventsRoute', () => {
     expect(children).toEqual([
       'events-card-header',
       'events-scroller',
-      'do-pager'
+      'events-load-more'
     ])
-    expect($('[data-testid="events-failures"]').attr('open')).toBeDefined()
+    expect($('[data-testid="events-failures"]').attr('open')).toBeUndefined()
     expect(
       $('[data-testid="events-card-header"]')
         .next()
@@ -3219,9 +3351,9 @@ describe('viewEventsRoute', () => {
     ).toHaveLength(1)
   })
 
-  // The disclosure is only as wide as its own words, so the figure beside it
-  // is not part of the click target.
-  test('merges the failures summary and the total into one row', async () => {
+  // The disclosure is only as wide as its own words, so the rest of the row
+  // toggles nothing — and nothing else sits on it.
+  test('keeps the card header to the failures summary alone', async () => {
     givenBreakdown()
 
     const { $ } = await viewPage('/dev-ops/events?status=DEAD_LETTER')
@@ -3230,12 +3362,11 @@ describe('viewEventsRoute', () => {
     const summary = $('[data-testid="events-failures-summary"]')
 
     expect(header.attr('class')).toContain('shrink-0')
-    expect(header.children()).toHaveLength(2)
-    expect(header.find('[data-testid="events-failures"]')).toHaveLength(1)
-    expect(header.find('[data-testid="events-total"]')).toHaveLength(1)
-    // The caption is not inside the summary, so clicking it toggles nothing.
-    expect(summary.find('[data-testid="events-total"]')).toHaveLength(0)
-    expect($('[data-testid="events-total"]').closest('summary')).toHaveLength(0)
+    expect(header.children()).toHaveLength(1)
+    expect(header.children().first().attr('data-testid')).toBe(
+      'events-failures'
+    )
+    expect($('[data-testid="events-card-aside"]')).toHaveLength(0)
     // The disclosure stops at its own words, and the chevron is the last of
     // them rather than an arrow pinned to the far edge.
     expect(classOf(summary)).toContain('w-fit')
@@ -3245,21 +3376,6 @@ describe('viewEventsRoute', () => {
     expect(summary.children().last().attr('data-testid')).toBe(
       'do-icon-chevron-down'
     )
-  })
-
-  // The total is the one figure that answers to every filter at once, so it
-  // survives a page with no failures panel to sit beside — as the row itself.
-  test('keeps the total row on a page with no failures panel', async () => {
-    givenEvents([event()])
-
-    const { $ } = await viewPage()
-
-    const total = $('[data-testid="events-total"]')
-
-    expect($('[data-testid="events-failures"]')).toHaveLength(0)
-    expect($('[data-testid="events-card-header"]')).toHaveLength(1)
-    expect(total).toHaveLength(1)
-    expect(total.closest('[data-testid="events-card-aside"]')).toHaveLength(1)
   })
 
   // The panel is fed by the breakdown and nothing else: a failed counts read
@@ -3283,7 +3399,7 @@ describe('viewEventsRoute', () => {
     expect($('[data-testid="events-failures"]')).toHaveLength(1)
     expect($('[data-testid="events-failure-row"]')).toHaveLength(1)
     // The figures are still gone, which is the part that did fail.
-    expect($('[data-testid="events-filter-status-chip-count"]')).toHaveLength(0)
+    expect(segments($, 'events-status-tile')[0]).toBe('All —')
   })
 
   // Folded shut it is one line and still keeps its own summary: worth
@@ -3330,26 +3446,31 @@ describe('viewEventsRoute', () => {
 
     const { $ } = await viewPage('/dev-ops/events?status=DEAD_LETTER')
 
-    expect(flatten($('[data-testid="events-failure-row"]').text())).toBe(
-      'E11000 duplicate key error collection: gas.events index: eventId_1 case.status.updated 4,182 1d ago 4m ago'
+    // As it is seen: the spoken copy of the name is for a screen reader.
+    const row = $('[data-testid="events-failure-row"]').clone()
+
+    row.find('.sr-only').remove()
+
+    expect(flatten(row.text())).toBe(
+      'E11000 duplicate key error collection: gas.events index: eventId_1 CaseStatusUpdated 4,182 1d ago 4m ago'
     )
   })
 
   // The two tables sit stacked in one card, so they are drawn at one size:
-  // a cell padding of its own put the panel's first column a few pixels
-  // inside the Event column below it, which reads as a wonky edge rather
-  // than as a denser panel.
+  // a cell padding of its own put the panel's first column a few pixels off
+  // the Event column below it, which reads as a wonky edge. Both md.
   test('draws the failures table at the same size as the events table', async () => {
     givenBreakdown()
 
     const { $ } = await viewPage('/dev-ops/events?status=DEAD_LETTER')
 
-    const failures = classOf($('[data-testid="events-failures-table"]'))
-    const events = classOf($('[data-testid="events-table"]'))
+    for (const id of ['events-failures-table', 'events-table']) {
+      const table = $(`[data-testid="${id}"]`)
 
-    expect(failures).toContain('table-sm')
-    expect(events).toContain('table-sm')
-    expect(failures).not.toContain('table-xs')
+      expect(table.hasClass('table')).toBe(true)
+      expect(table.hasClass('table-sm')).toBe(false)
+      expect(table.hasClass('table-xs')).toBe(false)
+    }
   })
 
   // The First and Last headers name the two columns; repeating the word in
@@ -3390,14 +3511,17 @@ describe('viewEventsRoute', () => {
     expect($('[data-testid="events-failure-row"]').is('tr')).toBe(true)
   })
 
-  test('names an audit group in the failures panel by its label', async () => {
+  // Named as the rows name it, with the raw type on the title.
+  test('names an audit group in the failures panel as the rows do', async () => {
     givenBreakdown([group({ type: 'audit' })])
 
     const { $ } = await viewPage('/dev-ops/events?status=DEAD_LETTER')
 
     const type = $('[data-testid="events-failure-type"]')
 
-    expect(type.text()).toBe('audit')
+    expect(type.find('[aria-hidden="true"]').text()).toBe('AuditRecord')
+    expect(type.find('.sr-only').text()).toBe('Audit record')
+    expect(type.attr('title')).toBe('audit')
     expect($('[data-testid="events-failure-row"]').text()).not.toContain('n/a')
   })
 
@@ -3428,9 +3552,9 @@ describe('viewEventsRoute', () => {
     const { $ } = await viewPage('/dev-ops/events?status=DEAD_LETTER')
 
     expect($('[data-testid="events-failure-row"]')).toHaveLength(1)
-    expect(flatten($('[data-testid="events-failure-type"]').text())).toBe(
-      'case.status.updated'
-    )
+    expect(
+      flatten($('[data-testid="events-failure-type"] [aria-hidden]').text())
+    ).toBe('CaseStatusUpdated')
     expect(flatten($('[data-testid="events-failure-count"]').text())).toBe('12')
     expect(flatten($('[data-testid="events-failure-first"]').text())).toBe(
       '1d ago'
@@ -3526,7 +3650,7 @@ describe('viewEventsRoute', () => {
     expect(
       $('[data-testid="events-range-preset"]')
         .toArray()
-        .map((link) => [$(link).text(), $(link).attr('href')])
+        .map((link) => [flatten($(link).text()), $(link).attr('href')])
     ).toEqual([
       [
         'Last 15m',
@@ -3579,15 +3703,22 @@ describe('viewEventsRoute', () => {
     expect($('[data-testid="events-range"] details')).toHaveLength(0)
   })
 
-  test('says Any time on the button of a page with no window', async () => {
+  // `Time: Any` on the trigger; the rung in the panel keeps `Any time`.
+  test('says Time: Any on the button of a page with no window', async () => {
     const { $ } = await viewPage()
 
     const button = $('[data-testid="events-range-button"]')
+    const any = $('[data-testid="events-range-any"]')
 
-    expect(flatten(button.text())).toBe('Any time')
-    expect(button.attr('title')).toBe('Time range: Any time')
+    expect(flatten(button.text())).toBe('Time: Any')
+    expect(button.attr('title')).toBe('Time range: Any')
     expect(button.find('[data-testid="do-icon-clock"]')).toHaveLength(1)
     expect(button.find('[data-testid="do-icon-chevron-down"]')).toHaveLength(1)
+    expect(flatten(any.text())).toBe('Any time')
+    expect(any.attr('aria-current')).toBe('true')
+    expect(
+      any.find('[data-testid="do-icon-check"]').hasClass('invisible')
+    ).toBe(false)
   })
 
   test('says the preset back on the page its link opens', async () => {
@@ -3596,7 +3727,7 @@ describe('viewEventsRoute', () => {
     )
 
     expect(flatten($('[data-testid="events-range-button"]').text())).toBe(
-      'Last 24h'
+      'Time: Last 24h'
     )
     expect(
       $('[data-testid="events-range-preset"][data-value="24h"]').attr(
@@ -3611,7 +3742,7 @@ describe('viewEventsRoute', () => {
     )
 
     expect(flatten($('[data-testid="events-range-button"]').text())).toBe(
-      '2026-09-01 00:00 → 2026-09-02 00:00'
+      'Time: 2026-09-01 00:00 → 2026-09-02 00:00'
     )
   })
 
@@ -3631,7 +3762,7 @@ describe('viewEventsRoute', () => {
     )
 
     expect(
-      segmentFor($, 'events-filter-status-chip', 'DEAD_LETTER').attr('href')
+      segmentFor($, 'events-status-tile', 'DEAD_LETTER').attr('href')
     ).toContain('range=24h')
     expect(
       segmentFor($, 'events-filter-service-chip', 'gas').attr('href')
@@ -3642,7 +3773,7 @@ describe('viewEventsRoute', () => {
     const { $ } = await viewPage()
 
     expect($('[data-testid="event-parked"]')).toHaveLength(0)
-    expect(segments($, 'events-filter-status-chip')).not.toContain('Parked')
+    expect(segments($, 'events-status-tile').join(' ')).not.toContain('Parked')
     expect($('main').text()).not.toContain('Parked')
     expect($('main').html()).not.toContain('PARKED')
   })

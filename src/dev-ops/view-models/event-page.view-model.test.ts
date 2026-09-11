@@ -1061,51 +1061,32 @@ describe('the journey table', () => {
 })
 
 /**
- * The one cell two surfaces state. The same wire row goes through both models
- * and the two cells are compared with each other rather than each against a
- * literal — a pair of literals would agree until somebody changed one.
- *
- * The WORDS are what both surfaces owe each other. The link is not: this page
- * hangs one on its Queue fact and the list draws the same words as plain text,
- * a deliberate difference asserted on each side rather than shared here.
+ * The hop is this page's alone now: the list draws the service and the box
+ * as columns of their own, off the same row, and carries no hop at all.
  */
-interface QueueCell {
-  hop: string
-  queue: string | null
-  queueValue: string | null
-}
-
-const cellOf = ({ hop, queue, queueValue }: QueueCell): QueueCell => ({
-  hop,
-  queue,
-  queueValue
-})
-
-/** The list, rendered with one row on it and no filters at all. */
-const listCell = (event: EventRow): QueueCell =>
-  cellOf(
-    toEventsPage(
-      {
-        page: {
-          events: [event],
-          pagination: {
-            startCursor: null,
-            endCursor: null,
-            hasNextPage: false,
-            hasPreviousPage: false
-          },
-          sourceErrors: []
+/** The list's row, rendered with one row on the page and no filters at all. */
+const listRow = (event: EventRow) =>
+  toEventsPage(
+    {
+      page: {
+        events: [event],
+        pagination: {
+          startCursor: null,
+          endCursor: null,
+          hasNextPage: false,
+          hasPreviousPage: false
         },
-        statuses: [],
-        services,
-        facets: null,
-        breakdown: null,
-        unavailable: false
+        sourceErrors: []
       },
-      {},
-      now
-    ).rows[0]
-  )
+      statuses: [],
+      services,
+      facets: null,
+      breakdown: null,
+      unavailable: false
+    },
+    {},
+    now
+  ).rows[0]
 
 /** The same row as the list receives it: the detail's fields plus latency. */
 const row = (overrides: Partial<EventRow> = {}): EventRow => ({
@@ -1116,39 +1097,25 @@ const row = (overrides: Partial<EventRow> = {}): EventRow => ({
 })
 
 describe('the Queue cell, on the list and on this page', () => {
-  test.each([
-    ['a domain outbox row', {}],
-    [
-      'an audit outbox row',
-      { queue: 'to Audit', queueValue: 'gas__sns__audit_topic_arn' }
-    ],
-    [
-      'an outbox row nothing subscribes to',
-      { queue: 'to case_created', queueValue: 'cw__sns__case_created' }
-    ],
-    ['an outbox row with no target at all', { queue: null, queueValue: null }],
-    [
-      'an inbox row',
-      {
-        box: 'inbox' as const,
-        hop: 'GAS Inbox',
-        queue: 'from Caseworking',
-        queueValue: null
-      }
-    ],
-    [
-      'a hop this page cannot filter to',
-      {
-        service: 'reporting' as unknown as 'gas',
-        hop: 'reporting Outbox'
-      }
-    ]
-  ])('says the same thing about %s on both', (_name, overrides) => {
-    const fact = cellOf(model(found(detail(overrides))))
+  test('keeps the hop to this page, and the list says the service and the box', () => {
+    const page = model(found(detail()))
+    const listed = listRow(row())
 
-    expect(fact).toEqual(listCell(row(overrides)))
-    // Guards the comparison itself: two empty cells would also be equal.
-    expect(fact.hop).not.toBe('')
+    expect(page.hop).toBe('GAS Outbox')
+    expect(listed).not.toHaveProperty('hop')
+    expect(listed).toMatchObject({ serviceLabel: 'GAS', boxLabel: 'Outbox' })
+  })
+
+  // The line under the hop is this page's alone: the list's row does not
+  // carry it at all.
+  test('keeps the queue line to this page', () => {
+    const page = model(found(detail()))
+    const listed = listRow(row())
+
+    expect(page.queue).toBe('to Caseworking')
+    expect(page.queueValue).toBe('gas__sns__update_case_status_fifo')
+    expect(listed).not.toHaveProperty('queue')
+    expect(listed).not.toHaveProperty('queueValue')
   })
 
   // Neither surface links the hop any more: narrowing the list to a service
@@ -1160,7 +1127,7 @@ describe('the Queue cell, on the list and on this page', () => {
 
     expect(page).not.toHaveProperty('hopHref')
     expect(page).not.toHaveProperty('hopTitle')
-    expect(listCell(row())).not.toHaveProperty('hopHref')
+    expect(listRow(row())).not.toHaveProperty('hopHref')
   })
 
   test('draws a hop the toolbar has no chip for as the words it was sent', () => {

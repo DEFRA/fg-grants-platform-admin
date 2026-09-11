@@ -1,68 +1,101 @@
 {% extends 'layouts/page.njk' %}
 
+{% from "audit-switch/macro.njk" import auditSwitch %}
 {% from "icon/macro.njk" import icon %}
-{% from "pager/macro.njk" import pager %}
+{% from "load-more/macro.njk" import loadMore %}
 {% from "status-badge/macro.njk" import statusBadge %}
+{% from "sticky-top/macro.njk" import stickyTop %}
 
 {# The class names are written as literal strings in this file, because
    Tailwind scans this file's text for candidates and never sees a class
    assembled in TypeScript. #}
 
-{# The group labels name a control, they are not options in it. #}
-{% set filterLabel = "text-xs font-medium text-base-content/60" %}
+{# Every toolbar control is a daisyUI md `btn`. A trigger names its filter
+   and its value in one phrase — "Service: All" — so the phrase is one span
+   with a word space in it, and the btn's own 6px gap is the only space
+   between the icon, the phrase and the chevron.
 
-{# One border around the group, drawn by the `join`; the selected segment is
-   `btn-active`, daisyUI's own word for "this is the one on", filled inverse —
-   base-content under base-100 — because `btn-active`'s own grey is barely a
-   shade off its neighbours in either theme. #}
-{% set activeChip = "btn btn-sm join-item btn-active bg-base-content text-base-100 border-base-content" %}
-{% set inactiveChip = "btn btn-sm join-item font-normal" %}
-{# Spelled whole rather than concatenated into the attribute, so every class
-   name in this file is a literal Tailwind can see. #}
-{% set rangeButton = "btn btn-sm" %}
-{% set activeRangeButton = "btn btn-sm btn-active bg-base-content text-base-100 border-base-content" %}
-{# Dimmed, and still a link: a segment that vanished when it emptied could
-   not be told from one the page forgot to draw. #}
-{% set emptyChip = "btn btn-sm join-item font-normal text-base-content/60" %}
-{# The figure rides as a badge inside the button; tabular, because the
-   segments are read down as much as along. #}
-{% set segmentCount = "badge badge-ghost badge-sm tabular-nums" %}
+   A trigger off its default wears the inverse fill — base-content under
+   base-100 — which says "this filter is on" at a glance in either theme.
+
+   While its menu is open, a trigger keeps daisyUI's pressed look: the
+   `.btn:active` recipe (fill 5% and border 7% toward black, no shadow, down
+   half a pixel), set through daisyUI's own variables. The inverse fill is a
+   utility rather than `--btn-bg`, so there the recipe is spelled against its
+   own colour. CSS alone: the popover is the trigger's next sibling, so
+   `:has(+:popover-open)` reaches it. #}
+{% set trigger = "btn [&:has(+:popover-open)]:[--btn-bg:color-mix(in_oklab,var(--btn-color,var(--color-base-200)),#000_5%)] [&:has(+:popover-open)]:[--btn-border:color-mix(in_oklab,var(--btn-color,var(--color-base-200)),#000_7%)] [&:has(+:popover-open)]:[--btn-shadow:0_0_0_0_oklch(0%_0_0/0)] [&:has(+:popover-open)]:translate-y-[0.5px]" %}
+{% set triggerActive = "btn btn-active bg-base-content text-base-100 border-base-content [&:has(+:popover-open)]:bg-[color-mix(in_oklab,var(--color-base-content),#000_5%)] [&:has(+:popover-open)]:border-[color-mix(in_oklab,var(--color-base-content),#000_7%)] [&:has(+:popover-open)]:translate-y-[0.5px]" %}
+{# The filter's name inside its trigger: quieter than the value it names. #}
+{% set triggerName = "font-normal opacity-70" %}
+
+{# A menu hangs 0.5rem under its trigger. daisyUI's popover dropdown sets no
+   gap of its own (`position-area` only), so the margin is ours. #}
+{% set menu = "dropdown menu menu-md mt-2 w-60 rounded-box border border-base-300 bg-base-100 p-2 shadow-md" %}
+{# The selected item is ticked and bold, and carries `aria-current`; there is
+   no `menu-active` fill. Every item draws the tick, `invisible` where it is
+   not selected, so every label shares one left edge. #}
+{% set menuItem = "flex items-center gap-2" %}
+{% set menuItemActive = "flex items-center gap-2 font-semibold" %}
+{% set tick = "size-3.5 shrink-0" %}
+{% set tickHidden = "size-3.5 shrink-0 invisible" %}
+
+{# The status tiles: compact daisyUI `stat`s. The value is at least 7ch wide —
+   `999,999` in tabular figures — so a tile keeps its width as its count
+   moves. The selected tile wears the triggers' inverse fill. The focus outline
+   is the triggers' 2px drawn inside the tile, because `stats` scrolls on
+   overflow and would clip an outer ring. #}
+{% set tile = "stat px-4 py-2 hover:bg-base-200 focus-visible:outline-2 focus-visible:-outline-offset-4 focus-visible:outline-base-content" %}
+{% set tileActive = "stat px-4 py-2 bg-base-content text-base-100 focus-visible:outline-2 focus-visible:-outline-offset-4 focus-visible:outline-base-100" %}
+{% set tileTitle = "stat-title" %}
+{% set tileTitleActive = "stat-title text-base-100/75" %}
+{% set tileValue = "stat-value min-w-[7ch] text-xl tabular-nums" %}
+{# A zero, or a count that could not be read, is quiet — and still a link: a
+   tile that vanished when it emptied could not be told from one the page
+   forgot to draw. #}
+{% set tileValueQuiet = "stat-value min-w-[7ch] text-xl tabular-nums text-base-content/60" %}
+{% set tileValueQuietActive = "stat-value min-w-[7ch] text-xl tabular-nums text-base-100/75" %}
 {# The dead letters are the only figure allowed a colour, and only while
-   there are some. #}
-{% set segmentCountAlarm = "badge badge-error badge-sm tabular-nums" %}
+   there are some. Red text is a known, accepted contrast shortfall (2.86:1 in
+   light, 2.67:1 selected in dark), chosen by the user over a badge: do not
+   change it back unasked. #}
+{% set tileValueAlarm = "stat-value min-w-[7ch] text-xl tabular-nums text-error" %}
 
-{# One segment. Every figure is a facet: it says how many events *selecting
-   this segment* would find, not how many the current selection holds. A count
-   that could not be read draws nothing at all — the control is a perfectly
-   good filter without its figures. #}
-{% macro segment(chip, testId) %}
-  {# A zero draws no badge; the count still exists on an empty segment's
-     title. #}
-  {%- set emptyTitle = (chip.title ~ " · " ~ chip.countLabel ~ " events") if chip.title else (chip.countLabel ~ " events") -%}
-  {%- set chipTitle = emptyTitle if chip.zero else chip.title -%}
-  <a class="{{ activeChip if chip.active else (emptyChip if chip.zero else inactiveChip) }}" href="{{ chip.href }}"{% if chip.active %} aria-current="page"{% endif %}{% if chipTitle %} title="{{ chipTitle }}"{% endif %}{% if chip.value %} data-value="{{ chip.value }}"{% endif %} data-testid="{{ testId }}">{{ chip.label }}{% if chip.countLabel and not chip.zero %} <span class="{{ segmentCountAlarm if chip.alarming else segmentCount }}" data-testid="{{ testId }}-count">{{ chip.countLabel }}</span>{% endif %}</a>
-{% endmacro %}
+{# The whole row opens the event. The name link's `::after` is stretched over
+   the row, which is its positioning context: one link, one tab stop, no
+   script, and a ctrl- or middle-click still opens a tab. Hover is the row's
+   fill and a pointer only — the link is not a daisyUI `link`, so it never
+   underlines. Keyboard focus (`:focus-visible` only, so a mouse click shows
+   nothing) draws a 2px outline inset round the row, where the scroller
+   cannot clip it, with the hover fill; the link's own ring is off, the row's
+   outline being its focus indicator. The dead-letter row keeps its tint and
+   its own, deeper fill for both. #}
+{% set rowClass = "relative cursor-pointer hover:bg-base-200 has-[:focus-visible]:bg-base-200 has-[:focus-visible]:outline-2 has-[:focus-visible]:-outline-offset-2 has-[:focus-visible]:outline-base-content" %}
+{% set rowClassDeadLetter = "relative cursor-pointer bg-error/5 hover:bg-error/10 has-[:focus-visible]:bg-error/10 has-[:focus-visible]:outline-2 has-[:focus-visible]:-outline-offset-2 has-[:focus-visible]:outline-base-content" %}
 
-{# The identity cell: the id, and the type under it when there is one. The id
-   link opens this row's own page and is deliberately NOT a `?q=` search — an
-   id belongs to exactly one row. It carries the list's query as `?from=` so
-   the back link returns to this exact page. #}
+{# The identity cell: what the event is, first, as the row's link — its name
+   in PascalCase, in the sans face so it never reads as the id — and the id
+   under it, muted mono.
+
+   Many rows share a name, so the link's accessible name is the spaced name
+   plus the id — "Agreement status updated, event c0ffee00-…" — from sr-only
+   text, one clean name rather than a name and a description. No title: the
+   raw type is the row's own page to show, in its Type fact, and a row that
+   is one big link shows no tooltip. The link opens that page and is
+   deliberately NOT a `?q=` search — an id belongs to exactly one row — and
+   carries the list's query as `?from=`, so the back link returns to this
+   exact page.
+
+   The id is plain text lifted over the row's link, so it stays selectable:
+   positioned, and later in the tree than the link's `::after`, it paints
+   above it without a z-index — one would also lift it over the pinned
+   header. `w-fit`, so only the id's own text selects rather than opens. No
+   title either: the column is sized to hold a whole id. #}
 {% macro identity(row) %}
-  <a href="{{ row.eventHref }}" class="link link-hover block truncate font-mono text-sm font-semibold" title="{{ row.eventId }}" data-testid="event-id">{{ row.eventId }}</a>
-  <div class="truncate text-xs text-base-content/60" title="{{ row.type }}" data-testid="event-type">{{ row.type }}</div>
+  <a href="{{ row.eventHref }}" class="block truncate text-sm font-semibold no-underline after:absolute after:inset-0 focus-visible:outline-none" data-testid="event-link"><span aria-hidden="true" data-testid="event-type-name">{{ row.typeName }}</span><span class="sr-only" data-testid="event-link-name">{{ row.typeNameSpoken }}, event {{ row.eventId }}</span></a>
+  <div class="relative w-fit max-w-full truncate font-mono text-sm text-base-content/70" data-testid="event-id">{{ row.eventId }}</div>
 {% endmacro %}
 
-{# Which hop a row is, and where its message was going: `to Caseworking` on
-   an outbox row, `from GAS` on an inbox one, with the transport's own name on
-   the title. Plain text here: the service filter is the toolbar's job, and a
-   link on every row of a column of near-identical values was mostly a way to
-   lose the page you were on. The detail page's Queue fact still links. #}
-{% macro sourceCell(row) %}
-  <div class="truncate" title="{{ row.hop }}" data-testid="event-hop">{{ row.hop }}</div>
-  {%- if row.queue %}
-    <div class="truncate text-xs text-base-content/70"{% if row.queueValue %} title="{{ row.queueValue }}"{% endif %} data-testid="event-queue">{{ row.queue }}</div>
-  {%- endif -%}
-{% endmacro %}
 
 {# The status, and — only on the rows that finished — how long it took,
    indented to the label so the column keeps one left edge.
@@ -74,7 +107,7 @@
    same reason: it repeated what the badge made obvious. #}
 {% macro statusDetail(row) %}
   {%- if row.latency -%}
-    <div class="truncate pl-3.5 font-mono text-xs tabular-nums text-base-content/70" title="{{ row.latencyTitle }}" data-testid="event-latency">took {{ row.latency }}</div>
+    <div class="truncate pl-3.5 font-mono text-sm tabular-nums text-base-content/70" title="{{ row.latencyTitle }}" data-testid="event-latency">took {{ row.latency }}</div>
   {%- endif -%}
 {% endmacro %}
 
@@ -82,8 +115,14 @@
    other state recedes, so the faint error wash is the only saturated thing on
    a calm page. #}
 {% macro eventRow(row) %}
-  <tr class="{{ "bg-error/5 hover:bg-error/10" if row.isDeadLetter else "hover:bg-base-200" }}" data-testid="event-row">
+  <tr class="{{ rowClassDeadLetter if row.isDeadLetter else rowClass }}" data-testid="event-row">
     <td>{{ identity(row) }}</td>
+    {# Which service the row belongs to, and which of its boxes: two short
+       words, centred under their headers, no titles. The truncation sits on
+       a div rather than the cell: an `overflow: hidden` cell takes the
+       hit-test from the row's stretched link. #}
+    <td class="text-center"><div class="truncate" data-testid="event-service">{{ row.serviceLabel }}</div></td>
+    <td class="text-center"><div class="truncate" data-testid="event-box">{{ row.boxLabel }}</div></td>
     <td class="overflow-hidden" data-testid="event-status">
       {{ statusBadge({
         status: row.status,
@@ -93,105 +132,100 @@
       }) }}
       {{ statusDetail(row) }}
     </td>
-    <td>{{ sourceCell(row) }}</td>
     <td class="text-right">
       {# The absolute instant is on the `title`, which a keyboard or a touch
          user never sees. It is also the one value on this row worth quoting,
          so it is in the markup as well - read out by a screen reader, and
          invisible to everyone else. #}
-      <div class="font-mono text-xs tabular-nums" title="{{ row.createdAtTitle }}" data-testid="event-created-at">{{ row.createdAt }}<span class="sr-only" data-testid="event-created-absolute"> ({{ row.createdAtTitle }})</span></div>
+      <div class="font-mono text-sm tabular-nums" title="{{ row.createdAtTitle }}" data-testid="event-created-at">{{ row.createdAt }}<span class="sr-only" data-testid="event-created-absolute"> ({{ row.createdAtTitle }})</span></div>
       {# The wall clock under the relative age; the date arrives once the row
          is more than a day old, and the seconds go with it. #}
-      {% if row.createdAtClock %}<div class="font-mono text-xs tabular-nums text-base-content/70" title="{{ row.createdAtTitle }}" data-testid="event-created-clock"><span data-testid="event-created-clock-text">{{ row.createdAtClock }}</span></div>{% endif %}
+      {% if row.createdAtClock %}<div class="font-mono text-sm tabular-nums text-base-content/70" title="{{ row.createdAtTitle }}" data-testid="event-created-clock"><span data-testid="event-created-clock-text">{{ row.createdAtClock }}</span></div>{% endif %}
     </td>
   </tr>
 {% endmacro %}
 
-{# The viewport is the frame: the document itself never scrolls — the table
-   does, inside the card — so the filters stay on screen. A short page keeps
-   the same frame: three rows in a card that stops after three rows reads as a
-   broken page. Only on a viewport with room for it (64rem by 40rem): zoomed
-   in, or in a short window, a locked frame leaves the table no height at all
-   and nothing to scroll to it with, so the document scrolls instead. #}
-{% block bodyClass %} [@media(min-width:64rem)_and_(min-height:40rem)]:h-dvh [@media(min-width:64rem)_and_(min-height:40rem)]:overflow-hidden{% endblock %}
+{# The document scrolls and the table is as tall as its rows; the top of the
+   page sticks instead, so the filters stay on screen. Only where the
+   viewport has room for it (64rem by 40rem) — the same condition as the
+   sticky block itself. There the bar sticks above the block, and focus
+   scrolling clears both and the pinned header row (3rem, a touch over its
+   46px) under them, so a focused row is never behind them. #}
+{% block htmlAttributes %} class="[@media(min-width:64rem)_and_(min-height:40rem)]:scroll-pt-[calc(var(--sticky-top,15rem)+3rem)]"{% endblock %}
+{% block navbarClass %} top-0 [@media(min-width:64rem)_and_(min-height:40rem)]:sticky [@media(min-width:64rem)_and_(min-height:40rem)]:z-30{% endblock %}
 
 {% block content %}
-  {# The page's own header: the subtitle says what the page is, the toolbar
-     says which slice is on screen. The `h1` stays for the skip link and the
-     page's one subject, set at the size of the words around it. #}
-  <hgroup class="mb-2 flex flex-wrap items-baseline gap-x-2" data-testid="events-heading">
-    <h1 class="text-base font-semibold" data-testid="events-title">{{ pageTitle }}</h1>
-    <p class="text-sm text-base-content/60" data-testid="events-subtitle">Inbox and outbox messages across GAS, Caseworking and connected services.</p>
-  </hgroup>
+  {# The heading, the tiles and the toolbar stick as one block while the rows
+     scroll under them. See sticky-top. #}
+  {% call stickyTop() %}
+    {# The page's own header: the subtitle says what the page is, the tiles and
+       the toolbar say which slice is on screen. The `h1` stays for the skip link
+       and the page's one subject, a step above the bar's brand. #}
+    <hgroup class="mb-2 flex flex-wrap items-baseline gap-x-2" data-testid="events-heading">
+      <h1 class="text-xl font-semibold" data-testid="events-title">{{ pageTitle }}</h1>
+      <p class="text-sm text-base-content/60" data-testid="events-subtitle">Inbox and outbox messages across GAS, Caseworking and connected services.</p>
+    </hgroup>
 
-  {% if unavailableSources %}
-    <div role="alert" class="alert alert-warning alert-soft mb-3 text-sm" data-testid="events-partial">
-      {{ icon({ name: 'exclamation-triangle', class: 'size-4 shrink-0' }) }}
-      <span>Some event sources are unavailable: {{ unavailableSources }}. Showing the rest.</span>
-    </div>
-  {% endif %}
-
-  {# Two rows, declared rather than emergent: what the page is filtered *to*
-     on the first, how it is narrowed and searched on the second. Segments are
-     links — a url needs no script — except the search, whose value the server
-     cannot enumerate. Rendered whatever the table did, so a filter that found
-     nothing can still be undone. #}
-  <div class="mb-3 grid gap-y-2" data-testid="events-toolbar">
-    <div class="flex flex-wrap items-center gap-x-5 gap-y-2" data-testid="events-filters">
-      {# A label and the group it introduces are one object, so they are
-         nested as one. `flex-wrap`, so on a narrow or zoomed viewport the label
-         goes above its group rather than pushing the group off the edge. #}
-      <div class="flex flex-wrap items-center gap-2">
-        <span class="{{ filterLabel }}" data-testid="events-filter-label">Service</span>
-        <div class="join" role="group" aria-label="Filter by service" data-testid="events-filter-service">
-          {% for chip in serviceFilters %}{{ segment(chip, "events-filter-service-chip") }}{% endfor %}
-        </div>
+    {% if unavailableSources %}
+      <div role="alert" class="alert alert-warning alert-soft mb-3 text-sm" data-testid="events-partial">
+        {{ icon({ name: 'exclamation-triangle', class: 'size-4 shrink-0' }) }}
+        <span>Some event sources are unavailable: {{ unavailableSources }}. Showing the rest.</span>
       </div>
+    {% endif %}
 
-      <div class="flex flex-wrap items-center gap-2">
-        <span class="{{ filterLabel }}" data-testid="events-filter-label">Status</span>
-        <div class="join" role="group" aria-label="Filter by status" data-testid="events-filter-status">
-          {% for chip in statusFilters %}{{ segment(chip, "events-filter-status-chip") }}{% endfor %}
-        </div>
-      </div>
-
-      <div class="flex flex-wrap items-center gap-2">
-        <span class="{{ filterLabel }}" data-testid="events-filter-label">Audit records</span>
-        <div class="join" role="group" aria-label="Filter by audit records" data-testid="events-filter-audit">
-          {% for chip in auditFilters %}{{ segment(chip, "events-filter-audit-chip") }}{% endfor %}
-        </div>
-      </div>
+    {# The status filter, as a strip of tiles: each is a link to its status and
+       says what selecting it would find — a facet, so no figure moves when a
+       status is selected, `All` included. Every tile comes off `statusFilters`,
+       the one list the view model builds, in the order a message travels. #}
+    <div class="stats stats-horizontal mb-3 w-fit max-w-full border border-base-300 bg-base-100" role="group" aria-label="Filter by status" data-testid="events-status-tiles">
+      {% for chip in statusFilters %}
+        {# The name says the figure in words: "Dead letter: 7,067 events". #}
+        {%- set tileName = chip.label if chip.value else "All statuses" -%}
+        <a class="{{ tileActive if chip.active else tile }}" href="{{ chip.href }}" aria-label="{{ tileName }}{% if chip.countLabel %}: {{ chip.countLabel }} {{ "event" if chip.countLabel == "1" else "events" }}{% endif %}"{% if chip.active %} aria-current="page"{% endif %}{% if chip.title %} title="{{ chip.title }}"{% endif %}{% if chip.value %} data-value="{{ chip.value }}"{% endif %} data-testid="events-status-tile">
+          <div class="{{ tileTitleActive if chip.active else tileTitle }}" data-testid="events-status-tile-label">{{ chip.label }}</div>
+          {% if chip.alarming %}
+            <div class="{{ tileValueAlarm }}" data-testid="events-status-tile-count">{{ chip.countLabel }}</div>
+          {% elif chip.countLabel and not chip.zero %}
+            <div class="{{ tileValue }}" data-testid="events-status-tile-count">{{ chip.countLabel }}</div>
+          {% else %}
+            <div class="{{ tileValueQuietActive if chip.active else tileValueQuiet }}" data-testid="events-status-tile-count">{{ chip.countLabel or "—" }}</div>
+          {% endif %}
+        </a>
+      {% endfor %}
     </div>
 
-    {# The second row: the window and the needle, hard right. #}
-    <div class="flex flex-wrap items-center justify-end gap-x-5 gap-y-2" data-testid="events-controls">
+    {# One row: the window, the service and the audit switch, then the search
+       hard right. Every control is a link or a native popover of links — a url
+       needs no script — except the search, whose value the server cannot
+       enumerate. Rendered whatever the table did, so a filter that found
+       nothing can still be undone. #}
+    <div class="mb-3 flex flex-wrap items-center gap-2" data-testid="events-toolbar">
       {# The window as one control: the button says which window is on, the
          panel holds the machinery. The panel is a native popover, and the
          popover is the whole of the behaviour — the browser opens it from
          `popovertarget`, closes it on Escape and outside clicks, and returns
          focus. No script at all. #}
       <div class="flex items-center gap-2" data-testid="events-range">
-        <span class="{{ filterLabel }}" data-testid="events-filter-label">Time</span>
-        <button class="{{ activeRangeButton if timeRange.active else rangeButton }}" type="button" popovertarget="events-range-panel" style="anchor-name:--events-range" title="{{ timeRange.title }}" data-testid="events-range-button">
+        <button class="{{ triggerActive if timeRange.active else trigger }}" type="button" popovertarget="events-range-panel" style="anchor-name:--events-range" title="{{ timeRange.title }}" data-testid="events-range-button">
           {{ icon({ name: 'clock', class: 'size-3.5 opacity-60' }) }}
-          {{ timeRange.label }}
+          <span><span class="{{ triggerName }}">Time:</span> {{ timeRange.label }}</span>
           {{ icon({ name: 'chevron-down', class: 'size-3 opacity-60' }) }}
         </button>
-        <div class="dropdown card card-sm w-72 border border-base-300 bg-base-100 shadow-md" popover id="events-range-panel" style="position-anchor:--events-range" data-testid="events-range-panel">
+        <div class="dropdown card card-sm mt-2 w-72 border border-base-300 bg-base-100 shadow-md" popover id="events-range-panel" style="position-anchor:--events-range" data-testid="events-range-panel">
           <div class="card-body gap-2 p-2">
             {# Each rung is a plain GET link carrying every other filter: it
                writes an absolute `from`, clears `to`, drops the cursor, and
                names itself in `range=`. #}
-            <ul class="menu menu-sm w-full p-0" data-testid="events-range-presets">
+            <ul class="menu menu-md w-full p-0" data-testid="events-range-presets">
               {% for preset in timeRange.presets %}
                 <li>
-                  <a class="{{ "menu-active" if preset.active }}" href="{{ preset.href }}" title="{{ preset.title }}"{% if preset.active %} aria-current="true"{% endif %} data-value="{{ preset.key }}" data-testid="events-range-preset">{{ preset.label }}</a>
+                  <a class="{{ menuItemActive if preset.active else menuItem }}" href="{{ preset.href }}" title="{{ preset.title }}"{% if preset.active %} aria-current="true"{% endif %} data-value="{{ preset.key }}" data-testid="events-range-preset">{{ icon({ name: 'check', class: tick if preset.active else tickHidden }) }}<span>{{ preset.label }}</span></a>
                 </li>
               {% endfor %}
               {# `Any time` is a rung and not a `Clear ×` off to one side:
                  "no window" is a choice about the range like any other. #}
               <li>
-                <a class="{{ "menu-active" if timeRange.anyTimeActive }}" href="{{ timeRange.anyTimeHref }}"{% if timeRange.anyTimeActive %} aria-current="true"{% endif %} data-testid="events-range-any">Any time</a>
+                <a class="{{ menuItemActive if timeRange.anyTimeActive else menuItem }}" href="{{ timeRange.anyTimeHref }}"{% if timeRange.anyTimeActive %} aria-current="true"{% endif %} data-testid="events-range-any">{{ icon({ name: 'check', class: tick if timeRange.anyTimeActive else tickHidden }) }}<span>Any time</span></a>
               </li>
             </ul>
 
@@ -200,17 +234,17 @@
                of your own is what stops it being `Last 24h`. `datetime-local`
                submits a bare wall time and the route reads it as UTC; the
                boxes keep that rule on their titles, the one place an operator
-               might need it told. #}
+               might need it told. The legend is semibold of its own. #}
             <form method="get" action="/dev-ops/events" data-testid="events-range-form">
               {% for field in rangeFilters %}
                 <input type="hidden" name="{{ field.name }}" value="{{ field.value }}" data-testid="events-range-filter">
               {% endfor %}
               <fieldset class="fieldset border-t border-base-300 pt-2">
-                <legend class="fieldset-legend" data-testid="events-range-absolute-heading">Absolute range</legend>
+                <legend class="fieldset-legend text-sm" data-testid="events-range-absolute-heading">Custom</legend>
                 <label class="label" for="events-range-from" data-testid="events-range-from-label">From</label>
-                <input class="input input-sm w-full font-mono text-xs" id="events-range-from" type="datetime-local" step="1" name="from" value="{{ fromInput }}" data-testid="events-range-from">
+                <input class="input w-full font-mono text-sm" id="events-range-from" type="datetime-local" step="1" name="from" value="{{ fromInput }}" data-testid="events-range-from">
                 <label class="label" for="events-range-to" data-testid="events-range-to-label">To</label>
-                <input class="input input-sm w-full font-mono text-xs" id="events-range-to" type="datetime-local" step="1" name="to" value="{{ toInput }}" data-testid="events-range-to">
+                <input class="input w-full font-mono text-sm" id="events-range-to" type="datetime-local" step="1" name="to" value="{{ toInput }}" data-testid="events-range-to">
                 <button class="btn btn-sm mt-2 self-end" type="submit" data-testid="events-range-apply">Apply</button>
               </fieldset>
             </form>
@@ -218,29 +252,50 @@
         </div>
       </div>
 
+      {# The service, the same way: a trigger saying its value, and a popover
+         menu of links, each carrying every other filter. #}
+      {%- set service = serviceFilters | selectattr("active") | first -%}
+      <div class="flex items-center gap-2" role="group" aria-label="Filter by service" data-testid="events-filter-service">
+        <button class="{{ trigger if serviceFilters[0].active else triggerActive }}" type="button" popovertarget="events-service-panel" style="anchor-name:--events-service" data-testid="events-filter-service-button">
+          <span><span class="{{ triggerName }}">Service:</span> {{ service.label if service else "All" }}</span>
+          {{ icon({ name: 'chevron-down', class: 'size-3 opacity-60' }) }}
+        </button>
+        <ul class="{{ menu }}" popover id="events-service-panel" style="position-anchor:--events-service" aria-label="Filter by service" data-testid="events-filter-service-panel">
+          {% for chip in serviceFilters %}
+            <li><a class="{{ menuItemActive if chip.active else menuItem }}" href="{{ chip.href }}"{% if chip.active %} aria-current="page"{% endif %}{% if chip.value %} data-value="{{ chip.value }}"{% endif %} data-testid="events-filter-service-chip">{{ icon({ name: 'check', class: tick if chip.active else tickHidden }) }}<span>{{ chip.label }}</span></a></li>
+          {% endfor %}
+        </ul>
+      </div>
+
+      {{ auditSwitch(showAudit) }}
+
       {# The search: GET, so a search is a url. A form submits its own fields
          and nothing else, so every toolbar filter is restated as a hidden
          field — without them, searching from Dead letter would quietly widen
-         to All; the cursor is deliberately not among them. #}
-      <form class="join" method="get" action="/dev-ops/events" role="search" data-testid="events-search">
+         to All; the cursor is deliberately not among them. The `join` is the
+         box and the button alone: daisyUI rounds a join's first CHILD, and a
+         hidden field ahead of the box squared its corners. #}
+      <form class="ml-auto" method="get" action="/dev-ops/events" role="search" data-testid="events-search">
         {% for field in searchFilters %}
           <input type="hidden" name="{{ field.name }}" value="{{ field.value }}" data-testid="events-search-filter">
         {% endfor %}
-        <label class="input input-sm join-item w-80" data-testid="events-search-label">
-          {{ icon({ name: 'search', class: 'size-3.5 opacity-50' }) }}
-          <input type="search" name="q" value="{{ q }}" placeholder="Event id, message id or reference…" aria-label="Search events" data-testid="events-search-input">
-        </label>
-        <button class="btn btn-sm join-item" type="submit" data-testid="events-search-submit">Search</button>
+        <div class="join">
+          <label class="input join-item w-80" data-testid="events-search-label">
+            {{ icon({ name: 'search', class: 'size-3.5 opacity-50' }) }}
+            <input type="search" name="q" value="{{ q }}" placeholder="Event id, message id or reference…" aria-label="Search events" data-testid="events-search-input">
+          </label>
+          <button class="btn join-item" type="submit" data-testid="events-search-submit">Search</button>
+        </div>
       </form>
     </div>
-  </div>
+  {% endcall %}
 
   {# The filters with no control showing their value — the search and the
      clicked failure — said in words under the toolbar, each with the way out
      of itself: a page read under a forgotten filter is a page lying about the
      stream. #}
   {% if q or errorFilter %}
-    <div class="mb-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs" data-testid="events-filter-notes">
+    <div class="mb-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm" data-testid="events-filter-notes">
       {% if q %}
         <span class="text-base-content/60" data-testid="events-note-search">Matching <span class="font-mono text-base-content/80">"{{ q }}"</span></span>
         <a class="link link-hover text-base-content/50" href="{{ clearSearchHref }}" data-testid="events-note-search-clear">Clear ×</a>
@@ -255,122 +310,111 @@
   {% endif %}
 
   {% if rows | length %}
-    {# The card is the frame and the table inside it is the only thing that
-       scrolls; the caption, the failures panel and the pager keep their
-       places. #}
-    <div class="card card-border flex min-h-0 flex-1 flex-col overflow-hidden bg-base-100" data-testid="events-card">
-        {# One row for the failures summary and the caption. A one-cell grid
-           places both children in the same cell, so the disclosure keeps the
-           full width to open into while the right-hand cluster sits on its
-           first line — a flex row would give the panel only the width the
-           buttons left. `w-fit` stops the disclosure at its own words, and
-           everything on the right is outside `<summary>`, so neither the
-           figure nor the buttons toggle anything. #}
-        {% if eventsTotal or topFailures %}
-          <div class="grid shrink-0 grid-cols-1 grid-rows-1 border-b border-base-300" data-testid="events-card-header">
-
+    {# The card holds the failures panel, the table and its loader. It clips
+       rather than hiding its overflow: `overflow-clip` makes no scroll
+       container, so the table's header row can still stick to the viewport
+       — `overflow-hidden` would have become its scroller and unpinned it. #}
+    <div class="card card-border flex flex-col overflow-clip bg-base-100" data-testid="events-card">
         {# Which failures the dead letters actually are; each row links the
-           page to exactly that failure, message and all. Open when the page
-           is already about dead letters, folded shut when it is not. daisyUI
+           page to exactly that failure, message and all. Always drawn folded:
+           the summary announces it, and the operator opens it. daisyUI
            `collapse` on a native `details`, so the disclosure is the
-           browser's and the open state the server's. #}
+           browser's. No failures, no row: the card starts at the table. #}
         {% if topFailures %}
-          <details class="group collapse col-start-1 row-start-1 max-h-64 overflow-y-auto rounded-none"{% if topFailures.open %} open{% endif %} data-testid="events-failures">
-            {# `collapse-arrow` draws its mark against the far edge, a hand's
-               breadth from the words and under the caption — so the glyph is
-               inline instead, immediately after the label. #}
-            <summary class="collapse-title flex min-h-10 w-fit items-center gap-1.5 px-4 py-0 text-sm text-base-content/70" data-testid="events-failures-summary">{{ topFailures.summary }}{{ icon({ name: 'chevron-down', class: 'size-3.5 opacity-60 transition-transform group-open:rotate-180' }) }}</summary>
-            <div class="collapse-content px-0 pb-2" data-testid="events-failures-list">
-              <div class="max-w-full overflow-x-auto">
-                {# `table-sm`, the size the events table below is drawn at:
-                   the two sit stacked in one card, so a cell padding of its
-                   own (`table-xs` insets .5rem against .75rem) put this
-                   panel's first column a few pixels inside the Event column
-                   under it and read as a wonky edge. One size class, one
-                   column system. The panel scrolls inside `max-h-64`, so the
-                   taller rows cost the page no height. #}
-                <table class="table table-sm" data-testid="events-failures-table">
-                  <thead>
-                    <tr>
-                      <th scope="col">Error</th>
-                      <th scope="col">Type</th>
-                      <th scope="col" class="text-right">Count</th>
-                      <th scope="col" class="text-right">First</th>
-                      <th scope="col" class="text-right">Last</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {% for group in topFailures.groups %}
-                      <tr class="hover:bg-base-200" data-testid="events-failure-row">
-                        {# A group that recorded no message is a dash, and a
-                           dash is not a link: `?error=` has nothing to match
-                           on, so the only page it could open is a wider one
-                           than this row is about. The other cells are
-                           unaffected. #}
-                        <td class="max-w-96 truncate">
-                          {%- if group.href -%}
-                            <a class="link link-hover font-mono text-error" href="{{ group.href }}"{% if group.messageTitle %} title="{{ group.messageTitle }}"{% endif %} data-testid="events-failure-message">{{ group.message }}</a>
-                          {%- else -%}
-                            <span class="font-mono text-base-content/50" data-testid="events-failure-message">{{ group.message }}</span>
-                          {%- endif -%}
-                        </td>
-                        {# The failure message names the group; the type is
-                           the extra fact — `audit` for records that are not
-                           CloudEvents. #}
-                        <td class="text-base-content/70" data-testid="events-failure-type">{{ group.type }}</td>
-                        <td class="text-right font-mono font-medium tabular-nums" data-testid="events-failure-count">{{ group.countLabel }}</td>
-                        <td class="text-right font-mono tabular-nums whitespace-nowrap text-base-content/70" title="{{ group.firstTitle }}" data-testid="events-failure-first">{{ group.firstAt }}</td>
-                        <td class="text-right font-mono tabular-nums whitespace-nowrap text-base-content/70" title="{{ group.lastTitle }}" data-testid="events-failure-last">{{ group.lastAt }}</td>
+          <div class="shrink-0 border-b border-base-300" data-testid="events-card-header">
+            <details class="group collapse max-h-64 overflow-y-auto rounded-none" data-testid="events-failures">
+              {# `collapse-arrow` draws its mark against the far edge, a hand's
+                 breadth from the words — so the glyph is inline instead,
+                 immediately after the label. `w-fit` stops the disclosure at
+                 its own words, so the empty rest of the row toggles nothing. #}
+              <summary class="collapse-title flex min-h-10 w-fit items-center gap-1.5 px-4 py-0 text-sm text-base-content/70" data-testid="events-failures-summary">{{ topFailures.summary }}{{ icon({ name: 'chevron-down', class: 'size-3.5 opacity-60 transition-transform group-open:rotate-180' }) }}</summary>
+              <div class="collapse-content px-0 pb-2" data-testid="events-failures-list">
+                <div class="max-w-full overflow-x-auto">
+                  {# `table`, the size the events table below is drawn at: the
+                     two sit stacked in one card, so a cell padding of its own
+                     put this panel's first column a few pixels off the Event
+                     column under it and read as a wonky edge. One size class,
+                     one column system. The panel scrolls inside `max-h-64`, so
+                     the rows cost the page no height. #}
+                  <table class="table" data-testid="events-failures-table">
+                    <thead>
+                      <tr>
+                        <th scope="col">Error</th>
+                        <th scope="col">Type</th>
+                        <th scope="col" class="text-right">Count</th>
+                        <th scope="col" class="text-right">First</th>
+                        <th scope="col" class="text-right">Last</th>
                       </tr>
-                    {% endfor %}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {% for group in topFailures.groups %}
+                        <tr class="hover:bg-base-200" data-testid="events-failure-row">
+                          {# A group that recorded no message is a dash, and a
+                             dash is not a link: `?error=` has nothing to match
+                             on, so the only page it could open is a wider one
+                             than this row is about. The other cells are
+                             unaffected. #}
+                          <td class="max-w-96 truncate">
+                            {%- if group.href -%}
+                              <a class="link link-hover font-mono text-error" href="{{ group.href }}"{% if group.messageTitle %} title="{{ group.messageTitle }}"{% endif %} data-testid="events-failure-message">{{ group.message }}</a>
+                            {%- else -%}
+                              <span class="font-mono text-base-content/50" data-testid="events-failure-message">{{ group.message }}</span>
+                            {%- endif -%}
+                          </td>
+                          {# The failure message names the group; the type is
+                             the extra fact, named as the rows name it, raw on
+                             the title. #}
+                          <td class="text-base-content/70" title="{{ group.type }}" data-testid="events-failure-type"><span aria-hidden="true">{{ group.typeName }}</span><span class="sr-only">{{ group.typeNameSpoken }}</span></td>
+                          <td class="text-right font-mono font-medium tabular-nums" data-testid="events-failure-count">{{ group.countLabel }}</td>
+                          <td class="text-right font-mono tabular-nums whitespace-nowrap text-base-content/70" title="{{ group.firstTitle }}" data-testid="events-failure-first">{{ group.firstAt }}</td>
+                          <td class="text-right font-mono tabular-nums whitespace-nowrap text-base-content/70" title="{{ group.lastTitle }}" data-testid="events-failure-last">{{ group.lastAt }}</td>
+                        </tr>
+                      {% endfor %}
+                    </tbody>
+                  </table>
+                </div>
               </div>
-            </div>
-          </details>
-        {% endif %}
-
-        {# What the filters add up to: it moves when any filter moves. #}
-        <div class="col-start-1 row-start-1 flex min-h-10 items-center gap-3 self-start justify-self-end px-4" data-testid="events-card-aside">
-          {% if eventsTotal %}
-            <span class="text-xs tabular-nums text-base-content/60" title="Events matching every filter on this page" data-testid="events-total">{{ eventsTotal }}</span>
-          {% endif %}
-        </div>
+            </details>
           </div>
         {% endif %}
 
-        {# The table scrolls inside this box, not the page. The box takes
-           whatever height the card has left, which gives `table-pin-rows`
-           something to pin to and keeps the pager on screen. `scroll-pt-10`
-           is the pinned header's height, so a row scrolled to by focus lands
-           below it rather than behind it. #}
-        <div class="min-h-0 w-full flex-1 scroll-pt-10 overflow-x-auto overflow-y-auto overscroll-contain" data-testid="events-scroller">
+        {# Sticky and sideways scrolling cannot share a box: any overflow here
+           would become the header row's scroller and unpin it from the
+           viewport. So where the page sticks (64rem by 40rem) this box does
+           not scroll at all and the table is simply the card's width, its
+           columns keeping their shares; below that nothing sticks, and the
+           table keeps its 64rem minimum and scrolls sideways here instead. #}
+        <div class="w-full overflow-x-auto [@media(min-width:64rem)_and_(min-height:40rem)]:overflow-visible" data-testid="events-scroller">
           {# `table-fixed`, every column's share declared on its header: an
              auto table measures its contents, so the columns moved between
-             one page and the next. The proportions are tuned at the table's
-             minimum width, where Event still holds a 36-character id and
-             Status a truncated error under its label. #}
-          <table class="table table-sm table-pin-rows min-w-[64rem] table-fixed" data-testid="events-table">
+             one page and the next. Two sets of shares: below `xl` they are
+             tuned at 1024px, where Event still holds the whole id and its
+             longest name, Status "took …" and Created "2 Sep 09:07"; from
+             `xl` the short columns give their spare width back to Event.
+             Where the page sticks, the header row pins under the sticky top
+             rather than at the very top of the window. #}
+          <table class="table table-pin-rows w-full min-w-[64rem] table-fixed [@media(min-width:64rem)_and_(min-height:40rem)]:min-w-0 [@media(min-width:64rem)_and_(min-height:40rem)]:[&_thead]:top-[var(--sticky-top,15rem)]" data-testid="events-table">
             <thead>
               <tr data-testid="events-head">
-                <th scope="col" class="w-[46%]">Event</th>
-                <th scope="col" class="w-[19%]">Status</th>
-                <th scope="col" class="w-[21%]">Queue</th>
+                <th scope="col" class="w-[41%] xl:w-[52.5%]">Event</th>
+                {# Two short words each: centred, header and cells alike. #}
+                <th scope="col" class="w-[9%] text-center xl:w-[6.5%]">Service</th>
+                <th scope="col" class="w-[21%] text-center xl:w-[18.5%]">Queue</th>
+                <th scope="col" class="w-[15%] xl:w-[12.5%]">Status</th>
                 {# The one column of figures is right-aligned in the header
                    as well as in the body. #}
-                <th scope="col" class="w-[14%] text-right">Created</th>
+                <th scope="col" class="w-[14%] text-right xl:w-[10%]">Created</th>
               </tr>
             </thead>
-            <tbody>
+            <tbody id="events-rows">
               {% for row in rows %}{{ eventRow(row) }}{% endfor %}
             </tbody>
           </table>
         </div>
 
-        {{ pager({
-          previousHref: previousHref,
-          nextHref: nextHref
-        }) }}
+        {# No pager: the next page arrives as the reader nears the bottom,
+           appended to the rows above. See load-more. #}
+        {{ loadMore({ nextHref: nextHref, rows: "events-rows" }) }}
     </div>
   {% else %}
     {# Every other outcome keeps the frame: nothing-could-be-read is a state

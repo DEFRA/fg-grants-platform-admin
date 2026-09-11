@@ -37,16 +37,16 @@ export type {
 export interface EventsResult {
   page: EventsPage
   /**
-   * The vocabulary the toolbar's chips are labelled and explained with, from
-   * the endpoint. Empty only on the page that could not be read at all, which
-   * draws no chips to label.
+   * The vocabulary the status tiles and the service menu are labelled and
+   * explained with, from the endpoint. Empty only on the page that could not
+   * be read at all, which has nothing to label.
    */
   statuses: StatusFilter[]
   services: ServiceFilter[]
   /**
-   * Every figure the toolbar's segments are labelled with. Null when that
-   * read failed on its own, which is not an outage: the page still has its
-   * rows, and the segments simply render as labels.
+   * Every figure the status tiles carry. Null when that read failed on its
+   * own, which is not an outage: the page still has its rows, and the tiles
+   * simply render without figures.
    */
   facets: EventFacets | null
   /**
@@ -141,7 +141,7 @@ export const getEventsUseCase = async (
 
     return {
       page: { events, pagination, sourceErrors },
-      // The chips' words go straight through: a constant of the endpoint, not
+      // The filters' words go straight through: a constant of the endpoint, not
       // a section that can fail, so there is no null to degrade around.
       statuses,
       services,
@@ -164,8 +164,8 @@ export const getEventsUseCase = async (
 
     return {
       page: noPage,
-      // A page that could not be read draws no chips at all, so the vocabulary
-      // it would have labelled them with is empty rather than invented here.
+      // A page that could not be read has no statuses or services to offer,
+      // so the vocabulary is empty rather than invented here.
       statuses: [],
       services: [],
       facets: null,

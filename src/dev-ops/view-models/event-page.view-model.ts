@@ -4,6 +4,7 @@ import type {
   EventResult,
   JourneyHop as JourneyHopResponse
 } from '../use-cases/get-event.use-case.ts'
+import { toEventName } from './event-names.ts'
 import type { BadgeRole } from './event-formats.ts'
 import {
   none,
@@ -86,11 +87,20 @@ export interface EventPageModel {
   banner: EventBanner | null
 
   /**
-   * Always there: a record that is not a CloudEvent is labelled `audit` by
-   * fg-gas-backend, and the sentence explaining that arrives as `typeTitle`.
+   * What the event is — `CreateAgreement` — under the id, as the list says
+   * it. See toEventName.
+   */
+  typeName: string
+  /** The same name spaced, `Create agreement`, for a screen reader. */
+  typeNameSpoken: string
+  /**
+   * The type as the endpoint sends it, on the name's title and as a fact of
+   * its own, because this is the page it is copied from. Always there: a
+   * record that is not a CloudEvent is labelled `audit` by fg-gas-backend,
+   * and the sentence explaining that arrives as `typeTitle`.
    */
   type: string
-  /** The endpoint's own spelling, on the type's `title`, when the two differ. */
+  /** The endpoint's own spelling, on the type fact's `title`, when the two differ. */
   typeTitle: string | null
   eventId: string
 
@@ -371,6 +381,8 @@ const toShell = (key: EventKey, query: EventPageQuery) => {
 }
 
 const emptyDetail = {
+  typeName: '',
+  typeNameSpoken: '',
   type: '',
   typeTitle: null,
   eventId: '',
@@ -685,8 +697,11 @@ const toDetail = (
   const isInbox = key.box === 'inbox'
   const payload = toPayloadFacts(event, isInbox)
   const receivedAt = toReceivedAt(event, isInbox)
+  const { name, spoken } = toEventName(event.type)
 
   return {
+    typeName: name,
+    typeNameSpoken: spoken,
     type: event.type,
     typeTitle: event.typeTitle,
     eventId: event.eventId,

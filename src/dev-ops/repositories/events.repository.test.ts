@@ -140,16 +140,16 @@ describe('findEventsPage query building', () => {
     expect(getFromGas).toHaveBeenCalledWith('/grant-admin/events/page')
   })
 
-  test('forwards the cursor, direction, status and service', async () => {
+  // No direction: the list only pages forward, fg-gas-backend's default.
+  test('forwards the cursor, status and service', async () => {
     await findEventsPage({
       cursor: 'eyJ2IjoxfQ',
-      direction: 'forward',
       status: 'DEAD_LETTER',
       service: 'gas'
     })
 
     expect(getFromGas).toHaveBeenCalledWith(
-      '/grant-admin/events/page?cursor=eyJ2IjoxfQ&direction=forward&status=DEAD_LETTER&service=gas'
+      '/grant-admin/events/page?cursor=eyJ2IjoxfQ&status=DEAD_LETTER&service=gas'
     )
   })
 
@@ -224,7 +224,6 @@ describe('findEventsPage', () => {
   test('forwards every filter the page is holding', async () => {
     await findEventsPage({
       cursor: 'eyJ2IjoxfQ',
-      direction: 'forward',
       status: 'DEAD_LETTER',
       service: 'gas',
       q: 'gld-9b2',
@@ -238,7 +237,6 @@ describe('findEventsPage', () => {
     expect(url).toContain('/grant-admin/events/page?')
     for (const part of [
       'cursor=eyJ2IjoxfQ',
-      'direction=forward',
       'status=DEAD_LETTER',
       'service=gas',
       'q=gld-9b2',
