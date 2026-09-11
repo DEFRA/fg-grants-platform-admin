@@ -78,14 +78,23 @@ const toInstant = (value: string | undefined): string | undefined => {
 const present = (name: string, value: string | undefined) =>
   value ? { [name]: value } : {}
 
+/**
+ * `direction` is no longer this page's to send: the list only pages forward,
+ * fg-gas-backend's default. A link from before that still carries it is read
+ * gracefully rather than refused — `forward` keeps its cursor, and `backward`
+ * (the old Newer link) opens the newest page, which is where Newer led.
+ */
 const toQuery = ({
   q,
   error,
   from,
   to,
+  direction,
+  cursor,
   ...rest
-}: EventsPageQuery): EventsPageQuery => ({
+}: EventsPageQuery & { direction?: string }): EventsPageQuery => ({
   ...rest,
+  ...present('cursor', direction === 'backward' ? undefined : cursor),
   ...present('q', q?.trim()),
   // Never trimmed, unlike the search: `error` matches a stored message
   // exactly, and a message may legitimately end in whitespace.
@@ -102,7 +111,8 @@ const toQuery = ({
 const toGasQuery = ({ range, ...gas }: EventsPageQuery): EventsQuery => gas
 
 /**
- * The enums — `status`, `service`, `direction` — are checked against the
+ * The enums — `status`, `service`, `audit`, and a stale `direction` — are
+ * checked against the
  * values this app itself offers; see view-models/event-filters.ts for why.
  * Everything else is unconstrained — a cursor is opaque and genuinely the
  * endpoint's to refuse, and the search and failure message are free text.

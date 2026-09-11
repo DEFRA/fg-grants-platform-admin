@@ -7,9 +7,9 @@
    Tailwind scans this file's text for candidates and never sees a class
    assembled in TypeScript: a label names a fact and never competes with it,
    and a machine string is set in mono because it is a thing to be copied. #}
-{% set factLabel = "pt-0.5 text-xs font-medium text-base-content/50" %}
+{% set factLabel = "pt-0.5 text-xs font-medium text-base-content/70" %}
 {% set monoValue = "font-mono text-xs break-all" %}
-{% set monoMuted = "font-mono text-xs text-base-content/50" %}
+{% set monoMuted = "font-mono text-xs text-base-content/70" %}
 
 {# One fact: a label, and whatever the caller put under it. A `dl` rather than
    a table, because these are name/value pairs and not a grid of rows. The pair
@@ -65,13 +65,15 @@
   {% else %}
     {# The header: which id this is, what message it is, what state it is in.
        The id heads the page whole — the one identifier every event has, and
-       what the operator came to copy. The status is a soft badge rather than
-       the list's dot: no column to line up here. #}
+       what the operator came to copy. What the message is reads as the list
+       names it — PascalCase, spoken spaced — with the raw type on its title
+       and in the facts below. The status is a soft badge rather than the
+       list's dot: no column to line up here. #}
     <header class="mt-2 mb-4" data-testid="event-header">
       <div class="flex items-center gap-1">
         <h1 class="font-mono text-xl font-semibold break-all" data-testid="event-title">{{ eventId }}</h1>
       </div>
-      <p class="mt-1 text-sm break-all text-base-content/70" {% if typeTitle %}title="{{ typeTitle }}" {% endif %}data-testid="event-type">{{ type }}</p>
+      <p class="mt-1 text-sm break-all text-base-content/70" title="{{ type }}" data-testid="event-type"><span aria-hidden="true" data-testid="event-type-name">{{ typeName }}</span><span class="sr-only" data-testid="event-type-spoken">{{ typeNameSpoken }}</span></p>
       <div class="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
         {{ statusBadge({ status: status, label: statusLabel, role: statusRole, retrying: statusRetrying, variant: "badge" }) }}
         {% if hasFailure or showAttempts %}
@@ -82,9 +84,11 @@
 
     {# The futile-redrive note. A note, not a block: the operator may know
        something the page does not, and a disabled Redrive would be this app
-       overruling them on the strength of two matching strings. #}
+       overruling them on the strength of two matching strings. Solid rather
+       than soft: the soft amber is unreadable in the light theme, and this is
+       the one warning on the page that sits over a write. #}
     {% if futileWarning %}
-      <div role="note" class="alert alert-warning alert-soft mb-3 text-sm" data-testid="event-futile-warning">
+      <div role="note" class="alert alert-warning mb-3 text-sm" data-testid="event-futile-warning">
         {{ icon({ name: 'exclamation-triangle', class: 'size-4 shrink-0' }) }}
         <span>{{ futileWarning }}</span>
       </div>
@@ -115,7 +119,7 @@
       </section>
     {% elif canRedrive %}
       <div class="mb-4 flex items-center gap-2" data-testid="event-actions">
-        <a class="btn btn-sm btn-error btn-outline" href="{{ redriveHref }}" data-testid="event-redrive">Redrive</a>
+        <a class="btn btn-sm btn-error" href="{{ redriveHref }}" data-testid="event-redrive">Redrive</a>
       </div>
     {% endif %}
 
@@ -138,6 +142,13 @@
             {% if queue %}
               <div class="mt-0.5 flex items-start gap-1"><span class="text-xs text-base-content/50"{% if queueValue %} title="{{ queueValue }}"{% endif %} data-testid="event-queue">{{ queue }}</span></div>
             {% endif %}
+          {% endcall %}
+
+          {# The type as the endpoint sends it: the header names the event, and
+             this is the spelling a developer copies. The full namespaced
+             type — or why there is none — on its title. #}
+          {% call fact("Type", "event-fact-type") %}
+            <span class="{{ monoValue }}"{% if typeTitle %} title="{{ typeTitle }}"{% endif %} data-testid="event-type-raw">{{ type }}</span>
           {% endcall %}
 
           {# From here the two halves of the pattern part company: each kind

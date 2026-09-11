@@ -306,15 +306,41 @@ describe('viewEventRoute', () => {
     expect(title.attr('class')).toContain('font-mono')
   })
 
-  test('sets the type under the id, with the full type on its title', async () => {
+  // Named as the list names it: PascalCase to see, spaced to hear, and the
+  // raw type on its title.
+  test('names the event under the id, with the raw type on its title', async () => {
     const { $ } = await viewPage()
 
     const type = $('[data-testid="event-type"]')
 
-    expect(type.text().trim()).toBe('case.status.updated')
-    expect(type.attr('title')).toBe(
+    expect(type.find('[data-testid="event-type-name"]').text()).toBe(
+      'CaseStatusUpdated'
+    )
+    expect(
+      type.find('[data-testid="event-type-name"]').attr('aria-hidden')
+    ).toBe('true')
+    expect(type.find('[data-testid="event-type-spoken"]').text()).toBe(
+      'Case status updated'
+    )
+    expect(
+      type.find('[data-testid="event-type-spoken"]').hasClass('sr-only')
+    ).toBe(true)
+    expect(type.attr('title')).toBe('case.status.updated')
+  })
+
+  // This is the page a developer copies the type from, so it is drawn whole
+  // and in mono as a fact, with the full namespaced spelling on its title.
+  test('keeps the raw type visible as a fact of its own', async () => {
+    const { $ } = await viewPage()
+
+    const raw = $('[data-testid="event-type-raw"]')
+
+    expect(raw.text()).toBe('case.status.updated')
+    expect(raw.attr('class')).toContain('font-mono')
+    expect(raw.attr('title')).toBe(
       'cloud.defra.prd.fg-gas-backend.case.update.status'
     )
+    expect(raw.closest('[data-testid="event-fact-type"]')).toHaveLength(1)
   })
 
   // No title where the full type says nothing the short one does not.
@@ -323,10 +349,10 @@ describe('viewEventRoute', () => {
 
     const { $ } = await viewPage()
 
-    expect($('[data-testid="event-type"]').attr('title')).toBeUndefined()
+    expect($('[data-testid="event-type-raw"]').attr('title')).toBeUndefined()
   })
 
-  test('heads an audit record with its id, and names it audit', async () => {
+  test('heads an audit record with its id, and names it an audit record', async () => {
     givenEvent(
       detail({ type: 'audit', typeTitle: 'Audit record — not a CloudEvent' })
     )
@@ -335,12 +361,14 @@ describe('viewEventRoute', () => {
 
     const title = $('[data-testid="event-title"]')
 
-    const type = $('[data-testid="event-type"]')
-
     expect(title.is('h1')).toBe(true)
     expect(title.text().trim()).toBe('3f2c1a0e-1111-2222-3333-444455556666')
-    expect(type.text()).toBe('audit')
-    expect(type.attr('title')).toBe('Audit record — not a CloudEvent')
+    expect($('[data-testid="event-type-name"]').text()).toBe('AuditRecord')
+    expect($('[data-testid="event-type"]').attr('title')).toBe('audit')
+    expect($('[data-testid="event-type-raw"]').text()).toBe('audit')
+    expect($('[data-testid="event-type-raw"]').attr('title')).toBe(
+      'Audit record — not a CloudEvent'
+    )
     expect($('[data-testid="event-header"]').text()).not.toContain('n/a')
   })
 
@@ -357,10 +385,11 @@ describe('viewEventRoute', () => {
 
     const { $ } = await viewPage()
 
-    const type = $('[data-testid="event-type"]')
-
-    expect(type.text()).toBe('unknown')
-    expect(type.attr('title')).toBe('No event type recorded — not a CloudEvent')
+    expect($('[data-testid="event-type-name"]').text()).toBe('NoTypeRecorded')
+    expect($('[data-testid="event-type-raw"]').text()).toBe('unknown')
+    expect($('[data-testid="event-type-raw"]').attr('title')).toBe(
+      'No event type recorded — not a CloudEvent'
+    )
   })
 
   test('says the status as a dot and a word, as the list does', async () => {
@@ -594,6 +623,7 @@ describe('viewEventRoute', () => {
 
     expect(labelsOf($)).toEqual([
       'Queue',
+      'Type',
       'Reference',
       'Traceparent',
       'Created',
@@ -620,6 +650,7 @@ describe('viewEventRoute', () => {
 
     expect(labelsOf($)).toEqual([
       'Queue',
+      'Type',
       'Message group',
       'Created',
       'Queued',
@@ -1292,7 +1323,9 @@ describe('viewEventRoute', () => {
 
     expect(button.is('a')).toBe(true)
     expect(button.attr('href')).toBe(`${path}?confirm=redrive`)
-    expect(button.attr('class')).toBe('btn btn-sm btn-error btn-outline')
+    // Solid, not outline: the outline's red on white is too faint to read.
+    expect(button.hasClass('btn-error')).toBe(true)
+    expect(button.hasClass('btn-outline')).toBe(false)
     expect(button.text().trim()).toBe('Redrive')
   })
 
@@ -1947,6 +1980,10 @@ describe('viewEventRoute', () => {
     expect(valueOf($, 'event-futile-warning')).toBe(
       'A previous redrive (by Ada Lovelace, 2026-06-16T10:10:00Z) failed with the identical error — redriving again is unlikely to succeed until the underlying cause is fixed.'
     )
+    // Solid, not soft: the soft amber cannot be read in the light theme.
+    expect(
+      $('[data-testid="event-futile-warning"]').hasClass('alert-soft')
+    ).toBe(false)
     // A note, not a block: the button is exactly where it was.
     expect($('[data-testid="event-redrive"]')).toHaveLength(1)
   })

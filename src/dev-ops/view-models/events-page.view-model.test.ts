@@ -314,107 +314,43 @@ describe('toEventsPage', () => {
     expect(rowFor({ status: 'COMPLETED' })).not.toHaveProperty('isCompleted')
   })
 
-  test('draws the hop the endpoint named over the queue it named', () => {
-    expect(rowFor()).toMatchObject({
-      hop: 'GAS Outbox',
-      queue: 'to Caseworking',
-      queueValue: 'gas__sns__update_case_status_fifo'
-    })
-  })
-
-  // An inbox row names its producer rather than a topic; nothing to copy.
-  test('draws an inbox row as a message it received from somewhere', () => {
-    expect(
-      rowFor({
-        box: 'inbox',
-        hop: 'GAS Inbox',
-        queue: 'from Caseworking',
-        queueValue: null
-      })
-    ).toMatchObject({
-      hop: 'GAS Inbox',
-      queue: 'from Caseworking',
-      queueValue: null
-    })
-  })
-
-  // An outbox row that names no target has no second line at all, rather than
-  // a line saying `-` twenty times down a page.
-  test('draws no queue line where the endpoint sent none', () => {
-    expect(rowFor({ queue: null, queueValue: null }).queue).toBeNull()
-  })
-
-  // The hop is plain text here. The service filter is the toolbar's job, and
-  // this page's own model no longer computes a link no row draws — the detail
-  // page's Queue fact still has one, and event-page.view-model.test.ts holds
-  // both that and the words the two surfaces share.
-  test('hangs no link on the hop', () => {
+  // The service and the box are columns of their own, so the hop that joins
+  // them, and the detail page's line under it, are not carried.
+  test('carries no hop and no queue line', () => {
     const row = rowFor()
 
-    expect(row).not.toHaveProperty('hopHref')
-    expect(row).not.toHaveProperty('hopTitle')
+    expect(row).not.toHaveProperty('hop')
+    expect(row).not.toHaveProperty('queue')
+    expect(row).not.toHaveProperty('queueValue')
   })
 
-  test('draws the hop in the words the endpoint sent', () => {
-    expect(rowFor().hop).toBe('GAS Outbox')
+  test('says the service and the box in words', () => {
+    expect(rowFor()).toMatchObject({ serviceLabel: 'GAS', boxLabel: 'Outbox' })
+    expect(rowFor({ service: 'caseworking', box: 'inbox' })).toMatchObject({
+      serviceLabel: 'CW-BE',
+      boxLabel: 'Inbox'
+    })
+  })
+
+  // A service or box this page does not know is drawn as it was sent, not
+  // blanked.
+  test('draws an unknown service or box as the endpoint sent it', () => {
     expect(
       rowFor({
         service: 'reporting' as unknown as EventService,
-        hop: 'reporting Outbox'
-      }).hop
-    ).toBe('reporting Outbox')
+        box: 'archive' as unknown as EventRowResponse['box']
+      })
+    ).toMatchObject({ serviceLabel: 'reporting', boxLabel: 'archive' })
   })
 
-  test('reports why the last attempt failed', () => {
-    const row = rowFor({
-      lastError: {
-        name: 'MongoServerError',
-        message: 'connect ETIMEDOUT 10.0.3.14:443',
-        at: '2026-06-16T10:16:05.000Z'
-      }
-    })
+  // What the event is, named: PascalCase to show, spaced to be spoken, and
+  // the raw type kept for the title. See event-names.test.ts for the table.
+  test('names the event under its id, keeping the raw type', () => {
+    const row = rowFor({ type: 'io.onsite.agreement.status.updated' })
 
-    expect(row.errorMessage).toBe('connect ETIMEDOUT 10.0.3.14:443')
-    expect(row.errorTitle).toBe(
-      'MongoServerError: connect ETIMEDOUT 10.0.3.14:443\n2026-06-16T10:16:05Z'
-    )
-  })
-
-  test('cuts a reason too long for the column, whole on the title', () => {
-    const message =
-      'E11000 duplicate key error collection: gas.events index: eventId_1 dup key'
-
-    const row = rowFor({
-      lastError: { name: 'MongoServerError', message, at: null }
-    })
-
-    expect(row.errorMessage).toBe(
-      'E11000 duplicate key error collection: gas.events index: eventId…'
-    )
-    expect(row.errorTitle).toBe(`MongoServerError: ${message}`)
-  })
-
-  test('leaves a reason the column can hold uncut', () => {
-    const row = rowFor({
-      lastError: { name: 'Error', message: 'nope', at: null }
-    })
-
-    expect(row.errorMessage).toBe('nope')
-  })
-
-  test('reports no reason for a row that failed without one', () => {
-    const row = rowFor({ status: 'DEAD_LETTER', lastError: null })
-
-    expect(row.errorMessage).toBeNull()
-    expect(row.errorTitle).toBeNull()
-  })
-
-  test('ignores an instant it cannot read in a failure reason', () => {
-    const row = rowFor({
-      lastError: { name: 'Error', message: 'nope', at: 'never' }
-    })
-
-    expect(row.errorTitle).toBe('Error: nope')
+    expect(row.typeName).toBe('AgreementStatusUpdated')
+    expect(row.typeNameSpoken).toBe('Agreement status updated')
+    expect(row.type).toBe('io.onsite.agreement.status.updated')
   })
 
   test('carries the whole event id, unshortened', () => {
@@ -489,8 +425,20 @@ describe('toEventsPage', () => {
     expect(serviceChips().map((chip) => chip.label)).toEqual([
       'All',
       'GAS',
-      'Caseworking'
+      'CW-BE'
     ])
+  })
+
+  // Caseworking reads CW-BE on this page — the trigger, the menu and the
+  // column all take it from here. The wire value does not move.
+  test('says Caseworking as CW-BE, and still asks for caseworking', () => {
+    const chip = serviceChips().find((option) => option.label === 'CW-BE')
+
+    expect(chip?.value).toBe('caseworking')
+    expect(chip?.href).toBe('/dev-ops/events?service=caseworking')
+    expect(
+      modelFor({}, [event({ service: 'caseworking' })]).rows[0].serviceLabel
+    ).toBe('CW-BE')
   })
 
   test('holds All active on a page opened with no filter', () => {
@@ -511,7 +459,7 @@ describe('toEventsPage', () => {
 
     expect(
       chips.filter((chip) => chip.active).map((chip) => chip.label)
-    ).toEqual(['Caseworking'])
+    ).toEqual(['CW-BE'])
   })
 
   test('leaves the service chips alone when only the status is filtered', () => {
@@ -523,7 +471,7 @@ describe('toEventsPage', () => {
   // A cursor is a position, not a filter: page two of the whole stream is
   // still the whole stream.
   test('does not call a paged page filtered', () => {
-    const chips = statusChips({ cursor: 'END', direction: 'forward' })
+    const chips = statusChips({ cursor: 'END' })
 
     expect(labelled(chips, 'All')?.active).toBe(true)
   })
@@ -551,7 +499,7 @@ describe('toEventsPage', () => {
     const chips = serviceChips({ status: 'FAILED' })
 
     expect(labelled(chips, 'All')?.href).toBe('/dev-ops/events?status=FAILED')
-    expect(labelled(chips, 'Caseworking')?.href).toBe(
+    expect(labelled(chips, 'CW-BE')?.href).toBe(
       '/dev-ops/events?status=FAILED&service=caseworking'
     )
   })
@@ -561,8 +509,8 @@ describe('toEventsPage', () => {
     expect(labelled(serviceChips(), 'All')?.href).toBe('/dev-ops/events')
   })
 
-  test('drops the cursor and direction from every filter link', () => {
-    const query = { cursor: 'END', direction: 'forward', status: 'FAILED' }
+  test('drops the cursor from every filter link', () => {
+    const query = { cursor: 'END', status: 'FAILED' }
 
     const hrefs = [...statusChips(query), ...serviceChips(query)].map(
       (chip) => chip.href
@@ -636,7 +584,6 @@ describe('toEventsPage', () => {
   test('restates every filter the search form has to carry', () => {
     const { searchFilters } = model([event()], {}, [], {
       cursor: 'END',
-      direction: 'forward',
       status: 'FAILED',
       service: 'gas',
       q: 'gld-9b2'
@@ -652,71 +599,28 @@ describe('toEventsPage', () => {
     expect(model([event()]).searchFilters).toEqual([])
   })
 
-  test('links Next to the end cursor', () => {
-    const { nextHref } = model([event()], {
-      endCursor: 'END',
-      hasNextPage: true
-    })
+  // Forward only, and with no `direction`: fg-gas-backend's default. There is
+  // no link back — the list only ever grows downwards.
+  test('links the next page to the end cursor', () => {
+    const page = model([event()], { endCursor: 'END', hasNextPage: true })
 
-    expect(nextHref).toBe('/dev-ops/events?cursor=END&direction=forward')
+    expect(page.nextHref).toBe('/dev-ops/events?cursor=END')
+    expect(page).not.toHaveProperty('previousHref')
   })
 
-  test('links Previous to the start cursor', () => {
-    const { previousHref } = model([event()], {
-      startCursor: 'START',
-      hasPreviousPage: true
-    })
-
-    expect(previousHref).toBe('/dev-ops/events?cursor=START&direction=backward')
-  })
-
-  test('keeps the status filter on both links', () => {
-    const { previousHref, nextHref } = model([event()], bothPages, [], {
-      status: 'DEAD_LETTER'
-    })
-
-    expect(previousHref).toBe(
-      '/dev-ops/events?cursor=START&direction=backward&status=DEAD_LETTER'
-    )
-    expect(nextHref).toBe(
-      '/dev-ops/events?cursor=END&direction=forward&status=DEAD_LETTER'
-    )
-  })
-
-  test('keeps the service filter on both links', () => {
-    const { previousHref, nextHref } = model([event()], bothPages, [], {
-      service: 'gas'
-    })
-
-    expect(previousHref).toBe(
-      '/dev-ops/events?cursor=START&direction=backward&service=gas'
-    )
-    expect(nextHref).toBe(
-      '/dev-ops/events?cursor=END&direction=forward&service=gas'
-    )
-  })
-
-  test('keeps both filters on the links', () => {
+  test('keeps every filter, and the search, on the next page', () => {
     const { nextHref } = model([event()], bothPages, [], {
       status: 'FAILED',
-      service: 'caseworking'
+      service: 'caseworking',
+      q: 'gld-9b2'
     })
 
     expect(nextHref).toBe(
-      '/dev-ops/events?cursor=END&direction=forward&status=FAILED&service=caseworking'
+      '/dev-ops/events?cursor=END&status=FAILED&service=caseworking&q=gld-9b2'
     )
   })
 
-  test('offers no Previous link on the first page', () => {
-    const { previousHref } = model([event()], {
-      startCursor: 'START',
-      hasPreviousPage: false
-    })
-
-    expect(previousHref).toBeNull()
-  })
-
-  test('offers no Next link on the last page', () => {
+  test('offers no next page on the last page', () => {
     const { nextHref } = model([event()], {
       endCursor: 'END',
       hasNextPage: false
@@ -725,14 +629,8 @@ describe('toEventsPage', () => {
     expect(nextHref).toBeNull()
   })
 
-  test('offers no link when a flag is set but no cursor was issued', () => {
-    const { previousHref, nextHref } = model([event()], {
-      hasNextPage: true,
-      hasPreviousPage: true
-    })
-
-    expect(previousHref).toBeNull()
-    expect(nextHref).toBeNull()
+  test('offers no next page when the flag is set but no cursor was issued', () => {
+    expect(model([event()], { hasNextPage: true }).nextHref).toBeNull()
   })
 
   test('percent-encodes a cursor', () => {
@@ -741,31 +639,7 @@ describe('toEventsPage', () => {
       hasNextPage: true
     })
 
-    expect(nextHref).toBe(
-      '/dev-ops/events?cursor=a%2Bb%2Fc%3D&direction=forward'
-    )
-  })
-
-  test('keeps the service and the search on both links', () => {
-    const { previousHref, nextHref } = toEventsPage(
-      {
-        page: { events: [event()], pagination: bothPages, sourceErrors: [] },
-        statuses,
-        services,
-        facets: facets(),
-        breakdown: null,
-        unavailable: false
-      },
-      { service: 'gas', q: 'gld-9b2' },
-      now
-    )
-
-    expect(nextHref).toBe(
-      '/dev-ops/events?cursor=END&direction=forward&service=gas&q=gld-9b2'
-    )
-    expect(previousHref).toBe(
-      '/dev-ops/events?cursor=START&direction=backward&service=gas&q=gld-9b2'
-    )
+    expect(nextHref).toBe('/dev-ops/events?cursor=a%2Bb%2Fc%3D')
   })
 
   test('names nothing when every source answered', () => {
@@ -878,11 +752,11 @@ describe('toEventsPage', () => {
     expect(page.rows).toHaveLength(4)
   })
 
-  // Each status segment says how many events *selecting it* would find.
-  // `All` deliberately carries no figure — the total is stated over the table.
-  test('counts every status segment but All', () => {
+  // Each status tile says how many events *selecting it* would find, and All
+  // is no exception: every status summed.
+  test('counts every status, and All as their sum', () => {
     expect(readOut(statusChips())).toEqual([
-      'All',
+      'All 243,260',
       'Published 0',
       'Processing 0',
       'Failed 0',
@@ -892,60 +766,54 @@ describe('toEventsPage', () => {
     ])
   })
 
-  // The segments are a facet and stay one: the counts endpoint refuses
-  // `status` outright, so each keeps saying what selecting it would find even
-  // while another is selected.
-  test('holds every status segment to its own figure on a filtered page', () => {
+  // The tiles are a facet and stay one: the counts endpoint refuses `status`
+  // outright, so each keeps saying what selecting it would find even while
+  // another is selected — All included.
+  test('holds every status tile to its own figure on a filtered page', () => {
     const chips = statusChips({ status: 'DEAD_LETTER' })
-    const [all, ...rest] = chips.map((chip) => chip.countLabel)
 
-    expect(all).toBeNull()
-    expect(rest).toEqual(['0', '0', '0', '0', '236,196', '7,064'])
+    expect(chips.map((chip) => chip.countLabel)).toEqual([
+      '243,260',
+      '0',
+      '0',
+      '0',
+      '0',
+      '236,196',
+      '7,064'
+    ])
   })
 
-  // ── The total ───────────────────────────────────────────────────────────
+  // A `?status=` the page has no tile for lights none of them, and moves no
+  // figure either.
+  test('lights no tile for a status it has none for', () => {
+    const chips = statusChips({ status: 'WEIRD' })
 
-  // The number an operator reads as "what am I looking at?", and the whole
-  // reason it left the All segment: it has to move when any filter moves.
-  test('totals the whole filtered set when no status is selected', () => {
-    expect(modelFor({}).eventsTotal).toBe('243,260 events')
+    expect(chips.some((chip) => chip.active)).toBe(false)
+    expect(chips[0].countLabel).toBe('243,260')
   })
 
-  test('narrows to the selected status, unlike the segments themselves', () => {
-    expect(modelFor({ status: 'DEAD_LETTER' }).eventsTotal).toBe('7,064 events')
-    expect(modelFor({ status: 'COMPLETED' }).eventsTotal).toBe('236,196 events')
-    expect(modelFor({ status: 'FAILED' }).eventsTotal).toBe('0 events')
-  })
-
-  test('says one event in the singular', () => {
+  // The tiles are a perfectly good filter without their figures.
+  test('numbers no tile, All included, when the counts could not be read', () => {
     expect(
-      modelWith(facets({ FAILED: 1, COMPLETED: 0, DEAD_LETTER: 0 }), {
-        status: 'FAILED'
-      }).eventsTotal
-    ).toBe('1 event')
+      modelWith(null).statusFilters.every((chip) => chip.countLabel === null)
+    ).toBe(true)
   })
 
-  // A `?status=` the page has no segment for counts as none of them, which is
-  // the same answer the toolbar gives it.
-  test('counts a status it has no segment for as none of them', () => {
-    expect(modelFor({ status: 'WEIRD' }).eventsTotal).toBe('0 events')
-  })
-
-  // The table below is a perfectly good table without a figure over it.
-  test('says nothing at all when the counts could not be read', () => {
-    expect(modelWith(null).eventsTotal).toBeNull()
+  // The All tile carries the figure the card header's total used to.
+  test('states no total of its own beside the tiles', () => {
+    expect(modelFor({})).not.toHaveProperty('eventsTotal')
   })
 
   // The service segments are plain labels; the status row is where the arithmetic belongs.
   test('puts no figure on any service segment', () => {
-    expect(readOut(serviceChips())).toEqual(['All', 'GAS', 'Caseworking'])
+    expect(readOut(serviceChips())).toEqual(['All', 'GAS', 'CW-BE'])
     expect(serviceChips().every((chip) => chip.countLabel === null)).toBe(true)
   })
 
   test('leaves the service segments unnumbered on a filtered page too', () => {
     const chips = modelWith(facets(), { service: 'gas' }).serviceFilters
 
-    expect(readOut(chips)).toEqual(['All', 'GAS', 'Caseworking'])
+    expect(readOut(chips)).toEqual(['All', 'GAS', 'CW-BE'])
     expect(labelled(chips, 'GAS')?.active).toBe(true)
   })
 
@@ -997,7 +865,7 @@ describe('toEventsPage', () => {
       'Completed',
       'Dead letter'
     ])
-    expect(readOut(page.serviceFilters)).toEqual(['All', 'GAS', 'Caseworking'])
+    expect(readOut(page.serviceFilters)).toEqual(['All', 'GAS', 'CW-BE'])
     expect(page.statusFilters.every((chip) => chip.zero === false)).toBe(true)
     expect(page.unavailable).toBe(false)
   })
@@ -1125,23 +993,6 @@ describe('toEventsPage', () => {
     expect(rowFor({ createdAt: 'never' }).createdAtClock).toBe('')
   })
 
-  test('dates the status sub-line absolutely on its title, in UTC', () => {
-    const row = rowFor({
-      status: 'FAILED',
-      statusLabel: 'Failed',
-      statusRole: 'warning',
-      statusRetrying: true,
-      lastError: {
-        name: 'ClaimExpired',
-        message: 'claim expired before completion',
-        at: '2026-06-16T09:39:00.000Z'
-      }
-    })
-
-    expect(row.errorTitle).toContain('2026-06-16T09:39:00Z')
-    expect(row.errorTitle).not.toContain('Europe/London')
-  })
-
   test('threads no reload parameter through its links or its hidden fields', () => {
     const model = modelFor({
       status: 'FAILED',
@@ -1202,17 +1053,29 @@ describe('the top failures panel', () => {
   // A queue with seven thousand dead letters in it is not seven thousand
   // incidents. It is usually three, and the list — one keyset window, ordered
   // by time — is the one view that cannot say which three.
-  test('opens on a page that is already about dead letters', () => {
+
+  // Always folded, even on a page about dead letters: the summary announces
+  // it and the operator opens it, so the model has no open state to carry.
+  test('carries no open state, on a dead-letter page or an unfiltered one', () => {
     const panel = withBreakdown({ status: 'DEAD_LETTER' }).topFailures
 
-    expect(panel?.open).toBe(true)
     expect(panel?.summary).toBe('Top errors (1 group)')
+    expect(panel).not.toHaveProperty('open')
+    expect(withBreakdown({}).topFailures).not.toHaveProperty('open')
   })
 
-  test('is folded shut on an unfiltered page with dead letters behind it', () => {
-    const panel = withBreakdown({}).topFailures
+  // Named as the rows name it, so a group and the rows it counts read alike;
+  // the raw type stays for the title.
+  test("names each group's type as the rows name it", () => {
+    const [named] = withBreakdown({ status: 'DEAD_LETTER' }, [
+      group({ type: 'audit' })
+    ]).topFailures!.groups
 
-    expect(panel?.open).toBe(false)
+    expect(named).toMatchObject({
+      type: 'audit',
+      typeName: 'AuditRecord',
+      typeNameSpoken: 'Audit record'
+    })
   })
 
   test('counts its groups in the summary', () => {
@@ -1303,8 +1166,7 @@ describe('the top failures panel', () => {
         q: 'gld-9b2',
         from: '2026-06-16T09:00:00.000Z',
         to: '2026-06-16T10:00:00.000Z',
-        cursor: 'END',
-        direction: 'forward'
+        cursor: 'END'
       }).topFailures?.groups ?? []
 
     expect(row.href).toBe(
@@ -1313,9 +1175,7 @@ describe('the top failures panel', () => {
   })
 
   test('drops the cursor from the link', () => {
-    const [row] =
-      withBreakdown({ cursor: 'END', direction: 'forward' }).topFailures
-        ?.groups ?? []
+    const [row] = withBreakdown({ cursor: 'END' }).topFailures?.groups ?? []
 
     expect(row.href).not.toContain('cursor')
     expect(row.href).not.toContain('direction')
@@ -1481,10 +1341,11 @@ describe('the time range control', () => {
 
   // ── What the button says ───────────────────────────────────────────────
 
-  test('says Any time on a page with no window on it', () => {
+  // The trigger reads `Time: Any`; the panel's own rung keeps `Any time`.
+  test('says Any on a page with no window on it', () => {
     const range = timeRangeFor()
 
-    expect(range.label).toBe('Any time')
+    expect(range.label).toBe('Any')
     expect(range.active).toBe(false)
     expect(range.anyTimeActive).toBe(true)
   })
@@ -1542,7 +1403,7 @@ describe('the time range control', () => {
       }).label
     ).toBe('2026-09-01 00:00 → 2026-09-02 00:00')
 
-    expect(timeRangeFor({ range: '24h' }).label).toBe('Any time')
+    expect(timeRangeFor({ range: '24h' }).label).toBe('Any')
     expect(
       timeRangeFor({ from: '2026-09-01T00:00:00.000Z', range: 'nonsense' })
         .label
@@ -1550,81 +1411,59 @@ describe('the time range control', () => {
   })
 
   test('puts the label on the button title too', () => {
-    expect(timeRangeFor().title).toBe('Time range: Any time')
+    expect(timeRangeFor().title).toBe('Time range: Any')
   })
 })
 
 describe('the audit population', () => {
-  test('is excluded on a page that did not ask for it', () => {
-    const { auditFilter } = modelFor({})
+  test('is a switch named Show audit events', () => {
+    const { showAudit } = modelFor({})
 
-    expect(auditFilter.excluded).toBe(true)
-    expect(auditFilter.label).toBe('Exclude audit')
-    expect(auditFilter.title).toContain('hidden')
+    expect(showAudit.label).toBe('Show audit events')
+    expect(showAudit.title).toBe('Show audit events alongside the queue')
   })
 
-  test('is included on a page that asked for it', () => {
-    const { auditFilter } = modelFor({ audit: 'include' })
-
-    expect(auditFilter.excluded).toBe(false)
-    expect(auditFilter.title).toContain('shown')
+  test('is off on a page that did not ask for it', () => {
+    expect(modelFor({}).showAudit.checked).toBe(false)
   })
 
-  // A checkbox can only submit a value when it is ON, and this one is on when
-  // the parameter is ABSENT — so what the submission carries is the flip, and
-  // `includes` is the inverse of the tick rather than a copy of it.
-  test('asks for the records from the state that is leaving them out', () => {
-    expect(modelFor({}).auditFilter.includes).toBe(true)
+  test('is on on a page that asked for it', () => {
+    const { showAudit } = modelFor({ audit: 'include' })
+
+    expect(showAudit.checked).toBe(true)
+    expect(showAudit.title).toBe('Hide audit events: the queue alone')
   })
 
-  // The default is the parameterless url, so turning the records off again
-  // drops the parameter rather than spelling the default out: from the
-  // included state there is nothing for the submission to say.
-  test('says nothing at all from the state that already has them', () => {
-    expect(modelFor({ audit: 'include' }).auditFilter.includes).toBe(false)
+  test('reads an explicit exclude as the default said out loud', () => {
+    expect(modelFor({ audit: 'exclude' }).showAudit.checked).toBe(false)
   })
 
-  test('keeps every other filter when it is flipped', () => {
-    const { auditFilter } = modelFor({
+  // The link IS the flip: it goes to the state the switch is not in. Off is
+  // the parameterless url, so switching off takes the parameter away rather
+  // than spelling the default out: one page, one url.
+  test('links to the opposite state', () => {
+    expect(modelFor({}).showAudit.href).toBe('/dev-ops/events?audit=include')
+    expect(modelFor({ audit: 'exclude' }).showAudit.href).toBe(
+      '/dev-ops/events?audit=include'
+    )
+    expect(modelFor({ audit: 'include' }).showAudit.href).toBe(
+      '/dev-ops/events'
+    )
+  })
+
+  test('keeps every other filter, and drops the cursor, on its link', () => {
+    const query = {
       status: 'DEAD_LETTER',
       service: 'gas',
       q: 'gld-9b2',
-      error: 'E11000 duplicate key',
-      from: '2026-06-16T09:00:00.000Z',
-      to: '2026-06-16T10:00:00.000Z',
-      range: '24h'
-    } as EventsPageQuery)
+      cursor: 'END'
+    }
 
-    expect(auditFilter.filters).toEqual([
-      { name: 'status', value: 'DEAD_LETTER' },
-      { name: 'service', value: 'gas' },
-      { name: 'q', value: 'gld-9b2' },
-      { name: 'error', value: 'E11000 duplicate key' },
-      { name: 'from', value: '2026-06-16T09:00:00.000Z' },
-      { name: 'to', value: '2026-06-16T10:00:00.000Z' },
-      { name: 'range', value: '24h' }
-    ])
-  })
-
-  // Its own parameter is the one thing the form must NOT restate: a hidden
-  // field would send the setting the page arrived with, which is the page the
-  // operator is already looking at.
-  test('restates every filter except the one it is', () => {
-    const { auditFilter } = modelFor({ audit: 'include', status: 'FAILED' })
-
-    expect(auditFilter.filters).toEqual([{ name: 'status', value: 'FAILED' }])
-  })
-
-  test('drops the cursor and the direction', () => {
-    const { auditFilter } = modelFor({
-      cursor: 'END',
-      direction: 'forward',
-      audit: 'include'
-    })
-
-    expect(auditFilter.filters.map(({ name }) => name)).not.toContain('cursor')
-    expect(auditFilter.filters.map(({ name }) => name)).not.toContain(
-      'direction'
+    expect(modelFor(query).showAudit.href).toBe(
+      '/dev-ops/events?status=DEAD_LETTER&service=gas&audit=include&q=gld-9b2'
+    )
+    expect(modelFor({ ...query, audit: 'include' }).showAudit.href).toBe(
+      '/dev-ops/events?status=DEAD_LETTER&service=gas&q=gld-9b2'
     )
   })
 

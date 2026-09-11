@@ -1,4 +1,5 @@
 import { showsDeadLetterContent } from '../use-cases/dead-letter-page.ts'
+import { toEventName } from './event-names.ts'
 import {
   hoursPerDay,
   minutesPerHour,
@@ -14,7 +15,6 @@ import type {
   EventCounts,
   EventFacets,
   EventKey,
-  EventLastError,
   EventRow as EventRowResponse,
   EventsPagination,
   EventsQuery,
@@ -33,7 +33,15 @@ export interface EventsPageQuery extends EventsQuery {
   range?: string
 }
 
-interface EventRow extends Omit<EventRowResponse, 'createdAt'> {
+/**
+ * The list's row. It draws the service and the box as columns of their own,
+ * so the hop that joins them (`GAS Inbox`) and the line the detail page draws
+ * under it — `queue`, and the topic on its title — are not carried.
+ */
+interface EventRow extends Omit<
+  EventRowResponse,
+  'createdAt' | 'hop' | 'queue' | 'queueValue'
+> {
   /**
    * This row's own page, with the list's query folded into `?from=` so the
    * back link there returns to the page the operator left — same filter, same
@@ -52,13 +60,16 @@ interface EventRow extends Omit<EventRowResponse, 'createdAt'> {
    */
   createdAtClock: string
   /**
-   * Why the last attempt failed, truncated. Null on a row with no recorded
-   * error — every healthy row, and a row that failed before a reason was
-   * recorded.
+   * What the event is — `CreateAgreement` — under the id, with the raw
+   * `type` on its title. See toEventName.
    */
-  errorMessage: string | null
-  /** The error's class, whole message and instant. Null with errorMessage. */
-  errorTitle: string | null
+  typeName: string
+  /** The same name spaced, `Create agreement`, for a screen reader. */
+  typeNameSpoken: string
+  /** `GAS`, `CW-BE` — the Service filter's own word for it. See toServiceLabel. */
+  serviceLabel: string
+  /** `Inbox` or `Outbox`. See boxLabels. */
+  boxLabel: string
   /** The only status the template tints. */
   isDeadLetter: boolean
 }
@@ -90,7 +101,10 @@ interface TimeRangePreset {
 
 /** The time-range control: a button stating the active window, and the panel. */
 interface TimeRange {
-  /** What the button says: `Any time`, `Last 24h`, or the absolute pair. */
+  /**
+   * The value the trigger says after `Time:` — `Any`, `Last 24h`, or the
+   * absolute pair. The panel's own rung keeps the fuller `Any time`.
+   */
   label: string
   title: string
   /** Whether any window is set at all, so the button can read as a filter. */
@@ -110,8 +124,15 @@ interface FailureGroup {
    * group that recorded none: there is no fuller spelling of a dash.
    */
   messageTitle: string | null
-  /** `audit` for the records that are not CloudEvents. */
+  /**
+   * The raw type the rows in this group share — `audit` for the records that
+   * are not CloudEvents — on the name's title.
+   */
   type: string
+  /** `AuditRecord`, as the rows say it. See toEventName. */
+  typeName: string
+  /** The same name spaced, for a screen reader. */
+  typeNameSpoken: string
   /** Locale-grouped: `4,182`. */
   countLabel: string
   firstAt: string
@@ -133,12 +154,14 @@ interface TopFailures {
   count: number
   /** `Top errors (3 groups)` — the whole of the folded state. */
   summary: string
-  open: boolean
 }
 
-/** One segment of one filter control: a word, and its count. */
+/**
+ * One option of one filter: a status tile, or an item in the Service menu. A
+ * word, and — on the statuses — its count.
+ */
 export interface FilterChip {
-  /** The wire value this segment selects; null on `All`, which selects none. */
+  /** The wire value this option selects; null on `All`, which selects none. */
   value: string | null
   label: string
   href: string
@@ -150,7 +173,7 @@ export interface FilterChip {
    */
   countLabel: string | null
   /**
-   * Nothing behind this segment. Dimmed, and still a link: a segment that
+   * Nothing behind this option. A quiet 0, and still a link: a tile that
    * vanished when it emptied could not be told from one the page forgot to
    * draw.
    */
@@ -158,26 +181,22 @@ export interface FilterChip {
   /** Dead letters only, and only while there are some — a zero is no alarm. */
   alarming: boolean
   /**
-   * What the state means, on the segment's own title. Null on service
-   * segments, and on a status this app has never seen.
+   * What the state means, on the option's own title. Null on the services,
+   * on `All`, and on a status this app has never seen.
    */
   title: string | null
 }
 
 /**
- * Whether the audit records are in the population. Excluded by default: an
- * audit trail records what people did, a queue what messages did, and mixed
- * together the audit records outnumber everything else and bury the queue's
- * own shape.
+ * "Show audit events": one link to the other state's url, drawn as a switch.
+ * See toAuditSwitch.
  */
-interface AuditFilter {
+interface AuditSwitch {
+  /** Whether the audit records are in the page — the switch is on. */
+  checked: boolean
+  /** The OTHER state's url: following the link is flipping the switch. */
+  href: string
   label: string
-  /** Whether the audit records are currently being left out — the tick. */
-  excluded: boolean
-  /** Every other filter, restated as hidden fields on the control's own form. */
-  filters: SearchFilter[]
-  /** What the submit button carries — the inverse of the tick. See toAuditFilter. */
-  includes: boolean
   title: string
 }
 
@@ -190,16 +209,15 @@ interface SearchFilter {
 export interface EventsPageModel {
   /** Every row on the page, in the endpoint's order. One row per event. */
   rows: EventRow[]
-  /** All · Published · … · Dead letter, in the order a message travels. */
+  /**
+   * All · Published · … · Dead letter, in the order a message travels: the
+   * status tiles, figures and all.
+   */
   statusFilters: FilterChip[]
   /** All · GAS · Caseworking. */
   serviceFilters: FilterChip[]
-  auditFilter: AuditFilter
-  /**
-   * `243,297 events` — how many events every filter on the page selects,
-   * stated once over the table. Null when the counts could not be read.
-   */
-  eventsTotal: string | null
+  /** "Show audit events". See toAuditSwitch. */
+  showAudit: AuditSwitch
   /** What the page is searched for, trimmed, or null when it is not. */
   q: string | null
   /** The same page with the search taken off it, for the `Clear` links. */
@@ -220,7 +238,11 @@ export interface EventsPageModel {
   fromInput: string
   /** The To box's, the same way. Both empty on a page with no range on it. */
   toInput: string
-  previousHref: string | null
+  /**
+   * The next keyset page, carrying every filter: what the list loads as the
+   * reader nears the bottom, and the no-script More link. Null on the last
+   * page. There is no link back: the list only ever grows downwards.
+   */
   nextHref: string | null
   /** `CW Inbox, CW Outbox` — empty when every source answered. */
   unavailableSources: string
@@ -235,45 +257,17 @@ export interface EventsPageModel {
   refused: boolean
 }
 
-/**
- * Long enough to tell one failure from another — `MongoServerError: E11000
- * duplicate key` fits — and short enough that the row stays one line taller
- * than its neighbours rather than three.
- */
-const displayedErrorChars = 64
-
 const truncate = (value: string, max: number): string =>
   value.length > max ? `${value.slice(0, max)}…` : value
 
-const toShortMessage = (message: string): string =>
-  truncate(message, displayedErrorChars)
-
 /**
- * The error class is on the title rather than on the page because it is the
- * half a developer greps for and the half an operator never reads.
+ * The list's own url, for the inspect page to hand back: every filter, and
+ * no cursor. The list loads its later pages as the reader scrolls and has no
+ * way back up from a cursor, so a row reached far down returns the operator
+ * to the top of the same filtered list — Back to page one, the accepted
+ * limit of loading on scroll — rather than stranding them mid-list.
  */
-const toErrorTitle = (error: EventLastError, now: Date): string => {
-  const at = error.at === null ? '' : toTimestamp(error.at, now).title
-
-  return [`${error.name}: ${error.message}`, at]
-    .filter((line) => line !== '')
-    .join('\n')
-}
-
-const toReason = (error: EventLastError | null, now: Date) =>
-  error === null
-    ? { errorMessage: null, errorTitle: null }
-    : {
-        errorMessage: toShortMessage(error.message),
-        errorTitle: toErrorTitle(error, now)
-      }
-
-/**
- * The list's own url, for the inspect page to hand back. Every parameter is
- * carried, cursor included: unlike a filter link, the operator is going one
- * row deep and coming straight back, and must not lose their place.
- */
-const toCurrentSearch = (query: EventsPageQuery): string => {
+const toCurrentSearch = ({ cursor, ...query }: EventsPageQuery): string => {
   const params = new URLSearchParams(
     Object.entries(query).filter(([, value]) => value !== undefined) as [
       string,
@@ -290,10 +284,38 @@ const toEventPageHref = (event: EventKey, from: string): string => {
   return from === '' ? href : `${href}?from=${encodeURIComponent(from)}`
 }
 
+/**
+ * The words this page uses for a service where they differ from the
+ * endpoint's. The wire value is unchanged; only the word on the page moves,
+ * and it moves here alone, so the Service trigger, its menu and the Service
+ * column all say it the same way. The page's subtitle, the detail page and
+ * the failures panel keep the endpoint's own words.
+ */
+const serviceLabelOverrides = new Map([['caseworking', 'CW-BE']])
+
+/**
+ * A service's label as this page says it: the override, else the endpoint's
+ * label, else — for a service the endpoint never offered — the value as it
+ * was sent, rather than a blank.
+ */
+const toServiceLabel =
+  (services: ServiceFilter[]) =>
+  (service: string): string =>
+    serviceLabelOverrides.get(service) ??
+    services.find(({ value }) => value === service)?.label ??
+    service
+
+/** The two boxes an event lives in. Anything else shows as it was sent. */
+const boxLabels = new Map([
+  ['inbox', 'Inbox'],
+  ['outbox', 'Outbox']
+])
+
 const toRow =
-  (now: Date, from: string) =>
-  (event: EventRowResponse): EventRow => {
+  (now: Date, from: string, serviceLabel: (service: string) => string) =>
+  ({ hop, queue, queueValue, ...event }: EventRowResponse): EventRow => {
     const created = toTimestamp(event.createdAt, now)
+    const { name, spoken } = toEventName(event.type)
 
     return {
       ...event,
@@ -301,7 +323,10 @@ const toRow =
       createdAt: created.text,
       createdAtTitle: created.title,
       createdAtClock: toClockOf(event.createdAt, now),
-      ...toReason(event.lastError, now),
+      typeName: name,
+      typeNameSpoken: spoken,
+      serviceLabel: serviceLabel(event.service),
+      boxLabel: boxLabels.get(event.box) ?? event.box,
       isDeadLetter: event.status === 'DEAD_LETTER'
     }
   }
@@ -316,30 +341,6 @@ const counted = new Intl.NumberFormat('en-GB')
 
 const toUnavailableSources = (sourceErrors: SourceError[] = []): string =>
   sourceErrors.map((source) => source.hop).join(', ')
-
-/**
- * Excluded is the default and therefore the parameterless url: asking for the
- * records writes `audit=include`.
- *
- * `includes` is what the form's submit button carries, and it is the inverse
- * of the tick rather than a copy of it: a checkbox can only submit a value
- * when it is ON, and this one is on when the parameter is ABSENT. The button
- * carries the flip instead, so the control works with the script that submits
- * it on change and equally without it.
- */
-const toAuditFilter = (query: EventsPageQuery): AuditFilter => {
-  const excluded = query.audit !== 'include'
-
-  return {
-    label: 'Exclude audit',
-    excluded,
-    filters: toAuditFields(query),
-    includes: excluded,
-    title: excluded
-      ? 'Audit records are hidden. Show them alongside the queue.'
-      : 'Audit records are shown. Hide them and leave the queue.'
-  }
-}
 
 /**
  * The filters, added to whatever the link already carries. The search is one
@@ -371,8 +372,8 @@ const addFilters = (
 }
 
 /**
- * A filter link carries the *other* filters and nothing else. `cursor` and
- * `direction` are deliberately dropped: a keyset position taken in one filter
+ * A filter link carries the *other* filters and nothing else. `cursor` is
+ * deliberately dropped: a keyset position taken in one filter
  * means nothing in another, so changing a filter starts the list again.
  */
 const toFilterHref = (query: EventsPageQuery): string => {
@@ -385,7 +386,7 @@ const toFilterHref = (query: EventsPageQuery): string => {
  * A null count draws the label the control always had: a count that could not
  * be read is not an error worth an alert on this page.
  */
-const toSegmentCount = (count: number | null) => ({
+const toCount = (count: number | null) => ({
   countLabel: count === null ? null : counted.format(count),
   zero: count === 0
 })
@@ -398,59 +399,21 @@ const isAlarming = (status: string, count: number | null): boolean =>
   status === 'DEAD_LETTER' && (count ?? 0) > 0
 
 /**
- * How many events the page is actually showing, across every filter on it —
- * the status included. `counts` is a facet and deliberately does NOT move
- * with the selected status, so the total is the whole block summed when no
- * status is chosen, and that status's own figure when one is.
- */
-const toTotalOf = (
-  counts: EventCounts,
-  statuses: StatusFilter[],
-  status?: string
-): number => {
-  const known = statuses.map(({ value }) => countOf(counts, value))
-
-  if (!status) {
-    return toSum(known)
-  }
-
-  // A `?status=` this page has no segment for counts as none of them, which is
-  // the same answer the toolbar gives it: no segment lights up either.
-  return statuses.some((filter) => filter.value === status)
-    ? countOf(counts, status)
-    : 0
-}
-
-/**
  * A status the counts block has no key for counts as zero: the endpoint
  * reports every status it knows, so a gap means none of them.
  */
 const countOf = (counts: EventCounts, status: string): number =>
   (counts as unknown as Record<string, number>)[status] ?? 0
 
-const toEventsTotal = (
-  query: EventsPageQuery,
-  facets: EventFacets | null,
-  statuses: StatusFilter[]
-): string | null => {
-  if (!facets) {
-    return null
-  }
-
-  const total = toTotalOf(facets.counts, statuses, query.status)
-
-  return `${counted.format(total)} ${total === 1 ? 'event' : 'events'}`
-}
-
 /**
  * The counts endpoint does not take `status`: that refusal is exactly what
- * makes `counts` the status facet — every segment reports what selecting it
+ * makes `counts` the status facet — every tile reports what selecting it
  * would find, whatever is selected now.
  *
- * `All` deliberately carries no figure: as a facet it would not move when a
- * status is selected, so it looked like the page total while being the one
- * figure the status filter did not change. The total is stated once, over the
- * table.
+ * `All` is a facet like the rest: every status summed, which is what
+ * selecting All finds. It does not move when a status is selected, and
+ * neither does any other tile — the strip is a map of the population, and the
+ * selected tile says which part of it the table is showing.
  */
 const toStatusChips = (
   query: EventsPageQuery,
@@ -467,7 +430,11 @@ const toStatusChips = (
       active: !query.status,
       alarming: false,
       title: null,
-      ...toSegmentCount(null)
+      ...toCount(
+        counts === null
+          ? null
+          : toSum(statuses.map(({ value }) => countOf(counts, value)))
+      )
     },
     ...statuses.map(({ value, label, explainer }) => {
       const count = counts === null ? null : countOf(counts, value)
@@ -479,40 +446,69 @@ const toStatusChips = (
         active: query.status === value,
         alarming: isAlarming(value, count),
         title: explainer,
-        ...toSegmentCount(count)
+        ...toCount(count)
       }
     })
   ]
 }
 
 /**
- * The service segments deliberately carry no counts — the status row is where
- * the arithmetic belongs. `toSegmentCount(null)` rather than an omitted key,
- * so every chip on the page has the same shape.
+ * The services deliberately carry no counts — the status tiles are where the
+ * arithmetic belongs. `toCount(null)` rather than an omitted key, so
+ * every option on the page has the same shape.
  */
 const toServiceChips = (
   query: EventsPageQuery,
   services: ServiceFilter[]
-): FilterChip[] => [
-  {
-    value: null,
-    label: 'All',
-    href: toFilterHref({ ...query, service: undefined }),
-    active: !query.service,
-    alarming: false,
-    title: null,
-    ...toSegmentCount(null)
-  },
-  ...services.map(({ value, label }) => ({
-    value,
-    label,
-    href: toFilterHref({ ...query, service: value }),
-    active: query.service === value,
-    alarming: false,
-    title: null,
-    ...toSegmentCount(null)
-  }))
-]
+): FilterChip[] => {
+  const labelOf = toServiceLabel(services)
+
+  return [
+    {
+      value: null,
+      label: 'All',
+      href: toFilterHref({ ...query, service: undefined }),
+      active: !query.service,
+      alarming: false,
+      title: null,
+      ...toCount(null)
+    },
+    ...services.map(({ value }) => ({
+      value,
+      label: labelOf(value),
+      href: toFilterHref({ ...query, service: value }),
+      active: query.service === value,
+      alarming: false,
+      title: null,
+      ...toCount(null)
+    }))
+  ]
+}
+
+/**
+ * Whether the audit records are in the population. Left out by default: an
+ * audit trail records what people did, a queue what messages did, and mixed
+ * together the audit records outnumber everything else and bury the queue's
+ * own shape.
+ *
+ * Off is the default and therefore the parameterless url — switching off
+ * takes `audit` off the link rather than spelling the default out, so one page
+ * has one url, and an explicit `?audit=exclude` reads as off. On is
+ * `?audit=include`. The link always goes to the state the switch is NOT in,
+ * carrying every other filter and dropping the cursor, like any filter link.
+ */
+const toAuditSwitch = (query: EventsPageQuery): AuditSwitch => {
+  const checked = query.audit === 'include'
+
+  return {
+    checked,
+    href: toFilterHref({ ...query, audit: checked ? undefined : 'include' }),
+    label: 'Show audit events',
+    title: checked
+      ? 'Hide audit events: the queue alone'
+      : 'Show audit events alongside the queue'
+  }
+}
 
 const toFields = (fields: [string, string | undefined][]): SearchFilter[] =>
   fields.flatMap(([name, value]) => (value ? [{ name, value }] : []))
@@ -520,8 +516,8 @@ const toFields = (fields: [string, string | undefined][]): SearchFilter[] =>
 /**
  * The filters the SEARCH form re-states as hidden fields: a GET form submits
  * its own controls and nothing else, so without them searching from a page
- * filtered to Dead letter would quietly widen it to every status. `cursor`
- * and `direction` are not among them, exactly as on a filter link. `range`
+ * filtered to Dead letter would quietly widen it to every status. `cursor` is
+ * not among them, exactly as on a filter link. `range`
  * travels too, or a search from `Last 24h` would come back saying an absolute
  * pair.
  */
@@ -566,59 +562,22 @@ const toRangeFilters = ({
   ])
 
 /**
- * The filters the AUDIT form re-states: every one except its own. `audit`
- * itself is deliberately absent — the checkbox's submit button is what says
- * it, and a hidden field would send the setting the page arrived with rather
- * than the one the operator just asked for.
- */
-const toAuditFields = ({
-  status,
-  service,
-  q,
-  error,
-  from,
-  to,
-  range
-}: EventsPageQuery): SearchFilter[] =>
-  toFields([
-    ['status', status],
-    ['service', service],
-    ['q', q],
-    ['error', error],
-    ['from', from],
-    ['to', to],
-    ['range', range]
-  ])
-
-/**
  * The cursor is only a keyset position, so the filters have to be carried on
- * the link or the next page quietly widens to All.
+ * the link or the next page quietly widens to All. No `direction`: the list
+ * only pages forward, which is fg-gas-backend's default.
  */
-const toHref = (
-  cursor: string | null,
-  direction: 'forward' | 'backward',
+const toNextHref = (
+  { hasNextPage, endCursor }: EventsPagination,
   query: EventsPageQuery
 ): string | null => {
-  if (!cursor) {
+  if (!hasNextPage || !endCursor) {
     return null
   }
 
-  const params = addFilters(new URLSearchParams({ cursor, direction }), query)
+  const params = addFilters(new URLSearchParams({ cursor: endCursor }), query)
 
   return `/dev-ops/events?${params}`
 }
-
-const toPagerHrefs = (
-  pagination: EventsPagination,
-  query: EventsPageQuery
-) => ({
-  previousHref: pagination.hasPreviousPage
-    ? toHref(pagination.startCursor, 'backward', query)
-    : null,
-  nextHref: pagination.hasNextPage
-    ? toHref(pagination.endCursor, 'forward', query)
-    : null
-})
 
 /**
  * Trimmed, and absent rather than empty: a box submitted with nothing but
@@ -749,7 +708,7 @@ const toTimeRangeLabel = (query: EventsPageQuery): string => {
   const { from, to } = query
 
   if (!from && !to) {
-    return 'Any time'
+    return 'Any'
   }
 
   const preset = toActivePreset(query)
@@ -760,7 +719,7 @@ const toTimeRangeLabel = (query: EventsPageQuery): string => {
 /**
  * `Any time` is deliberately a rung like the others rather than a `Clear ×`
  * off to one side: "no window" is a choice about the range, made where the
- * range is changed.
+ * range is changed. The trigger says it shorter, as `Time: Any`.
  */
 const toTimeRange = (query: EventsPageQuery, now: Date): TimeRange => {
   const label = toTimeRangeLabel(query)
@@ -804,11 +763,14 @@ const toFailureGroup =
   (group: EventBreakdownGroup): FailureGroup => {
     const first = toTimestamp(group.firstAt, now)
     const last = toTimestamp(group.lastAt, now)
+    const { name, spoken } = toEventName(group.type)
 
     return {
       message: toGroupMessage(group.error),
       messageTitle: group.error,
       type: group.type,
+      typeName: name,
+      typeNameSpoken: spoken,
       countLabel: counted.format(group.count),
       firstAt: first.text,
       firstTitle: first.title,
@@ -830,9 +792,10 @@ const toFailuresSummary = (count: number): string =>
   `Top errors (${count} group${count === 1 ? '' : 's'})`
 
 /**
- * Open on a page already about dead letters. Folded on an unfiltered page
- * with dead letters behind it — worth announcing, not worth pushing the table
- * down for. Absent on every other page.
+ * Drawn on a page already about dead letters and on an unfiltered page with
+ * dead letters behind it; absent on every other page. Always folded: the
+ * summary announces it, and the operator opens it — the table is what the
+ * page is for.
  */
 const toTopFailures = (
   breakdown: EventBreakdownPage | null,
@@ -848,8 +811,7 @@ const toTopFailures = (
   return {
     groups: groups.map(toFailureGroup(query, now)),
     count: groups.length,
-    summary: toFailuresSummary(groups.length),
-    open: query.status === 'DEAD_LETTER'
+    summary: toFailuresSummary(groups.length)
   }
 }
 
@@ -876,14 +838,13 @@ export const toEventsPage = (
   // Every link on the page is built from the trimmed search, so a stray space
   // cannot make two spellings of one query paginate differently.
   const filters: EventsPageQuery = { ...query, q: q ?? undefined }
-  const rows = events.map(toRow(now, currentSearch))
+  const rows = events.map(toRow(now, currentSearch, toServiceLabel(services)))
 
   return {
     rows,
-    eventsTotal: toEventsTotal(filters, facets, statuses),
     statusFilters: toStatusChips(filters, facets, statuses),
     serviceFilters: toServiceChips(filters, services),
-    auditFilter: toAuditFilter(filters),
+    showAudit: toAuditSwitch(filters),
     q,
     clearSearchHref: toFilterHref({ ...filters, q: undefined }),
     errorFilter: toErrorNote(filters),
@@ -893,7 +854,7 @@ export const toEventsPage = (
     rangeFilters: toRangeFilters(filters),
     fromInput: toLocalInput(query.from),
     toInput: toLocalInput(query.to),
-    ...toPagerHrefs(pagination, filters),
+    nextHref: toNextHref(pagination, filters),
     unavailableSources: toUnavailableSources(sourceErrors),
     unavailable,
     refused: refused ?? false

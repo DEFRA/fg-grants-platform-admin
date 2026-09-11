@@ -1,0 +1,29 @@
+{# The bottom of a list that loads its next page as the reader nears it.
+
+   `do-load-more` watches the sentinel at the very bottom and appends the next
+   page's rows to `params.rows` — the id of the list's own `tbody` — before
+   the reader reaches them, taking over that page's own next link. The
+   server stays the only thing that knows the cursor: every page it draws
+   says its next one on `data-next-page`, and the element reads it back out
+   of each page it fetches.
+
+   Everything the element can show is drawn here and hidden until it is
+   needed: the spinner while a page is on its way, "No more events" at the
+   end (shown from the start on a page that has no next), the sources a later
+   page could not reach, the failure and its Retry. The polite live region says how many rows arrived; focus is
+   never moved.
+
+   With no script the next page is a plain "More" link, inside `noscript` so
+   it never shows beside the loader. The list is one url per page, so Back
+   returns to the first page, at the top — an accepted limit of loading on
+   scroll. #}
+<do-load-more class="flex flex-col items-center"{% if params.nextHref %} data-next-page="{{ params.nextHref }}"{% endif %} data-rows="{{ params.rows }}" data-testid="events-load-more">
+  {% if params.nextHref %}<noscript><a class="btn btn-sm btn-wide my-3" href="{{ params.nextHref }}" data-testid="events-load-more-link">More<span class="sr-only"> events</span></a></noscript>{% endif %}
+  <span class="loading loading-spinner loading-sm my-3" aria-hidden="true" hidden data-load-more-spinner data-testid="events-load-more-spinner"></span>
+  <p class="my-3 text-sm text-base-content/70"{% if params.nextHref %} hidden{% endif %} data-load-more-end data-testid="events-load-more-end">No more events</p>
+  <p class="my-3 text-sm text-base-content/70" hidden data-load-more-partial data-testid="events-load-more-partial"></p>
+  <p class="mt-3 text-sm text-error" role="alert" hidden data-load-more-error data-testid="events-load-more-error"></p>
+  <button class="btn btn-sm my-3" type="button" hidden data-load-more-retry data-testid="events-load-more-retry">Retry</button>
+  <p class="sr-only" aria-live="polite" data-load-more-status data-testid="events-load-more-status"></p>
+  <div class="h-px w-full" aria-hidden="true" data-load-more-sentinel data-testid="events-load-more-sentinel"></div>
+</do-load-more>

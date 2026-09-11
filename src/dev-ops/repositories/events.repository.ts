@@ -143,7 +143,6 @@ export interface EventsPage {
  */
 export interface EventsQuery {
   cursor?: string
-  direction?: string
   status?: string
   service?: string
   /** A free-text needle: an event id, a message id, or a reference. */

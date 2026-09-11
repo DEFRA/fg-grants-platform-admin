@@ -89,7 +89,7 @@ describe('status-badge component', () => {
   // subject and reads at full contrast; Completed recedes furthest.
   test('recedes the completed label and holds the dead letter one at full contrast', () => {
     expect(labelClass({ status: 'COMPLETED', role: 'success' })).toBe(
-      'text-base-content/55'
+      'text-base-content/70'
     )
     expect(labelClass({ status: 'DEAD_LETTER', role: 'error' })).toBe(
       'font-medium'
