@@ -1,0 +1,7 @@
+{# `data-checked` is the rendered state, for restoring after a bfcache return. #}
+<do-audit-switch class="contents" data-checked="{{ "true" if params.checked else "false" }}" data-testid="do-audit-switch">
+  <a class="inline-flex h-10 cursor-pointer items-center gap-1.5 rounded-field px-4 text-sm font-normal focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-base-content" href="{{ params.href }}" title="{{ params.title }}" data-testid="events-filter-audit-switch">
+    <span class="toggle" aria-hidden="true" aria-checked="{{ "true" if params.checked else "false" }}" data-testid="events-filter-audit-toggle"></span>
+    <span>{{ params.label }}<span class="sr-only" data-audit-switch-state data-testid="events-filter-audit-state">{{ ", on" if params.checked else ", off" }}</span></span>
+  </a>
+</do-audit-switch>

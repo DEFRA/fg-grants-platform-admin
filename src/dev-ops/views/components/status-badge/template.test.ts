@@ -4,8 +4,6 @@ const badge = (params: object) =>
   render('status-badge', params)('[data-testid="do-status-badge"]')
 
 describe('status-badge component', () => {
-  // The wire shouts its statuses; the page says them. The raw value is still
-  // one hover away, which is where a log query or a `?status=` needs it.
   test('shows the label it is given and hangs the raw status off the title', () => {
     const $badge = badge({
       status: 'DEAD_LETTER',
@@ -29,9 +27,6 @@ describe('status-badge component', () => {
       params
     )('[data-testid="do-status-label"]').attr('class')
 
-  // One anatomy for every status: a dot and a word, at the same x. The dot is
-  // where the colour lives, so the column can be read down its left edge
-  // whatever each row happens to say.
   test('draws every status as a dot and a label, in that order', () => {
     const $badge = badge({
       status: 'PROCESSING',
@@ -45,8 +40,6 @@ describe('status-badge component', () => {
     expect($badge.attr('class')).toContain('inline-flex')
   })
 
-  // Published: queued and healthy, and the quietest dot on the page — which is
-  // daisyUI's own unmodified `status`, drawn in the text colour held well back.
   test('dots the neutral role in the text colour, held well back', () => {
     expect(dotClass({ status: 'PUBLISHED', role: 'neutral' })).toBe('status')
   })
@@ -69,8 +62,6 @@ describe('status-badge component', () => {
     )
   })
 
-  // Completed is most of a healthy stream, so its dot is held back rather than
-  // drawn at full strength — but it is still a dot, at the same x as the rest.
   test('dots the success role, and gives it the same anatomy as the others', () => {
     const $badge = badge({
       status: 'COMPLETED',
@@ -85,11 +76,9 @@ describe('status-badge component', () => {
     expect($badge.attr('title')).toBe('COMPLETED')
   })
 
-  // Weight says which status is worth stopping on. Dead letter is the page's
-  // subject and reads at full contrast; Completed recedes furthest.
   test('recedes the completed label and holds the dead letter one at full contrast', () => {
     expect(labelClass({ status: 'COMPLETED', role: 'success' })).toBe(
-      'text-base-content/55'
+      'text-base-content/70'
     )
     expect(labelClass({ status: 'DEAD_LETTER', role: 'error' })).toBe(
       'font-medium'
@@ -116,9 +105,7 @@ describe('status-badge component', () => {
     ).toBe('true')
   })
 
-  // There is no pill of any kind: six states with six silhouettes read the
-  // shape of a row before the row.
-  test("carries no pill classes at all, daisyUI's or this app's own", () => {
+  test("carries no pill classes by default, daisyUI's or this app's own", () => {
     const html = render('status-badge', {
       status: 'DEAD_LETTER',
       label: 'Dead letter',
@@ -131,9 +118,7 @@ describe('status-badge component', () => {
     expect(html).not.toContain('uppercase')
   })
 
-  // The other spelling, for the page about one event: there is no column to
-  // line up there and one piece of state to say, so it is a soft badge.
-  test('says the status as a soft badge when asked for one', () => {
+  test('says every status as a dot unless the solid variant is asked for', () => {
     const $badge = badge({
       status: 'DEAD_LETTER',
       label: 'Dead letter',
@@ -141,37 +126,45 @@ describe('status-badge component', () => {
       variant: 'badge'
     })
 
-    expect($badge.attr('class')).toBe('badge badge-error badge-soft')
-    expect($badge.attr('title')).toBe('DEAD_LETTER')
-    expect($badge.text()).toBe('Dead letter')
-    expect($badge.find('[data-testid="do-status-dot"]')).toHaveLength(0)
-  })
-
-  test.each([
-    ['info', 'badge badge-info badge-soft'],
-    ['warning', 'badge badge-warning badge-soft'],
-    ['success', 'badge badge-success badge-soft'],
-    ['neutral', 'badge badge-ghost'],
-    ['chartreuse', 'badge badge-ghost']
-  ])('badges the %s role as %s', (role, expected) => {
-    expect(badge({ status: 'X', role, variant: 'badge' }).attr('class')).toBe(
-      expected
+    expect($badge.attr('class')).toBe(
+      'inline-flex items-center gap-1.5 whitespace-nowrap'
     )
+    expect($badge.find('[data-testid="do-status-dot"]')).toHaveLength(1)
+    expect($badge.html()).not.toContain('badge-soft')
   })
 
-  test('keeps the badge variant on the same testids', () => {
+  test('draws the solid variant as a filled badge, never a soft one', () => {
+    const solid = (role: string) =>
+      badge({ status: 'X', label: 'X', role, variant: 'solid' }).attr('class')
+
+    expect(solid('neutral')).toBe('badge badge-neutral')
+    expect(solid('info')).toBe('badge badge-info')
+    expect(solid('warning')).toBe('badge badge-warning')
+    expect(solid('success')).toBe('badge badge-success')
+    expect(solid('error')).toBe('badge badge-error')
+    expect(
+      badge({ status: 'X', role: 'error', variant: 'solid' }).html()
+    ).not.toContain('badge-soft')
+  })
+
+  test('keeps the retry glyph and the raw status on the solid variant', () => {
     const $badge = badge({
       status: 'FAILED',
       label: 'Failed',
       role: 'warning',
       retrying: true,
-      variant: 'badge'
+      variant: 'solid'
     })
 
-    expect($badge).toHaveLength(1)
-    expect($badge.find('[data-testid="do-status-label"]').text()).toBe(
-      'Failed ↻'
-    )
+    expect($badge.text()).toBe('Failed ↻')
+    expect($badge.attr('title')).toBe('FAILED')
+    expect($badge.find('[data-testid="do-status-label"]')).toHaveLength(1)
+  })
+
+  test('falls back to the neutral fill for a solid role it does not know', () => {
+    expect(
+      badge({ status: 'X', role: 'chartreuse', variant: 'solid' }).attr('class')
+    ).toBe('badge badge-neutral')
   })
 
   test('falls back to the quietest dot for a role it does not know', () => {
@@ -181,8 +174,6 @@ describe('status-badge component', () => {
     )
   })
 
-  // Same testid, whatever the status: every assertion about "the status of
-  // this row" points at exactly one element.
   test('keeps every status on one badge testid', () => {
     expect(badge({ status: 'COMPLETED', role: 'success' })).toHaveLength(1)
     expect(badge({ status: 'DEAD_LETTER', role: 'error' })).toHaveLength(1)
@@ -225,8 +216,6 @@ describe('status-badge component', () => {
     ).toHaveLength(0)
   })
 
-  // A status nobody has written a label for is shown as the endpoint spelled
-  // it: an invented sentence case would hide the string worth grepping for.
   test('falls back to the raw status of one it has no label for', () => {
     expect(badge({ status: 'QUARANTINED', role: 'neutral' }).text()).toBe(
       'QUARANTINED'

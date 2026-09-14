@@ -2,8 +2,7 @@ import { config } from '../../common/config.ts'
 import type {
   EventDetail,
   EventKey,
-  EventResult,
-  JourneyHop
+  EventResult
 } from '../use-cases/get-event.use-case.ts'
 import type {
   EventRow,
@@ -16,11 +15,6 @@ vi.mock(import('../../common/config.ts'))
 
 const logsBase = 'https://logs.dev.cdp-int.defra.cloud'
 
-/**
- * The links are off until a deployment names a logs explorer, so every
- * assertion about one turns it on for itself. `clearMocks` wipes the write
- * between tests.
- */
 const givenLogsExplorer = (base: string = logsBase) => {
   config.set('logs.explorerBaseUrl', base)
 }
@@ -30,28 +24,19 @@ const now = new Date('2026-06-16T10:20:00.000Z')
 const id = '665f1c2e9a1b2c3d4e5f6a7b'
 const key: EventKey = { service: 'gas', box: 'outbox', id }
 
-/**
- * An inbox row is the only half of the pattern that can answer for a
- * reference or a trace, so the tests about those are asked of one.
- */
 const inboxKey: EventKey = { service: 'gas', box: 'inbox', id }
 
 const services: ServiceFilter[] = [
   { value: 'gas', label: 'GAS' },
-  { value: 'caseworking', label: 'Caseworking' }
+  { value: 'caseworking', label: 'CW-BE' }
 ]
 
-/**
- * The state an event is in, in the words fg-gas-backend spells it: one fact,
- * so the fields travel together.
- */
 const deadLetter = {
   status: 'DEAD_LETTER',
   statusLabel: 'Dead letter',
   statusRole: 'error' as const,
   statusRetrying: false,
-  attempts: '5/5',
-  showAttempts: true
+  attempts: '5/5'
 }
 
 const completed = {
@@ -59,8 +44,7 @@ const completed = {
   statusLabel: 'Completed',
   statusRole: 'success' as const,
   statusRetrying: false,
-  attempts: '1/5',
-  showAttempts: false
+  attempts: '2/5'
 }
 
 const stateOf = (status: string, label = status) => ({
@@ -68,37 +52,27 @@ const stateOf = (status: string, label = status) => ({
   statusLabel: label,
   statusRole: 'neutral' as const,
   statusRetrying: false,
-  attempts: '1/5',
-  showAttempts: false
+  attempts: '1/5'
 })
 
-/** The fields the list row and the detail share, on an outbox message. */
 const base = {
   service: 'gas' as const,
   box: 'outbox' as const,
   id,
   eventId: '3f2c1a0e-1111-2222-3333-444455556666',
   type: 'case.status.updated',
-  hop: 'GAS Outbox',
-  queue: 'to Caseworking',
-  queueValue: 'gas__sns__update_case_status_fifo',
   ...deadLetter,
-  createdAt: '2026-06-16T10:00:00.000Z',
-  lastFailureAt: '2026-06-16T10:16:05.000Z',
+  createdAt: '2026-06-16T10:00:00.000Z'
+}
+
+const detail = (overrides: Partial<EventDetail> = {}): EventDetail => ({
+  ...base,
+  targetTopic: 'gas__sns__update_case_status_fifo',
   lastError: {
     name: 'MongoServerError',
     message: 'E11000 duplicate key',
     at: '2026-06-16T10:16:05.000Z'
-  }
-}
-
-/**
- * One outbox message in full. It carries none of the three inbox-only facts:
- * something this service published has no reference to segregate by and no
- * trace of its own, so the keys are absent rather than null.
- */
-const detail = (overrides: Partial<EventDetail> = {}): EventDetail => ({
-  ...base,
+  },
   attemptHistory: [
     {
       at: '2026-06-16T10:08:00.000Z',
@@ -114,65 +88,35 @@ const detail = (overrides: Partial<EventDetail> = {}): EventDetail => ({
     }
   ],
   payload: { data: { caseRef: 'GLD-9B2' } },
-  typeTitle: 'cloud.defra.prd.fg-gas-backend.case.update.status',
-  occurredAt: null,
-  messageGroupId: 'GLD-9B2',
-  publicationDate: '2026-06-16T10:00:01.000Z',
   completionDate: null,
   lastResubmissionDate: null,
-  claimedAt: null,
-  claimExpiresAt: null,
   lastRedrive: null,
   ...overrides
 })
 
-/**
- * The same message as the box that received it holds it: a producer on line
- * two rather than a topic, and the reference and the trace it arrived on.
- * `publicationDate` is when this service got it, which is the only baseline
- * its own timings can honestly be measured from.
- */
 const inboxDetail = (overrides: Partial<EventDetail> = {}): EventDetail =>
   detail({
     box: 'inbox',
-    hop: 'GAS Inbox',
-    queue: 'from Caseworking',
-    queueValue: null,
-    messageGroupId: null,
-    occurredAt: '2026-06-16T09:59:58.000Z',
+    targetTopic: null,
     segregationRef: 'GLD-9B2-BWS-grasslands',
-    traceparent: '00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01',
     traceId: '4bf92f3577b34da6a3ce929d0e0e4736',
     ...overrides
   })
 
-/** One hop of the journey, as the endpoint composes it. */
-const hop = (overrides: Partial<JourneyHop> = {}): JourneyHop => ({
-  service: 'gas',
-  box: 'outbox',
-  id,
-  hop: 'GAS Outbox',
-  ...deadLetter,
-  startedAt: '2026-06-16T10:00:01.000Z',
-  took: '1.2s',
-  ...overrides
+const found = (event: EventDetail = detail()): EventResult => ({
+  outcome: 'found',
+  event
 })
-
-const found = (
-  event: EventDetail = detail(),
-  journey: JourneyHop[] = [hop()]
-): EventResult => ({ outcome: 'found', event, journey })
 
 const model = (
   result: EventResult = found(),
   query: Parameters<typeof toEventPage>[2] = {}
-) => toEventPage(result, key, query, now)
+) => toEventPage(result, key, query)
 
-/** The same page, asked about the inbox half of the pattern. */
 const inboxModel = (
   result: EventResult = found(inboxDetail()),
   query: Parameters<typeof toEventPage>[2] = {}
-) => toEventPage(result, inboxKey, query, now)
+) => toEventPage(result, inboxKey, query)
 
 describe('toSafeFrom', () => {
   test.each([
@@ -183,8 +127,6 @@ describe('toSafeFrom', () => {
     expect(toSafeFrom(from)).toBe(expected)
   })
 
-  // The two shapes that turn `/dev-ops/events` plus a suffix into a link
-  // somewhere else, and the ones that are simply not a query string.
   test.each([
     ['an absolute url', 'https://example.com'],
     ['a protocol-relative url', '//example.com'],
@@ -215,45 +157,87 @@ describe('toEventPage', () => {
     )
   })
 
-  // Every word here is the endpoint's, and the page prints them: a status
-  // labelled in two places eventually reads two ways.
   test('names the event and the state the endpoint says it is in', () => {
     const page = model()
 
     expect(page.type).toBe('case.status.updated')
-    expect(page.typeTitle).toBe(
-      'cloud.defra.prd.fg-gas-backend.case.update.status'
-    )
     expect(page.status).toBe('DEAD_LETTER')
     expect(page.statusLabel).toBe('Dead letter')
     expect(page.statusRole).toBe('error')
     expect(page.statusRetrying).toBe(false)
-    expect(page.attempts).toBe('5/5')
-    expect(page.showAttempts).toBe(true)
+    expect(page.attempts).toEqual({ made: 5, allowed: 5 })
   })
 
-  // The fuller spelling is sent only where it says something the short one
-  // does not, so there is nothing left here to compare it against.
-  test('hangs no title off a type the endpoint sent no fuller spelling for', () => {
-    expect(model(found(detail({ typeTitle: null }))).typeTitle).toBeNull()
-  })
-
-  test('says the created instant absolutely, and only absolutely', () => {
+  test('carries no type fact, and no fuller spelling of one', () => {
     const page = model()
 
-    expect(page.createdAtAbsolute).toBe('2026-06-16T10:00:00Z')
-    expect(page).not.toHaveProperty('createdAt')
-    expect(page).not.toHaveProperty('createdAtLondon')
+    expect(page).not.toHaveProperty('typeTitle')
+    expect(page.eventName).toEqual({
+      name: 'CaseStatusUpdated',
+      spoken: 'Case status updated'
+    })
   })
 
-  test('states the poller dates absolutely, and a dash where there is none', () => {
-    const page = model()
+  test('says the service and the box as the list says them', () => {
+    expect(model()).toMatchObject({ serviceLabel: 'GAS', boxLabel: 'Outbox' })
+    expect(
+      inboxModel(found(inboxDetail({ service: 'caseworking' })))
+    ).toMatchObject({ serviceLabel: 'CW-BE', boxLabel: 'Inbox' })
+  })
 
-    expect(page.publicationDate).toBe('2026-06-16T10:00:01Z')
-    expect(page.completedDate).toBe('—')
-    expect(page.lastResubmissionDate).toBe('—')
-    expect(page.claimedAt).toBe('—')
-    expect(page.claimExpiresAt).toBe('—')
+  test('says a service it has never heard of as it was sent', () => {
+    expect(
+      model(found(detail({ service: 'reporting' as unknown as 'gas' })))
+        .serviceLabel
+    ).toBe('reporting')
+  })
+
+  test('spells an instant out to the millisecond, day month year', () => {
+    expect(
+      model(
+        found(
+          detail({ lastRedrive: { at: '2026-06-16T10:10:00.042Z', by: 'Ada' } })
+        )
+      ).lastRedriveText
+    ).toBe('16 Jun 2026 10:10:00.042')
+  })
+
+  test('states the year the event happened in, not this one', () => {
+    expect(
+      model(
+        found(
+          detail({
+            attemptHistory: [
+              {
+                at: '2024-01-05T23:59:59.123Z',
+                name: 'E',
+                message: 'boom',
+                stack: null
+              }
+            ]
+          })
+        )
+      ).attemptHistory[0].precise
+    ).toBe('5 Jan 2024 23:59:59.123')
+  })
+
+  test('spells September in three letters, as the list column does', () => {
+    expect(
+      model(
+        found(
+          detail({
+            attemptHistory: [
+              {
+                at: '2026-09-30T00:00:00.007Z',
+                name: 'E',
+                message: 'boom',
+                stack: null
+              }
+            ]
+          })
+        )
+      ).attemptHistory[0].precise
+    ).toBe('30 Sep 2026 00:00:00.007')
   })
 
   test('pretty-prints the payload at two spaces', () => {
@@ -262,7 +246,6 @@ describe('toEventPage', () => {
     )
   })
 
-  // A stored null is a real payload and says so; only nothing at all is empty.
   test('prints a stored null as a payload', () => {
     expect(model(found(detail({ payload: null }))).payloadJson).toBe('null')
   })
@@ -276,7 +259,8 @@ describe('toEventPage', () => {
 
     expect(page.errorName).toBe('MongoServerError')
     expect(page.errorMessage).toBe('E11000 duplicate key')
-    expect(page.errorAt).toBe('2026-06-16T10:16:05Z')
+    expect(page.errorAt).toBe('16 Jun 2026 10:16:05.000')
+    expect(page.errorAtTitle).toBe('2026-06-16T10:16:05Z')
   })
 
   test('reports no failure on an event that never had one', () => {
@@ -296,70 +280,10 @@ describe('toEventPage', () => {
     expect(page.errorAt).toBeNull()
   })
 
-  test('names each hop of the journey and links it at its own page', () => {
-    const page = model(
-      found(detail(), [
-        hop(),
-        hop({
-          id: '111111111111111111111111',
-          service: 'caseworking',
-          box: 'inbox',
-          hop: 'CW Inbox'
-        })
-      ])
-    )
-
-    expect(page.journey.map((entry) => entry.source)).toEqual([
-      'GAS Outbox',
-      'CW Inbox'
-    ])
-    expect(page.journey.map((entry) => entry.href)).toEqual([
-      `/dev-ops/events/gas/outbox/${id}`,
-      '/dev-ops/events/caseworking/inbox/111111111111111111111111'
-    ])
-    expect(page.journey).toHaveLength(2)
-  })
-
-  test('draws each hop in the words the endpoint sent for it', () => {
-    const page = model(
-      found(detail(), [
-        hop({
-          status: 'COMPLETED',
-          statusLabel: 'Completed',
-          statusRole: 'success',
-          statusRetrying: false
-        })
-      ])
-    )
-
-    expect(page.journey[0]).toMatchObject({
-      status: 'COMPLETED',
-      statusLabel: 'Completed',
-      statusRole: 'success',
-      statusRetrying: false
-    })
-  })
-
-  test('marks the hop the page is already about', () => {
-    const page = model(
-      found(detail(), [hop(), hop({ id: '111111111111111111111111' })])
-    )
-
-    expect(page.journey.map((entry) => entry.isCurrent)).toEqual([true, false])
-  })
-
-  // Same id, same box, different service: not the same row.
-  test('marks no hop that only half matches this address', () => {
-    const page = model(found(detail(), [hop({ service: 'caseworking' })]))
-
-    expect(page.journey[0].isCurrent).toBe(false)
-  })
-
-  test('carries the list query onto every journey link', () => {
-    const page = model(found(), { from: '?status=FAILED' })
-
-    expect(page.journey[0].href).toBe(
-      `/dev-ops/events/gas/outbox/${id}?from=%3Fstatus%3DFAILED`
+  test('calls the last error final only on a dead letter', () => {
+    expect(model().errorRole).toBe('error')
+    expect(model(found(detail(stateOf('FAILED', 'Failed')))).errorRole).toBe(
+      'warning'
     )
   })
 
@@ -398,8 +322,6 @@ describe('toEventPage', () => {
     })
   })
 
-  // The label travels on the redirect: this page prints the word it was
-  // handed rather than translating an enum a second time.
   test('names the status a conflict reported, in the words it arrived in', () => {
     const banner = model(found(), { redrive_conflict: 'Completed' }).banner
 
@@ -423,18 +345,15 @@ describe('toEventPage', () => {
     expect(model().banner).toBeNull()
   })
 
-  // The shell still has to say the two things it can: the way back, and
-  // whatever the redirect that landed here was carrying.
   test('keeps the way back on a page whose event could not be read', () => {
     const page = model(
-      { outcome: 'unavailable', event: null, journey: [] },
+      { outcome: 'unavailable', event: null },
       { from: '?status=FAILED' }
     )
 
     expect(page.unavailable).toBe(true)
     expect(page.backHref).toBe('/dev-ops/events?status=FAILED')
     expect(page.payloadJson).toBeNull()
-    expect(page.journey).toEqual([])
     expect(page.canRedrive).toBe(false)
   })
 
@@ -445,7 +364,8 @@ describe('toEventPage', () => {
     expect(attemptHistory.map(({ number }) => number)).toEqual(['#1', '#2'])
     expect(attemptHistory[0]).toEqual({
       number: '#1',
-      absolute: '2026-06-16T10:08:00.000Z',
+      role: 'warning',
+      precise: '16 Jun 2026 10:08:00.000',
       delta: 'after 8m 0s',
       name: 'MongoNetworkTimeoutError',
       message: 'connection timed out after 30000ms',
@@ -454,9 +374,28 @@ describe('toEventPage', () => {
     })
   })
 
-  // Verbatim: a stack is not prose, and the backend capped it at the source.
-  test('carries each attempt stack through untouched', () => {
-    const stack = 'Error: boom\n    at handler (/app/src/x.js:1:1)'
+  test('drops a stack header that repeats the attempt line', () => {
+    const { attemptHistory } = model(
+      found(
+        detail({
+          attemptHistory: [
+            {
+              at: '2026-06-16T10:08:00.000Z',
+              name: 'Error',
+              message: 'boom',
+              stack: 'Error: boom\n    at handler (/app/src/x.js:1:1)'
+            }
+          ]
+        })
+      )
+    )
+
+    expect(attemptHistory[0].stack).toBe('at handler (/app/src/x.js:1:1)')
+  })
+
+  test('keeps a stack whose header says more than the attempt line', () => {
+    const stack =
+      'Error: boom, and the half the message lost\n    at run (/x.js:1:1)'
     const { attemptHistory } = model(
       found(
         detail({
@@ -479,27 +418,233 @@ describe('toEventPage', () => {
     expect(model().attemptHistory[0].stack).toBeNull()
   })
 
-  test('says each attempt absolutely, and never how long ago it was', () => {
+  test('says each attempt to the millisecond, and never how long ago it was', () => {
     const { attemptHistory } = model()
 
     expect(attemptHistory[1]).toMatchObject({
-      absolute: '2026-06-16T10:16:05.000Z',
+      precise: '16 Jun 2026 10:16:05.000',
       delta: '+8m 5s'
     })
     expect(
-      attemptHistory.map((entry) => entry.absolute).join(' ')
+      attemptHistory.map((entry) => entry.precise).join(' ')
     ).not.toContain('ago')
     expect(attemptHistory[0]).not.toHaveProperty('relative')
   })
 
-  // Four attempts inside a second is a service retrying into a wall —
-  // invisible at a resolution that rounds all four to `12m ago`.
+  test('keeps a round millisecond on an attempt, and the ISO on its title', () => {
+    const { attemptHistory } = model(
+      found(
+        detail({
+          attemptHistory: [
+            {
+              at: '2026-06-16T10:08:00.000Z',
+              name: 'Error',
+              message: 'boom',
+              stack: null
+            }
+          ]
+        })
+      )
+    )
+
+    expect(attemptHistory[0].precise).toBe('16 Jun 2026 10:08:00.000')
+    expect(attemptHistory[0].title).toBe('2026-06-16T10:08:00Z')
+  })
+
+  test("draws a completed event's success as the attempt after its failures", () => {
+    expect(
+      model(
+        found(
+          detail({ ...completed, completionDate: '2026-06-16T10:17:00.000Z' })
+        )
+      ).attemptSuccess
+    ).toEqual({
+      number: '#3',
+      precise: '16 Jun 2026 10:17:00.000',
+      delta: '+55.0s',
+      title: '2026-06-16T10:17:00Z'
+    })
+  })
+
+  test('numbers a first-time success #1, timed from creation', () => {
+    expect(
+      model(
+        found(
+          detail({
+            ...completed,
+            attempts: '0/5',
+            attemptHistory: [],
+            completionDate: '2026-06-16T10:00:00.207Z'
+          })
+        )
+      ).attemptSuccess
+    ).toMatchObject({ number: '#1', delta: 'after 207ms' })
+  })
+
+  const failures = (count: number) =>
+    Array.from({ length: count }, (_, index) => ({
+      at: `2026-06-16T10:0${index}:00.000Z`,
+      name: 'E',
+      message: 'boom',
+      stack: null
+    }))
+
+  test.each([
+    ['failures recorded', '2/5', 2, { made: 3, allowed: 5 }, '#3'],
+    ['a first-time success', '0/5', 0, { made: 1, allowed: 5 }, '#1'],
+    [
+      'a legacy row that counted its success',
+      '1/5',
+      0,
+      { made: 1, allowed: 5 },
+      '#1'
+    ],
+    [
+      'a legacy row with three failures and its success',
+      '4/5',
+      0,
+      { made: 4, allowed: 5 },
+      '#4'
+    ],
+    ['history capped at ten', '12/5', 10, { made: 13, allowed: 5 }, '#13']
+  ])(
+    'counts a completed event from its failure count: %s',
+    (_name, attempts, recorded, label, number) => {
+      const page = model(
+        found(
+          detail({
+            ...completed,
+            attempts,
+            attemptHistory: failures(recorded),
+            completionDate: '2026-06-16T10:17:00.000Z'
+          })
+        )
+      )
+
+      expect(page.attempts).toEqual(label)
+      expect(page.attemptSuccess?.number).toBe(number)
+    }
+  )
+
+  test('keeps the endpoint count on an event that has not completed', () => {
+    expect(model().attempts).toEqual({ made: 5, allowed: 5 })
+  })
+
+  const rolesOf = (event: EventDetail) =>
+    model(found(event)).attemptHistory.map(({ role }) => role)
+
+  test('ends a dead letter in an error, every failure before it retried', () => {
+    expect(rolesOf(detail())).toEqual(['warning', 'error'])
+  })
+
+  test('draws every failure before a completion as retried', () => {
+    expect(
+      rolesOf(
+        detail({ ...completed, completionDate: '2026-06-16T10:17:00.000Z' })
+      )
+    ).toEqual(['warning', 'warning'])
+  })
+
+  test.each([['FAILED'], ['RESUBMITTED'], ['PROCESSING']])(
+    'calls no failure final on a %s event still being retried',
+    (status) => {
+      expect(rolesOf(detail(stateOf(status)))).toEqual(['warning', 'warning'])
+    }
+  )
+
+  test("counts a redriven dead letter's first final failure as retried once it is back in play", () => {
+    const redrive = { at: '2026-06-16T10:10:00.000Z', by: 'Ada' }
+
+    expect(
+      rolesOf(detail({ ...stateOf('RESUBMITTED'), lastRedrive: redrive }))
+    ).toEqual(['warning', 'warning'])
+    expect(rolesOf(detail({ lastRedrive: redrive }))).toEqual([
+      'warning',
+      'error'
+    ])
+  })
+
+  test('draws no success on an event that did not complete', () => {
+    expect(model().attemptSuccess).toBeNull()
+    expect(
+      model(found(detail(stateOf('PROCESSING', 'Processing')))).attemptSuccess
+    ).toBeNull()
+  })
+
+  test('ends an undated completion in its success, saying no instant rather than inventing one', () => {
+    expect(
+      model(found(detail({ ...completed, completionDate: null })))
+        .attemptSuccess
+    ).toEqual({ number: '#3', precise: null, delta: null, title: null })
+  })
+
+  const noHistory = { attemptHistory: [], lastError: null }
+
+  test.each([
+    ['a history', {}, 'timeline'],
+    ['a completed row with a history', { ...completed }, 'timeline'],
+    [
+      'a first-time success',
+      { ...completed, ...noHistory, attempts: '0/5' },
+      'timeline'
+    ],
+    [
+      'an old completed row',
+      { ...completed, ...noHistory, attempts: '1/5' },
+      'predatedCompleted'
+    ],
+    [
+      'an old dead letter at a count of 0 with no error',
+      { ...noHistory, attempts: '0/5' },
+      'predated'
+    ],
+    [
+      'an old dead letter with no count and no error',
+      { ...noHistory, attempts: '-' },
+      'predated'
+    ],
+    ['an old dead letter with its error', { attemptHistory: [] }, 'predated'],
+    [
+      'a retrying row with attempts counted but no history',
+      { ...stateOf('FAILED'), ...noHistory, attempts: '3/5' },
+      'predated'
+    ],
+    [
+      'a row in play with an error at a count of 0',
+      { ...stateOf('RESUBMITTED'), attemptHistory: [], attempts: '0/5' },
+      'predated'
+    ],
+    [
+      'a queued row never tried',
+      { ...stateOf('PUBLISHED'), ...noHistory, attempts: '0/5' },
+      'notYet'
+    ],
+    [
+      'a retrying row with no count and no error',
+      { ...stateOf('FAILED'), ...noHistory, attempts: '-' },
+      'notYet'
+    ],
+    [
+      'a redriven row with no attempts since',
+      {
+        ...stateOf('RESUBMITTED'),
+        ...noHistory,
+        attempts: '0/5',
+        lastRedrive: { at: '2026-06-16T11:00:00.000Z', by: 'Ada' }
+      },
+      'redriven'
+    ]
+  ])('picks the attempts block for %s', (_name, overrides, block) => {
+    expect(
+      model(found(detail(overrides as Partial<EventDetail>))).attemptsBlock
+    ).toBe(block)
+  })
+
   test('makes a missing backoff visible as four sub-second deltas', () => {
     const { attemptHistory } = model(
       found(
         detail({
           createdAt: '2026-06-16T10:08:00.000Z',
-          publicationDate: '2026-06-16T10:00:01.000Z',
           attemptHistory: [
             {
               at: '2026-06-16T10:08:00.120Z',
@@ -531,26 +676,24 @@ describe('toEventPage', () => {
     )
 
     expect(
-      attemptHistory.map(({ number, absolute, delta }) => [
+      attemptHistory.map(({ number, precise, delta }) => [
         number,
-        absolute,
+        precise,
         delta
       ])
     ).toEqual([
-      ['#1', '2026-06-16T10:08:00.120Z', 'after 120ms'],
-      ['#2', '2026-06-16T10:08:00.393Z', '+273ms'],
-      ['#3', '2026-06-16T10:08:00.905Z', '+512ms'],
-      ['#4', '2026-06-16T10:08:02.005Z', '+1.1s']
+      ['#1', '16 Jun 2026 10:08:00.120', 'after 120ms'],
+      ['#2', '16 Jun 2026 10:08:00.393', '+273ms'],
+      ['#3', '16 Jun 2026 10:08:00.905', '+512ms'],
+      ['#4', '16 Jun 2026 10:08:02.005', '+1.1s']
     ])
   })
 
-  // The same shape, done properly: a backoff an operator can see is working.
   test('reads a real backoff as a widening run of deltas', () => {
     const { attemptHistory } = model(
       found(
         detail({
           createdAt: '2026-06-16T04:00:00.000Z',
-          publicationDate: '2026-06-16T10:00:01.000Z',
           attemptHistory: [
             {
               at: '2026-06-16T04:00:30.000Z',
@@ -582,8 +725,6 @@ describe('toEventPage', () => {
     ])
   })
 
-  // An instant the endpoint wrote that will not parse leaves no gap to state,
-  // and `+NaNms` is worse than saying nothing.
   test('states no delta for an instant it cannot read', () => {
     const { attemptHistory } = model(
       found(
@@ -597,57 +738,19 @@ describe('toEventPage', () => {
     )
 
     expect(
-      attemptHistory.map(({ absolute, delta }) => [absolute, delta])
+      attemptHistory.map(({ precise, delta }) => [precise, delta])
     ).toEqual([
       ['—', null],
       ['—', null]
     ])
   })
 
-  // An empty section reads as "it never failed", which is the opposite of what
-  // an empty history means on a dead letter — so the page says it in words.
   test('reports no attempts at all on an event that predates the history', () => {
     const { attemptHistory } = model(found(detail({ attemptHistory: [] })))
 
     expect(attemptHistory).toEqual([])
   })
 
-  // A list of failures that simply stops reads as an event still failing.
-  test('ends the timeline with the state the event is actually in', () => {
-    expect(model().attemptOutcome).toBe('dead-lettered')
-  })
-
-  test('ends a completed event at the instant it completed', () => {
-    expect(
-      model(
-        found(
-          detail({
-            ...completed,
-            completionDate: '2026-06-16T10:17:00.000Z'
-          })
-        )
-      ).attemptOutcome
-    ).toBe('completed at 2026-06-16T10:17:00Z')
-  })
-
-  // A completion the endpoint did not date has no instant to end the story
-  // with, and `completed at —` is worse than the sentence being absent.
-  test('ends nothing on a completed event the endpoint dated no completion for', () => {
-    expect(
-      model(found(detail({ ...completed, completionDate: null })))
-        .attemptOutcome
-    ).toBeNull()
-  })
-
-  test('ends nothing on an event that is still in play', () => {
-    expect(
-      model(found(detail(stateOf('PROCESSING', 'Processing')))).attemptOutcome
-    ).toBeNull()
-  })
-
-  // The one place in the app that builds a Discover href. A trace is one of
-  // the facts only the receiving half of the pattern can answer for, so it is
-  // asked of an inbox row throughout.
   test('links the trace at plain Discover on the shared index pattern', () => {
     givenLogsExplorer()
 
@@ -656,63 +759,27 @@ describe('toEventPage', () => {
     expect(traceHref).toBe(
       `${logsBase}/_dashboards/app/data-explorer/discover/#` +
         `?_a=(discover:(columns:!(container_name,message,log.level,trace.id),isDirty:!f,sort:!('@timestamp',desc)),metadata:(indexPattern:e55f3890-5d4a-11ee-8f40-670c9b0b8093,view:discover))` +
-        `&_g=(filters:!(),refreshInterval:(pause:!t,value:0),time:(from:'2026-06-16T04:00:01.000Z',to:'2026-06-16T16:00:01.000Z'))` +
+        `&_g=(filters:!(),refreshInterval:(pause:!t,value:0),time:(from:'2026-06-16T04:00:00.000Z',to:'2026-06-16T16:00:00.000Z'))` +
         `&_q=(filters:!(),query:(language:kuery,query:'trace.id:%224bf92f3577b34da6a3ce929d0e0e4736%22'))`
     )
   })
 
-  // Six hours either side, so a trace that started before the message and
-  // finished after it is inside the window.
-  test('windows the search six hours either side of the receipt', () => {
+  test('windows the search six hours either side of creation', () => {
     givenLogsExplorer()
 
     const { traceHref } = inboxModel(
-      found(inboxDetail({ publicationDate: '2026-06-16T13:30:00.000Z' }))
+      found(inboxDetail({ createdAt: '2026-06-16T13:30:00.000Z' }))
     )
 
     expect(traceHref).toContain("time:(from:'2026-06-16T07:30:00.000Z'")
     expect(traceHref).toContain("to:'2026-06-16T19:30:00.000Z')")
   })
 
-  // On an inbox row `createdAt` is the CloudEvent's own time — the producer's
-  // clock, stamped before the broker saw it — so a window centred on it would
-  // be centred somewhere this service was not yet involved.
-  test('centres the window on receipt rather than on the producer stamp', () => {
-    givenLogsExplorer()
-
-    const { traceHref } = inboxModel(
-      found(
-        inboxDetail({
-          createdAt: '2026-06-16T02:00:00.000Z',
-          publicationDate: '2026-06-16T13:30:00.000Z'
-        })
-      )
-    )
-
-    expect(traceHref).toContain("time:(from:'2026-06-16T07:30:00.000Z'")
-  })
-
-  // A row whose box recorded no receipt is timed from the only instant it has.
-  test('falls back to the created instant on a row with no receipt', () => {
-    givenLogsExplorer()
-
-    const { traceHref } = inboxModel(
-      found(
-        inboxDetail({
-          createdAt: '2026-06-16T13:30:00.000Z',
-          publicationDate: null
-        })
-      )
-    )
-
-    expect(traceHref).toContain("time:(from:'2026-06-16T07:30:00.000Z'")
-  })
-
   test('windows across a date boundary without losing the day', () => {
     givenLogsExplorer()
 
     const { traceHref } = inboxModel(
-      found(inboxDetail({ publicationDate: '2026-06-16T02:00:00.000Z' }))
+      found(inboxDetail({ createdAt: '2026-06-16T02:00:00.000Z' }))
     )
 
     expect(traceHref).toContain("time:(from:'2026-06-15T20:00:00.000Z'")
@@ -726,30 +793,55 @@ describe('toEventPage', () => {
     ).toBeNull()
   })
 
-  // An outbox row carries none of the three inbox-only facts at all, and each
-  // is drawn as the dash it has always drawn rather than as an empty cell.
-  test('reports no reference and no trace on an outbox row, which has neither', () => {
+  test('reports no segregation ref and no trace on an outbox row without one', () => {
     givenLogsExplorer()
 
     expect(model()).toMatchObject({
       segregationRef: null,
       segregationRefHref: null,
       segregationRefTitle: null,
-      traceparent: null,
       traceId: null,
       traceHref: null
     })
   })
 
-  // An inbox row does, and the reference gathers the set the event id cannot.
-  test('links an inbox row reference at every event that shares it', () => {
+  test('links an outbox row trace id, centred on its creation', () => {
+    givenLogsExplorer()
+
+    const page = model(
+      found(
+        detail({
+          createdAt: '2026-06-16T10:00:00.000Z',
+          traceId: '4bf92f3577b34da6a3ce929d0e0e4736'
+        })
+      )
+    )
+
+    expect(page.traceId).toBe('4bf92f3577b34da6a3ce929d0e0e4736')
+    expect(page.traceHref).toContain("time:(from:'2026-06-16T04:00:00.000Z'")
+    expect(page.traceHref).toContain(
+      'trace.id:%224bf92f3577b34da6a3ce929d0e0e4736%22'
+    )
+  })
+
+  test('links an inbox row segregation ref at every event that shares it', () => {
     expect(inboxModel()).toMatchObject({
       segregationRef: 'GLD-9B2-BWS-grasslands',
       segregationRefHref: '/dev-ops/events?q=GLD-9B2-BWS-grasslands',
       segregationRefTitle:
-        'GLD-9B2-BWS-grasslands\nShow every event with this reference',
-      traceparent: '00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01'
+        'GLD-9B2-BWS-grasslands\nShow every event with this segregation ref',
+      traceId: '4bf92f3577b34da6a3ce929d0e0e4736'
     })
+  })
+
+  test('keeps audit rows in the segregation ref search from an audit record', () => {
+    expect(
+      model(
+        found(
+          detail({ type: 'audit', segregationRef: 'GLD-9B2-BWS-grasslands' })
+        )
+      ).segregationRefHref
+    ).toBe('/dev-ops/events?q=GLD-9B2-BWS-grasslands&audit=include')
   })
 
   test('links nothing when no logs explorer is configured', () => {
@@ -762,12 +854,11 @@ describe('toEventPage', () => {
     expect(inboxModel().traceHref).toBeNull()
   })
 
-  test('links nothing when the row has an unparseable receipt instant', () => {
+  test('links nothing when the row has an unparseable created instant', () => {
     givenLogsExplorer()
 
     expect(
-      inboxModel(found(inboxDetail({ publicationDate: 'not-a-date' })))
-        .traceHref
+      inboxModel(found(inboxDetail({ createdAt: 'not-a-date' }))).traceHref
     ).toBeNull()
   })
 
@@ -790,8 +881,6 @@ describe('toEventPage', () => {
     expect(traceHref).not.toContain(' ')
   })
 
-  // Rison treats `!` as its escape and `'` as its delimiter, so a hostile id
-  // can neither close the string nor escape the href.
   test('escapes a rison quote in a trace id so it cannot close the query', () => {
     givenLogsExplorer()
 
@@ -810,7 +899,7 @@ describe('toEventPage', () => {
     ).toContain('trace.id:%22a!!f%22')
   })
 
-  test('carries the whole trace id for the link title', () => {
+  test('carries the trace id an inbox row names', () => {
     givenLogsExplorer()
 
     expect(inboxModel().traceId).toBe('4bf92f3577b34da6a3ce929d0e0e4736')
@@ -821,32 +910,8 @@ describe('toEventPage', () => {
 
     expect(model()).not.toHaveProperty('logsHref')
   })
-
-  test('draws the instant the producer says it happened, on an inbox row', () => {
-    const page = inboxModel()
-
-    expect(page.occurred).toBe('2026-06-16T09:59:58Z')
-    expect(page.occurredKnown).toBe(true)
-    expect(page.messageGroup).toBeNull()
-  })
-
-  test('draws the FIFO group it was published in, on an outbox row', () => {
-    const page = model()
-
-    expect(page.messageGroup).toBe('GLD-9B2')
-    expect(page.occurredKnown).toBe(false)
-  })
-
-  // A document that carries no time has no row to draw, rather than a dash.
-  test('reports no occurrence for an inbox row that carries no time', () => {
-    const page = inboxModel(found(inboxDetail({ occurredAt: null })))
-
-    expect(page.occurred).toBe('—')
-    expect(page.occurredKnown).toBe(false)
-  })
 })
 
-/** Two attempts that failed the same way, which is the shape of a futile retry. */
 const identicalAttempts = [
   {
     at: '2026-06-16T10:08:00.000Z',
@@ -885,28 +950,23 @@ describe('a dead letter with the park removed', () => {
 })
 
 describe('the futile redrive warning', () => {
-  // Every part of the condition earns its place, so every part is asserted.
   test('warns when the last redrive produced the identical failure', () => {
     const page = model(
       found(detail({ attemptHistory: identicalAttempts, lastRedrive }))
     )
 
     expect(page.futileWarning).toBe(
-      'A previous redrive (by Ada Lovelace, 2026-06-16T10:10:00Z) failed with the identical error — ' +
+      'The last two attempts since the redrive (by Ada Lovelace, 16 Jun 2026 10:10:00.000) failed with the identical error — ' +
         'redriving again is unlikely to succeed until the underlying cause is fixed.'
     )
   })
 
-  // A timeout and then a duplicate key is a system that changed its mind, and
-  // another go is a perfectly reasonable thing to want.
   test('says nothing when the last two attempts failed differently', () => {
     const page = model(found(detail({ lastRedrive })))
 
     expect(page.futileWarning).toBeNull()
   })
 
-  // Nobody has tried anything yet: two identical failures with no redrive on
-  // record are just the poller doing its job.
   test('says nothing when nobody has redriven it', () => {
     const page = model(
       found(detail({ attemptHistory: identicalAttempts, lastRedrive: null }))
@@ -932,8 +992,6 @@ describe('the futile redrive warning', () => {
   test.each([
     ['COMPLETED', 'Completed'],
     ['RESUBMITTED', 'Resubmitted'],
-    // A status this app has never seen, passed through as the endpoint wrote
-    // it: still not a dead letter, so still nothing to warn about.
     ['PARKED', 'PARKED']
   ])('says nothing on a %s event', (status, label) => {
     const page = model(
@@ -949,8 +1007,6 @@ describe('the futile redrive warning', () => {
     expect(page.futileWarning).toBeNull()
   })
 
-  // Only the last two count: a message that failed three ways and then twice
-  // the same way is still failing the same way.
   test('compares the last two attempts and not the ones before them', () => {
     const page = model(
       found(
@@ -974,18 +1030,16 @@ describe('the futile redrive warning', () => {
 })
 
 describe('the last redrive', () => {
-  // Two parts, not one composed string: the card draws the instant in its
-  // value register and the actor in the muted one beside it.
   test('says the instant absolutely, and who asked, as two values', () => {
     const page = model(found(detail({ lastRedrive })))
 
-    expect(page.lastRedriveAt).toBe('2026-06-16T10:10:00Z')
-    expect(page.lastRedriveAt).not.toContain('ago')
+    expect(page.lastRedriveTitle).toBe('2026-06-16T10:10:00Z')
+    expect(page.lastRedriveTitle).not.toContain('ago')
     expect(page.lastRedriveBy).toBe('Ada Lovelace')
   })
 
   test('says nothing on an event nobody has redriven', () => {
-    expect(model().lastRedriveAt).toBeNull()
+    expect(model().lastRedriveTitle).toBeNull()
     expect(model().lastRedriveBy).toBeNull()
   })
 })
@@ -997,12 +1051,24 @@ describe('the shared failure link', () => {
     )
   })
 
-  // The endpoint matches the message exactly, so the whole of it travels —
-  // including the characters a query string is made of.
+  test('keeps audit rows in the error search from an audit record', () => {
+    expect(model(found(detail({ type: 'audit' }))).errorSearchHref).toBe(
+      '/dev-ops/events?status=DEAD_LETTER&error=E11000+duplicate+key&audit=include'
+    )
+  })
+
   test('escapes a message that would otherwise be a query of its own', () => {
     const page = model(
       found(
         detail({
+          attemptHistory: [
+            {
+              at: '2026-06-16T10:16:05.000Z',
+              name: 'Error',
+              message: 'a&b=c #1',
+              stack: null
+            }
+          ],
           lastError: { name: 'Error', message: 'a&b=c #1', at: null }
         })
       )
@@ -1027,87 +1093,27 @@ describe('the shared failure link', () => {
   })
 })
 
-describe('the journey table', () => {
-  // A hop is timed from when THAT box took it — both measured by the box's
-  // own clock, which is why they arrive stated rather than rebuilt here.
-  test('says when each hop began and how long it itself took', () => {
-    const page = model(
-      found(detail(), [
-        hop({ startedAt: '2026-06-16T10:00:01.000Z', took: '1.2s' })
-      ])
-    )
-
-    expect(page.journey[0]).toMatchObject({
-      createdAt: '2026-06-16T10:00:01Z',
-      createdAtTitle: '2026-06-16T10:00:01.000Z',
-      took: '1.2s'
-    })
-  })
-
-  // A hop that has not completed has no duration, and a zero there would read
-  // as an instant one.
-  test('says nothing about a hop that has not completed', () => {
-    const page = model(found(detail(), [hop({ took: null })]))
-
-    expect(page.journey[0].took).toBe('—')
-  })
-
-  test('draws a dash rather than throwing on a start it cannot read', () => {
-    const page = model(found(detail(), [hop({ startedAt: 'never' })]))
-
-    expect(page.journey[0].createdAt).toBe('—')
-    expect(page.journey[0].createdAtTitle).toBe('')
-  })
-})
-
-/**
- * The one cell two surfaces state. The same wire row goes through both models
- * and the two cells are compared with each other rather than each against a
- * literal — a pair of literals would agree until somebody changed one.
- *
- * The WORDS are what both surfaces owe each other. The link is not: this page
- * hangs one on its Queue fact and the list draws the same words as plain text,
- * a deliberate difference asserted on each side rather than shared here.
- */
-interface QueueCell {
-  hop: string
-  queue: string | null
-  queueValue: string | null
-}
-
-const cellOf = ({ hop, queue, queueValue }: QueueCell): QueueCell => ({
-  hop,
-  queue,
-  queueValue
-})
-
-/** The list, rendered with one row on it and no filters at all. */
-const listCell = (event: EventRow): QueueCell =>
-  cellOf(
-    toEventsPage(
-      {
-        page: {
-          events: [event],
-          pagination: {
-            startCursor: null,
-            endCursor: null,
-            hasNextPage: false,
-            hasPreviousPage: false
-          },
-          sourceErrors: []
+const listRow = (event: EventRow) =>
+  toEventsPage(
+    {
+      page: {
+        events: [event],
+        pagination: {
+          endCursor: null,
+          hasNextPage: false
         },
-        statuses: [],
-        services,
-        facets: null,
-        breakdown: null,
-        unavailable: false
+        sourceErrors: []
       },
-      {},
-      now
-    ).rows[0]
-  )
+      statuses: [],
+      services,
+      facets: null,
+      breakdown: null,
+      unavailable: false
+    },
+    {},
+    now
+  ).rows[0]
 
-/** The same row as the list receives it: the detail's fields plus latency. */
 const row = (overrides: Partial<EventRow> = {}): EventRow => ({
   ...base,
   latency: null,
@@ -1116,63 +1122,343 @@ const row = (overrides: Partial<EventRow> = {}): EventRow => ({
 })
 
 describe('the Queue cell, on the list and on this page', () => {
-  test.each([
-    ['a domain outbox row', {}],
-    [
-      'an audit outbox row',
-      { queue: 'to Audit', queueValue: 'gas__sns__audit_topic_arn' }
-    ],
-    [
-      'an outbox row nothing subscribes to',
-      { queue: 'to case_created', queueValue: 'cw__sns__case_created' }
-    ],
-    ['an outbox row with no target at all', { queue: null, queueValue: null }],
-    [
-      'an inbox row',
-      {
-        box: 'inbox' as const,
-        hop: 'GAS Inbox',
-        queue: 'from Caseworking',
-        queueValue: null
-      }
-    ],
-    [
-      'a hop this page cannot filter to',
-      {
-        service: 'reporting' as unknown as 'gas',
-        hop: 'reporting Outbox'
-      }
-    ]
-  ])('says the same thing about %s on both', (_name, overrides) => {
-    const fact = cellOf(model(found(detail(overrides))))
+  test('says the service and the box the same way on both, and keeps no hop', () => {
+    const page = model(found(detail()))
+    const listed = listRow(row())
 
-    expect(fact).toEqual(listCell(row(overrides)))
-    // Guards the comparison itself: two empty cells would also be equal.
-    expect(fact.hop).not.toBe('')
+    expect(page).toMatchObject({ serviceLabel: 'GAS', boxLabel: 'Outbox' })
+    expect(listed).toMatchObject({ serviceLabel: 'GAS', boxLabel: 'Outbox' })
+    for (const surface of [page, listed]) {
+      expect(surface).not.toHaveProperty('hop')
+      expect(surface).not.toHaveProperty('queue')
+    }
   })
 
-  // Neither surface links the hop any more: narrowing the list to a service
-  // is the toolbar's job on the list, and this page has no list to narrow.
-  // The journey table's own links are a different thing and stay - they are
-  // row navigation, each one to that hop's own page.
-  test('hangs no link on the hop, on either surface', () => {
-    const page = model()
+  test('keeps the topic to this page', () => {
+    expect(model(found(detail())).targetTopic).toBe(
+      'gas__sns__update_case_status_fifo'
+    )
+    expect(listRow(row())).not.toHaveProperty('targetTopic')
+  })
+})
 
-    expect(page).not.toHaveProperty('hopHref')
-    expect(page).not.toHaveProperty('hopTitle')
-    expect(listCell(row())).not.toHaveProperty('hopHref')
+describe('the last attempt and the failure link', () => {
+  const longMessage = `E11000 duplicate key ${'x'.repeat(600)}`
+  const attemptAt = '2026-06-16T10:16:05.000Z'
+  const truncated = (message: string) => ({
+    at: attemptAt,
+    name: 'MongoServerError',
+    message,
+    stack: null
   })
 
-  test('draws a hop the toolbar has no chip for as the words it was sent', () => {
+  test('draws the whole message the link searches for', () => {
     const page = model(
       found(
         detail({
-          service: 'reporting' as unknown as 'gas',
-          hop: 'reporting Outbox'
+          attemptHistory: [truncated(longMessage.slice(0, 512))],
+          lastError: {
+            name: 'MongoServerError',
+            message: longMessage,
+            at: attemptAt
+          }
         })
       )
     )
 
-    expect(page.hop).toBe('reporting Outbox')
+    expect(page.attemptHistory[0].message).toBe(longMessage)
+    expect(page.errorSearchHref).toBe(
+      `/dev-ops/events?status=DEAD_LETTER&error=${encodeURIComponent(longMessage).replace(/%20/g, '+')}`
+    )
+    expect(
+      decodeURIComponent(
+        (page.errorSearchHref ?? '').split('&error=')[1].replace(/\+/g, ' ')
+      )
+    ).toBe(page.attemptHistory[0].message)
+  })
+
+  test('leaves a message the backend did not cut alone', () => {
+    const page = model(
+      found(
+        detail({
+          attemptHistory: [truncated('E11000 duplicate key')],
+          lastError: {
+            name: 'MongoServerError',
+            message: 'E11000 duplicate key',
+            at: attemptAt
+          }
+        })
+      )
+    )
+
+    expect(page.attemptHistory[0].message).toBe('E11000 duplicate key')
+  })
+
+  test('leaves earlier attempts with the text that was stored for them', () => {
+    const page = model(
+      found(
+        detail({
+          attemptHistory: [
+            truncated('connection timed out'),
+            truncated(longMessage.slice(0, 512))
+          ],
+          lastError: {
+            name: 'MongoServerError',
+            message: longMessage,
+            at: attemptAt
+          }
+        })
+      )
+    )
+
+    expect(page.attemptHistory[0].message).toBe('connection timed out')
+    expect(page.attemptHistory[1].message).toBe(longMessage)
+  })
+
+  test('leaves an attempt the failure does not describe alone', () => {
+    const page = model(
+      found(
+        detail({
+          attemptHistory: [truncated('claim expired before completion')],
+          lastError: {
+            name: 'MongoServerError',
+            message: longMessage,
+            at: attemptAt
+          }
+        })
+      )
+    )
+
+    expect(page.attemptHistory[0].message).toBe(
+      'claim expired before completion'
+    )
+    // The link would search the failure text, which this page never shows.
+    expect(page.errorSearchHref).toBeNull()
+  })
+
+  test('still offers the lookup where no attempt disagrees with it', () => {
+    const page = model(
+      found(
+        detail({
+          attemptHistory: [],
+          lastError: {
+            name: 'MongoServerError',
+            message: 'E11000 duplicate key',
+            at: attemptAt
+          }
+        })
+      )
+    )
+
+    expect(page.errorSearchHref).toBe(
+      '/dev-ops/events?status=DEAD_LETTER&error=E11000+duplicate+key'
+    )
+  })
+
+  test('says nothing of a failure on an event that has none', () => {
+    const page = model(
+      found(detail({ attemptHistory: [truncated('boom')], lastError: null }))
+    )
+
+    expect(page.attemptHistory[0].message).toBe('boom')
+    expect(page.errorSearchHref).toBeNull()
+  })
+})
+
+describe('an attempt or redrive with no instant', () => {
+  const history = [
+    { at: '2026-06-16T10:08:00.000Z', name: 'E', message: 'a', stack: null },
+    { at: null, name: 'E', message: 'b', stack: null },
+    { at: '2026-06-16T10:10:00.000Z', name: 'E', message: 'c', stack: null }
+  ]
+
+  test('dashes it, titles nothing and gaps the next from the last known', () => {
+    const { attemptHistory } = model(found(detail({ attemptHistory: history })))
+
+    expect(
+      attemptHistory.map(({ precise, title, delta }) => [precise, title, delta])
+    ).toEqual([
+      ['16 Jun 2026 10:08:00.000', '2026-06-16T10:08:00Z', 'after 8m 0s'],
+      ['—', null, null],
+      ['16 Jun 2026 10:10:00.000', '2026-06-16T10:10:00Z', '+2m 0s']
+    ])
+  })
+
+  test('gaps nothing after a first attempt with no instant', () => {
+    const { attemptHistory } = model(
+      found(detail({ attemptHistory: history.slice(1) }))
+    )
+
+    expect(attemptHistory.map(({ delta }) => delta)).toEqual([null, null])
+  })
+
+  test('dashes a redrive with no instant and titles nothing', () => {
+    const page = model(found(detail({ lastRedrive: { at: null, by: 'Ada' } })))
+
+    expect(page.lastRedriveText).toBe('—')
+    expect(page.lastRedriveTitle).toBeNull()
+  })
+})
+
+describe('a redriven event', () => {
+  const redrive = { at: '2026-06-16T11:00:00.000Z', by: 'Ada' }
+  const redriven = (overrides: Partial<EventDetail> = {}) =>
+    detail({
+      ...stateOf('RESUBMITTED'),
+      attempts: '0/5',
+      attemptHistory: [],
+      lastResubmissionDate: '2026-06-16T10:16:30.000Z',
+      lastRedrive: redrive,
+      ...overrides
+    })
+
+  test('says it was redriven with no attempts since, not a missing history', () => {
+    const page = model(found(redriven()))
+
+    expect(page.attemptsBlock).toBe('redriven')
+    expect(page.resubmittedSinceLastAttempt).toBe(false)
+    expect(page.lastResubmissionDate).toBeNull()
+  })
+
+  test('keeps the legacy reading on a row that was never redriven', () => {
+    expect(model(found(redriven({ lastRedrive: null }))).attemptsBlock).toBe(
+      'predated'
+    )
+  })
+
+  test('is not waiting once it has completed', () => {
+    expect(
+      model(found(redriven({ ...completed, attempts: '0/5' }))).attemptsBlock
+    ).toBe('timeline')
+  })
+
+  const attemptAt = (at: string) => [
+    { at, name: 'E', message: 'boom', stack: null }
+  ]
+
+  test('times the first attempt after the redrive from the redrive', () => {
+    expect(
+      model(
+        found(
+          redriven({ attemptHistory: attemptAt('2026-06-16T11:00:30.000Z') })
+        )
+      ).attemptHistory[0].delta
+    ).toBe('after 30.0s')
+  })
+
+  test('reads a redrive written in another offset as the instant it is', () => {
+    expect(
+      model(
+        found(
+          redriven({
+            lastRedrive: { at: '2026-06-16T12:00:00+01:00', by: 'Ada' },
+            attemptHistory: attemptAt('2026-06-16T11:00:30.000Z')
+          })
+        )
+      ).attemptHistory[0].delta
+    ).toBe('after 30.0s')
+  })
+
+  test('times an attempt that came before the redrive from creation', () => {
+    expect(
+      model(
+        found(
+          redriven({ attemptHistory: attemptAt('2026-06-16T10:00:30.000Z') })
+        )
+      ).attemptHistory[0].delta
+    ).toBe('after 30.0s')
+  })
+
+  test('times a success straight after the redrive from the redrive', () => {
+    expect(
+      model(
+        found(
+          redriven({
+            ...completed,
+            attempts: '0/5',
+            completionDate: '2026-06-16T11:00:00.500Z'
+          })
+        )
+      ).attemptSuccess?.delta
+    ).toBe('after 500ms')
+  })
+})
+
+describe('the last resubmission', () => {
+  test('states the instant to the millisecond, with the ISO on its title', () => {
+    const page = model(
+      found(detail({ lastResubmissionDate: '2026-06-16T10:16:30.000Z' }))
+    )
+
+    expect(page.lastResubmissionDate).toBe('16 Jun 2026 10:16:30.000')
+    expect(page.lastResubmissionTitle).toBe('2026-06-16T10:16:30Z')
+  })
+
+  test('says nothing on an event nobody has resubmitted', () => {
+    const page = model()
+
+    expect(page.lastResubmissionDate).toBeNull()
+    expect(page.resubmittedSinceLastAttempt).toBe(false)
+  })
+
+  test('marks a resubmission that came after the last attempt', () => {
+    expect(
+      model(found(detail({ lastResubmissionDate: '2026-06-16T10:20:00.000Z' })))
+        .resubmittedSinceLastAttempt
+    ).toBe(true)
+  })
+
+  test('marks nothing where an attempt followed the resubmission', () => {
+    expect(
+      model(found(detail({ lastResubmissionDate: '2026-06-16T10:10:00.000Z' })))
+        .resubmittedSinceLastAttempt
+    ).toBe(false)
+  })
+
+  test.each([
+    ['the same instant without milliseconds', '2026-06-16T10:16:05Z', false],
+    [
+      'an earlier instant in another offset',
+      '2026-06-16T11:10:00+01:00',
+      false
+    ],
+    ['a later instant in another offset', '2026-06-16T11:20:00+01:00', true]
+  ])(
+    'compares a resubmission at %s as an instant, not as text',
+    (_name, lastResubmissionDate, since) => {
+      expect(
+        model(found(detail({ lastResubmissionDate })))
+          .resubmittedSinceLastAttempt
+      ).toBe(since)
+    }
+  )
+
+  test('marks no resubmission on a completed event', () => {
+    expect(
+      model(
+        found(
+          detail({
+            ...completed,
+            attemptHistory: [],
+            attempts: '0/5',
+            completionDate: '2026-06-16T10:17:00.000Z',
+            lastResubmissionDate: '2026-06-16T10:16:30.000Z'
+          })
+        )
+      ).resubmittedSinceLastAttempt
+    ).toBe(false)
+  })
+
+  test('marks a resubmission on an event with no attempt history', () => {
+    expect(
+      model(
+        found(
+          detail({
+            attemptHistory: [],
+            lastResubmissionDate: '2026-06-16T10:16:30.000Z'
+          })
+        )
+      ).resubmittedSinceLastAttempt
+    ).toBe(true)
   })
 })

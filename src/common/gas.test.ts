@@ -24,6 +24,19 @@ describe('getFromGas', () => {
     )
   })
 
+  test('gives up after the configured timeout', async () => {
+    const configured = config.get('gas.timeoutMs')
+
+    config.set('gas.timeoutMs', 1234)
+    await getFromGas('/grants/woodland')
+    config.set('gas.timeoutMs', configured)
+
+    expect(wreck.get).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({ timeout: 1234 })
+    )
+  })
+
   test('presents the service token', async () => {
     await getFromGas('/grants/woodland')
 
@@ -49,6 +62,19 @@ describe('postToGas', () => {
     await expect(
       postToGas('/grant-admin/events/gas/outbox/1/redrive')
     ).resolves.toEqual({ event: { status: 'RESUBMITTED' } })
+  })
+
+  test('gives up on a write after the configured timeout', async () => {
+    const configured = config.get('gas.timeoutMs')
+
+    config.set('gas.timeoutMs', 1234)
+    await postToGas('/grant-admin/events/gas/outbox/1/redrive')
+    config.set('gas.timeoutMs', configured)
+
+    expect(wreck.post).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({ timeout: 1234 })
+    )
   })
 
   test('posts to the given path', async () => {
