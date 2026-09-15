@@ -12,5 +12,6 @@ export const statusCodes = {
   conflict: 409,
   imATeapot: 418,
   internalServerError: 500,
-  serviceUnavailable: 503
+  serviceUnavailable: 503,
+  gatewayTimeout: 504
 }

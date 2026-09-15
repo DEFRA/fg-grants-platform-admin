@@ -1,75 +1,55 @@
 import type {
   EventDetail,
   EventKey,
-  EventResult,
-  JourneyHop as JourneyHopResponse
+  EventResult
 } from '../use-cases/get-event.use-case.ts'
+import { toAttemptCount } from './attempt-count.ts'
+import type { AttemptCount } from './attempt-count.ts'
+import { toBoxLabel, toServiceLabel } from './event-labels.ts'
+import { toEventName } from './event-names.ts'
+import type { EventName } from './event-names.ts'
+import { toEventState } from './event-state.ts'
+import type { EventState } from './event-state.ts'
 import type { BadgeRole } from './event-formats.ts'
 import {
   none,
-  noTimestamp,
   toAbsolute,
   toEventHref,
   toGap,
-  toIso,
+  toPreciseInstant,
   toSearchHref,
   toSearchTitle,
-  toTimestamp,
-  toTraceHref
+  toTraceHref,
+  toValidDate
 } from './event-formats.ts'
+import { toStackFrames } from './stack-frames.ts'
 
-/**
- * The page for one event. Unlike the list, nothing is cut to a column width:
- * an operator opens this page to paste something out of it, so every value is
- * shown whole.
- */
+type AttemptRole = Extract<BadgeRole, 'warning' | 'error'>
 
-export { none }
-
-/** One hop on the journey table: a row somewhere with the same event id. */
-interface JourneyHop {
-  /** `GAS Outbox` — which queue this hop is, in the alert's vocabulary. */
-  source: string
-  status: string
-  statusLabel: string
-  statusRole: BadgeRole
-  statusRetrying: boolean
-  createdAt: string
-  createdAtTitle: string
-  /**
-   * How long this hop took, created to completed: `430ms`, `1.2s`. `—` on a
-   * hop that has not completed — a zero there would read as an instant one.
-   */
-  took: string
-  /** This hop's own page, carrying the same `from` as the page it is on. */
-  href: string
-  /** The hop the operator is already looking at. See toJourney. */
-  isCurrent: boolean
-}
-
-/** One delivery attempt, as the timeline draws it. */
 interface AttemptEntry {
-  /** `#1`, oldest first. */
   number: string
-  /** The instant, whole, milliseconds and all. See toAttemptHistory. */
-  absolute: string
-  /**
-   * The gap since the attempt before this one — `+273ms`, `+5h 34m` — or, on
-   * the first, since the event was created: `after 273ms`. Null only when an
-   * instant will not parse.
-   */
+  role: AttemptRole
+  precise: string
   delta: string | null
   name: string
   message: string
-  /**
-   * The stack, whole, revealed by expanding the row. Null where the attempt
-   * has none, and the template draws no expander for those: an expander that
-   * opens onto nothing is worse than no expander.
-   */
   stack: string | null
-  /** Both spellings of the instant, for anyone hovering the line. */
-  title: string
+  title: string | null
 }
+
+interface AttemptSuccess {
+  number: string
+  precise: string | null
+  delta: string | null
+  title: string | null
+}
+
+type AttemptsBlock =
+  | 'timeline'
+  | 'redriven'
+  | 'predated'
+  | 'predatedCompleted'
+  | 'notYet'
 
 interface EventBanner {
   role: 'success' | 'warning' | 'error'
@@ -77,144 +57,63 @@ interface EventBanner {
 }
 
 export interface EventPageModel {
-  /** The event could not be read at all — the page is a shell and an alert. */
   unavailable: boolean
-  /** The list, as the operator left it. */
+  timedOut: boolean
   backHref: string
-  /** The same query, to put on this page's own links and in the redrive form. */
   from: string
   banner: EventBanner | null
 
-  /**
-   * Always there: a record that is not a CloudEvent is labelled `audit` by
-   * fg-gas-backend, and the sentence explaining that arrives as `typeTitle`.
-   */
+  eventName: EventName | null
   type: string
-  /** The endpoint's own spelling, on the type's `title`, when the two differ. */
-  typeTitle: string | null
   eventId: string
 
   status: string
   statusLabel: string
   statusRole: BadgeRole
   statusRetrying: boolean
-  isDeadLetter: boolean
-  /** `3/5`, or `-` when the endpoint reported no count. */
-  attempts: string
-  showAttempts: boolean
-  hasFailure: boolean
-  lastFailureAt: string
-  failureTitle: string
+  attempts: AttemptCount | null
 
-  /** The list's Queue cell exactly, so the two surfaces read alike. */
-  hop: string
-  queue: string | null
-  queueValue: string | null
+  serviceLabel: string
+  boxLabel: string
+  targetTopic: string | null
   segregationRef: string | null
   segregationRefHref: string | null
   segregationRefTitle: string | null
-  traceparent: string | null
   traceId: string | null
   traceHref: string | null
 
-  /**
-   * An inbox row is a message this service received; an outbox row is one it
-   * is publishing. The two have genuinely different lifecycles, so the facts
-   * list draws a different set for each.
-   */
   isInbox: boolean
-  /** The instant absolutely: the ISO UTC spelling a log query takes. */
-  createdAtAbsolute: string
-  /**
-   * On a GAS document the row's order key IS one of the lifecycle instants
-   * below it (`eventTime` on inbox, `publicationDate` on outbox); printing it
-   * twice under two labels would be one instant claiming to be two facts, so
-   * the lifecycle label wins and this row is left out. On a Caseworking
-   * document the two differ and both are drawn.
-   */
-  showCreated: boolean
-  /**
-   * When the producer says the event happened — the CloudEvent's `time`.
-   * Inbox only; `occurredKnown` says whether to draw the row at all.
-   */
-  occurred: string
-  occurredKnown: boolean
-  /**
-   * The FIFO message group the event was published in. Outbox only, and null
-   * on a document that has none — an audit record, or a topic that is not
-   * FIFO — which is a row the list leaves out.
-   */
-  messageGroup: string | null
 
-  /** Absolute UTC, or `—`: the four dates the poller writes as it works. */
-  publicationDate: string
-  /** Only on a row that has finished. See toDates. */
-  completedDate: string
-  lastResubmissionDate: string
-  claimedAt: string
-  claimExpiresAt: string
+  lastResubmissionDate: string | null
+  lastResubmissionTitle: string | null
+  resubmittedSinceLastAttempt: boolean
 
-  /** The failure in full — class, whole message, when. Null with no failure. */
   errorName: string | null
   errorMessage: string | null
   errorAt: string | null
+  errorAtTitle: string | null
+  errorRole: AttemptRole
 
-  /**
-   * Every attempt the endpoint has a record of, oldest first. Empty on an
-   * event written before the history was kept, which the page says in words:
-   * an empty section reads as "it never failed", the opposite of what an
-   * empty history means on a dead letter.
-   */
   attemptHistory: AttemptEntry[]
-  /**
-   * Where the timeline ends: `dead-lettered`, or `completed at <instant>`.
-   * Null while the event is still in play.
-   */
-  attemptOutcome: string | null
+  attemptSuccess: AttemptSuccess | null
+  attemptsBlock: AttemptsBlock
 
-  /** The stored event, pretty-printed. Null when there is nothing stored. */
   payloadJson: string | null
 
-  journey: JourneyHop[]
-
-  /** Dead-lettered, and therefore worth offering to put back on the queue. */
   canRedrive: boolean
-  /** The operator asked for the confirmation, and it is theirs to confirm. */
   confirmRedrive: boolean
   redriveHref: string
   cancelHref: string
-  /** Where the confirmation posts: the endpoint's own path, on this app. */
   redriveAction: string
 
-  /**
-   * The last redrive, in the two registers the card draws every composite
-   * value in: the absolute UTC instant as the value, the person who asked as
-   * the muted suffix beside it. Both null when nobody has redriven this
-   * event, or when it was redriven before the backend recorded who did.
-   */
-  lastRedriveAt: string | null
+  lastRedriveTitle: string | null
+  lastRedriveText: string | null
   lastRedriveBy: string | null
-  /**
-   * The sentence above the buttons on an event whose last redrive achieved
-   * nothing. Null unless every part of that is true — see `toFutileWarning`.
-   */
   futileWarning: string | null
-  /**
-   * Every other dead letter that failed the same way. Null on an event with
-   * no error recorded, and on one that is not a dead letter.
-   */
   errorSearchHref: string | null
 }
 
-/**
- * The back link's suffix, and the only untrusted string this page puts in an
- * href. It arrives as an opaque query string the list handed out, only ever
- * appended to `/dev-ops/events` — so the two things that could turn that into
- * a link somewhere else are the two things checked here: a value that does not
- * open with `?` is not a query string at all, and a value containing `//` is
- * how a path plus a suffix becomes a protocol-relative url pointing at another
- * host. Anything failing either test is dropped rather than repaired.
- */
+/** Open-redirect guard: `//` would make this a protocol-relative url. */
 export const toSafeFrom = (from: string | undefined | null): string =>
   typeof from === 'string' && from.startsWith('?') && !from.includes('//')
     ? from
@@ -240,66 +139,22 @@ const toSelfHref = (
   return params.size ? `${toEventHref(key)}?${params}` : toEventHref(key)
 }
 
-const toAbsoluteOrNone = (value: string | null): string =>
-  value === null ? none : (toAbsolute(value) ?? none)
+const toAbsoluteInstant = (at: string | null): string | null =>
+  at === null ? null : toAbsolute(at)
 
-const toIsoOrEmpty = (value: string): string => toIso(value) ?? ''
+const toPreciseOrNone = (value: string | null): string => {
+  if (value === null) {
+    return none
+  }
 
-/**
- * Both facts are read out of the stored payload by fg-gas-backend and arrive
- * as fields, so this page renders them rather than going looking inside a
- * document it treats as opaque everywhere else. Null is "this document does
- * not carry it" — a row the facts list leaves out rather than draws as a dash.
- */
-const toPayloadFacts = (event: EventDetail, isInbox: boolean) => ({
-  occurred: isInbox ? toAbsoluteOrNone(event.occurredAt) : none,
-  occurredKnown: isInbox && event.occurredAt !== null,
-  messageGroup: isInbox ? null : event.messageGroupId
-})
+  const date = toValidDate(value)
 
-/**
- * Rendered as text and nothing else: nunjucks escapes it on the way into the
- * `<pre>`, so a payload containing markup is readable rather than a script
- * this page runs. `undefined` is the one shape with nothing to print — a
- * stored `null` is a real payload and says so.
- */
+  return date === null ? none : toPreciseInstant(date)
+}
+
 const toPayloadJson = (payload: unknown): string | null =>
   payload === undefined ? null : JSON.stringify(payload, null, 2)
 
-/**
- * Every row the list endpoint holds under this event id, in the order it
- * returned them. The current hop is marked rather than unlinked: a row
- * without a link reads as a row that is broken.
- */
-const toJourney = (
-  events: JourneyHopResponse[],
-  key: EventKey,
-  from: string
-): JourneyHop[] =>
-  events.map((hop) => {
-    return {
-      source: hop.hop,
-      status: hop.status,
-      statusLabel: hop.statusLabel,
-      statusRole: hop.statusRole,
-      statusRetrying: hop.statusRetrying,
-      // Both measured by the owning box's own clock, which is why they arrive
-      // rather than being reconstructed here from two instants.
-      createdAt: toAbsoluteOrNone(hop.startedAt),
-      createdAtTitle: toIsoOrEmpty(hop.startedAt),
-      took: hop.took ?? none,
-      href: toSelfHref(hop, from),
-      isCurrent:
-        hop.service === key.service && hop.box === key.box && hop.id === key.id
-    }
-  })
-
-/**
- * A write that redirects has to carry its own result, because the page that
- * lands is a fresh read that knows nothing about the click that caused it.
- * The conflict banner deliberately names the state the event is actually in:
- * nothing went wrong, the event simply moved on.
- */
 const banners: {
   reads: (query: EventPageQuery) => string | undefined
   toBanner: (value: string) => EventBanner
@@ -326,6 +181,15 @@ const banners: {
       role: 'error',
       message:
         'Not redriven — fg-gas-backend no longer has this event. Nothing has changed.'
+    })
+  },
+  {
+    reads: (query) =>
+      query.redrive_error === 'timeout' ? query.redrive_error : undefined,
+    toBanner: () => ({
+      role: 'warning',
+      message:
+        'Redrive status unknown — CW-BE did not answer in time. Refresh to check the event.'
     })
   },
   {
@@ -358,7 +222,6 @@ export interface EventPageQuery {
   redrive_error?: string
 }
 
-/** Everything the page can say without an event. */
 const toShell = (key: EventKey, query: EventPageQuery) => {
   const from = toSafeFrom(query.from)
 
@@ -370,83 +233,94 @@ const toShell = (key: EventKey, query: EventPageQuery) => {
   }
 }
 
-const emptyDetail = {
+type ShellKey =
+  | 'unavailable'
+  | 'timedOut'
+  | 'backHref'
+  | 'from'
+  | 'banner'
+  | 'redriveAction'
+
+const emptyDetail: Omit<EventPageModel, ShellKey> = {
+  eventName: null,
   type: '',
-  typeTitle: null,
   eventId: '',
   status: '',
   statusLabel: '',
-  statusRole: 'neutral' as BadgeRole,
+  statusRole: 'neutral',
   statusRetrying: false,
-  isDeadLetter: false,
-  attempts: '-',
-  showAttempts: false,
-  hasFailure: false,
-  lastFailureAt: none,
-  failureTitle: '',
-  hop: '',
-  queue: null,
-  queueValue: null,
+  attempts: null,
+  serviceLabel: '',
+  boxLabel: '',
+  targetTopic: null,
   segregationRef: null,
   segregationRefHref: null,
   segregationRefTitle: null,
-  traceparent: null,
   traceId: null,
   traceHref: null,
   isInbox: true,
-  createdAtAbsolute: none,
-  showCreated: true,
-  occurred: none,
-  occurredKnown: false,
-  messageGroup: null,
-  publicationDate: none,
-  completedDate: none,
-  lastResubmissionDate: none,
-  claimedAt: none,
-  claimExpiresAt: none,
+  lastResubmissionDate: null,
+  lastResubmissionTitle: null,
+  resubmittedSinceLastAttempt: false,
   errorName: null,
   errorMessage: null,
   errorAt: null,
-  attemptHistory: [] as AttemptEntry[],
-  attemptOutcome: null as string | null,
+  errorAtTitle: null,
+  errorRole: 'warning',
+  attemptHistory: [],
+  attemptSuccess: null,
+  attemptsBlock: 'notYet',
   payloadJson: null,
-  journey: [] as JourneyHop[],
   canRedrive: false,
   confirmRedrive: false,
   redriveHref: '',
   cancelHref: '',
-  lastRedriveAt: null as string | null,
-  lastRedriveBy: null as string | null,
-  futileWarning: null as string | null,
-  errorSearchHref: null as string | null
+  lastRedriveTitle: null,
+  lastRedriveText: null,
+  lastRedriveBy: null,
+  futileWarning: null,
+  errorSearchHref: null
+}
+
+interface DetailContext {
+  event: EventDetail
+  state: EventState
+  count: AttemptCount | null
 }
 
 /**
- * The words are the endpoint's — the same ones the list draws. The instant is
- * stated absolutely rather than relatively, because there is no column to fit
- * and a relative time cannot be pasted into a log query.
+ * GAS counts failures only, so the success is one more; a legacy row with no
+ * history counted the success already.
  */
-const toState = (event: EventDetail) => {
-  const failedAt =
-    event.lastFailureAt === null ? null : toAbsolute(event.lastFailureAt)
-  const hasFailure = failedAt !== null
+const toCompletedAttempts = ({ event, count }: DetailContext): number => {
+  const recorded = event.attemptHistory.length
 
-  return {
-    status: event.status,
-    statusLabel: event.statusLabel,
-    statusRole: event.statusRole,
-    statusRetrying: event.statusRetrying,
-    isDeadLetter: event.status === 'DEAD_LETTER',
-    attempts: event.attempts,
-    showAttempts: event.showAttempts,
-    hasFailure,
-    lastFailureAt: failedAt ?? none,
-    failureTitle: failedAt ?? noTimestamp.title
+  if (count === null) {
+    return recorded + 1
   }
+
+  return recorded > 0 || count.made === 0 ? count.made + 1 : count.made
 }
 
-const toReference = (segregationRef: string | null) =>
-  segregationRef === null
+const toAttemptsShown = (context: DetailContext): AttemptCount | null =>
+  context.state.completed && context.count !== null
+    ? { ...context.count, made: toCompletedAttempts(context) }
+    : context.count
+
+const toStatus = (context: DetailContext) => ({
+  status: context.event.status,
+  statusLabel: context.event.statusLabel,
+  statusRole: context.event.statusRole,
+  statusRetrying: context.event.statusRetrying,
+  attempts: toAttemptsShown(context)
+})
+
+const isAuditRecord = (event: EventDetail): boolean => event.type === 'audit'
+
+const toSegregationRef = (event: EventDetail) => {
+  const segregationRef = event.segregationRef ?? null
+
+  return segregationRef === null
     ? {
         segregationRef,
         segregationRefHref: null,
@@ -454,128 +328,197 @@ const toReference = (segregationRef: string | null) =>
       }
     : {
         segregationRef,
-        segregationRefHref: toSearchHref(segregationRef),
-        segregationRefTitle: toSearchTitle(segregationRef, 'reference')
+        segregationRefHref: toSearchHref(segregationRef, isAuditRecord(event)),
+        segregationRefTitle: toSearchTitle(segregationRef, 'segregation ref')
       }
+}
 
-/**
- * When this box got the message. On an inbox row `createdAt` is the
- * CloudEvent's `time` — the producer's clock, stamped before the broker ever
- * saw it — so measuring an inbox hop from it books the whole transit leg to
- * this service. The outbox has no such gap: there `createdAt` IS the moment
- * the message was queued.
- */
-const toReceivedAt = (
-  event: { createdAt: string; publicationDate: string | null },
-  isInbox: boolean
-): string =>
-  isInbox ? (event.publicationDate ?? event.createdAt) : event.createdAt
+/** Compared as instants: two ISO spellings of one moment need not sort as strings. */
+const isAfter = (later: string, earlier: string): boolean => {
+  const a = toValidDate(later)
+  const b = toValidDate(earlier)
 
-/**
- * `completedDate` asks a question of the status first: a redrive leaves the
- * old `completionDate` on the document, so a row that completed, was redriven
- * and then dead-lettered still carries the instant it completed at — and
- * drawing it said a dead letter had been published. The fact is a dash unless
- * the row is actually in the state the label names; the attempts timeline is
- * unaffected, since there a past completion is exactly the point.
- */
-const toDates = (event: EventDetail) => ({
-  createdAtAbsolute: toAbsoluteOrNone(event.createdAt),
-  publicationDate: toAbsoluteOrNone(event.publicationDate),
-  completedDate:
-    event.status === 'COMPLETED'
-      ? toAbsoluteOrNone(event.completionDate)
-      : none,
-  lastResubmissionDate: toAbsoluteOrNone(event.lastResubmissionDate),
-  claimedAt: toAbsoluteOrNone(event.claimedAt),
-  claimExpiresAt: toAbsoluteOrNone(event.claimExpiresAt)
-})
+  return a !== null && b !== null && a.getTime() > b.getTime()
+}
 
-const noFailure = { errorName: null, errorMessage: null, errorAt: null }
+const lastKnownAt = (attempts: EventDetail['attemptHistory']): string | null =>
+  attempts.findLast((attempt) => attempt.at !== null)?.at ?? null
 
-/** `at` alone can be missing, on an event that failed before it was recorded. */
+const toResubmission = ({ event, state }: DetailContext) => {
+  const at = event.lastResubmissionDate
+
+  if (at === null || !state.waiting) {
+    return {
+      lastResubmissionDate: null,
+      lastResubmissionTitle: null,
+      resubmittedSinceLastAttempt: false
+    }
+  }
+
+  const last = lastKnownAt(event.attemptHistory)
+
+  return {
+    lastResubmissionDate: toPreciseOrNone(at),
+    lastResubmissionTitle: toAbsoluteInstant(at),
+    resubmittedSinceLastAttempt: last === null || isAfter(at, last)
+  }
+}
+
+const noFailure = {
+  errorName: null,
+  errorMessage: null,
+  errorAt: null,
+  errorAtTitle: null
+}
+
 const toFailure = (error: EventDetail['lastError']) =>
   error === null
     ? noFailure
     : {
         errorName: error.name,
         errorMessage: error.message,
-        errorAt: error.at === null ? null : toAbsoluteOrNone(error.at)
+        errorAt: error.at === null ? null : toPreciseOrNone(error.at),
+        errorAtTitle: toAbsoluteInstant(error.at)
       }
 
-/**
- * The two gaps are labelled differently on purpose: `+273ms` reads down the
- * column as a backoff between attempts, while `after 273ms` on the first line
- * is a different measurement against a different instant — spelling both with
- * a `+` would invite reading them as one series.
- */
-const toAttemptDelta = (
-  previous: string | undefined,
-  at: string,
-  createdAt: string
-): string | null => {
-  if (previous === undefined) {
-    const first = toGap(createdAt, at)
+/** A redrive newer than creation starts the clock again for the attempt after it. */
+const redriveAt = (event: EventDetail): string | null =>
+  event.lastRedrive?.at ?? null
 
-    return first === null ? null : `after ${first}`
-  }
+const toFirstAnchor = (event: EventDetail, at: string): string => {
+  const redrive = redriveAt(event)
 
-  const gap = toGap(previous, at)
+  return redrive !== null &&
+    isAfter(redrive, event.createdAt) &&
+    !isAfter(redrive, at)
+    ? redrive
+    : event.createdAt
+}
+
+const toFirstGap = (event: EventDetail, at: string): string | null => {
+  const gap = toGap(toFirstAnchor(event, at), at)
+
+  return gap === null ? null : `after ${gap}`
+}
+
+const toLaterGap = (previous: string | null, at: string): string | null => {
+  const gap = previous === null ? null : toGap(previous, at)
 
   return gap === null ? null : `+${gap}`
 }
 
-/**
- * The endpoint caps the list at ten, so the numbers are positions in what was
- * kept, not in what happened — the honest thing to draw when the earliest of
- * forty are gone.
- *
- * Absolute, not relative, milliseconds and all: five attempts inside one
- * minute all round to `4h 24m ago`, and a retry storm's gaps are measured in
- * milliseconds — the instant plus the delta beside it is what makes a missing
- * backoff visible without anybody doing arithmetic.
- */
-const toAttemptHistory = (
-  attempts: EventDetail['attemptHistory'],
-  createdAt: string,
-  now: Date
-): AttemptEntry[] =>
-  (attempts ?? []).map((attempt, index, all) => ({
+/** Unknown instants get no gap, and the next one is measured from the last known. */
+const toAttemptDelta = (
+  event: EventDetail,
+  before: EventDetail['attemptHistory'],
+  at: string | null
+): string | null => {
+  if (at === null) {
+    return null
+  }
+
+  return before.length === 0
+    ? toFirstGap(event, at)
+    : toLaterGap(lastKnownAt(before), at)
+}
+
+/** The backend caps an attempt's message at 512 and `lastError` at 1024. */
+const toAttemptMessage = (
+  message: string,
+  isLast: boolean,
+  lastError: EventDetail['lastError']
+): string =>
+  isLast && lastError !== null && lastError.message.startsWith(message)
+    ? lastError.message
+    : message
+
+/** Only a dead letter's newest failure ended it; every other one was retried. */
+const toAttemptRole = (
+  state: EventState,
+  index: number,
+  count: number
+): AttemptRole =>
+  state.deadLetter && index === count - 1 ? 'error' : 'warning'
+
+/** The last error's role, when no timeline says which attempt it was. */
+const toLastErrorRole = (state: EventState): AttemptRole =>
+  state.deadLetter ? 'error' : 'warning'
+
+const toAttemptHistory = ({ event, state }: DetailContext): AttemptEntry[] =>
+  event.attemptHistory.map((attempt, index, all) => ({
     number: `#${index + 1}`,
-    absolute: toIso(attempt.at) ?? none,
-    delta: toAttemptDelta(all[index - 1]?.at, attempt.at, createdAt),
+    role: toAttemptRole(state, index, all.length),
+    precise: toPreciseOrNone(attempt.at),
+    delta: toAttemptDelta(event, all.slice(0, index), attempt.at),
     name: attempt.name,
-    message: attempt.message,
-    // Verbatim: a stack is not prose, and the backend already capped it.
-    stack: attempt.stack,
-    title: toTimestamp(attempt.at, now).title
+    message: toAttemptMessage(
+      attempt.message,
+      index === all.length - 1,
+      event.lastError
+    ),
+    stack: toStackFrames(attempt.name, attempt.message, attempt.stack),
+    title: toAbsoluteInstant(attempt.at)
   }))
 
-/**
- * A list of five failures that stops without a word reads as an event still
- * failing; the outcome says which way it actually went.
- */
-const toCompletedOutcome = (event: EventDetail): string | null => {
-  const completed = event.completionDate
+const undated = { precise: null, delta: null, title: null }
 
-  return completed === null
-    ? null
-    : `completed at ${toAbsoluteOrNone(completed)}`
+const toSuccessInstant = (event: EventDetail, at: string) => {
+  const title = toAbsolute(at)
+
+  return title === null
+    ? undated
+    : {
+        precise: toPreciseOrNone(at),
+        delta: toAttemptDelta(event, event.attemptHistory, at),
+        title
+      }
 }
 
-const attemptOutcomes: Record<string, (event: EventDetail) => string | null> = {
-  DEAD_LETTER: () => 'dead-lettered',
-  COMPLETED: toCompletedOutcome
+const toAttemptSuccess = (context: DetailContext): AttemptSuccess | null => {
+  const { event, state } = context
+
+  if (!state.completed) {
+    return null
+  }
+
+  return {
+    number: `#${toCompletedAttempts(context)}`,
+    ...(event.completionDate === null
+      ? undated
+      : toSuccessInstant(event, event.completionDate))
+  }
 }
 
-const toAttemptOutcome = (event: EventDetail): string | null =>
-  attemptOutcomes[event.status]?.(event) ?? null
+/** Only a row still in play, at a count of 0 with no error, is untried. */
+const madeAny = (count: AttemptCount | null): boolean => (count?.made ?? 0) > 0
+
+const isUntried = ({ event, state, count }: DetailContext): boolean =>
+  !state.completed &&
+  !state.deadLetter &&
+  !madeAny(count) &&
+  event.lastError === null
 
 /**
- * The confirmation is a url rather than a piece of script: `?confirm=redrive`
- * is the same page with a panel on it, which back-buttons and reloads like
- * every other state of it.
+ * The first rule that applies picks the block; an old row predates the history.
+ * A completed row at a count of 0 is a first-time success, not an old one.
  */
+const attemptsBlockRules: [
+  AttemptsBlock,
+  (context: DetailContext) => boolean
+][] = [
+  ['timeline', ({ event }) => event.attemptHistory.length > 0],
+  ['redriven', ({ state }) => state.redrivenSinceAttempts],
+  [
+    'predatedCompleted',
+    ({ state, count }) => state.completed && madeAny(count)
+  ],
+  ['timeline', ({ state }) => state.completed],
+  ['notYet', isUntried]
+]
+
+const toAttemptsBlock = (context: DetailContext): AttemptsBlock =>
+  attemptsBlockRules.find(([, applies]) => applies(context))?.[0] ?? 'predated'
+
 const toRedrive = (
   isDeadLetter: boolean,
   key: EventKey,
@@ -588,31 +531,22 @@ const toRedrive = (
   cancelHref: toSelfHref(key, from)
 })
 
-/**
- * The instant is stated absolutely — the UTC ISO spelling a log query takes —
- * because a relative time is unquotable and goes stale in an open tab.
- */
 const toLastRedriveDetail = (lastRedrive: EventDetail['lastRedrive']) => {
-  if (lastRedrive == null) {
-    return { lastRedriveAt: null, lastRedriveBy: null }
+  if (lastRedrive === null) {
+    return {
+      lastRedriveTitle: null,
+      lastRedriveText: null,
+      lastRedriveBy: null
+    }
   }
 
   return {
-    lastRedriveAt: toAbsoluteOrNone(lastRedrive.at),
+    lastRedriveTitle: toAbsoluteInstant(lastRedrive.at),
+    lastRedriveText: toPreciseOrNone(lastRedrive.at),
     lastRedriveBy: lastRedrive.by
   }
 }
 
-/**
- * Whether redriving again would only produce the same failure a third time.
- * Every part of the condition earns its place: a dead letter, because nothing
- * else can be redriven; two attempts or more, because one is not a pattern;
- * the last two messages identical, because a timeout then a duplicate key is
- * a system that changed its mind and worth another go; and a redrive on
- * record, because without one the identical failures are just the poller
- * doing its job. It is a note and not a block: the operator may know
- * something the page does not.
- */
 const failedTheSameWayTwice = (
   history: EventDetail['attemptHistory']
 ): boolean => {
@@ -621,126 +555,128 @@ const failedTheSameWayTwice = (
   return history.length >= 2 && previous.message === last.message
 }
 
-const isRepeatingItself = (event: EventDetail): boolean =>
-  event.status === 'DEAD_LETTER' &&
-  failedTheSameWayTwice(event.attemptHistory ?? [])
-
-const toFutileWarning = (event: EventDetail): string | null => {
+const toFutileWarning = ({ event, state }: DetailContext): string | null => {
   const redrive = event.lastRedrive
 
-  if (redrive == null || !isRepeatingItself(event)) {
+  if (
+    redrive === null ||
+    !state.deadLetter ||
+    !failedTheSameWayTwice(event.attemptHistory)
+  ) {
     return null
   }
 
   return (
-    `A previous redrive (by ${redrive.by}, ${toAbsoluteOrNone(redrive.at)}) failed with the identical error — ` +
+    `The last two attempts since the redrive (by ${redrive.by}, ${toPreciseOrNone(redrive.at)}) failed with the identical error — ` +
     'redriving again is unlikely to succeed until the underlying cause is fixed.'
   )
 }
 
-/**
- * The whole message travels on `?error=`, unshortened — the endpoint matches
- * it exactly, and a truncated needle would quietly answer a wider question
- * than the one that was asked.
- */
-const toErrorSearchHref = (event: EventDetail): string | null => {
-  if (event.status !== 'DEAD_LETTER' || !event.lastError?.message) {
+/** They correspond when one is a truncation of the other; a different failure gets no link. */
+const showsLastError = (attempts: AttemptEntry[], message: string): boolean => {
+  const shown = attempts.at(-1)?.message
+
+  return (
+    shown === undefined ||
+    shown.startsWith(message) ||
+    message.startsWith(shown)
+  )
+}
+
+const toDeadLetterErrorMessage = ({
+  event,
+  state
+}: DetailContext): string | null =>
+  state.deadLetter ? (event.lastError?.message ?? null) : null
+
+const toErrorSearchHref = (
+  context: DetailContext,
+  attempts: AttemptEntry[]
+): string | null => {
+  const message = toDeadLetterErrorMessage(context)
+
+  if (!message || !showsLastError(attempts, message)) {
     return null
   }
 
-  const params = new URLSearchParams({
-    status: 'DEAD_LETTER',
-    error: event.lastError.message
-  })
+  const params = new URLSearchParams({ status: 'DEAD_LETTER', error: message })
+
+  if (isAuditRecord(context.event)) {
+    params.set('audit', 'include')
+  }
 
   return `/dev-ops/events?${params}`
 }
 
-/**
- * The three facts only an inbox row can answer. The endpoint sends none of
- * them on an outbox row — something this service published has no reference
- * to segregate by and no trace of its own — so each is drawn as a dash there.
- */
-const toInboxFacts = (event: EventDetail, receivedAt: string) => {
+const toTrace = (event: EventDetail) => {
   const traceId = event.traceId ?? null
 
   return {
-    ...toReference(event.segregationRef ?? null),
-    traceparent: event.traceparent ?? null,
     traceId,
-    // The log window opens around the moment this service saw the message,
-    // not the moment the producer stamped it.
-    traceHref: toTraceHref({ traceId, createdAt: receivedAt })
+    traceHref: toTraceHref({ traceId, createdAt: event.createdAt })
   }
 }
+
+const toAttempts = (context: DetailContext, attempts: AttemptEntry[]) => ({
+  ...toResubmission(context),
+  attemptHistory: attempts,
+  attemptSuccess: toAttemptSuccess(context),
+  attemptsBlock: toAttemptsBlock(context)
+})
 
 const toDetail = (
-  { event, journey }: FoundEvent,
+  event: EventDetail,
   key: EventKey,
   query: EventPageQuery,
-  from: string,
-  now: Date
+  from: string
 ) => {
-  const state = toState(event)
-  const isInbox = key.box === 'inbox'
-  const payload = toPayloadFacts(event, isInbox)
-  const receivedAt = toReceivedAt(event, isInbox)
+  const state = toEventState(event)
+  const context = { event, state, count: toAttemptCount(event.attempts) }
+  const attempts = toAttemptHistory(context)
 
   return {
+    eventName: toEventName(event.type),
     type: event.type,
-    typeTitle: event.typeTitle,
     eventId: event.eventId,
-    ...state,
-    hop: event.hop,
-    queue: event.queue,
-    queueValue: event.queueValue,
-    ...toInboxFacts(event, receivedAt),
-    ...toDates(event),
-    ...payload,
-    isInbox,
-    showCreated:
-      toAbsoluteOrNone(event.createdAt) !==
-      (isInbox ? payload.occurred : toAbsoluteOrNone(event.publicationDate)),
+    ...toStatus(context),
+    serviceLabel: toServiceLabel(event.service),
+    boxLabel: toBoxLabel(event.box),
+    targetTopic: event.targetTopic,
+    ...toSegregationRef(event),
+    ...toTrace(event),
+    isInbox: key.box === 'inbox',
     ...toFailure(event.lastError),
-    attemptHistory: toAttemptHistory(event.attemptHistory, receivedAt, now),
-    attemptOutcome: toAttemptOutcome(event),
+    errorRole: toLastErrorRole(state),
+    ...toAttempts(context, attempts),
     payloadJson: toPayloadJson(event.payload),
-    journey: toJourney(journey, key, from),
-    ...toRedrive(state.isDeadLetter, key, query, from),
+    ...toRedrive(state.deadLetter, key, query, from),
     ...toLastRedriveDetail(event.lastRedrive),
-    futileWarning: toFutileWarning(event),
-    errorSearchHref: toErrorSearchHref(event)
+    futileWarning: toFutileWarning(context),
+    errorSearchHref: toErrorSearchHref(context, attempts)
   }
 }
 
-interface FoundEvent {
-  event: EventDetail
-  journey: JourneyHopResponse[]
-}
-
-/**
- * @param now Injected so the attempt tooltips a test asserts on are built
- *   against the clock it set up; the page itself renders at request time.
- */
 export const toEventPage = (
-  { outcome, event, journey }: EventResult,
+  { outcome, event }: EventResult,
   key: EventKey,
-  query: EventPageQuery,
-  now: Date
+  query: EventPageQuery
 ): EventPageModel => {
   const shell = toShell(key, query)
 
   if (outcome !== 'found' || event === null) {
-    // The row's id comes from the address rather than from the event this
-    // page could not read: a breadcrumb whose leaf is empty says nothing
-    // about which page failed to load, and the address is the one fact a
-    // failed read still has.
-    return { unavailable: true, ...shell, ...emptyDetail, eventId: key.id }
+    return {
+      unavailable: true,
+      timedOut: outcome === 'timed-out',
+      ...shell,
+      ...emptyDetail,
+      eventId: key.id
+    }
   }
 
   return {
     unavailable: false,
+    timedOut: false,
     ...shell,
-    ...toDetail({ event, journey }, key, query, shell.from, now)
+    ...toDetail(event, key, query, shell.from)
   }
 }

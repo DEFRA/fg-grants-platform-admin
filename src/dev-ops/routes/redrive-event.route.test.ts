@@ -160,6 +160,15 @@ describe('redriveEventRoute', () => {
     expect(headers.location).toBe(`${page}?redrive_error=failed`)
   })
 
+  test('redirects with a timeout flag when the outcome is unknown', async () => {
+    givenOutcome('timed-out')
+
+    const { statusCode, headers } = await redrive()
+
+    expect(statusCode).toBe(statusCodes.seeOther)
+    expect(headers.location).toBe(`${page}?redrive_error=timeout`)
+  })
+
   // The operator started on a filtered list, and the page they land on has to
   // keep the way back to it.
   test('carries the list query through the write', async () => {

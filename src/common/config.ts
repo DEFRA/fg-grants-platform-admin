@@ -77,6 +77,7 @@ interface ConfigSchema {
   gas: {
     apiUrl: string
     serviceToken: string
+    timeoutMs: number
   }
   logs: {
     explorerBaseUrl: string
@@ -114,11 +115,7 @@ export const config = convict<ConfigSchema>({
     format: String,
     default: 'fg-grants-platform-admin'
   },
-  // Which deployment the operator is looking at, said in the navbar. A
-  // dev-ops page looks identical in every environment, and the one action on
-  // it now writes to a queue: an operator with four tabs open needs the tab
-  // itself to say which service they are about to redrive an event in.
-  // `local` by default, because that is where an unset value is running.
+  // Shown in the navbar, so an operator can tell which environment a redrive would write to.
   environmentLabel: {
     doc: 'The environment this deployment is running in, as an operator names it: local, dev, test, prod.',
     format: String,
@@ -344,22 +341,23 @@ export const config = convict<ConfigSchema>({
       default: 'http://localhost:3102',
       env: 'GAS_API_URL'
     },
-    // Every fg-gas-backend route sits behind its `service` bearer strategy, so
-    // this app presents a service token of its own. A later ticket replaces it
-    // with a token carrying a role that distinguishes this backend-for-frontend
-    // from a general API consumer.
     serviceToken: {
       doc: 'Bearer token presented to fg-gas-backend',
       format: String,
       default: '',
       sensitive: true,
       env: 'GAS_SERVICE_TOKEN'
+    },
+    // Above GAS's own 5s Mongo maxTimeMS, so a slow answer arrives rather than timing out here.
+    timeoutMs: {
+      doc: 'How long to wait for fg-gas-backend before giving up, in milliseconds',
+      format: 'nat',
+      default: 7000,
+      env: 'GAS_API_TIMEOUT_MS'
     }
   },
   logs: {
-    // Optional, and empty everywhere it is not set: the events page reads it
-    // as a feature switch and renders no trace link at all when it is blank,
-    // rather than linking somewhere that does not exist.
+    // Blank renders no trace link on the event page.
     explorerBaseUrl: {
       doc: 'Base url of the CDP OpenSearch dashboards, e.g. https://logs.dev.cdp-int.defra.cloud. Empty disables the per-row trace links.',
       format: String,
