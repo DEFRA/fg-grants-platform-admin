@@ -34,6 +34,7 @@ const outcomeParams: Record<
   redriven: () => ['redriven', '1'],
   conflict: (result) => ['redrive_conflict', result.status ?? ''],
   'not-found': () => ['redrive_error', 'missing'],
+  'timed-out': () => ['redrive_error', 'timeout'],
   unavailable: () => ['redrive_error', 'failed']
 }
 

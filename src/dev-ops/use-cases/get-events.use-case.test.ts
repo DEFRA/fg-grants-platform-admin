@@ -24,24 +24,18 @@ const page: EventsPage = {
       id: '665f1c2e9a1b2c3d4e5f6a7b',
       eventId: '3f2c1a0e-1111-2222-3333-444455556666',
       type: 'case.status.updated',
-      hop: 'GAS Inbox',
-      queue: 'from Caseworking',
-      queueValue: null,
       status: 'COMPLETED',
       statusLabel: 'Completed',
       statusRole: 'success',
       statusRetrying: false,
       createdAt: '2026-06-16T10:00:00.000Z',
-      lastError: null,
       latency: '1.0s',
       latencyTitle: 'Received to completed'
     }
   ],
   pagination: {
-    startCursor: 'START',
     endCursor: 'END',
-    hasNextPage: true,
-    hasPreviousPage: false
+    hasNextPage: true
   },
   sourceErrors: []
 }
@@ -65,7 +59,7 @@ const facets: EventFacets = { counts }
 const statuses: StatusFilter[] = [
   {
     value: 'PUBLISHED',
-    label: 'Published',
+    label: 'Queued',
     explainer: 'Queued, not yet claimed'
   },
   { value: 'PROCESSING', label: 'Processing', explainer: 'Claimed, in flight' },
@@ -89,7 +83,7 @@ const statuses: StatusFilter[] = [
 
 const services: ServiceFilter[] = [
   { value: 'gas', label: 'GAS' },
-  { value: 'caseworking', label: 'Caseworking' }
+  { value: 'caseworking', label: 'CW-BE' }
 ]
 
 /**
@@ -121,7 +115,7 @@ describe('getEventsUseCase', () => {
     statuses,
     services,
     counts,
-    breakdown: { groups, sourceErrors: [] },
+    breakdown: { groups },
     sectionErrors: []
   }
 
@@ -141,7 +135,7 @@ describe('getEventsUseCase', () => {
       statuses,
       services,
       facets,
-      breakdown: { groups, sourceErrors: [] },
+      breakdown: { groups },
       unavailable: false
     })
   })
@@ -180,7 +174,6 @@ describe('getEventsUseCase', () => {
   test('asks for the page the caller asked for, whole', async () => {
     const query = {
       cursor: 'END',
-      direction: 'forward',
       status: 'DEAD_LETTER',
       service: 'gas',
       q: 'gld-9b2',
@@ -262,24 +255,47 @@ describe('getEventsUseCase', () => {
     expect(unavailable).toBe(false)
   })
 
+  test('reads a load-more page whose skipped sections are null, with no outage and no log', async () => {
+    vi.mocked(findEventsPage).mockResolvedValue({
+      ...composed,
+      counts: null,
+      breakdown: null,
+      sectionErrors: []
+    })
+
+    await expect(getEventsUseCase({ cursor: 'END' })).resolves.toEqual({
+      page,
+      statuses,
+      services,
+      facets: null,
+      breakdown: null,
+      unavailable: false
+    })
+    expect(logger.error).not.toHaveBeenCalled()
+  })
+
+  test('reads a first page filtered away from dead letters with no breakdown, and no log', async () => {
+    vi.mocked(findEventsPage).mockResolvedValue({
+      ...composed,
+      breakdown: null,
+      sectionErrors: []
+    })
+
+    const result = await getEventsUseCase({ status: 'FAILED' })
+
+    expect(result).toMatchObject({
+      facets,
+      breakdown: null,
+      unavailable: false
+    })
+    expect(logger.error).not.toHaveBeenCalled()
+  })
+
   test('returns the breakdown the endpoint composed', async () => {
     const { breakdown } = await getEventsUseCase({})
 
-    expect(breakdown).toEqual({ groups, sourceErrors: [] })
+    expect(breakdown).toEqual({ groups })
   })
-
-  // The panel is about dead letters and nothing else. That rule is about what
-  // this page draws rather than what the endpoint can answer, so it stays
-  // here: the breakdown arrives on every page and is ignored on the ones that
-  // could never draw it.
-  test.each([['COMPLETED'], ['FAILED'], ['PUBLISHED']])(
-    'draws no breakdown on a page filtered to %s, whatever the endpoint sent',
-    async (status) => {
-      const { breakdown } = await getEventsUseCase({ status })
-
-      expect(breakdown).toBeNull()
-    }
-  )
 
   // The rows are the page. Unlike the two aggregations they are not nullable,
   // so a read that fails is the whole page failing — the one state this app
@@ -293,10 +309,8 @@ describe('getEventsUseCase', () => {
       page: {
         events: [],
         pagination: {
-          startCursor: null,
           endCursor: null,
-          hasNextPage: false,
-          hasPreviousPage: false
+          hasNextPage: false
         },
         sourceErrors: []
       },

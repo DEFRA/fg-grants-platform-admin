@@ -22,27 +22,13 @@ export const viewEventRoute: ServerRoute = {
   options: {
     validate: {
       params: Joi.object(eventAddress),
-      /**
-       * Five parameters, none of them constrained beyond being a string.
-       *
-       * `from` is the list's own query string, handed back opaquely — it is
-       * checked by the view model rather than by Joi, because a `from` that
-       * fails the check is not worth an error page: the operator followed a
-       * link they did not write, and the plain list is a perfectly good
-       * answer. The three redrive parameters are written by this app's own
-       * redirect, and each of them only ever chooses a sentence.
-       */
+      // `from` is checked by the view model: a bad one falls back to the plain list, not an error page.
       query: Joi.object({
-        // Bounded because it is echoed into every link on the page. Nothing
-        // this app writes comes close: the longest is a filter query with a
-        // search needle in it.
+        // Bounded because it is echoed into every link on the page.
         from: Joi.string().allow('').max(fromMax),
         confirm: Joi.string(),
         redriven: Joi.string(),
-        // Bounded because it is rendered INSIDE a warning alert - "Its status
-        // is now X". Escaped, so it can never be markup, but unbounded it let
-        // a crafted link put an arbitrary sentence in a place the page's own
-        // voice speaks from. A status label is two words.
+        // Bounded so a crafted link cannot put a sentence inside the page's own warning.
         redrive_conflict: Joi.string().allow('').max(statusLabelMax),
         redrive_error: Joi.string()
       })
@@ -53,8 +39,6 @@ export const viewEventRoute: ServerRoute = {
     const query = request.query as unknown as EventPageQuery
     const result = await getEventUseCase(key)
 
-    // A 404 is a page, not an error: the link was stale, and the only thing
-    // worth saying is that and the way back to the list they came from.
     if (result.outcome === 'not-found') {
       return h.view('event-not-found', {
         pageTitle: 'Event not found',
@@ -63,10 +47,8 @@ export const viewEventRoute: ServerRoute = {
     }
 
     return h.view('event', {
-      // The type titles the tab, so an operator with four of these open can
-      // tell them apart without reading four identical `Event` labels.
-      pageTitle: result.event?.type ?? 'Event',
-      ...toEventPage(result, key, query, new Date())
+      pageTitle: 'Event',
+      ...toEventPage(result, key, query)
     })
   }
 }

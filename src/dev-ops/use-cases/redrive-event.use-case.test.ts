@@ -20,27 +20,7 @@ const responseError = (statusCode: number, body: object = {}) =>
 
 describe('redriveEventUseCase', () => {
   beforeEach(() => {
-    vi.mocked(redriveEvent).mockResolvedValue({
-      event: {
-        service: 'gas',
-        box: 'outbox',
-        id: '665f1c2e9a1b2c3d4e5f6a7b',
-        eventId: '3f2c1a0e-1111-2222-3333-444455556666',
-        type: 'case.status.updated',
-        hop: 'GAS Outbox',
-        queue: 'to Caseworking',
-        queueValue: 'gas__sns__update_case_status_fifo',
-        status: 'RESUBMITTED',
-        statusLabel: 'Resubmitted',
-        statusRole: 'warning',
-        statusRetrying: true,
-        attempts: '0/5',
-        showAttempts: false,
-        createdAt: '2026-06-16T10:00:00.000Z',
-        lastFailureAt: null,
-        lastError: null
-      }
-    })
+    vi.mocked(redriveEvent).mockResolvedValue(undefined)
   })
 
   test('asks the backend to redrive the event the caller named', async () => {
@@ -108,6 +88,15 @@ describe('redriveEventUseCase', () => {
 
     await expect(redriveEventUseCase(key)).resolves.toEqual({
       outcome: 'not-found',
+      status: null
+    })
+  })
+
+  test('reports a redrive CW-BE did not answer in time as timed out, not failed', async () => {
+    vi.mocked(redriveEvent).mockRejectedValue(responseError(504))
+
+    await expect(redriveEventUseCase(key)).resolves.toEqual({
+      outcome: 'timed-out',
       status: null
     })
   })
