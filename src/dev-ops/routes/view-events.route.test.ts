@@ -3299,6 +3299,34 @@ describe('viewEventsRoute', () => {
     expect($('[data-testid="events-failure-row"]').is('tr')).toBe(true)
   })
 
+  // Following the link from the unfiltered page used to select the Dead letter
+  // tile: the error narrows the list, but nobody picked a status.
+  test('lands a failure followed from the unfiltered page on All, naming the error instead', async () => {
+    givenBreakdown([group()], {}, [event()])
+
+    const { $ } = await viewPage()
+    const href = $('[data-testid="events-failure-message"]').attr('href')
+
+    expect(href).toBe(
+      '/dev-ops/events?error=E11000+duplicate+key+error+collection%3A+gas.events+index%3A+eventId_1'
+    )
+
+    const landed = (await viewPage(href)).$
+    const active = landed('[data-testid="events-status-tile"][aria-current]')
+
+    expect(active).toHaveLength(1)
+    expect(active.attr('data-value')).toBeUndefined()
+    expect(
+      flatten(active.find('[data-testid="events-status-tile-label"]').text())
+    ).toBe('All')
+    expect(flatten(landed('[data-testid="events-note-error"]').text())).toBe(
+      'Error: "E11000 duplicate key error collection: gas.events index: eve…"'
+    )
+    expect(landed('[data-testid="events-note-error-clear"]').attr('href')).toBe(
+      '/dev-ops/events'
+    )
+  })
+
   test('names an audit group in the failures panel as the rows do', async () => {
     givenBreakdown([group({ type: 'audit' })])
 

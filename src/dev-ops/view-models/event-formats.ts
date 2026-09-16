@@ -1,4 +1,5 @@
 import { config } from '../../common/config.ts'
+import { logger } from '../../common/logger.ts'
 import type { EventKey } from '../repositories/events.repository.ts'
 import { toEventKeyPath } from '../repositories/events.repository.ts'
 
@@ -185,19 +186,25 @@ export const toTraceHref = (event: {
   traceId: string | null
   createdAt: string
 }): string | null => {
-  const base = config.get('logs.explorerBaseUrl')
-
-  if (!base) {
+  if (event.traceId === null) {
     return null
   }
 
-  return event.traceId === null
-    ? null
-    : buildDiscoverHref(
-        base,
-        toKuery('trace.id', event.traceId),
-        event.createdAt
-      )
+  const href = buildDiscoverHref(
+    config.get('logs.explorerBaseUrl'),
+    toKuery('trace.id', event.traceId),
+    event.createdAt
+  )
+
+  // A date that will not parse leaves nowhere to centre the search, and the
+  // plain text it falls back to reads on the page as a link that has broken.
+  if (href === null) {
+    logger.warn(
+      `No trace link for ${event.traceId}: fg-gas-backend sent no usable createdAt (${event.createdAt})`
+    )
+  }
+
+  return href
 }
 
 /** A tenth of a second, the resolution the `1.2s` spelling reports in. */
