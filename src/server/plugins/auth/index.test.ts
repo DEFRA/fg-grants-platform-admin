@@ -5,6 +5,7 @@ import type { OutgoingHttpHeaders } from 'node:http'
 import { createServer } from '../../index.ts'
 import { statusCodes } from '../../../common/status-codes.ts'
 import { redirectCookieName } from './redirect-cookie.ts'
+import { destinationsOf } from './test-utils.ts'
 
 const protectedRoute: ServerRoute = {
   method: 'GET',
@@ -13,10 +14,13 @@ const protectedRoute: ServerRoute = {
   handler: (request: Request) => request.auth.credentials.user.name
 }
 
+const getRawCookie = (headers: OutgoingHttpHeaders, name: string) =>
+  (headers['set-cookie'] as string[])?.find((cookie) =>
+    cookie.startsWith(`${name}=`)
+  )
+
 const getCookie = (headers: OutgoingHttpHeaders, name: string) =>
-  (headers['set-cookie'] as string[])
-    ?.find((cookie) => cookie.startsWith(`${name}=`))
-    ?.split(';')[0]
+  getRawCookie(headers, name)?.split(';')[0]
 
 describe('auth', () => {
   let server: Server
@@ -72,29 +76,76 @@ describe('auth', () => {
     const redirectCookie = getCookie(protectedPage.headers, redirectCookieName)
     expect(redirectCookie).toBeDefined()
 
-    const rawCookie = (protectedPage.headers['set-cookie'] as string[]).find(
-      (cookie) => cookie.startsWith(`${redirectCookieName}=`)
-    )
+    const rawCookie = getRawCookie(protectedPage.headers, redirectCookieName)
     expect(rawCookie).toEqual(expect.stringContaining('HttpOnly'))
 
-    const { statusCode, headers } = await server.inject({
+    const { statusCode, payload } = await server.inject({
       method: 'POST',
       url: '/auth/callback',
       headers: { cookie: redirectCookie }
     })
 
-    expect(statusCode).toBe(statusCodes.found)
-    expect(headers.location).toBe('/protected?ref=email')
+    expect(statusCode).toBe(statusCodes.ok)
+    expect(destinationsOf(payload).refresh).toBe('/protected?ref=email')
   })
 
   test('lands on the home page when no page was requested', async () => {
+    const { statusCode, payload } = await server.inject({
+      method: 'POST',
+      url: '/auth/callback'
+    })
+
+    expect(statusCode).toBe(statusCodes.ok)
+    expect(destinationsOf(payload).refresh).toBe('/')
+  })
+
+  // A redirect here would be a cross-site initiated navigation, and the browser
+  // would withhold the Strict session cookie set alongside it.
+  test('answers with a page rather than a redirect, carrying the session cookie', async () => {
     const { statusCode, headers } = await server.inject({
       method: 'POST',
       url: '/auth/callback'
     })
 
-    expect(statusCode).toBe(statusCodes.found)
-    expect(headers.location).toBe('/')
+    expect(statusCode).toBe(statusCodes.ok)
+    expect(headers.location).toBeUndefined()
+    expect(headers['content-type']).toEqual(
+      expect.stringContaining('text/html')
+    )
+    const sessionCookie = getRawCookie(headers, 'session')
+    expect(sessionCookie).toEqual(expect.stringContaining('SameSite=Strict'))
+    expect(sessionCookie).toEqual(expect.stringContaining('HttpOnly'))
+  })
+
+  test('leaves the page uncached and under the content security policy', async () => {
+    const { headers } = await server.inject({
+      method: 'POST',
+      url: '/auth/callback'
+    })
+
+    expect(headers['cache-control']).toBe('no-store')
+    expect(headers['content-security-policy']).toEqual(
+      expect.stringContaining("default-src 'self'")
+    )
+  })
+
+  test('renders nothing of the session it has just created', async () => {
+    const { headers, payload } = await server.inject({
+      method: 'POST',
+      url: '/auth/callback'
+    })
+
+    const sessionValue = getCookie(headers, 'session')?.split('=')[1] as string
+
+    for (const secret of [
+      'access-token',
+      'refresh-token',
+      'id-token',
+      'Ada Lovelace',
+      sessionValue
+    ]) {
+      expect(payload).not.toEqual(expect.stringContaining(secret))
+    }
   })
 
   test('signs the user in, granting access to the protected page', async () => {

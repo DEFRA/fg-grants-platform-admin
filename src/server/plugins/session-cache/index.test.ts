@@ -45,7 +45,8 @@ const roundTrip = async (session: object) => {
   await server.initialize()
 
   const written = await server.inject('/write')
-  const cookie = (written.headers['set-cookie'] as string[])[0].split(';')[0]
+  const rawCookie = (written.headers['set-cookie'] as string[])[0]
+  const cookie = rawCookie.split(';')[0]
 
   const read = await server.inject({
     method: 'GET',
@@ -55,10 +56,21 @@ const roundTrip = async (session: object) => {
 
   await server.stop()
 
-  return { cookie, result: read.result }
+  return { cookie, rawCookie, result: read.result }
 }
 
 describe('sessionCache', () => {
+  // Asserted rather than left to yar, whose own default is the weaker Lax.
+  test('withholds the session cookie from scripts and from every cross-site request', async () => {
+    config.set('session.cookie.secure', true)
+
+    const { rawCookie } = await roundTrip({ name: 'Ada Lovelace' })
+
+    expect(rawCookie).toEqual(expect.stringContaining('SameSite=Strict'))
+    expect(rawCookie).toEqual(expect.stringContaining('Secure'))
+    expect(rawCookie).toEqual(expect.stringContaining('HttpOnly'))
+  })
+
   test('reads a written session back on a later request carrying the cookie', async () => {
     const { result } = await roundTrip({ name: 'Ada Lovelace' })
 

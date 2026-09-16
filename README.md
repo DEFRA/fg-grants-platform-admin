@@ -115,6 +115,24 @@ To mimic the application running in `production` mode locally run:
 npm start
 ```
 
+### Signing in locally
+
+Local sign-in runs against
+[fg-entra-stub-frontend](https://github.com/DEFRA/fg-entra-stub-frontend) rather
+than Entra ID. The stub:
+
+- ignores `response_mode`, always returning the code on a query redirect rather
+  than the cross-site `form_post` a deployed environment gets
+- pins its `authorization_endpoint` to `localhost`, so the browser leg is always
+  same-site with the app and `SameSite` is never exercised
+- runs over plain HTTP, so `SESSION_COOKIE_SECURE` is off and the app itself
+  falls back to the `query` response mode
+- never verifies the PKCE `code_verifier`, binds `state` to the code, or echoes
+  `nonce` into the id token
+
+Its id token claims match, `roles` included, so anything about cookies or
+redirects has to be checked on `dev`.
+
 ### Npm scripts
 
 All available Npm scripts can be seen in [package.json](./package.json)

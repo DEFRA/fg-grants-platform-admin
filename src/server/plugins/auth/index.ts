@@ -8,6 +8,7 @@ import {
   takeRedirectTo
 } from './redirect-cookie.ts'
 import { clearAuthSession, setAuthSession } from './session.ts'
+import { continuePage } from './continue-page.ts'
 import { loginCallbackPath, loginPath, logoutPath } from './paths.ts'
 
 const loginRoute: ServerRoute = {
@@ -28,6 +29,8 @@ const loginRoute: ServerRoute = {
  *
  * Both methods are accepted because the response mode follows the cookie
  * security setting: `form_post` over HTTPS, a `query` redirect over plain HTTP.
+ *
+ * It ends in a page rather than a redirect; see ./continue-page.ts.
  */
 const loginCallbackRoute: ServerRoute = {
   method: ['GET', 'POST'],
@@ -40,7 +43,11 @@ const loginCallbackRoute: ServerRoute = {
 
     setAuthSession(request, credentials)
 
-    return h.redirect(takeRedirectTo(request, h))
+    // The content type is left to hapi: blankie adds no content security
+    // policy to a response whose type the handler set itself.
+    return h
+      .response(continuePage(takeRedirectTo(request, h)))
+      .header('cache-control', 'no-store')
   }
 }
 
