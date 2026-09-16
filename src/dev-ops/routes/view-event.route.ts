@@ -6,12 +6,10 @@ import { getEventUseCase } from '../use-cases/get-event.use-case.ts'
 import { eventAddress } from '../view-models/event-address.ts'
 import type { EventPageQuery } from '../view-models/event-page.view-model.ts'
 import {
+  redriveNoticeKey,
   toEventPage,
   toSafeFrom
 } from '../view-models/event-page.view-model.ts'
-
-/** Long enough for any label the backend spells, short enough to be one. */
-const statusLabelMax = 64
 
 /** Longer than any query this page builds for itself, and still bounded. */
 const fromMax = 2048
@@ -26,17 +24,16 @@ export const viewEventRoute: ServerRoute = {
       query: Joi.object({
         // Bounded because it is echoed into every link on the page.
         from: Joi.string().allow('').max(fromMax),
-        confirm: Joi.string(),
-        redriven: Joi.string(),
-        // Bounded so a crafted link cannot put a sentence inside the page's own warning.
-        redrive_conflict: Joi.string().allow('').max(statusLabelMax),
-        redrive_error: Joi.string()
+        confirm: Joi.string()
       })
     }
   },
   async handler(request: Request, h: ResponseToolkit) {
     const key = request.params as unknown as EventKey
     const query = request.query as unknown as EventPageQuery
+    // Read and cleared before the event is, so a redrive's message is spent on
+    // this render whatever the read then says.
+    const [notice] = request.yar.flash(redriveNoticeKey)
     const result = await getEventUseCase(key)
 
     if (result.outcome === 'not-found') {
@@ -48,7 +45,7 @@ export const viewEventRoute: ServerRoute = {
 
     return h.view('event', {
       pageTitle: 'Event',
-      ...toEventPage(result, key, query)
+      ...toEventPage(result, key, query, notice)
     })
   }
 }

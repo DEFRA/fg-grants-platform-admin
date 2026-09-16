@@ -24,5 +24,6 @@ services:
       # The local access token fg-grants-core seeds into fg-gas-backend's
       # access_tokens collection, shared with grants-ui.
       GAS_SERVICE_TOKEN: f081263c-6876-4d40-936f-ebdf63b5e893
+      LOGS_EXPLORER_BASE_URL: https://logs.dev.cdp-int.defra.cloud
     networks:
       - cdp-tenant

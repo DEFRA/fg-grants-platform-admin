@@ -9,6 +9,8 @@ const dirname = path.dirname(fileURLToPath(import.meta.url))
 const fourHoursMs = 14400000
 const oneWeekMs = 604800000
 
+const linkable = ['http:', 'https:']
+
 const isProduction = process.env.NODE_ENV === 'production'
 const isTest = process.env.NODE_ENV === 'test'
 const isDevelopment = process.env.NODE_ENV === 'development'
@@ -357,11 +359,20 @@ export const config = convict<ConfigSchema>({
     }
   },
   logs: {
-    // Blank renders no trace link on the event page.
     explorerBaseUrl: {
-      doc: 'Base url of the CDP OpenSearch dashboards, e.g. https://logs.dev.cdp-int.defra.cloud. Empty disables the per-row trace links.',
-      format: String,
-      default: '',
+      doc: 'Base url of the CDP OpenSearch dashboards, which the event page links a Trace ID into',
+      // Spelled out in the message: the convict path is not what anyone sets.
+      // The scheme is checked because the value is concatenated into an href.
+      format: (value: unknown) => {
+        const url = typeof value === 'string' ? URL.parse(value) : null
+
+        if (url === null || !linkable.includes(url.protocol)) {
+          throw new Error(
+            'LOGS_EXPLORER_BASE_URL must be an http or https url, e.g. https://logs.dev.cdp-int.defra.cloud'
+          )
+        }
+      },
+      default: null,
       env: 'LOGS_EXPLORER_BASE_URL'
     }
   }

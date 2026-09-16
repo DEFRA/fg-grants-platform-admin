@@ -478,14 +478,11 @@ const toFailureGroup =
       firstTitle: first.title,
       lastAt: last.text,
       lastTitle: last.title,
+      // An error is not a status, and the tiles reflect `status` alone.
       href:
         group.error === null
           ? null
-          : toFilterHref({
-              ...query,
-              status: 'DEAD_LETTER',
-              error: group.error
-            })
+          : toFilterHref({ ...query, error: group.error })
     }
   }
 

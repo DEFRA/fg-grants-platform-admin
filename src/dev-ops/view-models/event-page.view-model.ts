@@ -3,6 +3,7 @@ import type {
   EventKey,
   EventResult
 } from '../use-cases/get-event.use-case.ts'
+import type { RedriveResult } from '../use-cases/redrive-event.use-case.ts'
 import { toAttemptCount } from './attempt-count.ts'
 import type { AttemptCount } from './attempt-count.ts'
 import { toBoxLabel, toServiceLabel } from './event-labels.ts'
@@ -155,80 +156,79 @@ const toPreciseOrNone = (value: string | null): string => {
 const toPayloadJson = (payload: unknown): string | null =>
   payload === undefined ? null : JSON.stringify(payload, null, 2)
 
-const banners: {
-  reads: (query: EventPageQuery) => string | undefined
-  toBanner: (value: string) => EventBanner
-}[] = [
-  {
-    reads: (query) => query.redriven,
-    toBanner: () => ({
-      role: 'success',
-      message:
-        'Redrive requested — status is now Resubmitted; the poller will retry it. Refresh to follow the attempts.'
-    })
-  },
-  {
-    reads: (query) => query.redrive_conflict,
-    toBanner: (status) => ({
-      role: 'warning',
-      message: `Not redriven — this event is no longer dead-lettered. Its status is now ${status}.`
-    })
-  },
-  {
-    reads: (query) =>
-      query.redrive_error === 'missing' ? query.redrive_error : undefined,
-    toBanner: () => ({
-      role: 'error',
-      message:
-        'Not redriven — fg-gas-backend no longer has this event. Nothing has changed.'
-    })
-  },
-  {
-    reads: (query) =>
-      query.redrive_error === 'timeout' ? query.redrive_error : undefined,
-    toBanner: () => ({
-      role: 'warning',
-      message:
-        'Redrive status unknown — CW-BE did not answer in time. Refresh to check the event.'
-    })
-  },
-  {
-    reads: (query) => query.redrive_error,
-    toBanner: () => ({
-      role: 'error',
-      message:
-        'Not redriven — fg-gas-backend could not be reached. Nothing has changed.'
-    })
-  }
-]
+export const redriveNoticeKey = 'redriveOutcome'
 
-const toBanner = (query: EventPageQuery): EventBanner | null => {
-  for (const banner of banners) {
-    const value = banner.reads(query)
+export interface RedriveNotice extends RedriveResult {
+  /** A flash the redirect never delivered must not surface on another event. */
+  page: string
+}
 
-    if (value !== undefined) {
-      return banner.toBanner(value)
-    }
+const notDeadLettered = 'Not redriven — this event is no longer dead-lettered.'
+
+const banners: Record<
+  RedriveNotice['outcome'],
+  (notice: RedriveNotice) => EventBanner
+> = {
+  redriven: () => ({
+    role: 'success',
+    message:
+      'Redrive requested — status is now Resubmitted; the poller will retry it. Refresh to follow the attempts.'
+  }),
+  conflict: ({ status }) => ({
+    role: 'warning',
+    message:
+      status === null
+        ? notDeadLettered
+        : `${notDeadLettered} Its status is now ${status}.`
+  }),
+  'not-found': () => ({
+    role: 'error',
+    message:
+      'Not redriven — fg-gas-backend no longer has this event. Nothing has changed.'
+  }),
+  'timed-out': () => ({
+    role: 'warning',
+    message:
+      'Redrive status unknown — CW-BE did not answer in time. Refresh to check the event.'
+  }),
+  unavailable: () => ({
+    role: 'error',
+    message:
+      'Not redriven — fg-gas-backend could not be reached. Nothing has changed.'
+  })
+}
+
+/** An outcome with no banner is a session written by an older release. */
+const toOutcomeBanner = (notice: RedriveNotice): EventBanner | null =>
+  banners[notice.outcome]?.(notice) ?? null
+
+const toBanner = (
+  key: EventKey,
+  notice?: RedriveNotice
+): EventBanner | null => {
+  if (notice === undefined || notice.page !== toEventHref(key)) {
+    return null
   }
 
-  return null
+  return toOutcomeBanner(notice)
 }
 
 export interface EventPageQuery {
   from?: string
   confirm?: string
-  redriven?: string
-  redrive_conflict?: string
-  redrive_error?: string
 }
 
-const toShell = (key: EventKey, query: EventPageQuery) => {
+const toShell = (
+  key: EventKey,
+  query: EventPageQuery,
+  notice?: RedriveNotice
+) => {
   const from = toSafeFrom(query.from)
 
   return {
     from,
     backHref: toBackHref(from),
-    banner: toBanner(query),
+    banner: toBanner(key, notice),
     redriveAction: `${toEventHref(key)}/redrive`
   }
 }
@@ -599,7 +599,9 @@ const toErrorSearchHref = (
     return null
   }
 
-  const params = new URLSearchParams({ status: 'DEAD_LETTER', error: message })
+  // The error alone: where else a failure happened is no question about status.
+  // `audit` is a scope rather than a filter — an audit row finds none without it.
+  const params = new URLSearchParams({ error: message })
 
   if (isAuditRecord(context.event)) {
     params.set('audit', 'include')
@@ -659,9 +661,10 @@ const toDetail = (
 export const toEventPage = (
   { outcome, event }: EventResult,
   key: EventKey,
-  query: EventPageQuery
+  query: EventPageQuery,
+  notice?: RedriveNotice
 ): EventPageModel => {
-  const shell = toShell(key, query)
+  const shell = toShell(key, query, notice)
 
   if (outcome !== 'found' || event === null) {
     return {

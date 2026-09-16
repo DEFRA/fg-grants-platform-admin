@@ -5,6 +5,11 @@ export default defineConfig({
     globals: true,
     environment: 'node',
     clearMocks: true,
+    // The config module validates as it loads, so anything it requires has to
+    // be here: importing it is the first thing most of these tests do.
+    env: {
+      LOGS_EXPLORER_BASE_URL: 'https://logs.dev.cdp-int.defra.cloud'
+    },
     coverage: {
       provider: 'v8',
       reportsDirectory: './coverage',
