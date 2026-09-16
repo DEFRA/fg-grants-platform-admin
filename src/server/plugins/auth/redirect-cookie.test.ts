@@ -4,6 +4,7 @@ import type { OutgoingHttpHeaders } from 'node:http'
 import { createServer } from '../../index.ts'
 import { statusCodes } from '../../../common/status-codes.ts'
 import { redirectCookieName } from './redirect-cookie.ts'
+import { destinationsOf } from './test-utils.ts'
 
 vi.mock(import('../../../common/config.ts'))
 
@@ -71,12 +72,15 @@ describe('takeRedirectTo', () => {
   }
 
   test('returns the user to the page they were heading for', async () => {
-    const { statusCode, headers } = await callbackAfterRemembering(
+    const { statusCode, payload } = await callbackAfterRemembering(
       '/operations?ref=email'
     )
 
-    expect(statusCode).toBe(statusCodes.found)
-    expect(headers.location).toBe('/operations?ref=email')
+    expect(statusCode).toBe(statusCodes.ok)
+    expect(destinationsOf(payload)).toEqual({
+      refresh: '/operations?ref=email',
+      link: '/operations?ref=email'
+    })
   })
 
   test.each([
@@ -85,20 +89,21 @@ describe('takeRedirectTo', () => {
     ['a backslashed protocol relative url', '/\\evil.example'],
     ['a path that is not rooted', 'operations']
   ])('sends the user home rather than to %s', async (_name, destination) => {
-    const { statusCode, headers } = await callbackAfterRemembering(destination)
+    const { statusCode, payload } = await callbackAfterRemembering(destination)
 
-    expect(statusCode).toBe(statusCodes.found)
-    expect(headers.location).toBe('/')
+    expect(statusCode).toBe(statusCodes.ok)
+    expect(destinationsOf(payload)).toEqual({ refresh: '/', link: '/' })
+    expect(payload).not.toEqual(expect.stringContaining(destination))
   })
 
   test('sends the user home when nothing was remembered', async () => {
-    const { statusCode, headers } = await server.inject({
+    const { statusCode, payload } = await server.inject({
       method: 'POST',
       url: '/auth/callback'
     })
 
-    expect(statusCode).toBe(statusCodes.found)
-    expect(headers.location).toBe('/')
+    expect(statusCode).toBe(statusCodes.ok)
+    expect(destinationsOf(payload)).toEqual({ refresh: '/', link: '/' })
   })
 
   test('spends the remembered page, clearing the cookie', async () => {
@@ -109,13 +114,13 @@ describe('takeRedirectTo', () => {
 
     const cookie = getCookie(remembered.headers, redirectCookieName)
 
-    const { headers } = await server.inject({
+    const { headers, payload } = await server.inject({
       method: 'POST',
       url: '/auth/callback',
       headers: { cookie }
     })
 
-    expect(headers.location).toBe('/operations')
+    expect(destinationsOf(payload).refresh).toBe('/operations')
     expect(getCookie(headers, redirectCookieName)).toBe(
       `${redirectCookieName}=`
     )

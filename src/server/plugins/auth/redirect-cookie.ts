@@ -11,10 +11,10 @@ export const redirectCookieName = 'auth-redirect'
 
 /**
  * Where the user was heading before login has to survive the trip through
- * Entra ID, which returns them cross-site. The yar session cookie is SameSite
- * Lax and so is withheld on the `form_post` callback, hence this separate
- * cookie, relaxed the same way as the plugin's own PKCE cookie. Iron encoding
- * keeps it tamper proof, so it cannot be rewritten into an open redirect.
+ * Entra ID, which returns them by a cross-site POST. The yar session cookie is
+ * SameSite=Strict and so is withheld on that POST, hence this separate cookie,
+ * relaxed the same way as the plugin's own PKCE cookie. Iron encoding keeps it
+ * tamper proof, so it cannot be rewritten into an open redirect.
  */
 export const redirectCookieOptions = {
   password: authConfig.cookie.password,

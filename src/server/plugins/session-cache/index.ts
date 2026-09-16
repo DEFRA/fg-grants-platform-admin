@@ -59,12 +59,11 @@ export const sessionCache = {
             password: sessionConfig.cookie.password,
             ttl: sessionConfig.cookie.ttl,
             isSecure: config.get('session.cookie.secure'),
-            // Pinned rather than inherited. It is hapi's default today, and it
-            // is also the whole of this app's CSRF defence: the one write it
-            // makes carries no token, on the reasoning that a cross-site POST
-            // cannot arrive with this cookie attached. A default that changed
-            // under us would take that reasoning with it silently, so the
-            // value is written down where the reasoning can point at it.
+            // Tightened from yar's own default of Lax, because this is the
+            // whole of the app's CSRF defence: the one write it makes carries
+            // no token, on the reasoning that no cross-site request can arrive
+            // with this cookie attached. ../auth/continue-page.ts is what then
+            // gets the user out of the Entra ID callback and into a session.
             isSameSite: 'Strict',
             clearInvalid: true
           }
