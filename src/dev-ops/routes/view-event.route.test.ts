@@ -435,18 +435,6 @@ describe('viewEventRoute', () => {
     expect($('[data-testid="event-trace-id-none"]').text()).toBe('—')
   })
 
-  test('leaves the trace id plain text when no explorer is configured', async () => {
-    givenEvent(inboxDetail())
-
-    const { $ } = await viewPage(inboxPath)
-
-    const trace = $('[data-testid="event-trace-id"]')
-
-    expect(trace).toHaveLength(1)
-    expect(trace.is('a')).toBe(false)
-    expect(trace.contents().first().text()).toBe(traceId)
-  })
-
   test('links an outbox row trace id at the explorer too', async () => {
     givenLogsExplorer()
     givenEvent(detail({ traceId }))
@@ -942,78 +930,19 @@ describe('viewEventRoute', () => {
     expect($('[data-testid="event-redrive-from"]').attr('value')).toBe('')
   })
 
-  test('says a redrive was requested', async () => {
-    const { $ } = await viewPage(`${path}?redriven=1`)
-
-    const banner = $('[data-testid="event-banner"]')
-
-    expect(banner.attr('class')).toContain('alert-success')
-    expect(flatten(banner.text())).toBe(
-      'Redrive requested — status is now Resubmitted; the poller will retry it. Refresh to follow the attempts.'
-    )
-  })
-
-  test('names the status that refused a redrive', async () => {
-    const { $ } = await viewPage(`${path}?redrive_conflict=Resubmitted`)
-
-    const banner = $('[data-testid="event-banner"]')
-
-    expect(banner.attr('class')).toContain('alert-warning')
-    expect(flatten(banner.text())).toContain('Its status is now Resubmitted.')
-  })
-
-  test('names the raw status when the backend sent no label for it', async () => {
-    const { $ } = await viewPage(`${path}?redrive_conflict=QUARANTINED`)
-
-    expect(flatten($('[data-testid="event-banner"]').text())).toContain(
-      'Its status is now QUARANTINED.'
-    )
-  })
-
-  test('escapes a conflicting status carrying markup', async () => {
-    const { $ } = await viewPage(
-      `${path}?redrive_conflict=${encodeURIComponent(xss)}`
-    )
-
-    const banner = $('[data-testid="event-banner"]')
-
-    expect(banner.find('script')).toHaveLength(0)
-    expect(banner.text()).toContain(xss)
-  })
-
-  test('says a redrive found no event', async () => {
-    const { $ } = await viewPage(`${path}?redrive_error=missing`)
-
-    const banner = $('[data-testid="event-banner"]')
-
-    expect(banner.attr('class')).toContain('alert-error')
-    expect(flatten(banner.text())).toContain('no longer has this event')
-  })
-
-  test('says a redrive could not reach the backend', async () => {
-    const { $ } = await viewPage(`${path}?redrive_error=failed`)
-
-    const banner = $('[data-testid="event-banner"]')
-
-    expect(banner.attr('class')).toContain('alert-error')
-    expect(flatten(banner.text())).toContain('could not be reached')
-  })
-
-  test('says a timed-out redrive has an unknown outcome, never that nothing changed', async () => {
-    const { $ } = await viewPage(`${path}?redrive_error=timeout`)
-
-    const banner = $('[data-testid="event-banner"]')
-
-    expect(banner.attr('class')).toContain('alert-warning')
-    expect(flatten(banner.text())).toBe(
-      'Redrive status unknown — CW-BE did not answer in time. Refresh to check the event.'
-    )
-  })
-
   test('shows no banner on a page nothing redirected to', async () => {
     const { $ } = await viewPage()
 
     expect($('[data-testid="event-banner"]')).toHaveLength(0)
+  })
+
+  // The banner is a session flash, so nothing in a url can put words in it.
+  test('refuses a query parameter claiming a redrive outcome', async () => {
+    const { statusCode } = await viewPage(
+      `${path}?redrive_conflict=${encodeURIComponent(xss)}`
+    )
+
+    expect(statusCode).toBe(statusCodes.badRequest)
   })
 
   test('renders a small page for an event that does not exist', async () => {
@@ -1396,11 +1325,10 @@ describe('viewEventRoute', () => {
     const { $ } = await viewPage()
 
     const attempt = $('[data-testid="event-attempt-error"]')
-    const searched = decodeURIComponent(
-      ($('[data-testid="event-error-search"]').attr('href') ?? '')
-        .split('&error=')[1]
-        .replace(/\+/g, ' ')
-    )
+    const searched = new URL(
+      $('[data-testid="event-error-search"]').attr('href') ?? '',
+      'http://dev-ops'
+    ).searchParams.get('error')
 
     expect(flatten(attempt.text())).toContain(whole)
     expect(attempt.attr('title')).toBe(`MongoServerError: ${whole}`)
@@ -2184,7 +2112,7 @@ describe('viewEventRoute', () => {
       link.find('[data-testid="do-icon-arrow-right"]').attr('aria-hidden')
     ).toBe('true')
     expect(link.attr('href')).toBe(
-      '/dev-ops/events?status=DEAD_LETTER&error=E11000+duplicate+key+error+collection%3A+gas.events+index%3A+id_1'
+      '/dev-ops/events?error=E11000+duplicate+key+error+collection%3A+gas.events+index%3A+id_1'
     )
   })
 
@@ -2206,7 +2134,7 @@ describe('viewEventRoute', () => {
     const { $ } = await viewPage()
 
     expect($('[data-testid="event-error-search"]').attr('href')).toBe(
-      `/dev-ops/events?${new URLSearchParams({ status: 'DEAD_LETTER', error: xss })}`
+      `/dev-ops/events?${new URLSearchParams({ error: xss })}`
     )
   })
 

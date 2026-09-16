@@ -1025,6 +1025,16 @@ describe('the top failures panel', () => {
     )
   })
 
+  // An error is not a status: narrowing to one from the unfiltered page used to
+  // pin DEAD_LETTER, which lit that tile for a filter nobody had chosen.
+  test('leaves the status alone when the page is not narrowed to one', () => {
+    const [row] = withBreakdown({}).topFailures?.groups ?? []
+
+    expect(row.href).toBe(
+      '/dev-ops/events?error=E11000+duplicate+key+error+collection%3A+gas.events+index%3A+eventId_1'
+    )
+  })
+
   test('drops the cursor from the link', () => {
     const [row] = withBreakdown({ cursor: 'END' }).topFailures?.groups ?? []
 
@@ -1078,6 +1088,25 @@ describe('the failure filter', () => {
 
   test('is absent on a page that is not narrowed to a failure', () => {
     expect(modelFor({ status: 'DEAD_LETTER' }).errorFilter).toBeNull()
+  })
+
+  // The tiles answer "which status am I looking at?", and an error filter is
+  // not an answer to it.
+  test('leaves All selected, the status nobody chose', () => {
+    const chips = modelFor({ error: message }).statusFilters
+
+    expect(labelled(chips, 'All')?.active).toBe(true)
+    expect(chips.filter((chip) => chip.active)).toHaveLength(1)
+  })
+
+  test('keeps the chosen status selected alongside it', () => {
+    const chips = modelFor({
+      status: 'DEAD_LETTER',
+      error: message
+    }).statusFilters
+
+    expect(labelled(chips, 'Dead letter')?.active).toBe(true)
+    expect(labelled(chips, 'All')?.active).toBe(false)
   })
 
   test('is carried on every filter link', () => {

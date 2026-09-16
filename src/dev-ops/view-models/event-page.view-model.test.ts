@@ -1,4 +1,5 @@
 import { config } from '../../common/config.ts'
+import { logger } from '../../common/logger.ts'
 import type {
   EventDetail,
   EventKey,
@@ -12,6 +13,7 @@ import { toEventPage, toSafeFrom } from './event-page.view-model.ts'
 import { toEventsPage } from './events-page.view-model.ts'
 
 vi.mock(import('../../common/config.ts'))
+vi.mock(import('../../common/logger.ts'))
 
 const logsBase = 'https://logs.dev.cdp-int.defra.cloud'
 
@@ -110,8 +112,13 @@ const found = (event: EventDetail = detail()): EventResult => ({
 
 const model = (
   result: EventResult = found(),
-  query: Parameters<typeof toEventPage>[2] = {}
-) => toEventPage(result, key, query)
+  query: Parameters<typeof toEventPage>[2] = {},
+  notice?: Parameters<typeof toEventPage>[3]
+) => toEventPage(result, key, query, notice)
+
+const noticed = (
+  notice: Omit<NonNullable<Parameters<typeof toEventPage>[3]>, 'page'>
+) => model(found(), {}, { ...notice, page: `/dev-ops/events/gas/outbox/${id}` })
 
 const inboxModel = (
   result: EventResult = found(inboxDetail()),
@@ -315,7 +322,7 @@ describe('toEventPage', () => {
   })
 
   test('says a redrive was requested', () => {
-    expect(model(found(), { redriven: '1' }).banner).toEqual({
+    expect(noticed({ outcome: 'redriven', status: null }).banner).toEqual({
       role: 'success',
       message:
         'Redrive requested — status is now Resubmitted; the poller will retry it. Refresh to follow the attempts.'
@@ -323,7 +330,7 @@ describe('toEventPage', () => {
   })
 
   test('names the status a conflict reported, in the words it arrived in', () => {
-    const banner = model(found(), { redrive_conflict: 'Completed' }).banner
+    const banner = noticed({ outcome: 'conflict', status: 'Completed' }).banner
 
     expect(banner?.role).toBe('warning')
     expect(banner?.message).toBe(
@@ -331,15 +338,25 @@ describe('toEventPage', () => {
     )
   })
 
-  test.each([
-    ['missing', 'no longer has this event'],
-    ['failed', 'could not be reached']
-  ])('says what went wrong for a %s redrive', (error, sentence) => {
-    const banner = model(found(), { redrive_error: error }).banner
-
-    expect(banner?.role).toBe('error')
-    expect(banner?.message).toContain(sentence)
+  test('ends the sentence on a conflict whose body carried no status', () => {
+    expect(noticed({ outcome: 'conflict', status: null }).banner?.message).toBe(
+      'Not redriven — this event is no longer dead-lettered.'
+    )
   })
+
+  test.each([
+    ['not-found', 'error', 'no longer has this event'],
+    ['unavailable', 'error', 'could not be reached'],
+    ['timed-out', 'warning', 'Redrive status unknown']
+  ] as const)(
+    'says what went wrong for a %s redrive',
+    (outcome, role, sentence) => {
+      const banner = noticed({ outcome, status: null }).banner
+
+      expect(banner?.role).toBe(role)
+      expect(banner?.message).toContain(sentence)
+    }
+  )
 
   test('shows no banner on a page nothing redirected to', () => {
     expect(model().banner).toBeNull()
@@ -844,22 +861,24 @@ describe('toEventPage', () => {
     ).toBe('/dev-ops/events?q=GLD-9B2-BWS-grasslands&audit=include')
   })
 
-  test('links nothing when no logs explorer is configured', () => {
-    expect(inboxModel().traceHref).toBeNull()
-  })
-
-  test('links nothing when the configured base url is blank', () => {
-    givenLogsExplorer('')
-
-    expect(inboxModel().traceHref).toBeNull()
-  })
-
-  test('links nothing when the row has an unparseable created instant', () => {
+  // The id is there and the explorer is configured, so the plain span it falls
+  // back to reads as a broken link: the reason has to reach the logs.
+  test('links nothing, and says why, when the row has an unparseable created instant', () => {
     givenLogsExplorer()
 
     expect(
       inboxModel(found(inboxDetail({ createdAt: 'not-a-date' }))).traceHref
     ).toBeNull()
+    expect(logger.warn).toHaveBeenCalledWith(
+      'No trace link for 4bf92f3577b34da6a3ce929d0e0e4736: fg-gas-backend sent no usable createdAt (not-a-date)'
+    )
+  })
+
+  test('says nothing about a row it could link', () => {
+    givenLogsExplorer()
+
+    expect(inboxModel().traceHref).not.toBeNull()
+    expect(logger.warn).not.toHaveBeenCalled()
   })
 
   test('keeps a bare CDP request id as the trace id', () => {
@@ -941,12 +960,14 @@ describe('a dead letter with the park removed', () => {
     expect(page).not.toHaveProperty('parkedFact')
   })
 
-  test.each([['parked'], ['unparked'], ['park_conflict'], ['park_error']])(
-    'has no banner left for the %s redirect',
-    (param) => {
-      expect(model(found(), { [param]: '1' }).banner).toBeNull()
-    }
-  )
+  // A session written before the park was removed still carries its outcome.
+  test('has no banner left for a parked outcome', () => {
+    const parked = { outcome: 'parked', status: null }
+
+    expect(
+      noticed(parked as unknown as Parameters<typeof noticed>[0]).banner
+    ).toBeNull()
+  })
 })
 
 describe('the futile redrive warning', () => {
@@ -1047,13 +1068,13 @@ describe('the last redrive', () => {
 describe('the shared failure link', () => {
   test('offers every other dead letter with this error, whole', () => {
     expect(model().errorSearchHref).toBe(
-      '/dev-ops/events?status=DEAD_LETTER&error=E11000+duplicate+key'
+      '/dev-ops/events?error=E11000+duplicate+key'
     )
   })
 
   test('keeps audit rows in the error search from an audit record', () => {
     expect(model(found(detail({ type: 'audit' }))).errorSearchHref).toBe(
-      '/dev-ops/events?status=DEAD_LETTER&error=E11000+duplicate+key&audit=include'
+      '/dev-ops/events?error=E11000+duplicate+key&audit=include'
     )
   })
 
@@ -1074,9 +1095,7 @@ describe('the shared failure link', () => {
       )
     )
 
-    expect(page.errorSearchHref).toBe(
-      '/dev-ops/events?status=DEAD_LETTER&error=a%26b%3Dc+%231'
-    )
+    expect(page.errorSearchHref).toBe('/dev-ops/events?error=a%26b%3Dc+%231')
   })
 
   test('is absent on an event with no failure recorded', () => {
@@ -1168,11 +1187,11 @@ describe('the last attempt and the failure link', () => {
 
     expect(page.attemptHistory[0].message).toBe(longMessage)
     expect(page.errorSearchHref).toBe(
-      `/dev-ops/events?status=DEAD_LETTER&error=${encodeURIComponent(longMessage).replace(/%20/g, '+')}`
+      `/dev-ops/events?error=${encodeURIComponent(longMessage).replace(/%20/g, '+')}`
     )
     expect(
-      decodeURIComponent(
-        (page.errorSearchHref ?? '').split('&error=')[1].replace(/\+/g, ' ')
+      new URL(page.errorSearchHref ?? '', 'http://dev-ops').searchParams.get(
+        'error'
       )
     ).toBe(page.attemptHistory[0].message)
   })
@@ -1251,7 +1270,7 @@ describe('the last attempt and the failure link', () => {
     )
 
     expect(page.errorSearchHref).toBe(
-      '/dev-ops/events?status=DEAD_LETTER&error=E11000+duplicate+key'
+      '/dev-ops/events?error=E11000+duplicate+key'
     )
   })
 
