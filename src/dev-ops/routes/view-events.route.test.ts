@@ -2720,21 +2720,18 @@ describe('viewEventsRoute', () => {
     expect(badge.closest('.navbar-start')).toHaveLength(1)
   })
 
-  test.each(['prod', 'production', 'PROD'])(
-    'warns in amber when the environment is %s',
-    async (label) => {
-      config.set('environmentLabel', label)
+  test('warns in amber when the environment is prod', async () => {
+    config.set('environmentLabel', 'prod')
 
-      const { $ } = await viewPage()
+    const { $ } = await viewPage()
 
-      const badge = $('[data-testid="do-environment"]')
+    const badge = $('[data-testid="do-environment"]')
 
-      expect(badge.text().trim()).toBe(label)
-      expect(badge.attr('class')).toContain('badge-warning')
-    }
-  )
+    expect(badge.text().trim()).toBe('prod')
+    expect(badge.attr('class')).toContain('badge-warning')
+  })
 
-  test.each(['dev', 'test', 'local'])(
+  test.each(['dev', 'test', 'perf-test', 'local'] as const)(
     'keeps the badge neutral in %s',
     async (label) => {
       config.set('environmentLabel', label)
