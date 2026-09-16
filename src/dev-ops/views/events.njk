@@ -264,7 +264,10 @@
           </div>
         </div>
       {% else %}
-        <p class="px-4 py-10 text-center text-sm text-base-content/60" data-testid="events-empty">{% if q %}No events match "{{ q }}". <a class="link text-base-content/70" href="{{ clearSearchHref }}" data-testid="events-empty-clear">Clear search</a>{% else %}No events found.{% endif %}</p>
+        {# The count a missing source contributes is a zero nobody counted, so
+           the sentence says what was not read rather than leaving "none found"
+           to be read as "none exist". #}
+        <p class="px-4 py-10 text-center text-sm text-base-content/60" data-testid="events-empty">{% if q %}No events match "{{ q }}". <a class="link text-base-content/70" href="{{ clearSearchHref }}" data-testid="events-empty-clear">Clear search</a>{% else %}No events found.{% endif %}{% if unavailableSources %} <span data-testid="events-empty-unread">Some sources could not be read ({{ unavailableSources }}), so there may be events this page cannot see.</span>{% endif %}</p>
       {% endif %}
     </div>
   {% endif %}

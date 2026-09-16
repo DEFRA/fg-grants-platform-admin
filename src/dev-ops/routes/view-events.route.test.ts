@@ -2510,6 +2510,46 @@ describe('viewEventsRoute', () => {
     expect($('[data-testid="events-partial"]')).toHaveLength(1)
   })
 
+  // A source that could not be read contributes a zero nobody counted, so
+  // "no events" alone would be read as "none exist".
+  test('says what it could not read rather than leaving an empty page to speak', async () => {
+    givenEvents([], {}, [{ hop: 'CW Inbox' }, { hop: 'CW Outbox' }])
+
+    const { $ } = await viewPage('/dev-ops/events?service=caseworking')
+
+    expect(flatten($('[data-testid="events-empty"]').text())).toBe(
+      'No events found. Some sources could not be read (CW Inbox, CW Outbox), so there may be events this page cannot see.'
+    )
+    expect($('[data-testid="events-partial"]')).toHaveLength(1)
+  })
+
+  // The caveat is added to the search copy, never in place of it: a user
+  // mid-search still needs the way out of it.
+  test('keeps the search and its way out when a source could not be read', async () => {
+    givenEvents([], {}, [{ hop: 'CW Inbox' }])
+
+    const { $ } = await viewPage('/dev-ops/events?q=missing-ref')
+
+    const empty = flatten($('[data-testid="events-empty"]').text())
+
+    expect(empty).toContain('No events match "missing-ref".')
+    expect(empty).toContain('Some sources could not be read (CW Inbox)')
+    expect($('[data-testid="events-empty-clear"]').attr('href')).toBe(
+      '/dev-ops/events'
+    )
+  })
+
+  test('says only that nothing was found when every source answered', async () => {
+    givenEvents([])
+
+    const { $ } = await viewPage('/dev-ops/events?service=caseworking')
+
+    expect(flatten($('[data-testid="events-empty"]').text())).toBe(
+      'No events found.'
+    )
+    expect($('[data-testid="events-empty-unread"]')).toHaveLength(0)
+  })
+
   test('says nothing about a read replica, and floats nothing under the card', async () => {
     const { $ } = await viewPage()
 
