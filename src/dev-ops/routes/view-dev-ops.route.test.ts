@@ -43,6 +43,7 @@ describe('viewDevOpsRoute', () => {
     expect(statusCode).toBe(statusCodes.ok)
     expect(result).toEqual(expect.stringContaining('Operations Admin |'))
     expect(result).toEqual(expect.stringContaining('Ada Lovelace'))
+    expect(result).toEqual(expect.stringContaining('· Events'))
   })
 
   test('renders the stored dark theme before client javascript runs', async () => {

@@ -530,12 +530,14 @@ describe('viewEventsRoute', () => {
     expect($('[data-testid="events-title"]').text().trim()).toBe('Events')
   })
 
-  test('says what the page is, and leaves the filter to the chips', async () => {
+  test('names the page for a screen reader and leaves the filter to the chips', async () => {
     const { $ } = await viewPage('/dev-ops/events?status=DEAD_LETTER')
 
-    expect($('[data-testid="events-subtitle"]').text().trim()).toBe(
-      'Inbox and outbox messages across GAS, CW-BE and connected services.'
-    )
+    const title = $('[data-testid="events-title"]')
+
+    expect(title.text().trim()).toBe('Events')
+    expect(title.hasClass('sr-only')).toBe(true)
+    expect($('[data-testid="events-subtitle"]')).toHaveLength(0)
     expect($('main').text()).not.toContain('No filter applied')
     expect($('main').text()).not.toContain('Filtered:')
   })
@@ -1082,7 +1084,7 @@ describe('viewEventsRoute', () => {
       .map((node) => $(node).attr('data-testid'))
       .filter((id) =>
         [
-          'events-heading',
+          'events-title',
           'events-status-tiles',
           'events-toolbar',
           'events-card'
@@ -1090,7 +1092,7 @@ describe('viewEventsRoute', () => {
       )
 
     expect(order).toEqual([
-      'events-heading',
+      'events-title',
       'events-status-tiles',
       'events-toolbar',
       'events-card'
@@ -1572,7 +1574,6 @@ describe('viewEventsRoute', () => {
     expect(
       flatten(segmentFor($, 'events-filter-service-chip', 'caseworking').text())
     ).toBe('CW-BE')
-    expect($('[data-testid="events-subtitle"]').text()).toContain('CW-BE')
   })
 
   test('draws an unknown service or box as the endpoint sent it', async () => {
@@ -2353,7 +2354,7 @@ describe('viewEventsRoute', () => {
         .children()
         .toArray()
         .map((child) => $(child).attr('data-testid'))
-    ).toEqual(['events-heading', 'events-status-tiles', 'events-toolbar'])
+    ).toEqual(['events-title', 'events-status-tiles', 'events-toolbar'])
     for (const name of [
       `${media}:sticky`,
       `${media}:top-[var(--nav-h,57px)]`,
@@ -2505,8 +2506,8 @@ describe('viewEventsRoute', () => {
 
     const { $ } = await viewPage()
 
-    expect($('[data-testid="events-heading"]').text()).not.toContain('sources')
-    expect($('[data-testid="events-heading"] .badge')).toHaveLength(0)
+    expect($('[data-testid="events-title"]').text()).not.toContain('sources')
+    expect($('[data-testid="events-title"] .badge')).toHaveLength(0)
     expect($('[data-testid="events-partial"]')).toHaveLength(1)
   })
 
@@ -2527,7 +2528,7 @@ describe('viewEventsRoute', () => {
     const suffix = $('[data-testid="do-brand-suffix"]')
 
     expect(flatten(`${brand.text()} ${suffix.text()}`)).toBe(
-      'Grants Platform · Dev Ops'
+      'Grants Platform · Events'
     )
     expect(brand.attr('class')).toContain('font-bold')
     expect(brand.attr('href')).toBe('/dev-ops')
@@ -2760,7 +2761,6 @@ describe('viewEventsRoute', () => {
     expect($('[data-testid="do-brand-suffix"]').hasClass('text-base')).toBe(
       true
     )
-    expect($('[data-testid="events-title"]').hasClass('text-xl')).toBe(true)
   })
 
   test('offers a From and a To box in the range panel', async () => {
@@ -3244,7 +3244,7 @@ describe('viewEventsRoute', () => {
     row.find('.sr-only').remove()
 
     expect(flatten(row.text())).toBe(
-      'E11000 duplicate key error collection: gas.events index: eventId_1 CaseStatusUpdated 4,182 1d ago 4m ago'
+      '4,182 E11000 duplicate key error collection: gas.events index: eventId_1 CaseStatusUpdated 1d ago 4m ago'
     )
   })
 
@@ -3279,8 +3279,7 @@ describe('viewEventsRoute', () => {
       .toArray()
       .map((cell) => $(cell).text().trim())
 
-    expect(headers).toContain('First')
-    expect(headers).toContain('Last')
+    expect(headers).toEqual(['Count', 'Error', 'Event', 'First', 'Last'])
   })
 
   test('links each failure row at the page narrowed to that failure', async () => {
@@ -3329,7 +3328,7 @@ describe('viewEventsRoute', () => {
 
     const { $ } = await viewPage('/dev-ops/events?status=DEAD_LETTER')
 
-    const type = $('[data-testid="events-failure-type"]')
+    const type = $('[data-testid="events-failure-event"]')
 
     expect(type.find('[aria-hidden="true"]').text()).toBe('AuditRecord')
     expect(type.find('.sr-only').text()).toBe('Audit record')
@@ -3360,7 +3359,7 @@ describe('viewEventsRoute', () => {
 
     expect($('[data-testid="events-failure-row"]')).toHaveLength(1)
     expect(
-      flatten($('[data-testid="events-failure-type"] [aria-hidden]').text())
+      flatten($('[data-testid="events-failure-event"] [aria-hidden]').text())
     ).toBe('CaseStatusUpdated')
     expect(flatten($('[data-testid="events-failure-count"]').text())).toBe('12')
     expect(flatten($('[data-testid="events-failure-first"]').text())).toBe(
