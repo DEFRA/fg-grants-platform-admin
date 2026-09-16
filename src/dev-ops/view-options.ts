@@ -33,18 +33,15 @@ export const environment = new nunjucks.Environment(
 )
 
 /**
- * The environments whose badge is amber. An operator with four tabs open needs
- * the one they are about to redrive an event in to look different from the
- * other three, and only one of them is worth a warning colour; everywhere else
- * the badge is a neutral label that simply says where it is. Both spellings
- * are accepted because the value is set by a deployment, not by this app, and
- * matched case-insensitively for the same reason.
+ * An operator with four tabs open needs the one they are about to redrive an
+ * event in to look different from the other three, and only production is
+ * worth a warning colour; everywhere else the badge simply says where it is.
  *
  * The classes themselves are in layouts/page.njk: Tailwind scans views/ for
  * candidates and a class name spelled only here is purged from the stylesheet
  * without a word of warning.
  */
-const productionLabels = ['prod', 'production']
+const productionLabel = 'prod'
 const themeCookieName = 'dev-ops-theme'
 const themes = { dark: 'dark', light: 'light' } as const
 
@@ -60,9 +57,7 @@ const context = async (request?: ViewContextRequest) => {
     serviceName: config.get('serviceName'),
     devOpsTheme: selectedTheme(request),
     environmentLabel,
-    environmentIsProduction: productionLabels.includes(
-      environmentLabel.trim().toLowerCase()
-    ),
+    environmentIsProduction: environmentLabel === productionLabel,
     ...(await assets())
   }
 }

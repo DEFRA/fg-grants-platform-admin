@@ -23,7 +23,16 @@ interface ConfigSchema {
   port: number
   staticCacheTimeout: number
   serviceName: string
-  environmentLabel: string
+  environmentLabel:
+    | 'local'
+    | 'infra-dev'
+    | 'infra-test'
+    | 'management'
+    | 'dev'
+    | 'test'
+    | 'perf-test'
+    | 'ext-test'
+    | 'prod'
   root: string
   assetPath: string
   isProduction: boolean
@@ -119,10 +128,20 @@ export const config = convict<ConfigSchema>({
   },
   // Shown in the navbar, so an operator can tell which environment a redrive would write to.
   environmentLabel: {
-    doc: 'The environment this deployment is running in, as an operator names it: local, dev, test, prod.',
-    format: String,
+    doc: 'The CDP environment this deployment runs in. Every service container is given it; `local` is where nothing does.',
+    format: [
+      'local',
+      'infra-dev',
+      'infra-test',
+      'management',
+      'dev',
+      'test',
+      'perf-test',
+      'ext-test',
+      'prod'
+    ],
     default: 'local',
-    env: 'ENVIRONMENT_LABEL'
+    env: 'ENVIRONMENT'
   },
   root: {
     doc: 'Project root',
