@@ -618,7 +618,7 @@ describe('viewEventRoute', () => {
     const stated = (testId: string) =>
       flatten($(`[data-testid="${testId}"]`).text())
 
-    expect(stated('event-last-redrive-at')).toBe('16 Jun 2026 10:15:00.000')
+    expect(stated('event-last-redrive-at')).toBe('16 Jun 2026 11:15:00.000')
     expect($('[data-testid="event-facts"] button')).toHaveLength(0)
   })
 
@@ -1145,11 +1145,12 @@ describe('viewEventRoute', () => {
     const { $ } = await viewPage()
 
     expect(valueOf($, 'event-resubmitted')).toBe(
-      'Last resubmitted 16 Jun 2026 10:20:00.000 — nothing recorded since.'
+      'Last resubmitted 16 Jun 2026 11:20:00.000 — nothing recorded since.'
     )
-    expect($('[data-testid="event-resubmitted-at"]').attr('title')).toBe(
-      '2026-06-16T10:20:00Z'
-    )
+    const at = $('[data-testid="event-resubmitted-at"]')
+
+    expect(at.attr('datetime')).toBe('2026-06-16T10:20:00Z')
+    expect(at.attr('title')).toBeUndefined()
   })
 
   test('says nothing of a resubmission an attempt followed', async () => {
@@ -1171,11 +1172,12 @@ describe('viewEventRoute', () => {
     const { $ } = await viewPage()
 
     expect(valueOf($, 'event-attempts-empty')).toBe(
-      'No attempt details recorded (event predates attempt history). Last resubmitted 16 Jun 2026 10:16:30.000.'
+      'No attempt details recorded (event predates attempt history). Last resubmitted 16 Jun 2026 11:16:30.000.'
     )
-    expect(
-      $('[data-testid="event-predated-resubmitted-at"]').attr('title')
-    ).toBe('2026-06-16T10:16:30Z')
+    const at = $('[data-testid="event-predated-resubmitted-at"]')
+
+    expect(at.attr('datetime')).toBe('2026-06-16T10:16:30Z')
+    expect(at.attr('title')).toBeUndefined()
   })
 
   test('says no resubmission under a completed event', async () => {
@@ -1214,8 +1216,11 @@ describe('viewEventRoute', () => {
     const { $ } = await viewPage()
 
     expect(flatten(valueOf($, 'event-redriven-label'))).toBe(
-      'Redriven 16 Jun 2026 11:00:00.000 by Ada Lovelace — no attempts since.'
+      'Redriven 16 Jun 2026 12:00:00.000 by Ada Lovelace — no attempts since.'
     )
+    expect(
+      $('[data-testid="event-redriven-label"] time').attr('datetime')
+    ).toBe('2026-06-16T11:00:00Z')
     expect(valueOf($, 'event-last-error-label')).toBe(
       'Last error before redrive'
     )
@@ -1286,7 +1291,7 @@ describe('viewEventRoute', () => {
       flatten(entries.eq(1).find('[data-testid="event-attempt-when"]').text())
     ).toBe('—')
     expect(
-      entries.eq(1).find('[data-testid="event-attempt-when"]').attr('title')
+      entries.eq(1).find('[data-testid="event-attempt-when"]').attr('datetime')
     ).toBeUndefined()
     expect(
       entries.eq(1).find('[data-testid="event-attempt-delta"]')
@@ -1420,8 +1425,26 @@ describe('viewEventRoute', () => {
 
     const when = $('[data-testid="event-attempt-when"]').first()
 
-    expect(when.text()).toBe('16 Jun 2026 10:08:00.000')
-    expect(when.attr('title')).toBe('2026-06-16T10:08:00Z')
+    expect(when.text()).toBe('16 Jun 2026 11:08:00.000')
+    expect(when.attr('datetime')).toBe('2026-06-16T10:08:00Z')
+    expect(when.attr('title')).toBeUndefined()
+  })
+
+  // Every instant the page spells out carries the machine-readable one with it.
+  test('carries the instant on each attempt and on the last redrive', async () => {
+    givenEvent(detail({ lastRedrive }))
+
+    const { $ } = await viewPage()
+
+    expect(
+      $('[data-testid="event-attempt-when"]').first().attr('datetime')
+    ).toBe('2026-06-16T10:08:00Z')
+    expect($('[data-testid="event-last-redrive-at"]').attr('datetime')).toBe(
+      '2026-06-16T10:10:00Z'
+    )
+    expect($('[data-testid="event-attempt-when"]').first().is('time')).toBe(
+      true
+    )
   })
 
   test('says each attempt as a number, an instant, a gap and the error', async () => {
@@ -1447,13 +1470,13 @@ describe('viewEventRoute', () => {
     expect(attempts).toEqual([
       {
         number: '#1',
-        when: '16 Jun 2026 10:08:00.000',
+        when: '16 Jun 2026 11:08:00.000',
         delta: 'after 8m 0s',
         error: 'MongoNetworkTimeoutError: connection timed out after 30000ms'
       },
       {
         number: '#2',
-        when: '16 Jun 2026 10:16:05.000',
+        when: '16 Jun 2026 11:16:05.000',
         delta: '+8m 5s',
         error:
           'MongoServerError: E11000 duplicate key error collection: gas.events index: id_1'
@@ -1653,7 +1676,7 @@ describe('viewEventRoute', () => {
     ).toBe('event-attempt-success')
     expect(valueOf($, 'event-attempt-success-number')).toBe('#3')
     expect(valueOf($, 'event-attempt-success-when')).toBe(
-      '16 Jun 2026 10:17:00.000'
+      '16 Jun 2026 11:17:00.000'
     )
     expect(valueOf($, 'event-attempt-success-delta')).toBe('+55.0s')
     expect(valueOf($, 'event-attempts-value')).toBe('3 of 5')
@@ -1850,8 +1873,8 @@ describe('viewEventRoute', () => {
     expect(flatten(valueOf($, 'event-error-message'))).toBe(
       'MongoServerError: E11000 duplicate key error collection: gas.events index: id_1'
     )
-    expect(valueOf($, 'event-error-at')).toBe('at 16 Jun 2026 10:16:05.000')
-    expect($('[data-testid="event-error-at"] span').attr('title')).toBe(
+    expect(valueOf($, 'event-error-at')).toBe('at 16 Jun 2026 11:16:05.000')
+    expect($('[data-testid="event-error-at"] time').attr('datetime')).toBe(
       '2026-06-16T10:16:05Z'
     )
   })
@@ -1901,7 +1924,7 @@ describe('viewEventRoute', () => {
 
     const { $ } = await viewPage()
 
-    expect($('[data-testid="event-error-at"] span').attr('title')).toBe(
+    expect($('[data-testid="event-error-at"] time').attr('datetime')).toBe(
       '2026-06-16T10:16:05Z'
     )
   })
@@ -2064,7 +2087,7 @@ describe('viewEventRoute', () => {
     const { $ } = await viewPage()
 
     expect(valueOf($, 'event-futile-warning')).toBe(
-      'The last two attempts since the redrive (by Ada Lovelace, 16 Jun 2026 10:10:00.000) failed with the identical error — redriving again is unlikely to succeed until the underlying cause is fixed.'
+      'The last two attempts since the redrive (by Ada Lovelace, 16 Jun 2026 11:10:00.000) failed with the identical error — redriving again is unlikely to succeed until the underlying cause is fixed.'
     )
     expect(
       $('[data-testid="event-futile-warning"]').hasClass('alert-soft')
@@ -2099,11 +2122,12 @@ describe('viewEventRoute', () => {
     const { $ } = await viewPage()
 
     expect(valueOf($, 'event-last-redrive')).toBe(
-      '16 Jun 2026 10:10:00.000 · by Ada Lovelace'
+      '16 Jun 2026 11:10:00.000 · by Ada Lovelace'
     )
-    expect($('[data-testid="event-last-redrive-at"]').attr('title')).toBe(
-      '2026-06-16T10:10:00Z'
-    )
+    const at = $('[data-testid="event-last-redrive-at"]')
+
+    expect(at.attr('datetime')).toBe('2026-06-16T10:10:00Z')
+    expect(at.attr('title')).toBeUndefined()
   })
 
   test('says nothing about a redrive on an event nobody has redriven', async () => {

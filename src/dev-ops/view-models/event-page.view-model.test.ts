@@ -206,7 +206,7 @@ describe('toEventPage', () => {
           detail({ lastRedrive: { at: '2026-06-16T10:10:00.042Z', by: 'Ada' } })
         )
       ).lastRedriveText
-    ).toBe('16 Jun 2026 10:10:00.042')
+    ).toBe('16 Jun 2026 11:10:00.042')
   })
 
   test('states the year the event happened in, not this one', () => {
@@ -244,7 +244,7 @@ describe('toEventPage', () => {
           })
         )
       ).attemptHistory[0].precise
-    ).toBe('30 Sep 2026 00:00:00.007')
+    ).toBe('30 Sep 2026 01:00:00.007')
   })
 
   test('pretty-prints the payload at two spaces', () => {
@@ -266,8 +266,8 @@ describe('toEventPage', () => {
 
     expect(page.errorName).toBe('MongoServerError')
     expect(page.errorMessage).toBe('E11000 duplicate key')
-    expect(page.errorAt).toBe('16 Jun 2026 10:16:05.000')
-    expect(page.errorAtTitle).toBe('2026-06-16T10:16:05Z')
+    expect(page.errorAt).toBe('16 Jun 2026 11:16:05.000')
+    expect(page.errorAtInstant).toBe('2026-06-16T10:16:05Z')
   })
 
   test('reports no failure on an event that never had one', () => {
@@ -382,12 +382,12 @@ describe('toEventPage', () => {
     expect(attemptHistory[0]).toEqual({
       number: '#1',
       role: 'warning',
-      precise: '16 Jun 2026 10:08:00.000',
+      precise: '16 Jun 2026 11:08:00.000',
       delta: 'after 8m 0s',
       name: 'MongoNetworkTimeoutError',
       message: 'connection timed out after 30000ms',
       stack: null,
-      title: '2026-06-16T10:08:00Z'
+      instant: '2026-06-16T10:08:00Z'
     })
   })
 
@@ -439,7 +439,7 @@ describe('toEventPage', () => {
     const { attemptHistory } = model()
 
     expect(attemptHistory[1]).toMatchObject({
-      precise: '16 Jun 2026 10:16:05.000',
+      precise: '16 Jun 2026 11:16:05.000',
       delta: '+8m 5s'
     })
     expect(
@@ -448,7 +448,7 @@ describe('toEventPage', () => {
     expect(attemptHistory[0]).not.toHaveProperty('relative')
   })
 
-  test('keeps a round millisecond on an attempt, and the ISO on its title', () => {
+  test('keeps a round millisecond on an attempt, and the instant beside it', () => {
     const { attemptHistory } = model(
       found(
         detail({
@@ -464,8 +464,8 @@ describe('toEventPage', () => {
       )
     )
 
-    expect(attemptHistory[0].precise).toBe('16 Jun 2026 10:08:00.000')
-    expect(attemptHistory[0].title).toBe('2026-06-16T10:08:00Z')
+    expect(attemptHistory[0].precise).toBe('16 Jun 2026 11:08:00.000')
+    expect(attemptHistory[0].instant).toBe('2026-06-16T10:08:00Z')
   })
 
   test("draws a completed event's success as the attempt after its failures", () => {
@@ -477,9 +477,9 @@ describe('toEventPage', () => {
       ).attemptSuccess
     ).toEqual({
       number: '#3',
-      precise: '16 Jun 2026 10:17:00.000',
+      precise: '16 Jun 2026 11:17:00.000',
       delta: '+55.0s',
-      title: '2026-06-16T10:17:00Z'
+      instant: '2026-06-16T10:17:00Z'
     })
   })
 
@@ -592,7 +592,7 @@ describe('toEventPage', () => {
     expect(
       model(found(detail({ ...completed, completionDate: null })))
         .attemptSuccess
-    ).toEqual({ number: '#3', precise: null, delta: null, title: null })
+    ).toEqual({ number: '#3', precise: null, delta: null, instant: null })
   })
 
   const noHistory = { attemptHistory: [], lastError: null }
@@ -699,10 +699,10 @@ describe('toEventPage', () => {
         delta
       ])
     ).toEqual([
-      ['#1', '16 Jun 2026 10:08:00.120', 'after 120ms'],
-      ['#2', '16 Jun 2026 10:08:00.393', '+273ms'],
-      ['#3', '16 Jun 2026 10:08:00.905', '+512ms'],
-      ['#4', '16 Jun 2026 10:08:02.005', '+1.1s']
+      ['#1', '16 Jun 2026 11:08:00.120', 'after 120ms'],
+      ['#2', '16 Jun 2026 11:08:00.393', '+273ms'],
+      ['#3', '16 Jun 2026 11:08:00.905', '+512ms'],
+      ['#4', '16 Jun 2026 11:08:02.005', '+1.1s']
     ])
   })
 
@@ -977,7 +977,7 @@ describe('the futile redrive warning', () => {
     )
 
     expect(page.futileWarning).toBe(
-      'The last two attempts since the redrive (by Ada Lovelace, 16 Jun 2026 10:10:00.000) failed with the identical error — ' +
+      'The last two attempts since the redrive (by Ada Lovelace, 16 Jun 2026 11:10:00.000) failed with the identical error — ' +
         'redriving again is unlikely to succeed until the underlying cause is fixed.'
     )
   })
@@ -1054,13 +1054,13 @@ describe('the last redrive', () => {
   test('says the instant absolutely, and who asked, as two values', () => {
     const page = model(found(detail({ lastRedrive })))
 
-    expect(page.lastRedriveTitle).toBe('2026-06-16T10:10:00Z')
-    expect(page.lastRedriveTitle).not.toContain('ago')
+    expect(page.lastRedriveInstant).toBe('2026-06-16T10:10:00Z')
+    expect(page.lastRedriveInstant).not.toContain('ago')
     expect(page.lastRedriveBy).toBe('Ada Lovelace')
   })
 
   test('says nothing on an event nobody has redriven', () => {
-    expect(model().lastRedriveTitle).toBeNull()
+    expect(model().lastRedriveInstant).toBeNull()
     expect(model().lastRedriveBy).toBeNull()
   })
 })
@@ -1291,15 +1291,19 @@ describe('an attempt or redrive with no instant', () => {
     { at: '2026-06-16T10:10:00.000Z', name: 'E', message: 'c', stack: null }
   ]
 
-  test('dashes it, titles nothing and gaps the next from the last known', () => {
+  test('dashes it, names no instant and gaps the next from the last known', () => {
     const { attemptHistory } = model(found(detail({ attemptHistory: history })))
 
     expect(
-      attemptHistory.map(({ precise, title, delta }) => [precise, title, delta])
+      attemptHistory.map(({ precise, instant, delta }) => [
+        precise,
+        instant,
+        delta
+      ])
     ).toEqual([
-      ['16 Jun 2026 10:08:00.000', '2026-06-16T10:08:00Z', 'after 8m 0s'],
+      ['16 Jun 2026 11:08:00.000', '2026-06-16T10:08:00Z', 'after 8m 0s'],
       ['—', null, null],
-      ['16 Jun 2026 10:10:00.000', '2026-06-16T10:10:00Z', '+2m 0s']
+      ['16 Jun 2026 11:10:00.000', '2026-06-16T10:10:00Z', '+2m 0s']
     ])
   })
 
@@ -1311,11 +1315,11 @@ describe('an attempt or redrive with no instant', () => {
     expect(attemptHistory.map(({ delta }) => delta)).toEqual([null, null])
   })
 
-  test('dashes a redrive with no instant and titles nothing', () => {
+  test('dashes a redrive with no instant and names none', () => {
     const page = model(found(detail({ lastRedrive: { at: null, by: 'Ada' } })))
 
     expect(page.lastRedriveText).toBe('—')
-    expect(page.lastRedriveTitle).toBeNull()
+    expect(page.lastRedriveInstant).toBeNull()
   })
 })
 
@@ -1404,13 +1408,13 @@ describe('a redriven event', () => {
 })
 
 describe('the last resubmission', () => {
-  test('states the instant to the millisecond, with the ISO on its title', () => {
+  test('states the instant to the millisecond, with the ISO beside it', () => {
     const page = model(
       found(detail({ lastResubmissionDate: '2026-06-16T10:16:30.000Z' }))
     )
 
-    expect(page.lastResubmissionDate).toBe('16 Jun 2026 10:16:30.000')
-    expect(page.lastResubmissionTitle).toBe('2026-06-16T10:16:30Z')
+    expect(page.lastResubmissionDate).toBe('16 Jun 2026 11:16:30.000')
+    expect(page.lastResubmissionInstant).toBe('2026-06-16T10:16:30Z')
   })
 
   test('says nothing on an event nobody has resubmitted', () => {

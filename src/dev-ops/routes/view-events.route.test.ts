@@ -426,21 +426,100 @@ describe('viewEventsRoute', () => {
     expect(statusCode).toBe(statusCodes.badRequest)
   })
 
+  // A box is UK time, so a summer one is an hour ahead of the instant it means.
   test.each([
-    ['a leap day', '2028-02-29T00:00', '2028-02-29T00:00:00.000Z'],
-    ['the last day of a month', '2026-01-31T23:59', '2026-01-31T23:59:00.000Z'],
+    ['a leap day, on GMT', '2028-02-29T00:00', '2028-02-29T00:00:00.000Z'],
+    ['a winter value, on GMT', '2026-01-31T23:59', '2026-01-31T23:59:00.000Z'],
     [
       'a value carrying seconds',
       '2026-06-16T09:00:30',
-      '2026-06-16T09:00:30.000Z'
+      '2026-06-16T08:00:30.000Z'
     ]
-  ])('takes %s and reads it as UTC', async (_name, value, instant) => {
+  ])('takes %s and reads it as UK time', async (_name, value, instant) => {
     const { statusCode } = await viewPage(
       `/dev-ops/events?from=${encodeURIComponent(value)}`
     )
 
     expect(statusCode).toBe(statusCodes.ok)
     expect(getEventsUseCase).toHaveBeenCalledWith({ from: instant })
+  })
+
+  // Clocks go forward at 01:00 GMT on 29 March 2026 and back at 02:00 BST on
+  // 25 October, so a box within an hour of either means a different instant
+  // depending on which side of the change it sits.
+  test.each([
+    [
+      'before the spring change',
+      '2026-03-29T00:30',
+      '2026-03-29T00:30:00.000Z'
+    ],
+    ['after the spring change', '2026-03-29T02:30', '2026-03-29T01:30:00.000Z'],
+    [
+      'in the hour the spring change skips',
+      '2026-03-29T01:30',
+      '2026-03-29T01:30:00.000Z'
+    ],
+    [
+      'before the autumn change',
+      '2026-10-25T00:30',
+      '2026-10-24T23:30:00.000Z'
+    ],
+    ['after the autumn change', '2026-10-25T02:30', '2026-10-25T02:30:00.000Z']
+  ])(
+    'reads a box %s against the offset in force there',
+    async (_name, value, instant) => {
+      await viewPage(`/dev-ops/events?from=${encodeURIComponent(value)}`)
+
+      expect(getEventsUseCase).toHaveBeenCalledWith({ from: instant })
+    }
+  )
+
+  // 01:30 happens twice on 25 October. Taking the first for `from` and the
+  // second for `to` widens the window over the repeated hour; the other way
+  // round would drop an hour of events once a year and say nothing.
+  test('spans both passes of the hour the autumn change repeats', async () => {
+    await viewPage('/dev-ops/events?from=2026-10-25T01:30&to=2026-10-25T01:30')
+
+    expect(getEventsUseCase).toHaveBeenCalledWith({
+      from: '2026-10-25T00:30:00.000Z',
+      to: '2026-10-25T01:30:00.000Z'
+    })
+  })
+
+  test('reads an unrepeated hour the same way at either end', async () => {
+    await viewPage('/dev-ops/events?from=2026-10-25T02:30&to=2026-10-25T02:30')
+
+    expect(getEventsUseCase).toHaveBeenCalledWith({
+      from: '2026-10-25T02:30:00.000Z',
+      to: '2026-10-25T02:30:00.000Z'
+    })
+  })
+
+  // An hour the spring change skips has no instant of its own: it is read
+  // against the offset in force before the change, so it comes back an hour
+  // later in the box.
+  test('settles an hour the spring change skips, and says which one it took', async () => {
+    const { $ } = await viewPage('/dev-ops/events?from=2026-03-29T01:30')
+
+    expect(getEventsUseCase).toHaveBeenCalledWith({
+      from: '2026-03-29T01:30:00.000Z'
+    })
+    expect($('[data-testid="events-range-from"]').attr('value')).toBe(
+      '2026-03-29T02:30:00'
+    )
+  })
+
+  // The bug: the box was filled with the UTC wall clock and read back as UTC,
+  // so a summer 09:00 quietly searched from 08:00 with nothing to show for it.
+  test('searches from the hour that was typed, and shows that hour back', async () => {
+    const { $ } = await viewPage('/dev-ops/events?from=2026-06-16T09:00')
+
+    expect(getEventsUseCase).toHaveBeenCalledWith({
+      from: '2026-06-16T08:00:00.000Z'
+    })
+    expect($('[data-testid="events-range-from"]').attr('value')).toBe(
+      '2026-06-16T09:00:00'
+    )
   })
 
   test('passes an ISO instant through untouched', async () => {
@@ -1683,16 +1762,19 @@ describe('viewEventsRoute', () => {
 
     const absolute = $('[data-testid="event-created-absolute"]')
 
-    expect(absolute.text().trim()).toBe('(2026-06-16T10:00:00Z)')
+    expect(absolute.text().trim()).toBe('(16 Jun 2026 11:00:00.000)')
     expect(absolute.attr('class')).toContain('sr-only')
   })
 
-  test('carries the absolute time in the title of the relative one', async () => {
+  // What is hovered and what is announced read as what is on the screen; the
+  // instant behind them rides in `datetime`, where nobody has to read it.
+  test('titles the relative time with the same UK time the row shows', async () => {
     const { $ } = await viewPage()
 
-    expect($('[data-testid="event-created-at"]').attr('title')).toBe(
-      '2026-06-16T10:00:00Z'
-    )
+    const created = $('[data-testid="event-created-at"]')
+
+    expect(created.attr('title')).toBe('16 Jun 2026 11:00:00.000')
+    expect(created.attr('datetime')).toBe('2026-06-16T10:00:00Z')
   })
 
   test('underlines no timestamp and marks none of them as hoverable', async () => {
@@ -2665,11 +2747,40 @@ describe('viewEventsRoute', () => {
 
     expect(clock.attr('aria-hidden')).toBe('true')
 
-    expect(clock.text().trim()).toBe('10:00:00')
+    expect(clock.text().trim()).toBe('11:00:00')
     expect(clock.attr('class')).toContain('font-mono')
     expect(clock.attr('class')).toContain('text-sm')
     expect(clock.attr('class')).toContain('text-base-content/70')
-    expect(clock.attr('title')).toBe('2026-06-16T10:00:00Z')
+    expect(clock.attr('title')).toBe('16 Jun 2026 11:00:00.000')
+  })
+
+  // The digits are UK time, so the instant behind them has to be somewhere.
+  test('carries the instant on the Created cell, as a time element', async () => {
+    const { $ } = await viewPage()
+
+    const created = $('[data-testid="event-created-at"]')
+
+    expect(created.is('time')).toBe(true)
+    expect(created.attr('datetime')).toBe('2026-06-16T10:00:00Z')
+    expect($('[data-testid="event-created-clock"]').attr('datetime')).toBe(
+      '2026-06-16T10:00:00Z'
+    )
+  })
+
+  // An empty `datetime` is invalid, and "()" is what a reader would hear.
+  test('claims no instant for a row whose date will not parse', async () => {
+    givenEvents([event({ createdAt: 'nope' })])
+
+    const { $ } = await viewPage()
+
+    const created = $('[data-testid="event-created-at"]')
+
+    // A `time` with no `datetime` must have machine-readable text, and `-` is not.
+    expect(created.is('time')).toBe(false)
+    expect(created.is('span')).toBe(true)
+    expect(created.attr('datetime')).toBeUndefined()
+    expect(created.attr('title')).toBeUndefined()
+    expect($('[data-testid="event-created-absolute"]')).toHaveLength(0)
   })
 
   test('dates the wall clock once the row is more than a day old', async () => {
@@ -2679,8 +2790,8 @@ describe('viewEventsRoute', () => {
 
     const clock = $('[data-testid="event-created-clock"]')
 
-    expect(flatten(clock.text())).toBe('14 Jun 08:18')
-    expect(clock.attr('title')).toBe('2026-06-14T08:18:01Z')
+    expect(flatten(clock.text())).toBe('14 Jun 09:18')
+    expect(clock.attr('title')).toBe('14 Jun 2026 09:18:01.000')
     expect(clock.find('[data-testid="do-copy-button"]')).toHaveLength(0)
   })
 
@@ -2697,7 +2808,7 @@ describe('viewEventsRoute', () => {
         .trim()
     ).toBe('20m ago')
     expect($('[data-testid="event-created-at"]').attr('title')).toBe(
-      '2026-06-16T10:00:00Z'
+      '16 Jun 2026 11:00:00.000'
     )
   })
 
@@ -2796,14 +2907,14 @@ describe('viewEventsRoute', () => {
     )
   })
 
-  test('reads both ends of the range as UTC and forwards them as instants', async () => {
+  test('reads both ends of the range as UK time and forwards them as instants', async () => {
     await viewPage(
       '/dev-ops/events?from=2026-06-16T09:00&to=2026-06-16T10:00:30'
     )
 
     expect(getEventsUseCase).toHaveBeenCalledWith({
-      from: '2026-06-16T09:00:00.000Z',
-      to: '2026-06-16T10:00:30.000Z'
+      from: '2026-06-16T08:00:00.000Z',
+      to: '2026-06-16T09:00:30.000Z'
     })
   })
 
@@ -2829,7 +2940,7 @@ describe('viewEventsRoute', () => {
       '2026-06-16T09:00:00'
     )
     expect($('[data-testid="events-range-to"]').attr('value')).toBe(
-      '2026-06-16T10:20:00'
+      '2026-06-16T11:20:00'
     )
   })
 
@@ -2847,7 +2958,7 @@ describe('viewEventsRoute', () => {
     )
 
     expect(flatten($('[data-testid="events-range-button"]').text())).toBe(
-      'Time: 2026-06-16 09:00 → now'
+      'Time: 2026-06-16 09:00 – now'
     )
     expect($('[data-testid="events-note-range"]')).toHaveLength(0)
     expect($('[data-testid="events-note-range-clear"]')).toHaveLength(0)
@@ -2857,7 +2968,7 @@ describe('viewEventsRoute', () => {
     const { $ } = await viewPage('/dev-ops/events?to=2026-06-16T10:00')
 
     expect(flatten($('[data-testid="events-range-button"]').text())).toBe(
-      'Time: earliest → 2026-06-16 10:00'
+      'Time: earliest – 2026-06-16 10:00'
     )
   })
 
@@ -2873,11 +2984,11 @@ describe('viewEventsRoute', () => {
     expect(
       segmentFor($, 'events-status-tile', 'DEAD_LETTER').attr('href')
     ).toBe(
-      '/dev-ops/events?status=DEAD_LETTER&from=2026-06-16T09%3A00%3A00.000Z'
+      '/dev-ops/events?status=DEAD_LETTER&from=2026-06-16T08%3A00%3A00.000Z'
     )
     expect(
       segmentFor($, 'events-filter-service-chip', 'gas').attr('href')
-    ).toBe('/dev-ops/events?service=gas&from=2026-06-16T09%3A00%3A00.000Z')
+    ).toBe('/dev-ops/events?service=gas&from=2026-06-16T08%3A00%3A00.000Z')
   })
 
   test('carries the window and its label through a search', async () => {
@@ -2978,8 +3089,8 @@ describe('viewEventsRoute', () => {
     const { $ } = await viewPage()
     const clock = $('[data-testid="event-created-clock"]')
 
-    expect(clock.text().trim()).toBe('10:00:00')
-    expect(clock.attr('title')).toBe('2026-06-16T10:00:00Z')
+    expect(clock.text().trim()).toBe('11:00:00')
+    expect(clock.attr('title')).toBe('16 Jun 2026 11:00:00.000')
   })
 
   test('offers no reload controls at all', async () => {
@@ -3539,7 +3650,7 @@ describe('viewEventsRoute', () => {
     )
 
     expect(flatten($('[data-testid="events-range-button"]').text())).toBe(
-      'Time: 2026-09-01 00:00 → 2026-09-02 00:00'
+      'Time: 2026-09-01 00:00 – 2026-09-02 00:00'
     )
   })
 

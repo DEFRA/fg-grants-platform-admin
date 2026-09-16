@@ -60,8 +60,13 @@
       {{ statusDetail(row) }}
     </td>
     <td class="text-right">
-      <div class="relative ml-auto w-fit font-mono text-sm tabular-nums" title="{{ row.createdAtTitle }}" data-testid="event-created-at">{{ row.createdAt }}<span class="sr-only" data-testid="event-created-absolute"> ({{ row.createdAtTitle }})</span></div>
-      {% if row.createdAtClock %}<div class="relative ml-auto w-fit font-mono text-sm tabular-nums text-base-content/70" title="{{ row.createdAtTitle }}" aria-hidden="true" data-testid="event-created-clock"><span data-testid="event-created-clock-text">{{ row.createdAtClock }}</span></div>{% endif %}
+      {%- if row.createdAtInstant -%}
+        <time class="relative ml-auto block w-fit font-mono text-sm tabular-nums" datetime="{{ row.createdAtInstant }}" title="{{ row.createdAtPrecise }}" data-testid="event-created-at">{{ row.createdAt }}<span class="sr-only" data-testid="event-created-absolute"> ({{ row.createdAtPrecise }})</span></time>
+      {%- else -%}
+        {# No instant to name, so no `time`: its text would not be machine-readable. #}
+        <span class="relative ml-auto block w-fit font-mono text-sm tabular-nums" data-testid="event-created-at">{{ row.createdAt }}</span>
+      {%- endif -%}
+      {% if row.createdAtClock %}<time class="relative ml-auto block w-fit font-mono text-sm tabular-nums text-base-content/70" datetime="{{ row.createdAtInstant }}" title="{{ row.createdAtPrecise }}" aria-hidden="true" data-testid="event-created-clock"><span data-testid="event-created-clock-text">{{ row.createdAtClock }}</span></time>{% endif %}
     </td>
   </tr>
 {% endmacro %}
@@ -213,8 +218,8 @@
                             {%- endif -%}
                           </td>
                           <td class="text-base-content/70" title="{{ group.type }}" data-testid="events-failure-event"><span aria-hidden="true">{{ group.eventName.name }}</span><span class="sr-only">{{ group.eventName.spoken }}</span></td>
-                          <td class="text-right font-mono tabular-nums whitespace-nowrap text-base-content/70" title="{{ group.firstTitle }}" data-testid="events-failure-first">{{ group.firstAt }}</td>
-                          <td class="text-right font-mono tabular-nums whitespace-nowrap text-base-content/70" title="{{ group.lastTitle }}" data-testid="events-failure-last">{{ group.lastAt }}</td>
+                          <td class="text-right font-mono tabular-nums whitespace-nowrap text-base-content/70">{% if group.firstInstant %}<time class="block" datetime="{{ group.firstInstant }}" title="{{ group.firstPrecise }}" data-testid="events-failure-first">{{ group.firstAt }}</time>{% else %}<span class="block" data-testid="events-failure-first">{{ group.firstAt }}</span>{% endif %}</td>
+                          <td class="text-right font-mono tabular-nums whitespace-nowrap text-base-content/70">{% if group.lastInstant %}<time class="block" datetime="{{ group.lastInstant }}" title="{{ group.lastPrecise }}" data-testid="events-failure-last">{{ group.lastAt }}</time>{% else %}<span class="block" data-testid="events-failure-last">{{ group.lastAt }}</span>{% endif %}</td>
                         </tr>
                       {% endfor %}
                     </tbody>
