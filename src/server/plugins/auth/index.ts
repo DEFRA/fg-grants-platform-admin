@@ -9,7 +9,13 @@ import {
 } from './redirect-cookie.ts'
 import { clearAuthSession, setAuthSession } from './session.ts'
 import { continuePage } from './continue-page.ts'
-import { loginCallbackPath, loginPath, logoutPath } from './paths.ts'
+import { signedOutPage } from './signed-out-page.ts'
+import {
+  loginCallbackPath,
+  loginPath,
+  logoutPath,
+  signedOutPath
+} from './paths.ts'
 
 const loginRoute: ServerRoute = {
   method: 'GET',
@@ -62,13 +68,29 @@ const logoutRoute: ServerRoute = {
   handler(request: Request, h: ResponseToolkit) {
     clearAuthSession(request)
 
-    return h.redirect('/')
+    return h.redirect(signedOutPath)
+  }
+}
+
+/**
+ * `auth: false` is the whole of this route: a signed out user has no session,
+ * so anything that asked for one would send them to Entra ID, which still
+ * holds its own and would sign them back in without a prompt.
+ */
+const signedOutRoute: ServerRoute = {
+  method: 'GET',
+  path: signedOutPath,
+  options: {
+    auth: false as const
+  },
+  handler(_request: unknown, h: ResponseToolkit) {
+    return h.response(signedOutPage())
   }
 }
 
 /**
  * Everything this app does about authentication: the OIDC handshake with Entra
- * ID, the `session` strategy that route protection is declared against, and the
+ * ID, the `session` strategy that route protection is declared against, the
  * routes a user signs in and out through.
  */
 export const auth = {
@@ -87,7 +109,12 @@ export const auth = {
       server.auth.scheme(schemeName, sessionScheme)
       server.auth.strategy('session', schemeName)
 
-      server.route([loginRoute, loginCallbackRoute, logoutRoute])
+      server.route([
+        loginRoute,
+        loginCallbackRoute,
+        logoutRoute,
+        signedOutRoute
+      ])
     }
   }
 }

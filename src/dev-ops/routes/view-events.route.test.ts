@@ -262,10 +262,14 @@ const segmentFor = ($: CheerioAPI, testId: string, value: string) =>
 
 const headings = ($: CheerioAPI) => $('[data-testid="events-table"] thead th')
 
-const viewPage = async (url = '/dev-ops/events') => {
+const viewPage = async (
+  url = '/dev-ops/events',
+  headers?: Record<string, string>
+) => {
   const { result, statusCode } = await server.inject({
     method: 'GET',
     url,
+    headers,
     auth: { strategy: 'session', credentials }
   })
 
@@ -342,6 +346,25 @@ describe('viewEventsRoute', () => {
 
     expect(statusCode).toBe(statusCodes.ok)
     expect($('[data-testid="events-table"]')).toHaveLength(1)
+  })
+
+  test('renders the stored dark theme before client javascript runs', async () => {
+    const { statusCode, $ } = await viewPage('/dev-ops/events', {
+      cookie: 'dev-ops-theme=dark'
+    })
+
+    expect(statusCode).toBe(statusCodes.ok)
+    expect($('html').attr('data-theme')).toBe('dark')
+    expect($('input[value="dark"]').attr('checked')).toBeDefined()
+  })
+
+  test('ignores an unknown stored theme', async () => {
+    const { statusCode, $ } = await viewPage('/dev-ops/events', {
+      cookie: 'dev-ops-theme=synthwave'
+    })
+
+    expect(statusCode).toBe(statusCodes.ok)
+    expect($('html').attr('data-theme')).toBeUndefined()
   })
 
   test('asks for the unfiltered page when no parameters are given', async () => {

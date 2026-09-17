@@ -22,9 +22,33 @@ const getRawCookie = (headers: OutgoingHttpHeaders, name: string) =>
 const getCookie = (headers: OutgoingHttpHeaders, name: string) =>
   getRawCookie(headers, name)?.split(';')[0]
 
-describe('auth', () => {
-  let server: Server
+/** Bounded so that a chain that loops ends the test rather than the run. */
+const maxHops = 4
 
+const follow = async (start: string, cookie: string) => {
+  const visited: string[] = []
+  let url = start
+
+  while (visited.length < maxHops) {
+    const { statusCode, headers } = await server.inject({
+      method: 'GET',
+      url,
+      headers: { cookie }
+    })
+
+    visited.push(url)
+    if (statusCode !== statusCodes.found) {
+      return visited
+    }
+    url = headers.location as string
+  }
+
+  return visited
+}
+
+let server: Server
+
+describe('auth', () => {
   beforeAll(async () => {
     server = await createServer()
     server.route(protectedRoute)
@@ -181,7 +205,7 @@ describe('auth', () => {
     })
 
     expect(logout.statusCode).toBe(statusCodes.found)
-    expect(logout.headers.location).toBe('/')
+    expect(logout.headers.location).toBe('/auth/signed-out')
 
     const afterLogout = await server.inject({
       method: 'GET',
@@ -191,5 +215,31 @@ describe('auth', () => {
 
     expect(afterLogout.statusCode).toBe(statusCodes.found)
     expect(afterLogout.headers.location).toBe('/auth/login')
+  })
+
+  test('serves the signed out page to a visitor with no session at all', async () => {
+    const { statusCode, headers, payload } = await server.inject({
+      method: 'GET',
+      url: '/auth/signed-out'
+    })
+
+    expect(statusCode).toBe(statusCodes.ok)
+    expect(headers.location).toBeUndefined()
+    expect(payload).toEqual(expect.stringContaining('Signed out'))
+    expect(destinationsOf(payload).link).toBe('/auth/login')
+  })
+
+  test('ends signing out on a page, not back inside the app', async () => {
+    const callback = await server.inject({
+      method: 'POST',
+      url: '/auth/callback'
+    })
+
+    const visited = await follow(
+      '/auth/logout',
+      getCookie(callback.headers, 'session') as string
+    )
+
+    expect(visited).toEqual(['/auth/logout', '/auth/signed-out'])
   })
 })
