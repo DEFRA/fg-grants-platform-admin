@@ -94,14 +94,18 @@ describe('getAssetPath', () => {
     expect(getAssetPath('application.js')).toBe(
       '/public/javascripts/application.js'
     )
+    expect(logger.error).not.toHaveBeenCalled()
   })
 
-  test('falls back to the asset name when it is absent from the manifest', async () => {
+  test('logs and falls back to the asset name when it is absent from the manifest', async () => {
     config.set('isProduction', true)
 
     const { getAssetPath } = await context()
 
     expect(getAssetPath('an-image.png')).toBe('/public/an-image.png')
+    expect(logger.error).toHaveBeenCalledWith(
+      'Vite manifest has no entry for an-image.png, so the page references /public/an-image.png, which will 404'
+    )
   })
 
   test('logs and falls back to the asset name when the manifest is missing', async () => {
