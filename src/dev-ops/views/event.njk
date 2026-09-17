@@ -1,5 +1,6 @@
 {% extends 'layouts/page.njk' %}
 
+{% from "back/macro.njk" import back %}
 {% from "icon/macro.njk" import icon %}
 {% from "status-badge/macro.njk" import statusBadge %}
 
@@ -8,6 +9,9 @@
 {# `leading-none`: an inline mono box on the sans line otherwise makes its row a pixel taller. #}
 {% set monoValue = "font-mono text-sm leading-none break-all" %}
 {% set monoMuted = "font-mono text-sm leading-none text-base-content/70" %}
+{# `select-all` so one click takes the whole id, and `break-all` so the hex
+   wraps inside the column rather than widening a phone. #}
+{% set idLine = "font-mono text-sm break-all text-base-content/70 select-all" %}
 
 {% macro fact(label, testId) %}
   <div class="contents" data-testid="{{ testId }}">
@@ -19,13 +23,7 @@
 {% block pageTitle %}{% if eventName.name %}{{ eventName.name }} {{ (eventId.slice(0, 8) ~ "…" ~ eventId.slice(-4)) if eventId | length > 16 else eventId }}{% else %}{{ pageTitle }}{% endif %} | {{ serviceName }}{% endblock %}
 
 {% block content %}
-  <nav class="breadcrumbs text-sm text-base-content/70" aria-label="Breadcrumb" data-testid="event-breadcrumbs">
-    <ul>
-      <li><a href="{{ backHref }}" data-testid="event-back">Events</a></li>
-      {# Flex items cannot ellipsise, so a block truncates; the mono id is an inline `leading-none` run in it, so it sits on the sans baseline. #}
-      <li class="min-w-0"><span class="min-w-0" title="{{ eventId }}" aria-current="page" data-testid="event-breadcrumb-id"><span class="truncate"><span class="font-mono leading-none">{{ eventId }}</span></span></span></li>
-    </ul>
-  </nav>
+  {{ back({ href: backHref }) }}
 
   {% if banner %}
     <div role="alert" class="alert alert-soft {{ "alert-success" if banner.role == "success" else ("alert-warning" if banner.role == "warning" else "alert-error") }} mt-3 text-sm" data-testid="event-banner">
@@ -39,11 +37,21 @@
       {{ icon({ name: 'exclamation-circle', class: 'size-4 shrink-0' }) }}
       <span>{% if timedOut %}This event could not be loaded: GAS timed out waiting for it. Refresh to try again.{% else %}This event could not be loaded from GAS.{% endif %}</span>
     </div>
+    <header class="mt-3 mb-5" data-testid="event-header">
+      {# Nothing came back to name the page after, so the heading falls back to
+         the same word the `title` does rather than inventing a second one. #}
+      <h1 class="text-xl font-semibold" data-testid="event-title">{{ pageTitle }}</h1>
+      <p class="mt-1 {{ idLine }}" data-testid="event-id">{{ eventId }}</p>
+    </header>
   {% else %}
     <header class="mt-2 mb-5" data-testid="event-header">
       {% if eventName.name %}
         <h1 class="text-xl font-semibold break-words" title="{{ type }}" data-testid="event-title"><span aria-hidden="true" data-testid="event-type-name">{{ eventName.name }}</span><span class="sr-only" data-testid="event-type-spoken">{{ eventName.spoken }}</span></h1>
+        {# A `p`, never a heading: it names the same thing the h1 does, and a
+           second heading would put two entries in the outline for one subject. #}
+        <p class="mt-1 {{ idLine }}" data-testid="event-id">{{ eventId }}</p>
       {% else %}
+        {# No name to head with, so the id is the heading and is not repeated. #}
         <h1 class="font-mono text-xl font-semibold break-all" data-testid="event-title">{{ eventId }}</h1>
       {% endif %}
       <p class="mt-2" data-testid="event-header-status">{{ statusBadge({ status: status, label: statusLabel, role: statusRole, retrying: statusRetrying, variant: "solid" }) }}</p>

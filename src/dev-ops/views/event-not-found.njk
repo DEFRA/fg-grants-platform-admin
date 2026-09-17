@@ -1,13 +1,10 @@
 {% extends 'layouts/page.njk' %}
 
+{% from "back/macro.njk" import back %}
+
 {# Not an error screen: the link back keeps the list's filters. #}
 {% block content %}
-  <nav class="breadcrumbs text-sm text-base-content/70" aria-label="Breadcrumb" data-testid="event-breadcrumbs">
-    <ul>
-      <li><a href="{{ backHref }}" data-testid="event-back">Events</a></li>
-      <li><span aria-current="page">Not found</span></li>
-    </ul>
-  </nav>
+  {{ back({ href: backHref }) }}
 
   <h1 class="mt-2 text-xl font-semibold" data-testid="event-not-found">Event not found</h1>
   <p class="mt-1 text-sm text-base-content/60" data-testid="event-not-found-detail">fg-gas-backend has no event at this address. It may have been removed since the list was drawn.</p>

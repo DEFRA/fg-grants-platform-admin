@@ -1,0 +1,12 @@
+{% from "icon/macro.njk" import icon %}
+
+{# The trail is gone, but its landmark is not: one link is still navigation, and
+   a named `nav` keeps it in the landmark list a screen reader can jump between. #}
+<nav class="text-sm" aria-label="Events list" data-testid="event-back-nav">
+  <do-back>
+    <a class="link link-hover inline-flex items-center gap-1 text-base-content/70 hover:text-base-content" href="{{ params.href }}" data-testid="event-back">
+      {{ icon({ name: 'arrow-right', class: 'size-4 rotate-180' }) }}
+      <span>Back to events</span>
+    </a>
+  </do-back>
+</nav>
