@@ -53,7 +53,18 @@ export const assets = async () => {
       }
 
       const viteAssetPath = lookupViteAsset(viteManifest, asset)
-      return `${assetPath}/${viteAssetPath ?? asset}`
+
+      if (!viteAssetPath) {
+        const unresolved = `${assetPath}/${asset}`
+
+        logger.error(
+          `Vite manifest has no entry for ${asset}, so the page references ${unresolved}, which will 404`
+        )
+
+        return unresolved
+      }
+
+      return `${assetPath}/${viteAssetPath}`
     }
   }
 }

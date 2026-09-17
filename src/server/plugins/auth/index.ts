@@ -90,8 +90,8 @@ const signedOutRoute: ServerRoute = {
 
 /**
  * Everything this app does about authentication: the OIDC handshake with Entra
- * ID, the `session` strategy that route protection is declared against, the
- * routes a user signs in and out through.
+ * ID, the `session` strategy that route protection is declared against, and
+ * the routes a user signs in and out through.
  */
 export const auth = {
   plugin: {
