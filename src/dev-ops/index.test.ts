@@ -1,0 +1,98 @@
+import type { Server } from '@hapi/hapi'
+
+import { statusCodes } from '../common/status-codes.ts'
+import { plugins } from '../main.ts'
+import { createServer } from '../server/index.ts'
+
+// So that a scope check failing here cannot also fire the queue write this
+// file exists to keep unauthorised hands off.
+vi.mock(import('./use-cases/redrive-event.use-case.ts'))
+
+interface Route {
+  method: string
+  url: string
+}
+
+const user = { name: 'Ada Lovelace' }
+
+const applicationsAdminRole = 'FCP.GrantApplicationsAdmin'
+
+/** Any value will do: hapi checks auth before it validates a param. */
+const address = (path: string) => path.replace(/\{[^}]+\}/g, 'x')
+
+let server: Server
+
+/**
+ * Do not replace this with a list of paths, and do not narrow the server to one
+ * plugin: reading the whole table is what makes a `/dev-ops` route added later
+ * fail these tests, wherever in the app it is registered from.
+ */
+const devOpsRoutes = (): Route[] =>
+  server
+    .table()
+    .filter(({ path }) => path === '/dev-ops' || path.startsWith('/dev-ops/'))
+    .map(({ method, path }) => ({ method, url: address(path) }))
+
+const answers = async <T extends object>(
+  inject: (route: Route) => Promise<T>
+) =>
+  Promise.all(
+    devOpsRoutes().map(async (route) => ({
+      route: `${route.method.toUpperCase()} ${route.url}`,
+      ...(await inject(route))
+    }))
+  )
+
+const asUser = (scope: string[]) => async (route: Route) => {
+  const { statusCode } = await server.inject({
+    ...route,
+    auth: { strategy: 'session', credentials: { user, scope } }
+  })
+
+  return { statusCode }
+}
+
+const anonymously = async (route: Route) => {
+  const { statusCode, headers } = await server.inject(route)
+
+  return { statusCode, location: headers.location }
+}
+
+const sameFor = <T>(given: { route: string }[], answer: T) =>
+  given.map(({ route }) => ({ route, ...answer }))
+
+describe('devOps', () => {
+  beforeAll(async () => {
+    server = await createServer()
+    await server.register(plugins)
+    await server.initialize()
+  })
+
+  afterAll(async () => {
+    await server.stop()
+  })
+
+  test('serves the routes the rest of these tests answer for', () => {
+    expect(devOpsRoutes()).not.toHaveLength(0)
+  })
+
+  test.each([
+    ['holding only the applications admin role', [applicationsAdminRole]],
+    ['holding no roles', []]
+  ])('refuses every route under /dev-ops a user %s', async (_name, scope) => {
+    const given = await answers(asUser(scope))
+
+    expect(given).toEqual(sameFor(given, { statusCode: statusCodes.forbidden }))
+  })
+
+  test('sends an anonymous visitor from every route under /dev-ops to sign in', async () => {
+    const given = await answers(anonymously)
+
+    expect(given).toEqual(
+      sameFor(given, {
+        statusCode: statusCodes.found,
+        location: '/auth/login'
+      })
+    )
+  })
+})
