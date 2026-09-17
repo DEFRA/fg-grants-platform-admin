@@ -228,23 +228,28 @@ describe('toEventsPage', () => {
     )
   })
 
-  test('carries only the ISO-UTC instant in the created title', () => {
-    expect(
-      rowFor({ createdAt: '2026-06-16T10:00:00.000Z' }).createdAtTitle
-    ).toBe('2026-06-16T10:00:00Z')
+  // The instant is for the machine; what a person hovers or hears is the same
+  // UK time that is on the screen beside it.
+  test('carries the instant for the markup and UK time for the reader', () => {
+    const row = rowFor({ createdAt: '2026-06-16T10:00:00.000Z' })
+
+    expect(row.createdAtInstant).toBe('2026-06-16T10:00:00Z')
+    expect(row.createdAtPrecise).toBe('16 Jun 2026 11:00:00.000')
   })
 
-  test('states Greenwich Mean Time on a winter row', () => {
-    expect(
-      rowFor({ createdAt: '2026-01-16T10:00:00.000Z' }).createdAtTitle
-    ).toBe('2026-01-16T10:00:00Z')
+  test('reads the same on a winter row, when UK time is UTC', () => {
+    const row = rowFor({ createdAt: '2026-01-16T10:00:00.000Z' })
+
+    expect(row.createdAtInstant).toBe('2026-01-16T10:00:00Z')
+    expect(row.createdAtPrecise).toBe('16 Jan 2026 10:00:00.000')
   })
 
   test('shows a dash rather than throwing on an unparseable timestamp', () => {
     const row = rowFor({ createdAt: 'nope' })
 
     expect(row.createdAt).toBe('-')
-    expect(row.createdAtTitle).toBe('')
+    expect(row.createdAtInstant).toBe('')
+    expect(row.createdAtPrecise).toBe('')
   })
 
   test('draws a status in the words the endpoint sent, raw value and all', () => {
@@ -787,7 +792,7 @@ describe('toEventsPage', () => {
     })
 
     expect(page).not.toHaveProperty('rangeFilter')
-    expect(page.timeRange.label).toBe('2026-06-16 09:00 → 2026-06-16 10:00')
+    expect(page.timeRange.label).toBe('2026-06-16 10:00 – 2026-06-16 11:00')
   })
 
   test('holds the range in the spelling the two boxes read', () => {
@@ -796,8 +801,8 @@ describe('toEventsPage', () => {
       to: '2026-06-16T10:20:30.000Z'
     })
 
-    expect(fromInput).toBe('2026-06-16T09:00:00')
-    expect(toInput).toBe('2026-06-16T10:20:30')
+    expect(fromInput).toBe('2026-06-16T10:00:00')
+    expect(toInput).toBe('2026-06-16T11:20:30')
   })
 
   test('hands an unreadable range value back to the box as it stands', () => {
@@ -835,14 +840,14 @@ describe('toEventsPage', () => {
   })
 
   test.each([
-    ['2026-06-16T10:00:00.000Z', '10:00:00'],
-    ['2026-06-15T10:20:00.000Z', '10:20:00'],
-    ['2026-06-15T10:19:59.000Z', '15 Jun 10:19'],
-    ['2026-06-14T08:18:01.000Z', '14 Jun 08:18'],
+    ['2026-06-16T10:00:00.000Z', '11:00:00'],
+    ['2026-06-15T10:20:00.000Z', '11:20:00'],
+    ['2026-06-15T10:19:59.000Z', '15 Jun 11:19'],
+    ['2026-06-14T08:18:01.000Z', '14 Jun 09:18'],
     ['2025-12-31T00:00:00.000Z', '31 Dec 00:00'],
-    ['2026-06-01T08:18:01.000Z', '1 Jun 08:18'],
-    ['2025-09-01T08:18:01.000Z', '1 Sep 08:18'],
-    ['2026-06-16T10:25:00.000Z', '10:25:00']
+    ['2026-06-01T08:18:01.000Z', '1 Jun 09:18'],
+    ['2025-09-01T08:18:01.000Z', '1 Sep 09:18'],
+    ['2026-06-16T10:25:00.000Z', '11:25:00']
   ])('clocks a row created at %s as %s', (createdAt, clock) => {
     expect(rowFor({ createdAt }).createdAtClock).toBe(clock)
   })
@@ -996,7 +1001,7 @@ describe('the top failures panel', () => {
         group({ firstAt: null, lastAt: null })
       ]).topFailures?.groups ?? []
 
-    expect([row.firstAt, row.firstTitle, row.lastAt]).toEqual(['-', '', '-'])
+    expect([row.firstAt, row.firstInstant, row.lastAt]).toEqual(['-', '', '-'])
   })
 
   test('cuts a long message to the width of a line, keeping the whole of it', () => {
@@ -1241,15 +1246,15 @@ describe('the time range control', () => {
         from: '2026-09-01T00:00:00.000Z',
         to: '2026-09-02T00:00:00.000Z'
       }).label
-    ).toBe('2026-09-01 00:00 → 2026-09-02 00:00')
+    ).toBe('2026-09-01 01:00 – 2026-09-02 01:00')
   })
 
   test('names an open end rather than leaving it blank', () => {
     expect(timeRangeFor({ from: '2026-09-01T00:00:00.000Z' }).label).toBe(
-      '2026-09-01 00:00 → now'
+      '2026-09-01 01:00 – now'
     )
     expect(timeRangeFor({ to: '2026-09-02T00:00:00.000Z' }).label).toBe(
-      'earliest → 2026-09-02 00:00'
+      'earliest – 2026-09-02 01:00'
     )
   })
 
@@ -1260,13 +1265,13 @@ describe('the time range control', () => {
         to: '2026-09-02T00:00:00.000Z',
         range: '24h'
       }).label
-    ).toBe('2026-09-01 00:00 → 2026-09-02 00:00')
+    ).toBe('2026-09-01 01:00 – 2026-09-02 01:00')
 
     expect(timeRangeFor({ range: '24h' }).label).toBe('All')
     expect(
       timeRangeFor({ from: '2026-09-01T00:00:00.000Z', range: 'nonsense' })
         .label
-    ).toBe('2026-09-01 00:00 → now')
+    ).toBe('2026-09-01 01:00 – now')
   })
 
   test('puts the label on the button title too', () => {
