@@ -13,6 +13,15 @@
    wraps inside the column rather than widening a phone. #}
 {% set idLine = "font-mono text-sm break-all text-base-content/70 select-all" %}
 
+{#
+  Every clock on this page is already the full UK wall clock, to the
+  millisecond, so there is no `title`: a tooltip could only repeat the text
+  under the cursor. The instant rides in `datetime` alone, in UTC, for
+  machines. An undated row keeps its text and drops that too — there is no
+  instant to name, and `datetime` is what makes a `time` machine-readable.
+#}
+{% macro timestamp(text, instant, class, testId) %}{% if class %}<time class="{{ class }}"{% else %}<time{% endif %}{% if instant %} datetime="{{ instant }}"{% endif %}{% if testId %} data-testid="{{ testId }}"{% endif %}>{{ text }}</time>{% endmacro %}
+
 {% macro fact(label, testId) %}
   <div class="contents" data-testid="{{ testId }}">
     <dt class="{{ factLabel }}">{{ label }}</dt>
@@ -83,7 +92,7 @@
 
             {% if lastRedriveText %}
               {% call fact("Last redrive", "event-fact-last-redrive") %}
-                <span data-testid="event-last-redrive"><span class="{{ monoValue }} tabular-nums"{% if lastRedriveTitle %} title="{{ lastRedriveTitle }}"{% endif %} data-testid="event-last-redrive-at">{{ lastRedriveText }}</span>{% if lastRedriveBy %} <span class="text-sm text-base-content/70" data-testid="event-last-redrive-by">· by {{ lastRedriveBy }}</span>{% endif %}</span>
+                <span data-testid="event-last-redrive">{{ timestamp(lastRedriveText, lastRedriveInstant, monoValue ~ " tabular-nums", "event-last-redrive-at") }}{% if lastRedriveBy %} <span class="text-sm text-base-content/70" data-testid="event-last-redrive-by">· by {{ lastRedriveBy }}</span>{% endif %}</span>
               {% endcall %}
             {% endif %}
           </dl>
@@ -121,7 +130,7 @@
         <h2 class="card-title text-base" data-testid="event-attempts-heading">Attempts{% if attempts %} <span class="text-sm font-normal tabular-nums text-base-content/70" data-testid="event-attempts-value">{{ attempts.made }} of {{ attempts.allowed }}</span>{% endif %}</h2>
         {% if attemptsBlock in ["predated", "predatedCompleted"] %}
           <div class="flex flex-col gap-2 text-sm" data-testid="event-attempts-predated">
-            <p class="text-base-content/70" data-testid="event-attempts-empty">No attempt details recorded (event predates attempt history).{% if lastResubmissionDate %} Last resubmitted <span{% if lastResubmissionTitle %} title="{{ lastResubmissionTitle }}"{% endif %} data-testid="event-predated-resubmitted-at">{{ lastResubmissionDate }}</span>.{% endif %}</p>
+            <p class="text-base-content/70" data-testid="event-attempts-empty">No attempt details recorded (event predates attempt history).{% if lastResubmissionDate %} Last resubmitted {{ timestamp(lastResubmissionDate, lastResubmissionInstant, "", "event-predated-resubmitted-at") }}.{% endif %}</p>
             {% if attemptsBlock == "predated" and (errorName or errorMessage) %}
               <div class="flex items-start gap-1.5" data-testid="event-last-error">
                 {%- set lastErrorIcons = { warning: "mt-0.5 size-4 shrink-0 text-warning", error: "mt-0.5 size-4 shrink-0 text-error [&>path:first-child]:fill-current [&>path:not(:first-child)]:stroke-base-100" } -%}
@@ -129,7 +138,7 @@
                 <div class="min-w-0">
                   <div class="text-base-content/70" data-testid="event-last-error-label">Last error</div>
                   <div class="font-mono wrap-anywhere" data-testid="event-error-message">{% if errorName %}<span class="font-medium" data-testid="event-error-name">{{ errorName }}</span>{% if errorMessage %}: {% endif %}{% endif %}{{ errorMessage }}</div>
-                  {% if errorAt %}<div class="font-mono text-base-content/70" data-testid="event-error-at">at <span{% if errorAtTitle %} title="{{ errorAtTitle }}"{% endif %}>{{ errorAt }}</span></div>{% endif %}
+                  {% if errorAt %}<div class="font-mono text-base-content/70" data-testid="event-error-at">at {{ timestamp(errorAt, errorAtInstant) }}</div>{% endif %}
                   {% if errorSearchHref %}
                     <div class="mt-1"><a class="link" href="{{ errorSearchHref }}" data-testid="event-error-search">Show all events with this error{{ icon({ name: 'arrow-right', class: 'ms-1 inline size-3.5 align-middle' }) }}</a></div>
                   {% endif %}
@@ -148,7 +157,7 @@
                   <div class="font-mono text-sm tabular-nums">
                     <span class="font-medium text-base-content/70" data-testid="event-attempt-number">{{ attempt.number }}</span>
                     <span class="text-base-content/30" aria-hidden="true">·</span>
-                    <span{% if attempt.title %} title="{{ attempt.title }}"{% endif %} data-testid="event-attempt-when">{{ attempt.precise }}</span>
+                    {{ timestamp(attempt.precise, attempt.instant, "", "event-attempt-when") }}
                     {% if attempt.delta %}
                       <span class="text-base-content/30" aria-hidden="true">·</span>
                       <span class="text-base-content/70" data-testid="event-attempt-delta">{{ attempt.delta }}</span>
@@ -181,7 +190,7 @@
                     <span class="font-medium text-base-content/70" data-testid="event-attempt-success-number">{{ attemptSuccess.number }}</span>
                     <span class="text-base-content/30" aria-hidden="true">·</span>
                     {% if attemptSuccess.precise %}
-                      <span title="{{ attemptSuccess.title }}" data-testid="event-attempt-success-when">{{ attemptSuccess.precise }}</span>
+                      {{ timestamp(attemptSuccess.precise, attemptSuccess.instant, "", "event-attempt-success-when") }}
                     {% else %}
                       <span class="text-base-content/70" data-testid="event-attempt-success-when">completion time not recorded</span>
                     {% endif %}
@@ -195,18 +204,18 @@
             {% endif %}
           </ul>
           {% if resubmittedSinceLastAttempt %}
-            <p class="text-sm text-base-content/70" data-testid="event-resubmitted">Last resubmitted <span{% if lastResubmissionTitle %} title="{{ lastResubmissionTitle }}"{% endif %} data-testid="event-resubmitted-at">{{ lastResubmissionDate }}</span> — nothing recorded since.</p>
+            <p class="text-sm text-base-content/70" data-testid="event-resubmitted">Last resubmitted {{ timestamp(lastResubmissionDate, lastResubmissionInstant, "", "event-resubmitted-at") }} — nothing recorded since.</p>
           {% endif %}
         {% elif attemptsBlock == "redriven" %}
           <div class="flex flex-col gap-2 text-sm" data-testid="event-redriven">
-            <p class="text-base-content/70" data-testid="event-redriven-label">Redriven <span class="font-mono tabular-nums">{{ lastRedriveText }}</span>{% if lastRedriveBy %} by {{ lastRedriveBy }}{% endif %} — no attempts since.</p>
+            <p class="text-base-content/70" data-testid="event-redriven-label">Redriven {{ timestamp(lastRedriveText, lastRedriveInstant, "font-mono tabular-nums") }}{% if lastRedriveBy %} by {{ lastRedriveBy }}{% endif %} — no attempts since.</p>
             {% if errorName or errorMessage %}
               <div class="flex items-start gap-1.5" data-testid="event-last-error">
                 {{ icon({ name: 'circle-x', class: 'mt-0.5 size-4 shrink-0 text-warning' }) }}<span class="sr-only" data-testid="event-last-error-icon-name">Failed</span>
                 <div class="min-w-0">
                   <div class="text-base-content/70" data-testid="event-last-error-label">Last error before redrive</div>
                   <div class="font-mono wrap-anywhere" data-testid="event-error-message">{% if errorName %}<span class="font-medium" data-testid="event-error-name">{{ errorName }}</span>{% if errorMessage %}: {% endif %}{% endif %}{{ errorMessage }}</div>
-                  {% if errorAt %}<div class="font-mono text-base-content/70" data-testid="event-error-at">at <span{% if errorAtTitle %} title="{{ errorAtTitle }}"{% endif %}>{{ errorAt }}</span></div>{% endif %}
+                  {% if errorAt %}<div class="font-mono text-base-content/70" data-testid="event-error-at">at {{ timestamp(errorAt, errorAtInstant) }}</div>{% endif %}
                 </div>
               </div>
             {% endif %}

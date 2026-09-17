@@ -35,14 +35,14 @@ interface AttemptEntry {
   name: string
   message: string
   stack: string | null
-  title: string | null
+  instant: string | null
 }
 
 interface AttemptSuccess {
   number: string
   precise: string | null
   delta: string | null
-  title: string | null
+  instant: string | null
 }
 
 type AttemptsBlock =
@@ -86,13 +86,13 @@ export interface EventPageModel {
   isInbox: boolean
 
   lastResubmissionDate: string | null
-  lastResubmissionTitle: string | null
+  lastResubmissionInstant: string | null
   resubmittedSinceLastAttempt: boolean
 
   errorName: string | null
   errorMessage: string | null
   errorAt: string | null
-  errorAtTitle: string | null
+  errorAtInstant: string | null
   errorRole: AttemptRole
 
   attemptHistory: AttemptEntry[]
@@ -107,7 +107,7 @@ export interface EventPageModel {
   cancelHref: string
   redriveAction: string
 
-  lastRedriveTitle: string | null
+  lastRedriveInstant: string | null
   lastRedriveText: string | null
   lastRedriveBy: string | null
   futileWarning: string | null
@@ -260,12 +260,12 @@ const emptyDetail: Omit<EventPageModel, ShellKey> = {
   traceHref: null,
   isInbox: true,
   lastResubmissionDate: null,
-  lastResubmissionTitle: null,
+  lastResubmissionInstant: null,
   resubmittedSinceLastAttempt: false,
   errorName: null,
   errorMessage: null,
   errorAt: null,
-  errorAtTitle: null,
+  errorAtInstant: null,
   errorRole: 'warning',
   attemptHistory: [],
   attemptSuccess: null,
@@ -275,7 +275,7 @@ const emptyDetail: Omit<EventPageModel, ShellKey> = {
   confirmRedrive: false,
   redriveHref: '',
   cancelHref: '',
-  lastRedriveTitle: null,
+  lastRedriveInstant: null,
   lastRedriveText: null,
   lastRedriveBy: null,
   futileWarning: null,
@@ -350,7 +350,7 @@ const toResubmission = ({ event, state }: DetailContext) => {
   if (at === null || !state.waiting) {
     return {
       lastResubmissionDate: null,
-      lastResubmissionTitle: null,
+      lastResubmissionInstant: null,
       resubmittedSinceLastAttempt: false
     }
   }
@@ -359,7 +359,7 @@ const toResubmission = ({ event, state }: DetailContext) => {
 
   return {
     lastResubmissionDate: toPreciseOrNone(at),
-    lastResubmissionTitle: toAbsoluteInstant(at),
+    lastResubmissionInstant: toAbsoluteInstant(at),
     resubmittedSinceLastAttempt: last === null || isAfter(at, last)
   }
 }
@@ -368,7 +368,7 @@ const noFailure = {
   errorName: null,
   errorMessage: null,
   errorAt: null,
-  errorAtTitle: null
+  errorAtInstant: null
 }
 
 const toFailure = (error: EventDetail['lastError']) =>
@@ -378,7 +378,7 @@ const toFailure = (error: EventDetail['lastError']) =>
         errorName: error.name,
         errorMessage: error.message,
         errorAt: error.at === null ? null : toPreciseOrNone(error.at),
-        errorAtTitle: toAbsoluteInstant(error.at)
+        errorAtInstant: toAbsoluteInstant(error.at)
       }
 
 /** A redrive newer than creation starts the clock again for the attempt after it. */
@@ -457,20 +457,20 @@ const toAttemptHistory = ({ event, state }: DetailContext): AttemptEntry[] =>
       event.lastError
     ),
     stack: toStackFrames(attempt.name, attempt.message, attempt.stack),
-    title: toAbsoluteInstant(attempt.at)
+    instant: toAbsoluteInstant(attempt.at)
   }))
 
-const undated = { precise: null, delta: null, title: null }
+const undated = { precise: null, delta: null, instant: null }
 
 const toSuccessInstant = (event: EventDetail, at: string) => {
-  const title = toAbsolute(at)
+  const instant = toAbsolute(at)
 
-  return title === null
+  return instant === null
     ? undated
     : {
         precise: toPreciseOrNone(at),
         delta: toAttemptDelta(event, event.attemptHistory, at),
-        title
+        instant
       }
 }
 
@@ -534,14 +534,14 @@ const toRedrive = (
 const toLastRedriveDetail = (lastRedrive: EventDetail['lastRedrive']) => {
   if (lastRedrive === null) {
     return {
-      lastRedriveTitle: null,
+      lastRedriveInstant: null,
       lastRedriveText: null,
       lastRedriveBy: null
     }
   }
 
   return {
-    lastRedriveTitle: toAbsoluteInstant(lastRedrive.at),
+    lastRedriveInstant: toAbsoluteInstant(lastRedrive.at),
     lastRedriveText: toPreciseOrNone(lastRedrive.at),
     lastRedriveBy: lastRedrive.by
   }

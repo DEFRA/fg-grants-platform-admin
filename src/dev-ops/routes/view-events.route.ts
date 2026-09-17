@@ -4,6 +4,8 @@ import Joi from 'joi'
 import type { EventsQuery } from '../use-cases/get-events.use-case.ts'
 import { getEventsUseCase } from '../use-cases/get-events.use-case.ts'
 import { eventEnumFilters } from '../view-models/event-filters.ts'
+import type { ZonedEdge } from '../view-models/event-formats.ts'
+import { fromZonedInput } from '../view-models/event-formats.ts'
 import type { EventsPageQuery } from '../view-models/events-page.view-model.ts'
 import { toEventsPage } from '../view-models/events-page.view-model.ts'
 
@@ -11,8 +13,12 @@ const datetimeLocal = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?$/
 
 const errorMax = 1024
 
+/** A box may or may not carry seconds; `fromZonedInput` takes the full wall clock. */
+const toWallClock = (value: string, seconds: string | undefined): string =>
+  `${value}${seconds ? '' : ':00'}`
+
 const toUtcDate = (value: string, seconds: string | undefined): Date =>
-  new Date(`${value}${seconds ? '' : ':00'}Z`)
+  new Date(`${toWallClock(value, seconds)}Z`)
 
 /** `2026-02-30` silently rolls forward; an impossible month throws. Check both. */
 const isRealDatetime = (
@@ -37,18 +43,24 @@ const rangeBox = Joi.string()
       : helpers.error('any.invalid')
   })
 
-const toInstant = (value: string | undefined): string | undefined => {
+/**
+ * What a Custom box means. The digits carry no zone and the page fills them in
+ * UK time, so they are read in UK time: typing 09:00 means 09:00 as the
+ * operator means it.
+ */
+const toInstant = (
+  value: string | undefined,
+  edge: ZonedEdge
+): string | undefined => {
   if (!value) {
     return undefined
   }
 
   const match = datetimeLocal.exec(value)
 
-  if (match === null || !isRealDatetime(value, match[1])) {
-    return value
-  }
-
-  return toUtcDate(value, match[1]).toISOString()
+  return match === null || !isRealDatetime(value, match[1])
+    ? value
+    : fromZonedInput(toWallClock(value, match[1]), edge).toISOString()
 }
 
 const present = (name: string, value: string | undefined) =>
@@ -66,8 +78,8 @@ const toQuery = ({
   ...present('cursor', cursor),
   ...present('q', q?.trim()),
   ...present('error', error),
-  ...present('from', toInstant(from)),
-  ...present('to', toInstant(to))
+  ...present('from', toInstant(from, 'earliest')),
+  ...present('to', toInstant(to, 'latest'))
 })
 
 const toGasQuery = ({ range, ...gas }: EventsPageQuery): EventsQuery => gas

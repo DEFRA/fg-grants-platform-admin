@@ -11,7 +11,8 @@ import {
   toClock,
   toEventHref,
   toTimestamp,
-  toValidDate
+  toValidDate,
+  toZonedInput
 } from './event-formats.ts'
 import type {
   EventBreakdownGroup,
@@ -42,7 +43,8 @@ interface EventRow {
   latency: string | null
   latencyTitle: string
   createdAt: string
-  createdAtTitle: string
+  createdAtInstant: string
+  createdAtPrecise: string
   createdAtClock: string
   eventName: EventName
   serviceLabel: string
@@ -80,9 +82,11 @@ interface FailureGroup {
   eventName: EventName
   countLabel: string
   firstAt: string
-  firstTitle: string
+  firstInstant: string
+  firstPrecise: string
   lastAt: string
-  lastTitle: string
+  lastInstant: string
+  lastPrecise: string
   href: string | null
 }
 
@@ -176,7 +180,8 @@ const toRow =
       latency: event.latency,
       latencyTitle: event.latencyTitle,
       createdAt: created.text,
-      createdAtTitle: created.title,
+      createdAtInstant: created.instant,
+      createdAtPrecise: created.precise,
       createdAtClock: toClockOf(event.createdAt, now),
       eventName: toEventName(event.type),
       serviceLabel: toServiceLabel(event.service, services),
@@ -349,16 +354,19 @@ const toSearch = (value: string | undefined): string | null => {
   return needle === '' ? null : needle
 }
 
-const toLocalInput = (value: string | undefined): string => {
+/**
+ * `datetime-local` carries no zone, so the digits in the Custom boxes have to
+ * be the ones the page displays. Writing the UTC wall clock into a control the
+ * browser reads as local was an hour out at both edges of a range under BST.
+ */
+const toRangeInput = (value: string | undefined): string => {
   if (!value) {
     return ''
   }
 
   const date = toValidDate(value)
 
-  return date === null
-    ? value
-    : date.toISOString().slice(0, 'yyyy-mm-ddThh:mm:ss'.length)
+  return date === null ? value : toZonedInput(date)
 }
 
 const displayedFilterErrorChars = 60
@@ -417,14 +425,14 @@ const toAbsoluteMinute = (value: string): string => {
 
   return date === null
     ? value
-    : date.toISOString().slice(0, 'yyyy-mm-ddThh:mm'.length).replace('T', ' ')
+    : toZonedInput(date).slice(0, 'yyyy-mm-ddThh:mm'.length).replace('T', ' ')
 }
 
 const toAbsoluteRangeLabel = (from?: string, to?: string): string => {
   const start = from ? toAbsoluteMinute(from) : 'earliest'
   const end = to ? toAbsoluteMinute(to) : 'now'
 
-  return `${start} → ${end}`
+  return `${start} – ${end}`
 }
 
 const toTimeRangeLabel = (query: EventsPageQuery): string => {
@@ -475,9 +483,11 @@ const toFailureGroup =
       eventName: toEventName(group.type),
       countLabel: counted.format(group.count),
       firstAt: first.text,
-      firstTitle: first.title,
+      firstInstant: first.instant,
+      firstPrecise: first.precise,
       lastAt: last.text,
-      lastTitle: last.title,
+      lastInstant: last.instant,
+      lastPrecise: last.precise,
       // An error is not a status, and the tiles reflect `status` alone.
       href:
         group.error === null
@@ -537,8 +547,8 @@ export const toEventsPage = (
     topFailures: toTopFailures(breakdown, filters, now),
     searchFilters: toSearchFilters(filters),
     rangeFilters: toRangeFilters(filters),
-    fromInput: toLocalInput(query.from),
-    toInput: toLocalInput(query.to),
+    fromInput: toRangeInput(query.from),
+    toInput: toRangeInput(query.to),
     nextHref: toNextHref(pagination, filters),
     unavailableSources: toUnavailableSources(sourceErrors),
     unavailable,
