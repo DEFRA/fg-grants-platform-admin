@@ -242,7 +242,7 @@ describe('viewEventRoute', () => {
       'CaseStatusUpdated'
     )
     expect(title.attr('title')).toBe('case.status.updated')
-    expect(title.next().attr('data-testid')).toBe('event-header-status')
+    expect(title.next().attr('data-testid')).toBe('event-id')
   })
 
   test('speaks the name spaced, and shows it in PascalCase', async () => {
@@ -278,7 +278,7 @@ describe('viewEventRoute', () => {
 
     expect($('[data-testid="event-type-name"]').text()).toBe('AuditRecord')
     expect($('[data-testid="event-title"]').attr('title')).toBe('audit')
-    expect($('[data-testid="event-breadcrumb-id"]').text()).toBe(
+    expect($('[data-testid="event-id"]').text()).toBe(
       '3f2c1a0e-1111-2222-3333-444455556666'
     )
     expect($('[data-testid="event-header"]').text()).not.toContain('n/a')
@@ -320,24 +320,23 @@ describe('viewEventRoute', () => {
     expect($('main').html()).not.toContain('badge-soft')
   })
 
-  test('shows the whole event id as the breadcrumb leaf, as plain selectable text', async () => {
+  test('shows the whole event id under the name, as plain selectable text', async () => {
     const { $ } = await viewPage()
 
-    const leaf = $('[data-testid="event-breadcrumb-id"]')
+    const line = $('[data-testid="event-id"]')
 
-    expect(leaf.text()).toBe('3f2c1a0e-1111-2222-3333-444455556666')
-    expect(leaf.find('.truncate > .font-mono.leading-none').text()).toBe(
-      '3f2c1a0e-1111-2222-3333-444455556666'
-    )
-    expect(leaf.closest('li').attr('class')).toContain('min-w-0')
-    expect(leaf.is('a')).toBe(false)
+    expect(line.text()).toBe('3f2c1a0e-1111-2222-3333-444455556666')
+    expect(line.is('p')).toBe(true)
+    expect(line.attr('class')).toContain('select-all')
+    expect(line.attr('class')).toContain('break-all')
+    expect(line.prev().attr('data-testid')).toBe('event-title')
   })
 
   test('prints the event id once at the top of the page', async () => {
     const { $ } = await viewPage()
 
     const top =
-      $('[data-testid="event-breadcrumbs"]').text() +
+      $('[data-testid="event-back-nav"]').text() +
       $('[data-testid="event-header"]').text()
     const id = '3f2c1a0e-1111-2222-3333-444455556666'
 
@@ -395,14 +394,14 @@ describe('viewEventRoute', () => {
     expect(ref.text()).toBe('GLD-9B2-BWS-grasslands')
   })
 
-  test('draws no Message id row, the breadcrumb being that same id', async () => {
+  test('draws no Message id row, the heading already carrying that id', async () => {
     givenEvent(inboxDetail())
 
     const { $ } = await viewPage(inboxPath)
 
     expect($('[data-testid="event-fact-message-id"]')).toHaveLength(0)
     expect($('[data-testid="event-message-id"]')).toHaveLength(0)
-    expect($('[data-testid="event-breadcrumb-id"]').text()).toBe(
+    expect($('[data-testid="event-id"]').text()).toBe(
       '3f2c1a0e-1111-2222-3333-444455556666'
     )
   })
@@ -761,17 +760,14 @@ describe('viewEventRoute', () => {
     const back = $('[data-testid="event-back"]')
 
     expect(back.attr('href')).toBe('/dev-ops/events')
-    expect(back.text().trim()).toBe('Events')
-    expect(back.closest('.breadcrumbs')).toHaveLength(1)
+    expect(back.text().trim()).toBe('Back to events')
 
-    const leaf = $('[data-testid="event-breadcrumb-id"]')
+    const nav = $('[data-testid="event-back-nav"]')
 
-    expect(leaf.text()).toBe('3f2c1a0e-1111-2222-3333-444455556666')
-    expect(leaf.attr('title')).toBe('3f2c1a0e-1111-2222-3333-444455556666')
-    expect(leaf.attr('aria-current')).toBe('page')
-    expect($('[data-testid="event-breadcrumbs"]').attr('aria-label')).toBe(
-      'Breadcrumb'
-    )
+    expect(nav.is('nav')).toBe(true)
+    expect(nav.attr('aria-label')).toBe('Events list')
+    expect(back.closest('do-back')).toHaveLength(1)
+    expect($('[data-testid="event-breadcrumb-id"]')).toHaveLength(0)
   })
 
   test('puts the operator back on the list they left', async () => {
@@ -930,6 +926,12 @@ describe('viewEventRoute', () => {
     expect($('[data-testid="event-redrive-from"]').attr('value')).toBe('')
   })
 
+  test('carries the area name in the header, as every page does', async () => {
+    const { $ } = await viewPage()
+
+    expect($('[data-testid="do-brand-suffix"]').text().trim()).toBe('· Events')
+  })
+
   test('shows no banner on a page nothing redirected to', async () => {
     const { $ } = await viewPage()
 
@@ -952,6 +954,7 @@ describe('viewEventRoute', () => {
 
     expect(statusCode).toBe(statusCodes.ok)
     expect($('[data-testid="event-not-found"]').text()).toBe('Event not found')
+    expect($('[data-testid="do-brand-suffix"]').text().trim()).toBe('· Events')
     expect($('[data-testid="event-back"]').attr('href')).toBe('/dev-ops/events')
     expect($('[data-testid="event-payload-card"]')).toHaveLength(0)
   })
@@ -1008,7 +1011,14 @@ describe('viewEventRoute', () => {
 
     const { $ } = await viewPage()
 
-    expect($('[data-testid="event-breadcrumb-id"]').text()).toBe(id)
+    const line = $('[data-testid="event-id"]')
+
+    expect(line.text()).toBe(id)
+    expect(line.is('p')).toBe(true)
+    expect($('h1')).toHaveLength(1)
+    expect(valueOf($, 'event-title')).toBe('Event')
+    // A role="alert" should speak its sentence, not read out a uuid.
+    expect($('[data-testid="event-error"]').text()).not.toContain(id)
   })
 
   test.each([

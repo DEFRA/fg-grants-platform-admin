@@ -1,8 +1,4 @@
-const hasModifier = (event: MouseEvent): boolean =>
-  event.metaKey || event.ctrlKey || event.shiftKey || event.altKey
-
-const isPlainActivation = (event: MouseEvent): boolean =>
-  !event.defaultPrevented && event.button === 0 && !hasModifier(event)
+import { isPlainActivation } from '../plain-activation.ts'
 
 export class AuditSwitch extends HTMLElement {
   #enhanced = false

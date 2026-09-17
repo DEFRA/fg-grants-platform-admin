@@ -71,10 +71,8 @@
 
 {% block content %}
   {% call stickyTop() %}
-    <hgroup class="mb-2 flex flex-wrap items-baseline gap-x-2" data-testid="events-heading">
-      <h1 class="text-xl font-semibold" data-testid="events-title">{{ pageTitle }}</h1>
-      <p class="text-sm text-base-content/60" data-testid="events-subtitle">Inbox and outbox messages across GAS, CW-BE and connected services.</p>
-    </hgroup>
+    {# The header already names the page; the h1 stays for screen readers. #}
+    <h1 class="sr-only" data-testid="events-title">{{ pageTitle }}</h1>
 
     {% if unavailableSources %}
       <div role="alert" class="alert alert-warning alert-soft mb-3 text-sm" data-testid="events-partial">
@@ -196,9 +194,9 @@
                   <table class="table table-pin-rows [&_thead]:top-10" data-testid="events-failures-table">
                     <thead>
                       <tr>
+                        <th scope="col" class="w-16 text-right">Count</th>
                         <th scope="col">Error</th>
-                        <th scope="col">Type</th>
-                        <th scope="col" class="text-right">Count</th>
+                        <th scope="col">Event</th>
                         <th scope="col" class="text-right">First</th>
                         <th scope="col" class="text-right">Last</th>
                       </tr>
@@ -206,6 +204,7 @@
                     <tbody>
                       {% for group in topFailures.groups %}
                         <tr class="hover:bg-base-200" data-testid="events-failure-row">
+                          <td class="w-16 text-right font-mono font-medium tabular-nums" data-testid="events-failure-count">{{ group.countLabel }}</td>
                           <td class="max-w-96 truncate">
                             {%- if group.href -%}
                               <a class="link link-hover font-mono text-error" href="{{ group.href }}"{% if group.messageTitle %} title="{{ group.messageTitle }}"{% endif %} data-testid="events-failure-message">{{ group.message }}</a>
@@ -213,8 +212,7 @@
                               <span class="font-mono text-base-content/50" data-testid="events-failure-message">{{ group.message }}</span>
                             {%- endif -%}
                           </td>
-                          <td class="text-base-content/70" title="{{ group.type }}" data-testid="events-failure-type"><span aria-hidden="true">{{ group.eventName.name }}</span><span class="sr-only">{{ group.eventName.spoken }}</span></td>
-                          <td class="text-right font-mono font-medium tabular-nums" data-testid="events-failure-count">{{ group.countLabel }}</td>
+                          <td class="text-base-content/70" title="{{ group.type }}" data-testid="events-failure-event"><span aria-hidden="true">{{ group.eventName.name }}</span><span class="sr-only">{{ group.eventName.spoken }}</span></td>
                           <td class="text-right font-mono tabular-nums whitespace-nowrap text-base-content/70" title="{{ group.firstTitle }}" data-testid="events-failure-first">{{ group.firstAt }}</td>
                           <td class="text-right font-mono tabular-nums whitespace-nowrap text-base-content/70" title="{{ group.lastTitle }}" data-testid="events-failure-last">{{ group.lastAt }}</td>
                         </tr>
