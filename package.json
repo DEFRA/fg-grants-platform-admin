@@ -2,7 +2,9 @@
   "name": "fg-grants-platform-admin",
   "version": "0.0.0",
   "description": "CDP Frontend Template",
-  "sideEffects": false,
+  "sideEffects": [
+    "./src/dev-ops/client/focus-on-arrival.ts"
+  ],
   "main": "src/main.ts",
   "type": "module",
   "imports": {

@@ -40,8 +40,10 @@ describe('status-badge component', () => {
     expect($badge.attr('class')).toContain('inline-flex')
   })
 
-  test('dots the neutral role in the text colour, held well back', () => {
-    expect(dotClass({ status: 'PUBLISHED', role: 'neutral' })).toBe('status')
+  test('dots the neutral role in the text colour, which reads on either theme', () => {
+    expect(dotClass({ status: 'PUBLISHED', role: 'neutral' })).toBe(
+      'status bg-base-content/80'
+    )
   })
 
   test('dots the informational role', () => {
