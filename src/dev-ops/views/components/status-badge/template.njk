@@ -1,6 +1,10 @@
 {# Tailwind only sees class names written literally in this file. #}
+{# The neutral dot is drawn in the text colour: daisyUI leaves an uncoloured
+   `status` at base-content/20, which is barely there on the light theme, and
+   `status-neutral` is near-black in both themes, so it goes the same way on
+   the dark one. #}
 {% set dots = {
-  neutral: "status",
+  neutral: "status bg-base-content/80",
   info: "status status-info",
   warning: "status status-warning",
   success: "status status-success",
