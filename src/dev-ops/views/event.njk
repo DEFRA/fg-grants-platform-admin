@@ -1,6 +1,7 @@
 {% extends 'layouts/page.njk' %}
 
 {% from "back/macro.njk" import back %}
+{% from "char-count/macro.njk" import charCount %}
 {% from "icon/macro.njk" import icon %}
 {% from "status-badge/macro.njk" import statusBadge %}
 
@@ -12,6 +13,19 @@
 {# `select-all` so one click takes the whole id, and `break-all` so the hex
    wraps inside the column rather than widening a phone. #}
 {% set idLine = "font-mono text-sm break-all text-base-content/70 select-all" %}
+{# The success role is solid: `alert-soft` writes the message in the role's own
+   colour on a tint of that colour, and for success that is a pale green on a
+   pale green, under 3:1. #}
+{% set bannerAlerts = {
+  success: "alert-success",
+  warning: "alert-soft alert-warning",
+  error: "alert-soft alert-error"
+} %}
+{% set bannerIcons = {
+  success: "circle-check",
+  warning: "exclamation-triangle",
+  error: "exclamation-circle"
+} %}
 
 {#
   Every clock on this page is already the full UK wall clock, to the
@@ -35,8 +49,8 @@
   {{ back({ href: backHref }) }}
 
   {% if banner %}
-    <div role="alert" class="alert alert-soft {{ "alert-success" if banner.role == "success" else ("alert-warning" if banner.role == "warning" else "alert-error") }} mt-3 text-sm" data-testid="event-banner">
-      {{ icon({ name: 'exclamation-circle' if banner.role == 'error' else 'exclamation-triangle', class: 'size-4 shrink-0' }) }}
+    <div role="alert" class="alert {{ bannerAlerts[banner.role] }} mt-3 text-sm" data-testid="event-banner">
+      {{ icon({ name: bannerIcons[banner.role], class: 'size-4 shrink-0' }) }}
       <span>{{ banner.message }}</span>
     </div>
   {% endif %}
@@ -123,6 +137,21 @@
               {% endcall %}
             {% endif %}
           </dl>
+
+          {# A row of its own across both lists: a reason, a name and an instant
+             do not fit the half-width column the two lists are set in, and the
+             second list has nothing to put beside it. #}
+          {% if purgedFact %}
+            <dl class="grid grid-cols-1 content-start gap-x-6 gap-y-3 sm:grid-cols-[8rem_minmax(0,1fr)] lg:col-span-2" data-testid="event-facts-purged">
+              {% call fact(purgedFact.label, "event-fact-purged") %}
+                <div data-testid="event-purged">
+                  <span data-testid="event-purged-reason">{{ purgedFact.reason }}</span>
+                  <span class="text-base-content/70" data-testid="event-purged-by">· by {{ purgedFact.by }} on {{ timestamp(purgedFact.at, purgedFact.atInstant, monoValue ~ " tabular-nums", "event-purged-at") }}</span>
+                  {% if purgedFact.note %}<div class="italic text-base-content/70" data-testid="event-purged-note">"{{ purgedFact.note }}"</div>{% endif %}
+                </div>
+              {% endcall %}
+            </dl>
+          {% endif %}
         </div>
       </div>
     </section>
@@ -234,10 +263,18 @@
 
     <section id="payload" class="card card-border scroll-mt-4 bg-base-100" data-testid="event-payload-card">
       <div class="card-body gap-3 p-5">
-        <div class="{{ "flex min-h-10 flex-wrap items-center justify-between gap-2" if canRedrive else "flex flex-wrap items-center justify-between gap-2" }}">
+        <div class="{{ "flex min-h-10 flex-wrap items-center justify-between gap-2" if canRedrive or canPurge else "flex flex-wrap items-center justify-between gap-2" }}">
           <h2 class="card-title text-base" data-testid="event-payload-heading">Payload</h2>
-          {% if canRedrive and not confirmRedrive %}
-            <a id="redrive" class="btn btn-error scroll-mt-4" href="{{ redriveHref }}#payload" data-testid="event-redrive">Redrive</a>
+          {# Neither way in while one of them is being confirmed: the panel below is the question. #}
+          {% if not confirmRedrive and not purgeConfirm %}
+            <div class="flex flex-wrap items-center gap-2" data-testid="event-payload-actions">
+              {% if canPurge %}
+                <a id="purge" class="btn btn-outline scroll-mt-4" href="{{ purgeHref }}#payload" data-testid="event-purge">Purge</a>
+              {% endif %}
+              {% if canRedrive %}
+                <a id="redrive" class="btn btn-error scroll-mt-4" href="{{ redriveHref }}#payload" data-testid="event-redrive">Redrive</a>
+              {% endif %}
+            </div>
           {% endif %}
         </div>
 
@@ -257,7 +294,7 @@
               </div>
             {% endif %}
             <h3 id="redrive-question" class="text-sm font-semibold focus:outline-none" tabindex="-1" data-focus-on-arrival data-testid="event-redrive-heading">Redrive this event?</h3>
-            <p id="redrive-explain" class="text-sm" data-testid="event-redrive-question">The poller will retry it up to its attempt limit. This action is audited.</p>
+            <p id="redrive-explain" class="text-sm" data-testid="event-redrive-question">The poller will retry it up to its attempt limit. {% if redrivePurgedNote %}<span data-testid="event-redrive-purged">{{ redrivePurgedNote }}</span> {% endif %}This action is audited.</p>
             <div class="flex items-center gap-2">
               <form method="post" action="{{ redriveAction }}" data-testid="event-redrive-form">
                 <input type="hidden" name="from" value="{{ from }}" data-testid="event-redrive-from">
@@ -265,6 +302,66 @@
               </form>
               <a class="btn btn-ghost" href="{{ cancelHref }}#redrive" data-testid="event-redrive-cancel">Cancel</a>
             </div>
+          </section>
+        {% endif %}
+
+        {% if purgeConfirm %}
+          {# The alert takes focus where there is one: only ever one `data-focus-on-arrival` on the page. #}
+          <section class="flex flex-col gap-3 rounded-box border border-base-300 p-4" aria-labelledby="purge-question" aria-describedby="purge-explain" data-testid="event-purge-confirm">
+            <h3 id="purge-question" class="text-sm font-semibold focus:outline-none" tabindex="-1"{% if not purgeConfirm.error %} data-focus-on-arrival{% endif %} data-testid="event-purge-heading">Purge this event?</h3>
+            <p id="purge-explain" class="text-sm" data-testid="event-purge-question">It won't be processed or retried, and it leaves the dead-letter list. It will be deleted on {{ timestamp(purgeConfirm.deletionText, purgeConfirm.deletionInstant, "font-medium tabular-nums", "event-purge-deletion-date") }}. You can redrive it until then. This action is audited.</p>
+
+            <form class="flex flex-col gap-3" method="post" action="{{ purgeAction }}" data-testid="event-purge-form">
+              <input type="hidden" name="from" value="{{ from }}" data-testid="event-purge-from">
+
+              {% if purgeConfirm.error %}
+                {# daisyUI has no error summary; with one possible error this is one alert and one link. #}
+                <div role="alert" class="alert alert-error alert-soft text-sm focus:outline-none" tabindex="-1" data-focus-on-arrival data-testid="event-purge-error">
+                  {{ icon({ name: 'exclamation-circle', class: 'size-4 shrink-0' }) }}
+                  <span><span class="font-semibold">Couldn't purge.</span> <a class="link" href="{{ purgeConfirm.error.href }}" data-testid="event-purge-error-link">{{ purgeConfirm.error.message }}</a></span>
+                </div>
+              {% endif %}
+
+              <fieldset class="fieldset gap-1 py-0"{% if purgeConfirm.reasonMessage %} aria-describedby="{{ purgeConfirm.reasonDescribedBy }}"{% endif %} data-testid="event-purge-reasons">
+                <legend class="fieldset-legend text-sm" data-testid="event-purge-reasons-legend">Reason</legend>
+                {% if purgeConfirm.reasonMessage %}
+                  <p class="text-sm text-error" id="{{ purgeConfirm.reasonDescribedBy }}" data-testid="event-purge-reasons-message">{{ purgeConfirm.reasonMessage }}</p>
+                {% endif %}
+                {% for reason in purgeConfirm.reasons %}
+                  <label class="label cursor-pointer justify-start gap-2 text-sm text-base-content" data-testid="event-purge-reason">
+                    <input class="radio radio-sm" type="radio" id="{{ reason.id }}" name="reasonCode" value="{{ reason.value }}"{% if reason.checked %} checked{% endif %} data-testid="event-purge-reason-input">
+                    <span data-testid="event-purge-reason-label">{{ reason.label }}</span>
+                  </label>
+                {% endfor %}
+              </fieldset>
+
+              {# One control, so a real `label`: the textarea is named "Note" rather than its placeholder, and the badge stays outside the name. #}
+              <div class="fieldset gap-1 py-0" data-testid="event-purge-note">
+                <div class="flex items-center gap-2" data-testid="event-purge-note-legend">
+                  <label class="fieldset-legend me-0 text-sm" for="purge-note" data-testid="event-purge-note-label">Note</label>
+                  <span class="badge badge-ghost badge-sm" data-testid="event-purge-note-badge">Required for Other</span>
+                </div>
+                {{ charCount({
+                  id: "purge-note",
+                  name: "note",
+                  value: purgeConfirm.note,
+                  count: purgeConfirm.noteCount,
+                  max: purgeConfirm.noteMax,
+                  message: purgeConfirm.noteMessage,
+                  messageId: "purge-note-hint",
+                  helpId: "purge-note-help",
+                  describedBy: purgeConfirm.noteDescribedBy,
+                  hint: "Don't include personal data.",
+                  placeholder: "Why will this event never be processed?",
+                  testId: "event-purge-note-field"
+                }) }}
+              </div>
+
+              <div class="flex items-center gap-2">
+                <button class="btn btn-neutral" type="submit" data-testid="event-purge-submit">Confirm purge</button>
+                <a class="btn btn-ghost" href="{{ cancelHref }}#purge" data-testid="event-purge-cancel">Cancel</a>
+              </div>
+            </form>
           </section>
         {% endif %}
 

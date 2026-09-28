@@ -13,6 +13,7 @@ import type {
 import {
   findEvent,
   findEventsPage,
+  purgeEvent,
   redriveEvent,
   toEventKeyPath
 } from './events.repository.ts'
@@ -347,6 +348,59 @@ describe('redriveEvent', () => {
     expect(postToGas).toHaveBeenCalledWith(
       '/grant-admin/events/a%2Fb/c%20d/e%3Ff/redrive',
       { actor: undefined }
+    )
+  })
+})
+
+describe('purgeEvent', () => {
+  beforeEach(() => {
+    vi.mocked(postToGas).mockResolvedValue(Buffer.alloc(0))
+  })
+
+  test('posts the reason and the note to fg-gas-backend, naming the operator', async () => {
+    await purgeEvent(
+      key,
+      { reasonCode: 'BROKEN_PAYLOAD', note: 'sheetId is a number' },
+      'Ada Lovelace'
+    )
+
+    expect(postToGas).toHaveBeenCalledTimes(1)
+    expect(postToGas).toHaveBeenCalledWith(
+      '/grant-admin/events/gas/outbox/665f1c2e9a1b2c3d4e5f6a7b/purge',
+      {
+        payload: {
+          reasonCode: 'BROKEN_PAYLOAD',
+          note: 'sheetId is a number'
+        },
+        actor: 'Ada Lovelace'
+      }
+    )
+  })
+
+  test('leaves an empty note out of the body altogether', async () => {
+    await purgeEvent(key, { reasonCode: 'SENT_IN_ERROR', note: '' })
+
+    expect(postToGas).toHaveBeenCalledWith(expect.any(String), {
+      payload: { reasonCode: 'SENT_IN_ERROR' },
+      actor: undefined
+    })
+  })
+
+  test('resolves with nothing, reading nothing out of the answer', async () => {
+    await expect(
+      purgeEvent(key, { reasonCode: 'OTHER', note: 'why' })
+    ).resolves.toBeUndefined()
+  })
+
+  test('escapes every segment of the path', async () => {
+    await purgeEvent(
+      { service: 'a/b', box: 'c d', id: 'e?f' } as unknown as EventKey,
+      { reasonCode: 'OTHER', note: 'why' }
+    )
+
+    expect(postToGas).toHaveBeenCalledWith(
+      '/grant-admin/events/a%2Fb/c%20d/e%3Ff/purge',
+      expect.any(Object)
     )
   })
 })

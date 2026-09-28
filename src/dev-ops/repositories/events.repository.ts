@@ -134,13 +134,22 @@ export interface EventDetail extends EventWithAttempts {
   completionDate: string | null
   /** Only a row the database is scheduled to delete has one. */
   expiresAt?: string | null
+  /** Sent only on a dead letter the owning service is willing to purge, so its presence gates the Purge button. */
+  purgeDeletionDate?: string | null
   lastResubmissionDate: string | null
   lastRedrive: EventLastRedrive | null
+  /** The one purge this row remembers, kept through a later redrive. */
+  lastPurge?: EventLastPurge | null
 }
 
 export interface EventLastRedrive {
   at: string | null
   by: string
+}
+
+export interface EventLastPurge extends EventLastRedrive {
+  reasonCode: string
+  note: string | null
 }
 
 export interface EventKey {
@@ -164,6 +173,24 @@ export const redriveEvent = async (
   actor?: string
 ): Promise<void> => {
   await postToGas(`${toPath(key)}/redrive`, { actor })
+}
+
+export interface PurgeReason {
+  reasonCode: string
+  /** Empty where none was typed, which is only allowed for a coded reason. */
+  note: string
+}
+
+/** An empty note is left out rather than sent as `""`: the backends type it as optional, and a blank note is no note. */
+export const purgeEvent = async (
+  key: EventKey,
+  { reasonCode, note }: PurgeReason,
+  actor?: string
+): Promise<void> => {
+  await postToGas(`${toPath(key)}/purge`, {
+    payload: { reasonCode, ...(note === '' ? {} : { note }) },
+    actor
+  })
 }
 
 export interface EventBreakdownGroup {

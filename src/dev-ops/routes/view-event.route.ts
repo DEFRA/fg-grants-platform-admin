@@ -6,6 +6,7 @@ import { getEventUseCase } from '../use-cases/get-event.use-case.ts'
 import { eventAddress } from '../view-models/event-address.ts'
 import type { EventPageQuery } from '../view-models/event-page.view-model.ts'
 import {
+  purgeFormKey,
   redriveNoticeKey,
   toEventPage,
   toSafeFrom
@@ -31,9 +32,10 @@ export const viewEventRoute: ServerRoute = {
   async handler(request: Request, h: ResponseToolkit) {
     const key = request.params as unknown as EventKey
     const query = request.query as unknown as EventPageQuery
-    // Read and cleared before the event is, so a redrive's message is spent on
-    // this render whatever the read then says.
+    // Read and cleared before the event is, so a write's message and a
+    // rejected form are spent on this render whatever the read then says.
     const [notice] = request.yar.flash(redriveNoticeKey)
+    const [form] = request.yar.flash(purgeFormKey)
     const result = await getEventUseCase(key)
 
     if (result.outcome === 'not-found') {
@@ -45,7 +47,7 @@ export const viewEventRoute: ServerRoute = {
 
     return h.view('event', {
       pageTitle: 'Event',
-      ...toEventPage(result, key, query, notice)
+      ...toEventPage(result, key, query, notice, form)
     })
   }
 }

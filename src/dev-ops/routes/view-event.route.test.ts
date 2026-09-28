@@ -98,6 +98,11 @@ const viewPage = async (url = path) => {
 const valueOf = ($: CheerioAPI, testId: string) =>
   flatten($(`[data-testid="${testId}"]`).text())
 
+const labelsOf = ($: CheerioAPI) =>
+  $('[data-testid="event-facts"] dt')
+    .toArray()
+    .map((label) => flatten($(label).text()))
+
 let server: Server
 
 const now = new Date('2026-06-16T10:20:00.000Z')
@@ -119,25 +124,25 @@ const identicalAttempts = [
 
 const lastRedrive = { at: '2026-06-16T10:10:00.000Z', by: 'Ada Lovelace' }
 
+beforeAll(async () => {
+  vi.useFakeTimers({ toFake: ['Date'] })
+  vi.setSystemTime(now)
+
+  server = await createServer()
+  await server.register([devOps])
+  await server.initialize()
+})
+
+beforeEach(() => {
+  givenEvent()
+})
+
+afterAll(async () => {
+  vi.useRealTimers()
+  await server.stop()
+})
+
 describe('viewEventRoute', () => {
-  beforeAll(async () => {
-    vi.useFakeTimers({ toFake: ['Date'] })
-    vi.setSystemTime(now)
-
-    server = await createServer()
-    await server.register([devOps])
-    await server.initialize()
-  })
-
-  beforeEach(() => {
-    givenEvent()
-  })
-
-  afterAll(async () => {
-    vi.useRealTimers()
-    await server.stop()
-  })
-
   test('redirects an anonymous user to login', async () => {
     const { statusCode, headers } = await server.inject({
       method: 'GET',
@@ -455,11 +460,6 @@ describe('viewEventRoute', () => {
     expect($('a[data-testid="event-trace-id"]')).toHaveLength(0)
     expect($('[data-testid="event-trace-id-none"]').text()).toBe('—')
   })
-
-  const labelsOf = ($: CheerioAPI) =>
-    $('[data-testid="event-facts"] dt')
-      .toArray()
-      .map((label) => flatten($(label).text()))
 
   test('draws the inbox facts, common ones first', async () => {
     givenEvent(inboxDetail())
@@ -2233,5 +2233,404 @@ describe('viewEventRoute', () => {
     const { $ } = await viewPage()
 
     expect($('[data-testid="event-error-search"]')).toHaveLength(0)
+  })
+})
+
+const purgeDeletionDate = '2026-09-14T09:00:00.000Z'
+
+const purgeable = (overrides: Partial<EventDetail> = {}) =>
+  detail({ purgeDeletionDate, ...overrides })
+
+const lastPurge = {
+  at: '2026-06-16T10:18:00.000Z',
+  by: 'Ada Lovelace',
+  reasonCode: 'BROKEN_PAYLOAD',
+  note: 'sheetId arrives as a number'
+}
+
+const purgedDetail = (overrides: Partial<EventDetail> = {}) =>
+  detail({
+    status: 'PURGED',
+    statusLabel: 'Purged',
+    statusRole: 'neutral',
+    lastPurge,
+    expiresAt: purgeDeletionDate,
+    ...overrides
+  })
+
+const confirmPath = `${path}?confirm=purge`
+
+describe('the purge button', () => {
+  beforeEach(() => {
+    givenEvent(purgeable())
+  })
+
+  test('offers a purge left of the redrive on the payload card', async () => {
+    const { $ } = await viewPage()
+
+    const button = $('[data-testid="event-purge"]')
+
+    expect(button.is('a')).toBe(true)
+    expect(button.attr('href')).toBe(`${path}?confirm=purge#payload`)
+    expect(button.hasClass('btn-outline')).toBe(true)
+    expect(button.hasClass('btn-error')).toBe(false)
+    expect(button.text().trim()).toBe('Purge')
+    expect(button.closest('[data-testid="event-payload-card"]')).toHaveLength(1)
+    expect(button.next().attr('data-testid')).toBe('event-redrive')
+  })
+
+  test('offers none on a dead letter the owning service sent no deletion date for', async () => {
+    givenEvent(detail())
+
+    const { $ } = await viewPage()
+
+    expect($('[data-testid="event-purge"]')).toHaveLength(0)
+    expect($('[data-testid="event-redrive"]')).toHaveLength(1)
+  })
+
+  test.each(['PUBLISHED', 'PROCESSING', 'FAILED', 'RESUBMITTED', 'COMPLETED'])(
+    'offers no purge on a %s event, however it is dated',
+    async (status) => {
+      givenEvent(purgeable({ status }))
+
+      const { $ } = await viewPage()
+
+      expect($('[data-testid="event-purge"]')).toHaveLength(0)
+      expect($('[data-testid="event-purge-confirm"]')).toHaveLength(0)
+    }
+  )
+
+  test('ignores a confirmation asked for on an event that cannot be purged', async () => {
+    givenEvent(detail())
+
+    const { $ } = await viewPage(confirmPath)
+
+    expect($('[data-testid="event-purge-confirm"]')).toHaveLength(0)
+    expect($('[data-testid="event-purge-form"]')).toHaveLength(0)
+  })
+
+  test('takes both buttons away while the purge is being confirmed', async () => {
+    const { $ } = await viewPage(confirmPath)
+
+    expect($('[data-testid="event-purge"]')).toHaveLength(0)
+    expect($('[data-testid="event-redrive"]')).toHaveLength(0)
+  })
+
+  test('takes both buttons away while the redrive is being confirmed', async () => {
+    const { $ } = await viewPage(`${path}?confirm=redrive`)
+
+    expect($('[data-testid="event-purge"]')).toHaveLength(0)
+    expect($('[data-testid="event-redrive"]')).toHaveLength(0)
+  })
+})
+
+describe('the purge confirmation', () => {
+  beforeEach(() => {
+    givenEvent(purgeable())
+  })
+
+  test('asks before it writes, and says what the write does', async () => {
+    const { $ } = await viewPage(confirmPath)
+
+    expect(valueOf($, 'event-purge-heading')).toBe('Purge this event?')
+    expect(valueOf($, 'event-purge-question')).toBe(
+      "It won't be processed or retried, and it leaves the dead-letter list. " +
+        'It will be deleted on 14 Sep 2026 10:00:00.000. You can redrive it until then. ' +
+        'This action is audited.'
+    )
+    expect(valueOf($, 'event-purge-submit')).toBe('Confirm purge')
+    expect(valueOf($, 'event-purge-cancel')).toBe('Cancel')
+  })
+
+  test('says the action is audited, and warns of no audit row', async () => {
+    const { $ } = await viewPage(confirmPath)
+
+    const panel = flatten($('[data-testid="event-purge-confirm"]').text())
+
+    expect(panel).toContain('This action is audited.')
+    expect(panel).not.toContain('FCP Audit')
+  })
+
+  test('carries the deletion instant for machines beside the words', async () => {
+    const { $ } = await viewPage(confirmPath)
+
+    expect(
+      $('[data-testid="event-purge-deletion-date"]').attr('datetime')
+    ).toBe('2026-09-14T09:00:00Z')
+  })
+
+  test('points focus at the question, and describes the panel by its sentence', async () => {
+    const { $ } = await viewPage(confirmPath)
+
+    const heading = $('[data-testid="event-purge-heading"]')
+    const panel = $('[data-testid="event-purge-confirm"]')
+
+    expect(heading.attr('tabindex')).toBe('-1')
+    expect(heading.attr('data-focus-on-arrival')).toBeDefined()
+    expect(heading.attr('id')).toBe('purge-question')
+    expect(panel.attr('aria-labelledby')).toBe('purge-question')
+    expect(panel.attr('aria-describedby')).toBe('purge-explain')
+    expect($('[data-focus-on-arrival]')).toHaveLength(1)
+  })
+
+  test('offers the three reasons as radios in a named fieldset', async () => {
+    const { $ } = await viewPage(confirmPath)
+
+    const fieldset = $('[data-testid="event-purge-reasons"]')
+
+    expect(fieldset.is('fieldset')).toBe(true)
+    expect(valueOf($, 'event-purge-reasons-legend')).toBe('Reason')
+    expect(
+      $('[data-testid="event-purge-reason-input"]')
+        .toArray()
+        .map((input) => $(input).attr('value'))
+    ).toEqual(['BROKEN_PAYLOAD', 'SENT_IN_ERROR', 'OTHER'])
+    expect(
+      $('[data-testid="event-purge-reason-label"]')
+        .toArray()
+        .map((label) => $(label).text())
+    ).toEqual(['Payload is broken', 'Sent in error', 'Other'])
+    expect(
+      $('[data-testid="event-purge-reason-input"]')
+        .toArray()
+        .map((input) => $(input).attr('name'))
+    ).toEqual(['reasonCode', 'reasonCode', 'reasonCode'])
+    expect($('[data-testid="event-purge-reason-input"][checked]')).toHaveLength(
+      0
+    )
+  })
+
+  test('wraps each radio in its own label, so the words are the target', async () => {
+    const { $ } = await viewPage(confirmPath)
+
+    const first = $('[data-testid="event-purge-reason"]').first()
+
+    expect(first.is('label')).toBe(true)
+    expect(first.find('input').attr('id')).toBe('purge-reason-BROKEN_PAYLOAD')
+  })
+
+  test('offers a note, badged as required for Other, warned about and counted', async () => {
+    const { $ } = await viewPage(confirmPath)
+
+    expect(valueOf($, 'event-purge-note-legend')).toBe(
+      'Note Required for Other'
+    )
+    expect(valueOf($, 'event-purge-note-badge')).toBe('Required for Other')
+    expect(valueOf($, 'event-purge-note-field-hint')).toBe(
+      "Don't include personal data."
+    )
+    expect(valueOf($, 'event-purge-note-field-count')).toBe('0 / 500')
+    expect($('[data-testid="event-purge-note-field"]').attr('name')).toBe(
+      'note'
+    )
+    expect($('#purge-note').is('textarea')).toBe(true)
+  })
+
+  test('names the note textarea Note, not its placeholder', async () => {
+    const { $ } = await viewPage(confirmPath)
+
+    const label = $('label[for="purge-note"]')
+    const note = $('#purge-note')
+
+    expect(label).toHaveLength(1)
+    expect(label.text()).toBe('Note')
+    expect(note.attr('aria-label')).toBeUndefined()
+    expect(note.attr('aria-labelledby')).toBeUndefined()
+    expect(note.attr('placeholder')).toBe(
+      'Why will this event never be processed?'
+    )
+    expect($('[data-testid="event-purge-note"]').is('fieldset')).toBe(false)
+    expect(label.find('[data-testid="event-purge-note-badge"]')).toHaveLength(0)
+  })
+
+  // A note the box would not let them type cannot be told it is too long.
+  test('sets no maxlength on the note', async () => {
+    const { $ } = await viewPage(confirmPath)
+
+    expect($('#purge-note').attr('maxlength')).toBeUndefined()
+  })
+
+  test('describes the note by the help line alone while nothing is wrong', async () => {
+    const { $ } = await viewPage(confirmPath)
+
+    expect($('#purge-note').attr('aria-describedby')).toBe('purge-note-help')
+    expect($('#purge-note').attr('aria-invalid')).toBeUndefined()
+    expect($('[data-testid="event-purge-error"]')).toHaveLength(0)
+  })
+
+  test('posts the confirmation at the purge route', async () => {
+    const { $ } = await viewPage(confirmPath)
+
+    const form = $('[data-testid="event-purge-form"]')
+
+    expect(form.attr('method')).toBe('post')
+    expect(form.attr('action')).toBe(`${path}/purge`)
+    expect($('[data-testid="event-purge-submit"]').attr('type')).toBe('submit')
+    expect(
+      $('[data-testid="event-purge-submit"]').hasClass('btn-neutral')
+    ).toBe(true)
+    expect($('[data-testid="event-purge-cancel"]').hasClass('btn-ghost')).toBe(
+      true
+    )
+  })
+
+  test('carries the list query through the confirmation', async () => {
+    const { $ } = await viewPage(
+      `${path}?from=${encodeURIComponent('?status=DEAD_LETTER')}&confirm=purge`
+    )
+
+    const hidden = $('[data-testid="event-purge-from"]')
+
+    expect(hidden.attr('name')).toBe('from')
+    expect(hidden.attr('value')).toBe('?status=DEAD_LETTER')
+    expect($('[data-testid="event-purge-cancel"]').attr('href')).toBe(
+      `${path}?from=%3Fstatus%3DDEAD_LETTER#purge`
+    )
+  })
+
+  test('cancels back to the page without the confirmation on it', async () => {
+    const { $ } = await viewPage(confirmPath)
+
+    expect($('[data-testid="event-purge-cancel"]').attr('href')).toBe(
+      `${path}#purge`
+    )
+  })
+
+  test('carries a hostile from no further than the form', async () => {
+    const { $ } = await viewPage(
+      `${path}?from=${encodeURIComponent('//example.com')}&confirm=purge`
+    )
+
+    expect($('[data-testid="event-purge-from"]').attr('value')).toBe('')
+  })
+
+  test('writes no UTC label on the confirm panel', async () => {
+    const { $ } = await viewPage(confirmPath)
+
+    expect($('main').html()).not.toContain('UTC')
+  })
+})
+
+describe('a purged event', () => {
+  beforeEach(() => {
+    givenEvent(purgedDetail())
+  })
+
+  test('says the deletion date, then who purged it and why', async () => {
+    const { $ } = await viewPage()
+
+    expect(labelsOf($)).toEqual([
+      'Service',
+      'Queue',
+      'Trace ID',
+      'Deletion date',
+      'Segregation ref',
+      'Topic',
+      'Purged'
+    ])
+    expect(valueOf($, 'event-purged-reason')).toBe('Payload is broken')
+    expect(valueOf($, 'event-purged-by')).toBe(
+      '· by Ada Lovelace on 16 Jun 2026 11:18:00.000'
+    )
+    expect($('[data-testid="event-purged-at"]').attr('datetime')).toBe(
+      '2026-06-16T10:18:00Z'
+    )
+    expect(valueOf($, 'event-purged-note')).toBe(
+      '"sheetId arrives as a number"'
+    )
+  })
+
+  test('sets the purge across both lists, since neither column fits it', async () => {
+    const { $ } = await viewPage()
+
+    const list = $('[data-testid="event-facts-purged"]')
+
+    expect(list.is('dl')).toBe(true)
+    expect(list.attr('class')).toContain('lg:col-span-2')
+    expect(list.attr('class')).toContain('sm:grid-cols-[8rem_minmax(0,1fr)]')
+    expect(list.parent().attr('data-testid')).toBe('event-facts')
+  })
+
+  test('sets the purge time in the type the other times on the card are in', async () => {
+    const { $ } = await viewPage()
+
+    expect($('[data-testid="event-purged-at"]').attr('class')).toBe(
+      $('[data-testid="event-deletion-date"]').attr('class')
+    )
+  })
+
+  test('leaves the note line out where none was recorded', async () => {
+    givenEvent(purgedDetail({ lastPurge: { ...lastPurge, note: null } }))
+
+    const { $ } = await viewPage()
+
+    expect($('[data-testid="event-purged-note"]')).toHaveLength(0)
+    expect($('[data-testid="event-purged-reason"]')).toHaveLength(1)
+  })
+
+  test('keeps the redrive and takes the purge away', async () => {
+    const { $ } = await viewPage()
+
+    expect($('[data-testid="event-redrive"]')).toHaveLength(1)
+    expect($('[data-testid="event-purge"]')).toHaveLength(0)
+  })
+
+  test('says what the redrive would reverse, and that the date goes with it', async () => {
+    const { $ } = await viewPage(`${path}?confirm=redrive`)
+
+    expect(valueOf($, 'event-redrive-question')).toBe(
+      'The poller will retry it up to its attempt limit. ' +
+        "It was purged as 'Payload is broken'; if the payload is broken, it will fail again. " +
+        'Its deletion date is cleared. This action is audited.'
+    )
+  })
+
+  test('says previously purged once the event has been redriven out of it', async () => {
+    givenEvent(
+      detail({
+        status: 'RESUBMITTED',
+        statusLabel: 'Resubmitted',
+        statusRole: 'info',
+        lastPurge,
+        expiresAt: null
+      })
+    )
+
+    const { $ } = await viewPage()
+
+    expect(labelsOf($)).toContain('Previously purged')
+    expect(labelsOf($)).not.toContain('Purged')
+    expect(labelsOf($)).not.toContain('Deletion date')
+  })
+
+  test('leaves the redrive confirm alone on an event that is no longer purged', async () => {
+    givenEvent(
+      detail({
+        lastPurge,
+        expiresAt: null
+      })
+    )
+
+    const { $ } = await viewPage(`${path}?confirm=redrive`)
+
+    expect(valueOf($, 'event-redrive-question')).toBe(
+      'The poller will retry it up to its attempt limit. This action is audited.'
+    )
+  })
+
+  test('writes no UTC label anywhere on the page', async () => {
+    const { $ } = await viewPage()
+
+    expect($('main').html()).not.toContain('UTC')
+  })
+
+  test('renders a purge note carrying markup as text', async () => {
+    givenEvent(purgedDetail({ lastPurge: { ...lastPurge, note: xss } }))
+
+    const { $ } = await viewPage()
+
+    expect($('main script')).toHaveLength(0)
+    expect($('script')).toHaveLength(1)
+    expect(valueOf($, 'event-purged-note')).toContain(xss)
   })
 })
