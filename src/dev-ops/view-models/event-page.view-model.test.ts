@@ -335,13 +335,13 @@ describe('toEventPage', () => {
 
     expect(banner?.role).toBe('warning')
     expect(banner?.message).toBe(
-      'Not redriven — this event is no longer dead-lettered. Its status is now Completed.'
+      "Not redriven — this event can't be redriven. Its status is now Completed."
     )
   })
 
   test('ends the sentence on a conflict whose body carried no status', () => {
     expect(noticed({ outcome: 'conflict', status: null }).banner?.message).toBe(
-      'Not redriven — this event is no longer dead-lettered.'
+      "Not redriven — this event can't be redriven."
     )
   })
 
@@ -1536,5 +1536,383 @@ describe('the last resubmission', () => {
         )
       ).resubmittedSinceLastAttempt
     ).toBe(true)
+  })
+})
+
+const purgeDeletionDate = '2026-09-14T09:00:00.000Z'
+
+const purgeable = (overrides: Partial<EventDetail> = {}) =>
+  detail({ purgeDeletionDate, ...overrides })
+
+const lastPurge = {
+  at: '2026-06-16T10:18:00.000Z',
+  by: 'Ada Lovelace',
+  reasonCode: 'BROKEN_PAYLOAD',
+  note: 'sheetId arrives as a number'
+}
+
+const purgedState = {
+  status: 'PURGED',
+  statusLabel: 'Purged',
+  statusRole: 'neutral' as const,
+  statusRetrying: false
+}
+
+const confirming = (
+  event: EventDetail = purgeable(),
+  form?: Parameters<typeof toEventPage>[4]
+) => toEventPage(found(event), key, { confirm: 'purge' }, undefined, form)
+
+const submitted = (
+  reasonCode: string,
+  note: string,
+  error: NonNullable<Parameters<typeof toEventPage>[4]>['error']
+) =>
+  confirming(purgeable(), {
+    page: `/dev-ops/events/gas/outbox/${id}`,
+    reasonCode,
+    note,
+    error
+  })
+
+describe('the purge button', () => {
+  test('offers a purge on a dead letter the owning service will purge', () => {
+    expect(model(found(purgeable())).canPurge).toBe(true)
+  })
+
+  test('offers none on a dead letter that carries no projected deletion date', () => {
+    expect(model().canPurge).toBe(false)
+    expect(model(found(detail({ purgeDeletionDate: null }))).canPurge).toBe(
+      false
+    )
+  })
+
+  test.each(['PUBLISHED', 'PROCESSING', 'FAILED', 'RESUBMITTED', 'COMPLETED'])(
+    'offers none on a %s event, however it is dated',
+    (status) => {
+      expect(model(found(purgeable(stateOf(status)))).canPurge).toBe(false)
+    }
+  )
+
+  test('offers none on an event that is already purged', () => {
+    expect(
+      model(found(purgeable({ ...purgedState, lastPurge }))).canPurge
+    ).toBe(false)
+  })
+
+  test('points the confirmation and the write at this same event', () => {
+    const page = model(found(purgeable()), { from: '?status=DEAD_LETTER' })
+
+    expect(page.purgeHref).toBe(
+      `/dev-ops/events/gas/outbox/${id}?from=%3Fstatus%3DDEAD_LETTER&confirm=purge`
+    )
+    expect(page.purgeAction).toBe(`/dev-ops/events/gas/outbox/${id}/purge`)
+  })
+})
+
+describe('the purge confirmation', () => {
+  test('opens only when it is asked for and allowed', () => {
+    expect(confirming().purgeConfirm).not.toBeNull()
+    expect(model(found(purgeable())).purgeConfirm).toBeNull()
+    expect(confirming(detail()).purgeConfirm).toBeNull()
+  })
+
+  test('says the date the row would be deleted, in UK time', () => {
+    expect(confirming().purgeConfirm?.deletionText).toBe(
+      '14 Sep 2026 10:00:00.000'
+    )
+    expect(confirming().purgeConfirm?.deletionInstant).toBe(
+      '2026-09-14T09:00:00Z'
+    )
+  })
+
+  test('offers the three reasons, none of them chosen', () => {
+    expect(confirming().purgeConfirm?.reasons).toEqual([
+      {
+        value: 'BROKEN_PAYLOAD',
+        label: 'Payload is broken',
+        id: 'purge-reason-BROKEN_PAYLOAD',
+        checked: false
+      },
+      {
+        value: 'SENT_IN_ERROR',
+        label: 'Sent in error',
+        id: 'purge-reason-SENT_IN_ERROR',
+        checked: false
+      },
+      {
+        value: 'OTHER',
+        label: 'Other',
+        id: 'purge-reason-OTHER',
+        checked: false
+      }
+    ])
+  })
+
+  test('starts with an empty note and a counter at nothing', () => {
+    expect(confirming().purgeConfirm).toMatchObject({
+      note: '',
+      noteCount: '0 / 500',
+      noteMax: 500,
+      noteMessage: null,
+      noteInvalid: false,
+      error: null
+    })
+  })
+
+  test('keeps the reason and the note a rejected form came back with', () => {
+    const confirm = submitted('OTHER', 'a note', {
+      field: 'note',
+      message: 'Enter a note.'
+    }).purgeConfirm
+
+    expect(
+      confirm?.reasons
+        .filter(({ checked }) => checked)
+        .map(({ value }) => value)
+    ).toEqual(['OTHER'])
+    expect(confirm?.note).toBe('a note')
+    expect(confirm?.noteCount).toBe('6 / 500')
+  })
+
+  test('sends the alert at the note the server refused', () => {
+    const confirm = submitted('OTHER', '', {
+      field: 'note',
+      message: "Enter a note. It's required when the reason is Other."
+    }).purgeConfirm
+
+    expect(confirm?.error).toEqual({
+      message: "Enter a note. It's required when the reason is Other.",
+      href: '#purge-note'
+    })
+    expect(confirm?.noteInvalid).toBe(true)
+    expect(confirm?.noteMessage).toBe(
+      "Enter a note. It's required when the reason is Other."
+    )
+  })
+
+  test('describes the note by the hint only while the hint is shown', () => {
+    expect(confirming().purgeConfirm?.noteDescribedBy).toBe('purge-note-help')
+    expect(
+      submitted('OTHER', '', { field: 'note', message: 'Enter a note.' })
+        .purgeConfirm?.noteDescribedBy
+    ).toBe('purge-note-hint purge-note-help')
+  })
+
+  test('sends the alert at the first radio when no reason was chosen', () => {
+    const confirm = submitted('', '', {
+      field: 'reason',
+      message: 'Choose a reason.'
+    }).purgeConfirm
+
+    expect(confirm?.error).toEqual({
+      message: 'Choose a reason.',
+      href: '#purge-reason-BROKEN_PAYLOAD'
+    })
+    expect(confirm?.noteInvalid).toBe(false)
+    expect(confirm?.noteMessage).toBeNull()
+  })
+
+  test('says beside the radios what is wrong with the reason', () => {
+    const confirm = submitted('', '', {
+      field: 'reason',
+      message: 'Choose a reason.'
+    }).purgeConfirm
+
+    expect(confirm?.reasonMessage).toBe('Choose a reason.')
+    expect(confirm?.reasonDescribedBy).toBe('purge-reason-hint')
+  })
+
+  test('says nothing beside the radios when the reason was fine', () => {
+    expect(confirming().purgeConfirm?.reasonMessage).toBeNull()
+    expect(
+      submitted('OTHER', '', { field: 'note', message: 'Enter a note.' })
+        .purgeConfirm?.reasonMessage
+    ).toBeNull()
+  })
+
+  test('ignores a rejected form left over from another event', () => {
+    const confirm = confirming(purgeable(), {
+      page: '/dev-ops/events/gas/outbox/665f1c2e9a1b2c3d4e5f6a7c',
+      reasonCode: 'OTHER',
+      note: 'not this one',
+      error: { field: 'note', message: 'Enter a note.' }
+    }).purgeConfirm
+
+    expect(confirm?.note).toBe('')
+    expect(confirm?.error).toBeNull()
+  })
+})
+
+describe('the purged facts', () => {
+  test('says who purged the event, why and when, with the note', () => {
+    expect(
+      model(found(detail({ ...purgedState, lastPurge }))).purgedFact
+    ).toEqual({
+      label: 'Purged',
+      reason: 'Payload is broken',
+      by: 'Ada Lovelace',
+      at: '16 Jun 2026 11:18:00.000',
+      atInstant: '2026-06-16T10:18:00Z',
+      note: 'sheetId arrives as a number'
+    })
+  })
+
+  test('says previously purged once the event has been redriven out of it', () => {
+    expect(
+      model(found(detail({ ...stateOf('RESUBMITTED'), lastPurge }))).purgedFact
+        ?.label
+    ).toBe('Previously purged')
+  })
+
+  test('says nothing on an event that was never purged', () => {
+    expect(model().purgedFact).toBeNull()
+    expect(model(found(detail({ lastPurge: null }))).purgedFact).toBeNull()
+  })
+
+  test.each([
+    ['none was typed', null],
+    ['it is empty', '']
+  ])('leaves the note out when %s', (_name, note) => {
+    expect(
+      model(
+        found(detail({ ...purgedState, lastPurge: { ...lastPurge, note } }))
+      ).purgedFact?.note
+    ).toBeNull()
+  })
+
+  test('shows a reason code it has no label for as it arrived', () => {
+    expect(
+      model(
+        found(
+          detail({
+            ...purgedState,
+            lastPurge: { ...lastPurge, reasonCode: 'SUPERSEDED' }
+          })
+        )
+      ).purgedFact?.reason
+    ).toBe('SUPERSEDED')
+  })
+})
+
+describe('redriving a purged event', () => {
+  test('keeps the redrive on a purged event, and hides the purge', () => {
+    const page = model(found(purgeable({ ...purgedState, lastPurge })))
+
+    expect(page.canRedrive).toBe(true)
+    expect(page.canPurge).toBe(false)
+  })
+
+  test('names the decision the redrive would reverse', () => {
+    expect(
+      model(found(detail({ ...purgedState, lastPurge }))).redrivePurgedNote
+    ).toBe(
+      "It was purged as 'Payload is broken'; if the payload is broken, it will fail again. Its deletion date is cleared."
+    )
+  })
+
+  test('says nothing of a purge on an event that is not purged now', () => {
+    expect(
+      model(found(detail({ ...stateOf('RESUBMITTED'), lastPurge })))
+        .redrivePurgedNote
+    ).toBeNull()
+    expect(
+      model(found(detail({ ...purgedState }))).redrivePurgedNote
+    ).toBeNull()
+    expect(model().redrivePurgedNote).toBeNull()
+  })
+})
+
+describe('the message a purge leaves behind', () => {
+  const afterPurge = (
+    outcome: Parameters<typeof noticed>[0]['outcome'],
+    status: string | null = null,
+    event: EventDetail = detail({ ...purgedState, lastPurge })
+  ) =>
+    toEventPage(
+      found(event),
+      key,
+      {},
+      {
+        outcome,
+        status,
+        action: 'purge',
+        page: `/dev-ops/events/gas/outbox/${id}`
+      }
+    ).banner
+
+  test('says when the database will delete the event it just purged', () => {
+    expect(
+      afterPurge(
+        'purged',
+        null,
+        detail({
+          ...purgedState,
+          lastPurge,
+          expiresAt: '2026-09-14T09:00:00.000Z'
+        })
+      )
+    ).toEqual({
+      role: 'success',
+      message: 'Purged. It will be deleted on 14 Sep 2026 10:00:00.000.'
+    })
+  })
+
+  test('says only that it was purged when the page could not read the date', () => {
+    expect(afterPurge('purged')?.message).toBe('Purged.')
+  })
+
+  test('names the status a conflict reported', () => {
+    expect(afterPurge('conflict', 'Resubmitted')).toEqual({
+      role: 'warning',
+      message:
+        'Not purged — this event is no longer dead-lettered. Its status is now Resubmitted.'
+    })
+  })
+
+  test('ends the sentence on a conflict whose body carried no status', () => {
+    expect(afterPurge('conflict')?.message).toBe(
+      'Not purged — this event is no longer dead-lettered.'
+    )
+  })
+
+  test.each([
+    [
+      'not-found',
+      'error',
+      'Not purged — fg-gas-backend no longer has this event. Nothing has changed.'
+    ],
+    [
+      'rejected',
+      'error',
+      'Not purged — fg-gas-backend refused the request. Nothing has changed.'
+    ],
+    ['timed-out', 'warning', 'Purge status unknown — refresh to check.'],
+    [
+      'unavailable',
+      'error',
+      'Not purged — fg-gas-backend could not be reached. Nothing has changed.'
+    ]
+  ] as const)('says what went wrong for a %s purge', (outcome, role, said) => {
+    expect(afterPurge(outcome)).toEqual({ role, message: said })
+  })
+
+  test('reads the redrive words for a redrive and the purge words for a purge', () => {
+    expect(
+      noticed({ outcome: 'conflict', status: 'Completed' }).banner?.message
+    ).toContain("can't be redriven")
+    expect(afterPurge('conflict', 'Completed')?.message).toContain(
+      'no longer dead-lettered'
+    )
+  })
+
+  test('has no banner for an action a later release invented', () => {
+    expect(
+      noticed({
+        outcome: 'purged',
+        status: null,
+        action: 'park'
+      } as unknown as Parameters<typeof noticed>[0]).banner
+    ).toBeNull()
   })
 })

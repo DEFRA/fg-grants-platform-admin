@@ -1,4 +1,6 @@
 // @vitest-environment happy-dom
+import { readFile } from 'node:fs/promises'
+import { resolve } from 'node:path'
 
 describe('focus on arrival', () => {
   beforeEach(() => {
@@ -28,5 +30,18 @@ describe('focus on arrival', () => {
     vi.advanceTimersToNextFrame()
 
     expect(document.activeElement).toBe(document.body)
+  })
+
+  test('is declared a side effect, so the bundler keeps its bare import', async () => {
+    const pkg = JSON.parse(
+      await readFile(
+        resolve(import.meta.dirname, '../../../package.json'),
+        'utf8'
+      )
+    )
+
+    expect(pkg.sideEffects).toContain(
+      './src/dev-ops/client/focus-on-arrival.ts'
+    )
   })
 })

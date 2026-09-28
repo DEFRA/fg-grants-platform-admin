@@ -1,6 +1,7 @@
 import type { Server } from '@hapi/hapi'
 
 import { scopedTo } from '../server/plugins/auth/scoped-to.ts'
+import { purgeEventRoute } from './routes/purge-event.route.ts'
 import { redriveEventRoute } from './routes/redrive-event.route.ts'
 import { viewDevOpsRoute } from './routes/view-dev-ops.route.ts'
 import { viewEventRoute } from './routes/view-event.route.ts'
@@ -22,7 +23,8 @@ export const devOps = {
           viewDevOpsRoute,
           viewEventsRoute,
           viewEventRoute,
-          redriveEventRoute
+          redriveEventRoute,
+          purgeEventRoute
         ])
       )
     }

@@ -78,7 +78,11 @@ export const redriveEventRoute: ServerRoute = {
     const { from } = request.payload as { from?: string }
     const result = await redriveEventUseCase(key, toActor(request))
 
-    request.yar.flash(redriveNoticeKey, { ...result, page: toEventHref(key) })
+    request.yar.flash(redriveNoticeKey, {
+      ...result,
+      action: 'redrive',
+      page: toEventHref(key)
+    })
 
     return h.redirect(toRedirect(key, toSafeFrom(from))).code(seeOther)
   }
