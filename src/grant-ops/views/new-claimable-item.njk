@@ -17,79 +17,78 @@
       {{ govukServiceNavigation({
         navigation: tabs,
         navigationLabel: "Application sections",
-        classes: "app-application-tabs govuk-!-margin-top-5"
+        classes: "app-section-navigation govuk-!-margin-top-5 govuk-!-margin-bottom-8"
       }) }}
 
-      <div class="app-section-panel">
-        {{ appAvailableEntitlements({
-          entitlements: entitlements,
-          creatingClaimCode: claimableTemplate.claimCode
-        }) }}
+      {{ appAvailableEntitlements({
+        entitlements: entitlements,
+        creatingClaimCode: claimableTemplate.claimCode
+      }) }}
 
-        <div class="app-card" id="new-entitlement">
-          <h2 class="govuk-heading-m" data-testid="claimable-heading">Add claimable item</h2>
+      <div class="app-card" id="new-entitlement">
+        <h2 class="govuk-heading-m" data-testid="claimable-heading">Add claimable item</h2>
 
-          {% if claimableTemplate.description %}
-            <p class="govuk-body" data-testid="claimable-template-description">
-              {{ claimableTemplate.description }}
-            </p>
-          {% endif %}
+        {% if claimableTemplate.description %}
+          <p class="govuk-body" data-testid="claimable-template-description">
+            {{ claimableTemplate.description }}
+          </p>
+        {% endif %}
 
-          {% if errorSummary | length %}
-            {{ govukErrorSummary({
-              titleText: "There is a problem",
-              errorList: errorSummary,
-              attributes: { "data-testid": "claimable-error-summary" }
+        {% if errorSummary | length %}
+          {{ govukErrorSummary({
+            titleText: "There is a problem",
+            errorList: errorSummary,
+            attributes: { "data-testid": "claimable-error-summary" }
+          }) }}
+        {% endif %}
+
+        <form method="post" novalidate>
+          {% for field in formFields %}
+            {{ govukInput({
+              id: field.key,
+              name: field.key,
+              value: field.value,
+              type: field.type,
+              label: { text: field.label, classes: "govuk-label--s" },
+              classes: "govuk-input--width-10",
+              inputmode: field.inputmode,
+              spellcheck: false if field.inputmode else none,
+              suffix: { text: field.suffix } if field.suffix else none,
+              errorMessage: { text: field.error } if field.error else none,
+              attributes: { "data-testid": "claimable-field-" + field.key }
+            }) }}
+          {% endfor %}
+
+          {% if claimableTemplate.help %}
+            {% set helpHtml %}
+              {% for block in claimableTemplate.help.content %}
+                {% if block.items %}
+                  <ul class="govuk-list govuk-list--bullet">
+                    {% for item in block.items %}
+                      <li>{{ item }}</li>
+                    {% endfor %}
+                  </ul>
+                {% else %}
+                  <p class="govuk-body">{{ block.text }}</p>
+                {% endif %}
+              {% endfor %}
+            {% endset %}
+
+            {{ govukDetails({
+              summaryText: claimableTemplate.help.summary,
+              html: helpHtml,
+              attributes: { "data-testid": "claimable-help" }
             }) }}
           {% endif %}
 
-          <form method="post" novalidate>
-            {% for field in formFields %}
-              {{ govukInput({
-                id: field.key,
-                name: field.key,
-                value: field.value,
-                type: field.type,
-                label: { text: field.label, classes: "govuk-label--s" },
-                classes: "govuk-input--width-10",
-                inputmode: field.inputmode,
-                spellcheck: false if field.inputmode else none,
-                suffix: { text: field.suffix } if field.suffix else none,
-                errorMessage: { text: field.error } if field.error else none,
-                attributes: { "data-testid": "claimable-field-" + field.key }
-              }) }}
-            {% endfor %}
+          <div class="govuk-button-group">
+            {{ govukButton({
+              text: "Save item",
+              attributes: { "data-testid": "claimable-submit" }
+            }) }}
 
-            {% if claimableTemplate.help %}
-              {% set helpHtml %}
-                {% for block in claimableTemplate.help.content %}
-                  {% if block.items %}
-                    <ul class="govuk-list govuk-list--bullet">
-                      {% for item in block.items %}
-                        <li>{{ item }}</li>
-                      {% endfor %}
-                    </ul>
-                  {% else %}
-                    <p class="govuk-body">{{ block.text }}</p>
-                  {% endif %}
-                {% endfor %}
-              {% endset %}
-
-              {{ govukDetails({
-                summaryText: claimableTemplate.help.summary,
-                html: helpHtml,
-                attributes: { "data-testid": "claimable-help" }
-              }) }}
-            {% endif %}
-
-            <div class="govuk-button-group">
-              {{ govukButton({
-                text: "Save item",
-                attributes: { "data-testid": "claimable-submit" }
-              }) }}
-
-              <a class="govuk-link" href="{{ claimsHref }}" data-testid="claimable-cancel">Cancel</a>
-            </div>
+            <a class="govuk-link" href="{{ claimsHref }}" data-testid="claimable-cancel">Cancel</a>
+    
           </form>
         </div>
       </div>

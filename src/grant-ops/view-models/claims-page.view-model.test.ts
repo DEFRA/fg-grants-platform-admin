@@ -1,7 +1,8 @@
 import type {
   Banner,
   ClaimableEntitlement,
-  EntitlementTemplate
+  EntitlementTemplate,
+  SubmittedClaim
 } from '../use-cases/get-claims.use-case.ts'
 import { toClaimsPage, toTypeLabel } from './claims-page.view-model.ts'
 
@@ -56,6 +57,20 @@ const awaitingClaim = (
   ...overrides
 })
 
+const submittedClaim = (
+  overrides: Partial<SubmittedClaim> = {}
+): SubmittedClaim => ({
+  clientClaimRef: 'WMP-TU3-LBJ-C07',
+  claimCode: 'ENT_CS_CAPITAL_PA3',
+  name: 'PA3 Woodland Management Plan entitlement',
+  quantity: { value: 23, unit: 'HA' },
+  totalClaimAmountPence: 150000,
+  requiresApproval: false,
+  paymentScheduled: true,
+  submittedAt: '2026-09-15T12:50:08.932Z',
+  ...overrides
+})
+
 const page = (
   availableEntitlements: EntitlementTemplate[] = [],
   claimsBanner: Banner = banner,
@@ -67,6 +82,14 @@ const page = (
     claimableEntitlements,
     claims: []
   })
+
+const claimed = (claims: SubmittedClaim[]) =>
+  toClaimsPage('woodland', 'WMP-1T9-RXN', {
+    banner,
+    availableEntitlements: [],
+    claimableEntitlements: [],
+    claims
+  }).claimed
 
 describe('toClaimsPage', () => {
   test('titles the header with what the grant configured', () => {
@@ -296,5 +319,105 @@ describe('toTypeLabel', () => {
 
   test('has no type when the template declares no fields', () => {
     expect(toTypeLabel(template({ fields: undefined }))).toBeUndefined()
+  })
+})
+
+
+describe('the claimed section', () => {
+  test('is empty when nothing has been submitted', () => {
+    expect(page().claimed).toEqual([])
+  })
+
+  test('maps a submitted claim to its row', () => {
+    expect(claimed([submittedClaim()])).toEqual([
+      {
+        name: 'PA3 Woodland Management Plan entitlement',
+        clientClaimRef: 'WMP-TU3-LBJ-C07',
+        quantity: '23 ha',
+        value: '£1,500',
+        requiresApproval: 'No',
+        approvalStatus: '',
+        paymentStatus: 'Payment scheduled'
+      }
+    ])
+  })
+
+  test.each([
+    [150000, '£1,500'],
+    [4200, '£42'],
+    [150050, '£1,500.50'],
+    [1234567, '£12,345.67'],
+    [0, '£0']
+  ])('shows %i pence as %s', (totalClaimAmountPence, expected) => {
+    const [row] = claimed([submittedClaim({ totalClaimAmountPence })])
+
+    expect(row.value).toBe(expected)
+  })
+
+  test('leaves the value blank when the claim carries none', () => {
+    const [row] = claimed([submittedClaim({ totalClaimAmountPence: null })])
+
+    expect(row.value).toBe('')
+  })
+
+  test('shows the quantity against its unit, as the section above does', () => {
+    const [row] = claimed([
+      submittedClaim({ quantity: { value: 4550, unit: 'HA' } })
+    ])
+
+    expect(row.quantity).toBe('4,550 ha')
+  })
+
+  test('leaves the quantity blank for a claim that measures nothing', () => {
+    const [row] = claimed([submittedClaim({ quantity: null })])
+
+    expect(row.quantity).toBe('')
+  })
+
+  // Woodland requires no approval, so its rows read No with nothing in the
+  // approval column. The Yes branch has no source of approval state yet.
+  test.each([
+    [false, 'No'],
+    [true, 'Yes']
+  ])('reports requiresApproval %s as %s', (requiresApproval, expected) => {
+    const [row] = claimed([submittedClaim({ requiresApproval })])
+
+    expect(row.requiresApproval).toBe(expected)
+    expect(row.approvalStatus).toBe('')
+  })
+
+  test('leaves the payment status blank until a payment exists', () => {
+    const [row] = claimed([submittedClaim({ paymentScheduled: false })])
+
+    expect(row.paymentStatus).toBe('')
+  })
+
+  test('keeps a claim held for approval out of payment', () => {
+    const [row] = claimed([
+      submittedClaim({ requiresApproval: true, paymentScheduled: false })
+    ])
+
+    expect(row.requiresApproval).toBe('Yes')
+    expect(row.approvalStatus).toBe('')
+    expect(row.paymentStatus).toBe('')
+  })
+
+  test('maps every submitted claim', () => {
+    const rows = claimed([
+      submittedClaim(),
+      submittedClaim({
+        clientClaimRef: 'WMP-TU3-LBJ-C08',
+        paymentScheduled: false
+      })
+    ])
+
+    expect(rows.map((row) => row.clientClaimRef)).toEqual([
+      'WMP-TU3-LBJ-C07',
+      'WMP-TU3-LBJ-C08'
+    ])
+    expect(rows.map((row) => row.paymentStatus)).toEqual([
+      'Payment scheduled',
+      ''
+    ])
   })
 })

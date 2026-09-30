@@ -1,0 +1,41 @@
+@use "govuk-frontend" as *;
+
+$defra-green: #00a33b;
+
+.defra-header {
+  padding: govuk-spacing(4) 0;
+  border-bottom: 8px solid $defra-green;
+}
+
+.defra-header__inner {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  max-width: 960px;
+  margin: 0 auto;
+}
+
+.defra-header__logo-link {
+  display: flex;
+  align-items: center;
+  gap: 167px;
+  width: auto;
+  height: 75px;
+  padding-left: 2px;
+  border-left: 2px solid $defra-green;
+  text-decoration: none;
+
+  img {
+    width: 146px;
+    height: auto;
+  }
+}
+
+.defra-header__service-name {
+  @include govuk-typography-common;
+
+  color: $govuk-text-colour;
+  font-size: 24px;
+  font-weight: 400;
+}

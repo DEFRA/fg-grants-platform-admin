@@ -143,7 +143,7 @@ describe('newClaimableItemRoute', () => {
     expect($('[data-testid="application-header-title"]').text().trim()).toBe(
       'Elmwood Land Co'
     )
-    expect($('.app-application-tabs')).toHaveLength(1)
+    expect($('[aria-label="Application sections"]')).toHaveLength(1)
   })
 
   test('lists the available entitlements above the form', async () => {
