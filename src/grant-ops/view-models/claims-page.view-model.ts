@@ -238,8 +238,10 @@ export const toClaimsPage = (
     banner,
     availableEntitlements,
     claimableEntitlements,
-    claims
-  }: Claims & { banner: Banner }
+    // The entitlement-creation page shows no Claimed section, so the backend
+    // does not read the submitted claims for it.
+    claims = []
+  }: Omit<Claims, 'claims'> & { banner: Banner; claims?: SubmittedClaim[] }
 ): ClaimsPage => {
   const base = toBase(code, clientRef)
   const claimsHref = `${base}/claims`

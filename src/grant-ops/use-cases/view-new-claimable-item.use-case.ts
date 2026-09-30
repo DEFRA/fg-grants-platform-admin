@@ -4,7 +4,7 @@ import type {
 } from '../repositories/claims.repository.ts'
 import { findClaim } from '../repositories/claims.repository.ts'
 
-export interface NewClaimableItemResponse extends Claims {
+export interface NewClaimableItemResponse extends Omit<Claims, 'claims'> {
   claimableTemplate: EntitlementTemplate
 }
 

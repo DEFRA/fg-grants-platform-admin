@@ -80,7 +80,6 @@ const givenClaims = (availableEntitlements: EntitlementTemplate[] = []) => {
         banner,
         availableEntitlements,
         claimableEntitlements: [],
-        claims: [],
         entitlementTemplate
       }
     })
@@ -274,7 +273,6 @@ describe('newClaimableItemRoute', () => {
     vi.mocked(findClaim).mockResolvedValue({
       availableEntitlements: [template()],
       claimableEntitlements: [],
-      claims: [],
       entitlementTemplate: template()
     })
 

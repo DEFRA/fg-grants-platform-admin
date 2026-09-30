@@ -89,7 +89,12 @@ export interface ClaimableEntitlement {
   claim: Record<string, unknown>
 }
 
-export interface Claim extends Claims {
+/**
+ * The claims page for one claim code, as read when creating an entitlement
+ * against it. It carries no submitted claims: the page shows none, so
+ * fg-gas-backend does not read them for it.
+ */
+export interface Claim extends Omit<Claims, 'claims'> {
   entitlementTemplate: EntitlementTemplate
 }
 
