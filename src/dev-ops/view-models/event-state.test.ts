@@ -40,6 +40,7 @@ describe('toEventState', () => {
       {
         completed: true,
         deadLetter: false,
+        purged: false,
         redrivenSinceAttempts: false,
         waiting: false
       }
@@ -50,6 +51,18 @@ describe('toEventState', () => {
       {
         completed: false,
         deadLetter: true,
+        purged: false,
+        redrivenSinceAttempts: false,
+        waiting: true
+      }
+    ],
+    [
+      'a purged dead letter',
+      event({ status: 'PURGED' }),
+      {
+        completed: false,
+        deadLetter: false,
+        purged: true,
         redrivenSinceAttempts: false,
         waiting: true
       }
@@ -60,6 +73,7 @@ describe('toEventState', () => {
       {
         completed: false,
         deadLetter: false,
+        purged: false,
         redrivenSinceAttempts: false,
         waiting: true
       }
@@ -74,6 +88,7 @@ describe('toEventState', () => {
       {
         completed: false,
         deadLetter: false,
+        purged: false,
         redrivenSinceAttempts: true,
         waiting: false
       }
@@ -84,6 +99,7 @@ describe('toEventState', () => {
       {
         completed: false,
         deadLetter: false,
+        purged: false,
         redrivenSinceAttempts: false,
         waiting: true
       }
@@ -94,6 +110,7 @@ describe('toEventState', () => {
       {
         completed: false,
         deadLetter: false,
+        purged: false,
         redrivenSinceAttempts: false,
         waiting: true
       }

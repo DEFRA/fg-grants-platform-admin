@@ -2069,7 +2069,7 @@ describe('viewEventsRoute', () => {
         .toArray()
         .map((dot) => $(dot).attr('class'))
     ).toEqual([
-      'status',
+      'status bg-base-content/80',
       'status status-info',
       'status status-warning',
       'status status-error',
@@ -2092,7 +2092,9 @@ describe('viewEventsRoute', () => {
     const { statusCode, $ } = await viewPage()
 
     expect(statusCode).toBe(statusCodes.ok)
-    expect($('[data-testid="do-status-dot"]').attr('class')).toBe('status')
+    expect($('[data-testid="do-status-dot"]').attr('class')).toBe(
+      'status bg-base-content/80'
+    )
     expect($('[data-testid="do-status-badge"]').text()).toContain('QUARANTINED')
   })
 
@@ -3798,7 +3800,7 @@ describe('viewEventsRoute', () => {
 
     expect(badge.attr('title')).toBe('PURGED')
     expect(badge.find('[data-testid="do-status-dot"]').attr('class')).toBe(
-      'status'
+      'status bg-base-content/80'
     )
     expect(badge.find('[data-testid="do-status-label"]').text()).toBe('Purged')
     expect($('[data-testid="event-row"]').attr('class')).not.toContain(

@@ -1,5 +1,6 @@
 import { config } from '../../common/config.ts'
 import { logger } from '../../common/logger.ts'
+import type { EditNoteProblem } from '../use-cases/edit-payload-command.ts'
 import type {
   EventDetail,
   EventKey,
@@ -335,13 +336,13 @@ describe('toEventPage', () => {
 
     expect(banner?.role).toBe('warning')
     expect(banner?.message).toBe(
-      'Not redriven — this event is no longer dead-lettered. Its status is now Completed.'
+      "Not redriven — this event can't be redriven. Its status is now Completed."
     )
   })
 
   test('ends the sentence on a conflict whose body carried no status', () => {
     expect(noticed({ outcome: 'conflict', status: null }).banner?.message).toBe(
-      'Not redriven — this event is no longer dead-lettered.'
+      "Not redriven — this event can't be redriven."
     )
   })
 
@@ -1536,5 +1537,926 @@ describe('the last resubmission', () => {
         )
       ).resubmittedSinceLastAttempt
     ).toBe(true)
+  })
+})
+
+const purgeDeletionDate = '2026-09-14T09:00:00.000Z'
+
+const purgeable = (overrides: Partial<EventDetail> = {}) =>
+  detail({ purgeDeletionDate, ...overrides })
+
+const lastPurge = {
+  at: '2026-06-16T10:18:00.000Z',
+  by: 'Ada Lovelace',
+  reasonCode: 'BROKEN_PAYLOAD',
+  note: 'sheetId arrives as a number'
+}
+
+const purgedState = {
+  status: 'PURGED',
+  statusLabel: 'Purged',
+  statusRole: 'neutral' as const,
+  statusRetrying: false
+}
+
+const confirming = (
+  event: EventDetail = purgeable(),
+  form?: Parameters<typeof toEventPage>[4]
+) => toEventPage(found(event), key, { confirm: 'purge' }, undefined, form)
+
+const submitted = (
+  reasonCode: string,
+  note: string,
+  error: NonNullable<Parameters<typeof toEventPage>[4]>['error']
+) =>
+  confirming(purgeable(), {
+    page: `/dev-ops/events/gas/outbox/${id}`,
+    reasonCode,
+    note,
+    error
+  })
+
+describe('the purge button', () => {
+  test('offers a purge on a dead letter the owning service will purge', () => {
+    expect(model(found(purgeable())).canPurge).toBe(true)
+  })
+
+  test('offers none on a dead letter that carries no projected deletion date', () => {
+    expect(model().canPurge).toBe(false)
+    expect(model(found(detail({ purgeDeletionDate: null }))).canPurge).toBe(
+      false
+    )
+  })
+
+  test.each(['PUBLISHED', 'PROCESSING', 'FAILED', 'RESUBMITTED', 'COMPLETED'])(
+    'offers none on a %s event, however it is dated',
+    (status) => {
+      expect(model(found(purgeable(stateOf(status)))).canPurge).toBe(false)
+    }
+  )
+
+  test('offers none on an event that is already purged', () => {
+    expect(
+      model(found(purgeable({ ...purgedState, lastPurge }))).canPurge
+    ).toBe(false)
+  })
+
+  test('points the confirmation and the write at this same event', () => {
+    const page = model(found(purgeable()), { from: '?status=DEAD_LETTER' })
+
+    expect(page.purgeHref).toBe(
+      `/dev-ops/events/gas/outbox/${id}?from=%3Fstatus%3DDEAD_LETTER&confirm=purge`
+    )
+    expect(page.purgeAction).toBe(`/dev-ops/events/gas/outbox/${id}/purge`)
+  })
+})
+
+describe('the purge confirmation', () => {
+  test('opens only when it is asked for and allowed', () => {
+    expect(confirming().purgeConfirm).not.toBeNull()
+    expect(model(found(purgeable())).purgeConfirm).toBeNull()
+    expect(confirming(detail()).purgeConfirm).toBeNull()
+  })
+
+  test('says the date the row would be deleted, in UK time', () => {
+    expect(confirming().purgeConfirm?.deletionText).toBe(
+      '14 Sep 2026 10:00:00.000'
+    )
+    expect(confirming().purgeConfirm?.deletionInstant).toBe(
+      '2026-09-14T09:00:00Z'
+    )
+  })
+
+  test('offers the three reasons, none of them chosen', () => {
+    expect(confirming().purgeConfirm?.reasons).toEqual([
+      {
+        value: 'BROKEN_PAYLOAD',
+        label: 'Payload is broken',
+        id: 'purge-reason-BROKEN_PAYLOAD',
+        checked: false
+      },
+      {
+        value: 'SENT_IN_ERROR',
+        label: 'Sent in error',
+        id: 'purge-reason-SENT_IN_ERROR',
+        checked: false
+      },
+      {
+        value: 'OTHER',
+        label: 'Other',
+        id: 'purge-reason-OTHER',
+        checked: false
+      }
+    ])
+  })
+
+  test('starts with an empty note and a counter at nothing', () => {
+    expect(confirming().purgeConfirm).toMatchObject({
+      note: '',
+      noteCount: '0 / 500',
+      noteMax: 500,
+      noteMessage: null,
+      noteInvalid: false,
+      error: null
+    })
+  })
+
+  test('keeps the reason and the note a rejected form came back with', () => {
+    const confirm = submitted('OTHER', 'a note', {
+      field: 'note',
+      message: 'Enter a note.'
+    }).purgeConfirm
+
+    expect(
+      confirm?.reasons
+        .filter(({ checked }) => checked)
+        .map(({ value }) => value)
+    ).toEqual(['OTHER'])
+    expect(confirm?.note).toBe('a note')
+    expect(confirm?.noteCount).toBe('6 / 500')
+  })
+
+  test('sends the alert at the note the server refused', () => {
+    const confirm = submitted('OTHER', '', {
+      field: 'note',
+      message: "Enter a note. It's required when the reason is Other."
+    }).purgeConfirm
+
+    expect(confirm?.error).toEqual({
+      message: "Enter a note. It's required when the reason is Other.",
+      href: '#purge-note'
+    })
+    expect(confirm?.noteInvalid).toBe(true)
+    expect(confirm?.noteMessage).toBe(
+      "Enter a note. It's required when the reason is Other."
+    )
+  })
+
+  test('describes the note by the hint only while the hint is shown', () => {
+    expect(confirming().purgeConfirm?.noteDescribedBy).toBe('purge-note-help')
+    expect(
+      submitted('OTHER', '', { field: 'note', message: 'Enter a note.' })
+        .purgeConfirm?.noteDescribedBy
+    ).toBe('purge-note-hint purge-note-help')
+  })
+
+  test('sends the alert at the first radio when no reason was chosen', () => {
+    const confirm = submitted('', '', {
+      field: 'reason',
+      message: 'Choose a reason.'
+    }).purgeConfirm
+
+    expect(confirm?.error).toEqual({
+      message: 'Choose a reason.',
+      href: '#purge-reason-BROKEN_PAYLOAD'
+    })
+    expect(confirm?.noteInvalid).toBe(false)
+    expect(confirm?.noteMessage).toBeNull()
+  })
+
+  test('says beside the radios what is wrong with the reason', () => {
+    const confirm = submitted('', '', {
+      field: 'reason',
+      message: 'Choose a reason.'
+    }).purgeConfirm
+
+    expect(confirm?.reasonMessage).toBe('Choose a reason.')
+    expect(confirm?.reasonDescribedBy).toBe('purge-reason-hint')
+  })
+
+  test('says nothing beside the radios when the reason was fine', () => {
+    expect(confirming().purgeConfirm?.reasonMessage).toBeNull()
+    expect(
+      submitted('OTHER', '', { field: 'note', message: 'Enter a note.' })
+        .purgeConfirm?.reasonMessage
+    ).toBeNull()
+  })
+
+  test('ignores a rejected form left over from another event', () => {
+    const confirm = confirming(purgeable(), {
+      page: '/dev-ops/events/gas/outbox/665f1c2e9a1b2c3d4e5f6a7c',
+      reasonCode: 'OTHER',
+      note: 'not this one',
+      error: { field: 'note', message: 'Enter a note.' }
+    }).purgeConfirm
+
+    expect(confirm?.note).toBe('')
+    expect(confirm?.error).toBeNull()
+  })
+})
+
+describe('the purged facts', () => {
+  test('says who purged the event, why and when, with the note', () => {
+    expect(
+      model(found(detail({ ...purgedState, lastPurge }))).purgedFact
+    ).toEqual({
+      label: 'Purged',
+      reason: 'Payload is broken',
+      by: 'Ada Lovelace',
+      at: '16 Jun 2026 11:18:00.000',
+      atInstant: '2026-06-16T10:18:00Z',
+      note: 'sheetId arrives as a number'
+    })
+  })
+
+  test('says previously purged once the event has been redriven out of it', () => {
+    expect(
+      model(found(detail({ ...stateOf('RESUBMITTED'), lastPurge }))).purgedFact
+        ?.label
+    ).toBe('Previously purged')
+  })
+
+  test('says nothing on an event that was never purged', () => {
+    expect(model().purgedFact).toBeNull()
+    expect(model(found(detail({ lastPurge: null }))).purgedFact).toBeNull()
+  })
+
+  test.each([
+    ['none was typed', null],
+    ['it is empty', '']
+  ])('leaves the note out when %s', (_name, note) => {
+    expect(
+      model(
+        found(detail({ ...purgedState, lastPurge: { ...lastPurge, note } }))
+      ).purgedFact?.note
+    ).toBeNull()
+  })
+
+  test('shows a reason code it has no label for as it arrived', () => {
+    expect(
+      model(
+        found(
+          detail({
+            ...purgedState,
+            lastPurge: { ...lastPurge, reasonCode: 'SUPERSEDED' }
+          })
+        )
+      ).purgedFact?.reason
+    ).toBe('SUPERSEDED')
+  })
+})
+
+describe('redriving a purged event', () => {
+  test('keeps the redrive on a purged event, and hides the purge', () => {
+    const page = model(found(purgeable({ ...purgedState, lastPurge })))
+
+    expect(page.canRedrive).toBe(true)
+    expect(page.canPurge).toBe(false)
+  })
+
+  test('names the decision the redrive would reverse', () => {
+    expect(
+      model(found(detail({ ...purgedState, lastPurge }))).redrivePurgedNote
+    ).toBe(
+      "It was purged as 'Payload is broken'; if the payload is broken, it will fail again. Its deletion date is cleared."
+    )
+  })
+
+  test('says nothing of a purge on an event that is not purged now', () => {
+    expect(
+      model(found(detail({ ...stateOf('RESUBMITTED'), lastPurge })))
+        .redrivePurgedNote
+    ).toBeNull()
+    expect(
+      model(found(detail({ ...purgedState }))).redrivePurgedNote
+    ).toBeNull()
+    expect(model().redrivePurgedNote).toBeNull()
+  })
+})
+
+describe('the message a purge leaves behind', () => {
+  const afterPurge = (
+    outcome: Parameters<typeof noticed>[0]['outcome'],
+    status: string | null = null,
+    event: EventDetail = detail({ ...purgedState, lastPurge })
+  ) =>
+    toEventPage(
+      found(event),
+      key,
+      {},
+      {
+        outcome,
+        status,
+        action: 'purge',
+        page: `/dev-ops/events/gas/outbox/${id}`
+      }
+    ).banner
+
+  test('says when the database will delete the event it just purged', () => {
+    expect(
+      afterPurge(
+        'purged',
+        null,
+        detail({
+          ...purgedState,
+          lastPurge,
+          expiresAt: '2026-09-14T09:00:00.000Z'
+        })
+      )
+    ).toEqual({
+      role: 'success',
+      message: 'Purged. It will be deleted on 14 Sep 2026 10:00:00.000.'
+    })
+  })
+
+  test('says only that it was purged when the page could not read the date', () => {
+    expect(afterPurge('purged')?.message).toBe('Purged.')
+  })
+
+  test('names the status a conflict reported', () => {
+    expect(afterPurge('conflict', 'Resubmitted')).toEqual({
+      role: 'warning',
+      message:
+        'Not purged — this event is no longer dead-lettered. Its status is now Resubmitted.'
+    })
+  })
+
+  test('ends the sentence on a conflict whose body carried no status', () => {
+    expect(afterPurge('conflict')?.message).toBe(
+      'Not purged — this event is no longer dead-lettered.'
+    )
+  })
+
+  test.each([
+    [
+      'not-found',
+      'error',
+      'Not purged — fg-gas-backend no longer has this event. Nothing has changed.'
+    ],
+    [
+      'rejected',
+      'error',
+      'Not purged — fg-gas-backend refused the request. Nothing has changed.'
+    ],
+    ['timed-out', 'warning', 'Purge status unknown — refresh to check.'],
+    [
+      'unavailable',
+      'error',
+      'Not purged — fg-gas-backend could not be reached. Nothing has changed.'
+    ]
+  ] as const)('says what went wrong for a %s purge', (outcome, role, said) => {
+    expect(afterPurge(outcome)).toEqual({ role, message: said })
+  })
+
+  test('reads the redrive words for a redrive and the purge words for a purge', () => {
+    expect(
+      noticed({ outcome: 'conflict', status: 'Completed' }).banner?.message
+    ).toContain("can't be redriven")
+    expect(afterPurge('conflict', 'Completed')?.message).toContain(
+      'no longer dead-lettered'
+    )
+  })
+
+  test('has no banner for an action a later release invented', () => {
+    expect(
+      noticed({
+        outcome: 'purged',
+        status: null,
+        action: 'park'
+      } as unknown as Parameters<typeof noticed>[0]).banner
+    ).toBeNull()
+  })
+})
+
+// The detail's two attempts ran at 10:08 and 10:16:05.
+const lastEdit = {
+  at: '2026-06-16T10:18:00.000Z',
+  by: 'Grace Hopper',
+  note: 'sheetId arrives as a number'
+}
+
+const editedBeforeAttempts = { ...lastEdit, at: '2026-06-16T10:12:00.000Z' }
+
+const redrivenAfterEdit = { at: '2026-06-16T10:19:00.000Z', by: 'Ada Lovelace' }
+
+describe('an edited payload', () => {
+  test('says who edited the payload and when, with the note', () => {
+    expect(model(found(detail({ lastEdit }))).editedFact).toEqual({
+      by: 'Grace Hopper',
+      at: '16 Jun 2026 11:18:00.000',
+      atInstant: '2026-06-16T10:18:00Z',
+      note: 'sheetId arrives as a number'
+    })
+  })
+
+  test('says the edit in GMT once the clocks have gone back', () => {
+    expect(
+      model(
+        found(detail({ lastEdit: { ...lastEdit, at: '2026-12-01T14:08:00Z' } }))
+      ).editedFact?.at
+    ).toBe('1 Dec 2026 14:08:00.000')
+  })
+
+  test.each([
+    ['none was sent', null],
+    ['it is empty', '']
+  ])('leaves the note out when %s', (_name, note) => {
+    expect(
+      model(found(detail({ lastEdit: { ...lastEdit, note } }))).editedFact?.note
+    ).toBeNull()
+  })
+
+  test.each([
+    ['absent', {}],
+    ['null', { lastEdit: null }]
+  ])('says nothing of an edit when the field is %s', (_name, overrides) => {
+    const page = model(found(detail(overrides)))
+
+    expect(page.editedFact).toBeNull()
+    expect(page.noAttemptsSinceEdit).toBe(false)
+    expect(page.redriveEditedNote).toBeNull()
+  })
+
+  test('marks an edit nobody has redriven since', () => {
+    const page = model(found(detail({ lastEdit, lastRedrive: null })))
+
+    expect(page.noAttemptsSinceEdit).toBe(true)
+    expect(page.redriveEditedNote).toBe(
+      "The payload was edited on 16 Jun 2026 11:18:00.000 and hasn't been retried since."
+    )
+  })
+
+  test('marks an edit made after the last redrive', () => {
+    const page = model(found(detail({ lastEdit, lastRedrive })))
+
+    expect(page.redriveEditedNote).toBe(
+      "The payload was edited on 16 Jun 2026 11:18:00.000 and hasn't been retried since."
+    )
+  })
+
+  test('keeps the broken-payload warning off a purged event while its edit is untried', () => {
+    const purged = { ...purgedState, lastPurge, lastEdit }
+
+    expect(
+      model(found(detail({ ...purged, lastRedrive: null }))).redrivePurgedNote
+    ).toBe(
+      "It was purged as 'Payload is broken'. Its deletion date is cleared."
+    )
+    expect(
+      model(found(detail({ ...purged, lastRedrive: redrivenAfterEdit })))
+        .redrivePurgedNote
+    ).toBe(
+      "It was purged as 'Payload is broken'; if the payload is broken, it will fail again. Its deletion date is cleared."
+    )
+  })
+
+  test('drops the mark once the edit has been redriven', () => {
+    const page = model(
+      found(detail({ lastEdit, lastRedrive: redrivenAfterEdit }))
+    )
+
+    expect(page.noAttemptsSinceEdit).toBe(false)
+    expect(page.redriveEditedNote).toBeNull()
+    expect(page.editedFact?.by).toBe('Grace Hopper')
+  })
+
+  test('reads a redrive with no instant as older than the edit', () => {
+    expect(
+      model(found(detail({ lastEdit, lastRedrive: { at: null, by: 'Ada' } })))
+        .redriveEditedNote
+    ).toBe(
+      "The payload was edited on 16 Jun 2026 11:18:00.000 and hasn't been retried since."
+    )
+  })
+
+  test('dashes an undated edit, and marks it only while nothing is known to be newer', () => {
+    const undated = { ...lastEdit, at: null }
+
+    expect(model(found(detail({ lastEdit: undated }))).editedFact).toEqual({
+      by: 'Grace Hopper',
+      at: '—',
+      atInstant: null,
+      note: 'sheetId arrives as a number'
+    })
+    expect(
+      model(found(detail({ lastEdit: undated, lastRedrive }))).redriveEditedNote
+    ).toBeNull()
+  })
+
+  test('reads dated attempts as newer than an undated edit', () => {
+    const page = model(
+      found(
+        detail({
+          attemptHistory: identicalAttempts,
+          lastEdit: { ...lastEdit, at: null },
+          lastRedrive
+        })
+      )
+    )
+
+    expect(page.noAttemptsSinceEdit).toBe(false)
+    expect(page.futileWarning).not.toBeNull()
+  })
+
+  test('says no attempts have run on an undated edit while none is dated', () => {
+    expect(
+      model(
+        found(
+          detail({
+            attemptHistory: [],
+            lastEdit: { ...lastEdit, at: null },
+            lastRedrive: null
+          })
+        )
+      ).noAttemptsSinceEdit
+    ).toBe(true)
+  })
+
+  test('says attempts have run since an edit that came before them', () => {
+    expect(
+      model(found(detail({ lastEdit: editedBeforeAttempts })))
+        .noAttemptsSinceEdit
+    ).toBe(false)
+  })
+
+  test('keeps the futile warning off while nothing has run on the edit', () => {
+    expect(
+      model(
+        found(
+          detail({ attemptHistory: identicalAttempts, lastRedrive, lastEdit })
+        )
+      ).futileWarning
+    ).toBeNull()
+  })
+
+  test('warns again once attempts on the edited payload fail the same way', () => {
+    expect(
+      model(
+        found(
+          detail({
+            attemptHistory: identicalAttempts,
+            lastRedrive,
+            lastEdit: { ...lastEdit, at: '2026-06-16T10:05:00.000Z' }
+          })
+        )
+      ).futileWarning
+    ).not.toBeNull()
+  })
+
+  test('prints the payload before the first edit as the payload is printed', () => {
+    expect(
+      model(found(detail({ originalPayload: { sheetId: 12345 } })))
+        .originalPayloadJson
+    ).toBe('{\n  "sheetId": 12345\n}')
+  })
+
+  test.each([
+    ['absent', {}],
+    ['null', { originalPayload: null }]
+  ])('keeps no original when the field is %s', (_name, overrides) => {
+    expect(model(found(detail(overrides))).originalPayloadJson).toBeNull()
+  })
+})
+
+const editable = (overrides: Partial<EventDetail> = {}) =>
+  detail({ payloadRevision: 2, ...overrides })
+
+const auditRow = {
+  type: 'audit',
+  targetTopic: 'fcp_audit'
+}
+
+describe('the edit button', () => {
+  test('offers an edit on a dead letter whose service sent a revision', () => {
+    expect(model(found(editable())).canEdit).toBe(true)
+  })
+
+  test('offers one at revision 0, before anyone has edited it', () => {
+    expect(model(found(editable({ payloadRevision: 0 }))).canEdit).toBe(true)
+  })
+
+  test('offers one on a purged event, as the redrive is', () => {
+    expect(
+      model(found(editable({ ...stateOf('PURGED', 'Purged') }))).canEdit
+    ).toBe(true)
+  })
+
+  test('offers one on an audit row: nothing in the payload is locked', () => {
+    expect(model(found(editable(auditRow))).canEdit).toBe(true)
+  })
+
+  test.each([
+    ['absent', {}],
+    ['null', { payloadRevision: null }]
+  ])(
+    'offers none when the revision is %s: the service cannot edit',
+    (_name, overrides) => {
+      expect(model(found(detail(overrides))).canEdit).toBe(false)
+    }
+  )
+
+  test.each(['PUBLISHED', 'PROCESSING', 'FAILED', 'RESUBMITTED', 'COMPLETED'])(
+    'offers none on a %s event',
+    (status) => {
+      expect(model(found(editable({ ...stateOf(status) }))).canEdit).toBe(false)
+    }
+  )
+
+  test('points at this same event, keeping the list query', () => {
+    const page = model(found(editable()), { from: '?status=DEAD_LETTER' })
+
+    expect(page.editHref).toBe(
+      `/dev-ops/events/gas/outbox/${id}?from=%3Fstatus%3DDEAD_LETTER&edit=payload`
+    )
+    expect(page.reviewAction).toBe(
+      `/dev-ops/events/gas/outbox/${id}/payload/review#payload`
+    )
+    expect(page.saveAction).toBe(
+      `/dev-ops/events/gas/outbox/${id}/payload#payload`
+    )
+  })
+})
+
+describe('the payload editor', () => {
+  test('opens on the stored payload, pretty-printed, at the revision it was read at', () => {
+    const page = model(found(editable()), { edit: 'payload' })
+
+    expect(page.payloadEditor).toEqual({
+      text: '{\n  "data": {\n    "caseRef": "GLD-9B2"\n  }\n}',
+      revision: 2,
+      rows: 5,
+      alert: null,
+      currentJson: null
+    })
+    expect(page.payloadReview).toBeNull()
+  })
+
+  test('opens only when asked for', () => {
+    expect(model(found(editable())).payloadEditor).toBeNull()
+  })
+
+  test('opens on nothing an event cannot be edited', () => {
+    expect(model(found(detail()), { edit: 'payload' }).payloadEditor).toBeNull()
+  })
+
+  test('stays shut while a redrive is being confirmed', () => {
+    expect(
+      model(found(editable()), { edit: 'payload', confirm: 'redrive' })
+        .payloadEditor
+    ).toBeNull()
+  })
+
+  test('grows with the payload up to the height of the viewer, then scrolls', () => {
+    const payload = Object.fromEntries(
+      Array.from({ length: 40 }, (_, index) => [`k${index}`, index])
+    )
+
+    expect(
+      model(found(editable({ payload })), { edit: 'payload' }).payloadEditor
+        ?.rows
+    ).toBe(24)
+  })
+})
+
+describe('the plain JSON warning', () => {
+  const warning =
+    "Some values in this payload aren't plain JSON and will be saved as JSON text, for example dates as strings."
+
+  test('warns in the editor when the service says the payload is not plain JSON', () => {
+    expect(
+      model(found(editable({ payloadIsPlainJson: false })), { edit: 'payload' })
+        .plainJsonWarning
+    ).toBe(warning)
+  })
+
+  test('warns on the review as well', () => {
+    expect(
+      toEventPage(
+        found(editable({ payloadIsPlainJson: false })),
+        key,
+        {},
+        undefined,
+        undefined,
+        {
+          step: 'review',
+          text: '{\n  "a": 1\n}',
+          revision: 2,
+          note: '',
+          noteProblem: null
+        }
+      ).plainJsonWarning
+    ).toBe(warning)
+  })
+
+  test('says nothing on the read-only payload', () => {
+    expect(
+      model(found(editable({ payloadIsPlainJson: false }))).plainJsonWarning
+    ).toBeNull()
+  })
+
+  test.each([
+    ['plain JSON', { payloadIsPlainJson: true }],
+    ['unknown', { payloadIsPlainJson: null }],
+    ['not sent', {}]
+  ])('says nothing when the payload is %s', (_name, overrides) => {
+    expect(
+      model(found(editable(overrides)), { edit: 'payload' }).plainJsonWarning
+    ).toBeNull()
+  })
+})
+
+describe('the review', () => {
+  const review = (
+    event: EventDetail = editable(),
+    overrides: { note?: string; noteProblem?: EditNoteProblem | null } = {}
+  ) =>
+    toEventPage(found(event), key, {}, undefined, undefined, {
+      step: 'review',
+      text: '{\n  "data": {\n    "caseRef": "GLD-9B3"\n  }\n}',
+      revision: 2,
+      note: '',
+      noteProblem: null,
+      ...overrides
+    }).payloadReview
+
+  test('diffs the stored payload against the text to save', () => {
+    expect(
+      review()
+        ?.diff.rows.filter(({ op }) => op !== 'same')
+        .map(({ op, text }) => [op, text])
+    ).toEqual([
+      ['removed', '    "caseRef": "GLD-9B2"'],
+      ['added', '    "caseRef": "GLD-9B3"']
+    ])
+  })
+
+  test('says the event stays a dead letter', () => {
+    expect(review()?.confirmBody).toBe(
+      'Your version replaces the stored payload. The edit is audited. The event stays a dead letter — nothing is retried until you redrive it.'
+    )
+  })
+
+  test('says a purged event stays purged', () => {
+    expect(
+      review(editable({ ...stateOf('PURGED', 'Purged') }))?.confirmBody
+    ).toContain('The event stays purged')
+  })
+
+  test('starts with an empty note and a counter at nothing', () => {
+    expect(review()).toMatchObject({
+      note: '',
+      noteCount: '0 / 500',
+      noteMax: 500,
+      noteMessage: null,
+      noteInvalid: false,
+      noteDescribedBy: 'edit-note-help',
+      error: null
+    })
+  })
+
+  test('keeps a refused note and sends the alert at it', () => {
+    expect(
+      review(editable(), {
+        note: 'x'.repeat(501),
+        noteProblem: 'too-long'
+      })
+    ).toMatchObject({
+      noteCount: '501 / 500',
+      noteMessage: 'Shorten the note to 500 characters or fewer.',
+      noteInvalid: true,
+      noteDescribedBy: 'edit-note-hint edit-note-help',
+      error: {
+        message: 'Shorten the note to 500 characters or fewer.',
+        href: '#edit-note'
+      }
+    })
+  })
+})
+
+describe('the message an edit leaves behind', () => {
+  const afterEdit = (
+    outcome: Parameters<typeof noticed>[0]['outcome'],
+    extra: { status?: string | null; reason?: string | null } = {},
+    event: EventDetail = editable()
+  ) =>
+    toEventPage(
+      found(event),
+      key,
+      {},
+      {
+        outcome,
+        status: null,
+        reason: null,
+        ...extra,
+        action: 'edit',
+        page: `/dev-ops/events/gas/outbox/${id}`
+      }
+    )
+
+  test('says the payload was saved and the dead letter was not retried', () => {
+    expect(afterEdit('saved').banner).toEqual({
+      role: 'success',
+      message:
+        "Payload saved. The event is still a dead letter and hasn't been retried."
+    })
+  })
+
+  test('says a purged event is still purged', () => {
+    expect(
+      afterEdit('saved', {}, editable({ ...stateOf('PURGED', 'Purged') }))
+        .banner?.message
+    ).toBe("Payload saved. The event is still purged and hasn't been retried.")
+  })
+
+  test('says only that it was saved when the page could not read the event back', () => {
+    expect(
+      toEventPage(
+        { outcome: 'unavailable', event: null },
+        key,
+        {},
+        {
+          outcome: 'saved',
+          status: null,
+          action: 'edit',
+          page: `/dev-ops/events/gas/outbox/${id}`
+        }
+      ).banner?.message
+    ).toBe("Payload saved. It hasn't been retried.")
+  })
+
+  test('takes focus, where the editor it replaces had it', () => {
+    expect(afterEdit('saved').bannerFocus).toBe(true)
+    expect(noticed({ outcome: 'redriven', status: null }).bannerFocus).toBe(
+      false
+    )
+  })
+
+  test.each([
+    [
+      'conflict',
+      { status: 'Completed' },
+      'warning',
+      "Not saved — this event can't be edited. Its status is now Completed."
+    ],
+    ['conflict', {}, 'warning', "Not saved — this event can't be edited."],
+    [
+      'refused',
+      { reason: 'TOO_LARGE' },
+      'error',
+      'Not saved — the payload is over 256 KiB once formatted. Nothing has changed.'
+    ],
+    [
+      'refused',
+      { reason: 'UNCHANGED' },
+      'error',
+      'Not saved — the payload is the same as the one stored. Nothing has changed.'
+    ],
+    [
+      'refused',
+      { reason: 'NOT_AN_OBJECT' },
+      'error',
+      'Not saved — the payload must be a JSON object. Nothing has changed.'
+    ],
+    [
+      'refused',
+      { reason: 'DOLLAR_KEY' },
+      'error',
+      "Not saved — a key starts with $, which can't be stored. Nothing has changed."
+    ],
+    [
+      'refused',
+      { reason: 'SOMETHING_NEW' },
+      'error',
+      'Not saved — fg-gas-backend refused the change. Nothing has changed.'
+    ],
+    [
+      'refused',
+      {},
+      'error',
+      'Not saved — fg-gas-backend refused the change. Nothing has changed.'
+    ],
+    [
+      'not-found',
+      {},
+      'error',
+      'Not saved — fg-gas-backend no longer has this event. Nothing has changed.'
+    ],
+    [
+      'timed-out',
+      {},
+      'warning',
+      'Save status unknown — refresh to check whether your change went through.'
+    ],
+    [
+      'unavailable',
+      {},
+      'error',
+      'Not saved — fg-gas-backend could not be reached. Nothing has changed.'
+    ]
+  ] as const)(
+    'says what happened to a %s save %o',
+    (outcome, extra, role, message) => {
+      expect(afterEdit(outcome, extra).banner).toEqual({ role, message })
+    }
+  )
+
+  test('says only a timeout or an outage could not be answered', () => {
+    const answered = ['conflict', 'refused', 'not-found'] as const
+
+    for (const outcome of answered) {
+      expect(afterEdit(outcome).banner?.message).not.toContain(
+        'could not be reached'
+      )
+    }
   })
 })

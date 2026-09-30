@@ -1,28 +1,65 @@
 import type {
   EventDetail,
   EventKey,
+  EventLastPurge,
   EventResult
 } from '../use-cases/get-event.use-case.ts'
-import type { RedriveResult } from '../use-cases/redrive-event.use-case.ts'
+import type {
+  RedriveOutcome,
+  RedriveResult
+} from '../use-cases/redrive-event.use-case.ts'
+import type {
+  PurgeOutcome,
+  PurgeResult
+} from '../use-cases/purge-event.use-case.ts'
+import type { PayloadEditStep } from '../use-cases/edit-payload-step.ts'
+import { toOpenedStep, toStoredJson } from '../use-cases/edit-payload-step.ts'
+import type { EditResult } from '../use-cases/edit-payload.use-case.ts'
 import { toAttemptCount } from './attempt-count.ts'
 import type { AttemptCount } from './attempt-count.ts'
 import { toBoxLabel, toServiceLabel } from './event-labels.ts'
 import { toEventName } from './event-names.ts'
 import type { EventName } from './event-names.ts'
-import { toEventState } from './event-state.ts'
+import { isPurgedStatus, toEventState } from './event-state.ts'
 import type { EventState } from './event-state.ts'
 import type { BadgeRole } from './event-formats.ts'
 import {
-  none,
+  isAfter,
   toAbsolute,
+  toAbsoluteInstant,
   toEventHref,
   toGap,
   toPreciseInstant,
+  toPreciseOrNone,
   toSearchHref,
   toSearchTitle,
   toTraceHref,
   toValidDate
 } from './event-formats.ts'
+import type { PurgeFormError } from './purge-form.ts'
+import {
+  noteMaxLength,
+  purgeReasons,
+  toPurgeReasonLabel
+} from './purge-form.ts'
+import type {
+  EditedFact,
+  PayloadEditor,
+  PayloadReview
+} from './payload-edit.ts'
+import {
+  canEditEvent,
+  editBanners,
+  hasNoAttemptsSinceEdit,
+  isEditedSinceAttempts,
+  isEditedSinceRedrive,
+  toEditedFact,
+  toOriginalPayloadJson,
+  toPayloadEditor,
+  toPayloadReview,
+  toPlainJsonWarning,
+  toRedriveEditedNote
+} from './payload-edit.ts'
 import { toStackFrames } from './stack-frames.ts'
 
 type AttemptRole = Extract<BadgeRole, 'warning' | 'error'>
@@ -57,12 +94,52 @@ interface EventBanner {
   message: string
 }
 
+interface PurgeReasonChoice {
+  value: string
+  label: string
+  id: string
+  checked: boolean
+}
+
+interface PurgeErrorLink {
+  message: string
+  /** The field the alert sends focus to; there is only ever one. */
+  href: string
+}
+
+export interface PurgeConfirm {
+  deletionText: string | null
+  deletionInstant: string | null
+  reasons: PurgeReasonChoice[]
+  reasonMessage: string | null
+  reasonDescribedBy: string
+  note: string
+  noteCount: string
+  noteMax: number
+  noteMessage: string | null
+  noteInvalid: boolean
+  noteDescribedBy: string
+  error: PurgeErrorLink | null
+}
+
+/** "Purged", or "Previously purged" once the event has been redriven out of it. */
+export interface PurgedFact {
+  label: string
+  reason: string
+  by: string
+  at: string
+  atInstant: string | null
+  note: string | null
+}
+
 export interface EventPageModel {
   unavailable: boolean
   timedOut: boolean
   backHref: string
   from: string
   banner: EventBanner | null
+  /** A saved edit's outcome takes focus: the editor it replaces had it. */
+  bannerFocus: boolean
 
   eventName: EventName | null
   type: string
@@ -100,14 +177,33 @@ export interface EventPageModel {
   attemptHistory: AttemptEntry[]
   attemptSuccess: AttemptSuccess | null
   attemptsBlock: AttemptsBlock
+  noAttemptsSinceEdit: boolean
 
   payloadJson: string | null
+  originalPayloadJson: string | null
+  editedFact: EditedFact | null
 
   canRedrive: boolean
   confirmRedrive: boolean
   redriveHref: string
   cancelHref: string
   redriveAction: string
+  redrivePurgedNote: string | null
+  redriveEditedNote: string | null
+
+  canPurge: boolean
+  purgeHref: string
+  purgeAction: string
+  purgeConfirm: PurgeConfirm | null
+  purgedFact: PurgedFact | null
+
+  canEdit: boolean
+  editHref: string
+  reviewAction: string
+  saveAction: string
+  payloadEditor: PayloadEditor | null
+  payloadReview: PayloadReview | null
+  plainJsonWarning: string | null
 
   lastRedriveInstant: string | null
   lastRedriveText: string | null
@@ -142,35 +238,46 @@ const toSelfHref = (
   return params.size ? `${toEventHref(key)}?${params}` : toEventHref(key)
 }
 
-const toAbsoluteInstant = (at: string | null): string | null =>
-  at === null ? null : toAbsolute(at)
-
-const toPreciseOrNone = (value: string | null): string => {
-  if (value === null) {
-    return none
-  }
-
-  const date = toValidDate(value)
-
-  return date === null ? none : toPreciseInstant(date)
-}
-
 const toPayloadJson = (payload: unknown): string | null =>
   payload === undefined ? null : JSON.stringify(payload, null, 2)
 
+/** Both writes leave their outcome here, under the redrive's key so a session in flight across a deploy still finds its message. */
 export const redriveNoticeKey = 'redriveOutcome'
 
-export interface RedriveNotice extends RedriveResult {
+export const purgeFormKey = 'purgeForm'
+
+export type EventWriteAction = 'redrive' | 'purge' | 'edit'
+
+export interface EventNotice {
+  outcome:
+    | RedriveResult['outcome']
+    | PurgeResult['outcome']
+    | EditResult['outcome']
+  /** Only a conflict reports one. */
+  status: string | null
+  /** Only a refused edit reports one. */
+  reason?: string | null
   /** A flash the redirect never delivered must not surface on another event. */
   page: string
+  /** A session written before purge existed names none: it can only be a redrive. */
+  action?: EventWriteAction
 }
 
-const notDeadLettered = 'Not redriven — this event is no longer dead-lettered.'
+/** What the page has just read about the event, for a banner that says where it now stands. */
+interface BannerContext {
+  expiresText: string | null
+  purged: boolean | null
+}
 
-const banners: Record<
-  RedriveNotice['outcome'],
-  (notice: RedriveNotice) => EventBanner
-> = {
+type BannerFor = (notice: EventNotice, context: BannerContext) => EventBanner
+
+/** The status is the backend's own word for it, so it is quoted, not translated. */
+const withStatus = (sentence: string, status: string | null): string =>
+  status === null ? sentence : `${sentence} Its status is now ${status}.`
+
+const cannotRedrive = "Not redriven — this event can't be redriven."
+
+const redriveBanners: Record<RedriveOutcome, BannerFor> = {
   redriven: () => ({
     role: 'success',
     message:
@@ -178,10 +285,7 @@ const banners: Record<
   }),
   conflict: ({ status }) => ({
     role: 'warning',
-    message:
-      status === null
-        ? notDeadLettered
-        : `${notDeadLettered} Its status is now ${status}.`
+    message: withStatus(cannotRedrive, status)
   }),
   'not-found': () => ({
     role: 'error',
@@ -200,38 +304,107 @@ const banners: Record<
   })
 }
 
-/** An outcome with no banner is a session written by an older release. */
-const toOutcomeBanner = (notice: RedriveNotice): EventBanner | null =>
-  banners[notice.outcome]?.(notice) ?? null
+const notDeadLettered = 'Not purged — this event is no longer dead-lettered.'
+
+/** The date is read back off the event this page has just fetched, not taken from the answer to the write. */
+const purged = (expiresText: string | null): string =>
+  expiresText === null
+    ? 'Purged.'
+    : `Purged. It will be deleted on ${expiresText}.`
+
+const purgeBanners: Record<PurgeOutcome, BannerFor> = {
+  purged: (_notice, { expiresText }) => ({
+    role: 'success',
+    message: purged(expiresText)
+  }),
+  conflict: ({ status }) => ({
+    role: 'warning',
+    message: withStatus(notDeadLettered, status)
+  }),
+  'not-found': () => ({
+    role: 'error',
+    message:
+      'Not purged — fg-gas-backend no longer has this event. Nothing has changed.'
+  }),
+  rejected: () => ({
+    role: 'error',
+    message:
+      'Not purged — fg-gas-backend refused the request. Nothing has changed.'
+  }),
+  'timed-out': () => ({
+    role: 'warning',
+    message: 'Purge status unknown — refresh to check.'
+  }),
+  unavailable: () => ({
+    role: 'error',
+    message:
+      'Not purged — fg-gas-backend could not be reached. Nothing has changed.'
+  })
+}
+
+const banners: Record<string, Record<string, BannerFor>> = {
+  redrive: redriveBanners,
+  purge: purgeBanners,
+  edit: editBanners
+}
+
+const bannersFor = (notice: EventNotice): Record<string, BannerFor> =>
+  banners[notice.action ?? 'redrive'] ?? {}
+
+/** The action and the outcome both come off a session flash, which another release may have written. */
+const toOutcomeBanner = (
+  notice: EventNotice,
+  context: BannerContext
+): EventBanner | null =>
+  bannersFor(notice)[notice.outcome]?.(notice, context) ?? null
+
+const isForPage = (
+  key: EventKey,
+  notice?: EventNotice
+): notice is EventNotice =>
+  notice !== undefined && notice.page === toEventHref(key)
 
 const toBanner = (
   key: EventKey,
-  notice?: RedriveNotice
-): EventBanner | null => {
-  if (notice === undefined || notice.page !== toEventHref(key)) {
-    return null
-  }
+  context: BannerContext,
+  notice?: EventNotice
+): EventBanner | null =>
+  isForPage(key, notice) ? toOutcomeBanner(notice, context) : null
 
-  return toOutcomeBanner(notice)
-}
+/**
+ * The page can hold an editor with a revision in it. `no-cache`, hapi's
+ * default, still lets Back show a copy from before a save, whose revision is
+ * spent; `no-store` makes Back read the event again.
+ */
+export const eventPageCache = { otherwise: 'no-store' }
+
+/** Where a save's redirect lands, so the banner is in view as it takes focus. */
+export const eventBannerId = 'event-banner'
 
 export interface EventPageQuery {
   from?: string
   confirm?: string
+  edit?: string
 }
 
 const toShell = (
   key: EventKey,
-  query: EventPageQuery,
-  notice?: RedriveNotice
+  from: string,
+  context: BannerContext,
+  notice?: EventNotice
 ) => {
-  const from = toSafeFrom(query.from)
+  const banner = toBanner(key, context, notice)
 
   return {
     from,
     backHref: toBackHref(from),
-    banner: toBanner(key, notice),
-    redriveAction: `${toEventHref(key)}/redrive`
+    banner,
+    bannerFocus: banner !== null && notice?.action === 'edit',
+    redriveAction: `${toEventHref(key)}/redrive`,
+    purgeAction: `${toEventHref(key)}/purge`,
+    // Both answer with this page, to be opened on the card; a save's redirect names its own fragment.
+    reviewAction: `${toEventHref(key)}/payload/review#payload`,
+    saveAction: `${toEventHref(key)}/payload#payload`
   }
 }
 
@@ -241,7 +414,11 @@ type ShellKey =
   | 'backHref'
   | 'from'
   | 'banner'
+  | 'bannerFocus'
   | 'redriveAction'
+  | 'purgeAction'
+  | 'reviewAction'
+  | 'saveAction'
 
 const emptyDetail: Omit<EventPageModel, ShellKey> = {
   eventName: null,
@@ -274,11 +451,25 @@ const emptyDetail: Omit<EventPageModel, ShellKey> = {
   attemptHistory: [],
   attemptSuccess: null,
   attemptsBlock: 'notYet',
+  noAttemptsSinceEdit: false,
   payloadJson: null,
+  originalPayloadJson: null,
+  editedFact: null,
   canRedrive: false,
   confirmRedrive: false,
   redriveHref: '',
   cancelHref: '',
+  redrivePurgedNote: null,
+  redriveEditedNote: null,
+  canPurge: false,
+  purgeHref: '',
+  purgeConfirm: null,
+  purgedFact: null,
+  canEdit: false,
+  editHref: '',
+  payloadEditor: null,
+  payloadReview: null,
+  plainJsonWarning: null,
   lastRedriveInstant: null,
   lastRedriveText: null,
   lastRedriveBy: null,
@@ -335,14 +526,6 @@ const toSegregationRef = (event: EventDetail) => {
         segregationRefHref: toSearchHref(segregationRef, isAuditRecord(event)),
         segregationRefTitle: toSearchTitle(segregationRef, 'segregation ref')
       }
-}
-
-/** Compared as instants: two ISO spellings of one moment need not sort as strings. */
-const isAfter = (later: string, earlier: string): boolean => {
-  const a = toValidDate(later)
-  const b = toValidDate(earlier)
-
-  return a !== null && b !== null && a.getTime() > b.getTime()
 }
 
 const lastKnownAt = (attempts: EventDetail['attemptHistory']): string | null =>
@@ -523,17 +706,166 @@ const attemptsBlockRules: [
 const toAttemptsBlock = (context: DetailContext): AttemptsBlock =>
   attemptsBlockRules.find(([, applies]) => applies(context))?.[0] ?? 'predated'
 
+/** A purged event keeps its Redrive: the backend's fence takes it back out of PURGED. */
 const toRedrive = (
-  isDeadLetter: boolean,
+  state: EventState,
   key: EventKey,
   query: EventPageQuery,
   from: string
-) => ({
-  canRedrive: isDeadLetter,
-  confirmRedrive: isDeadLetter && query.confirm === 'redrive',
-  redriveHref: toSelfHref(key, from, ['confirm', 'redrive']),
-  cancelHref: toSelfHref(key, from)
+) => {
+  const canRedrive = state.deadLetter || state.purged
+
+  return {
+    canRedrive,
+    confirmRedrive: canRedrive && query.confirm === 'redrive',
+    redriveHref: toSelfHref(key, from, ['confirm', 'redrive']),
+    cancelHref: toSelfHref(key, from)
+  }
+}
+
+const lastPurgeOf = (event: EventDetail): EventLastPurge | null =>
+  event.lastPurge ?? null
+
+/** An edit not yet retried is the fix for a broken payload, so the warning that it will fail again would contradict the edit note beside it. */
+const toBrokenPayloadClause = (event: EventDetail): string =>
+  isEditedSinceRedrive(event)
+    ? '.'
+    : '; if the payload is broken, it will fail again.'
+
+/** Redriving a purged event reverses a decision somebody made, so the confirm names it first. */
+const toRedrivePurgedNote = ({
+  event,
+  state
+}: DetailContext): string | null => {
+  const purge = lastPurgeOf(event)
+
+  if (purge === null || !state.purged) {
+    return null
+  }
+
+  return `It was purged as '${toPurgeReasonLabel(purge.reasonCode)}'${toBrokenPayloadClause(event)} Its deletion date is cleared.`
+}
+
+const noteId = 'purge-note'
+const noteHintId = 'purge-note-hint'
+const noteHelpId = 'purge-note-help'
+const reasonHintId = 'purge-reason-hint'
+
+const toReasonId = (value: string): string => `purge-reason-${value}`
+
+const anchors: Record<PurgeFormError['field'], string> = {
+  reason: `#${toReasonId(purgeReasons[0].value)}`,
+  note: `#${noteId}`
+}
+
+const toReasonChoices = (chosen: string): PurgeReasonChoice[] =>
+  purgeReasons.map(({ value, label }) => ({
+    value,
+    label,
+    id: toReasonId(value),
+    checked: value === chosen
+  }))
+
+const toNoteError = (error: PurgeFormError | null): PurgeFormError | null =>
+  error !== null && error.field === 'note' ? error : null
+
+/** A radio group takes no `aria-invalid`, so the message is written beside the choices and the fieldset is described by it. */
+const toReasonField = (error: PurgeFormError | null) => ({
+  reasonMessage:
+    error !== null && error.field === 'reason' ? error.message : null,
+  reasonDescribedBy: reasonHintId
 })
+
+/** `validator-hint` is hidden with `visibility`, which `aria-describedby` reads out all the same, so its id joins the description only while it shows. */
+const toNoteField = (note: string, error: PurgeFormError | null) => {
+  const message = error === null ? null : error.message
+
+  return {
+    note,
+    noteCount: `${note.length} / ${noteMaxLength}`,
+    noteMax: noteMaxLength,
+    noteMessage: message,
+    noteInvalid: message !== null,
+    noteDescribedBy:
+      message === null ? noteHelpId : `${noteHintId} ${noteHelpId}`
+  }
+}
+
+/** What the operator sent back, so a rejected form is never retyped. */
+export interface PurgeFormNotice {
+  page: string
+  reasonCode: string
+  note: string
+  error: PurgeFormError | null
+}
+
+const emptyPurgeForm: PurgeFormNotice = {
+  page: '',
+  reasonCode: '',
+  note: '',
+  error: null
+}
+
+const toPurgeConfirm = (
+  deletionDate: string | null,
+  form: PurgeFormNotice
+): PurgeConfirm => ({
+  deletionText: deletionDate === null ? null : toPreciseOrNone(deletionDate),
+  deletionInstant: toAbsoluteInstant(deletionDate),
+  reasons: toReasonChoices(form.reasonCode),
+  ...toReasonField(form.error),
+  ...toNoteField(form.note, toNoteError(form.error)),
+  error:
+    form.error === null
+      ? null
+      : { message: form.error.message, href: anchors[form.error.field] }
+})
+
+const purgeDeletionDateOf = (event: EventDetail): string | null =>
+  event.purgeDeletionDate ?? null
+
+const canPurgeEvent = ({ event, state }: DetailContext): boolean =>
+  state.deadLetter && purgeDeletionDateOf(event) !== null
+
+const toPurge = (
+  context: DetailContext,
+  key: EventKey,
+  query: EventPageQuery,
+  from: string,
+  form: PurgeFormNotice
+) => {
+  const canPurge = canPurgeEvent(context)
+  const open = canPurge && query.confirm === 'purge'
+
+  return {
+    canPurge,
+    purgeHref: toSelfHref(key, from, ['confirm', 'purge']),
+    purgeConfirm: open
+      ? toPurgeConfirm(purgeDeletionDateOf(context.event), form)
+      : null
+  }
+}
+
+const toShownNote = (note: string | null): string | null =>
+  note === null || note === '' ? null : note
+
+/** The row keeps one purge, and keeps it through a redrive, so the label moves rather than the fact. */
+const toPurgedFact = ({ event, state }: DetailContext): PurgedFact | null => {
+  const purge = lastPurgeOf(event)
+
+  if (purge === null) {
+    return null
+  }
+
+  return {
+    label: state.purged ? 'Purged' : 'Previously purged',
+    reason: toPurgeReasonLabel(purge.reasonCode),
+    by: purge.by,
+    at: toPreciseOrNone(purge.at),
+    atInstant: toAbsoluteInstant(purge.at),
+    note: toShownNote(purge.note)
+  }
+}
 
 const toLastRedriveDetail = (lastRedrive: EventDetail['lastRedrive']) => {
   if (lastRedrive === null) {
@@ -559,14 +891,16 @@ const failedTheSameWayTwice = (
   return history.length >= 2 && previous.message === last.message
 }
 
-const toFutileWarning = ({ event, state }: DetailContext): string | null => {
-  const redrive = event.lastRedrive
+/** Nothing has run on an edited payload yet, so the old failures say nothing about it. */
+const mayBeFutile = ({ event, state }: DetailContext): boolean =>
+  state.deadLetter &&
+  failedTheSameWayTwice(event.attemptHistory) &&
+  !isEditedSinceAttempts(event)
 
-  if (
-    redrive === null ||
-    !state.deadLetter ||
-    !failedTheSameWayTwice(event.attemptHistory)
-  ) {
+const toFutileWarning = (context: DetailContext): string | null => {
+  const redrive = context.event.lastRedrive
+
+  if (redrive === null || !mayBeFutile(context)) {
     return null
   }
 
@@ -640,15 +974,68 @@ const toAttempts = (context: DetailContext, attempts: AttemptEntry[]) => ({
   ...toResubmission(context),
   attemptHistory: attempts,
   attemptSuccess: toAttemptSuccess(context),
-  attemptsBlock: toAttemptsBlock(context)
+  attemptsBlock: toAttemptsBlock(context),
+  noAttemptsSinceEdit: hasNoAttemptsSinceEdit(context.event)
 })
 
-const toDetail = (
-  event: EventDetail,
-  key: EventKey,
-  query: EventPageQuery,
+/** Opened by its link, never over a confirm that is already open. */
+const openedEditor = (
+  { event }: DetailContext,
+  query: EventPageQuery
+): PayloadEditStep | null =>
+  query.edit === 'payload' && query.confirm === undefined
+    ? toOpenedStep(event)
+    : null
+
+interface PageInputs {
+  query: EventPageQuery
   from: string
+  form: PurgeFormNotice
+  /** Handed over by a review or a save, in place of the editor the link opens. */
+  edit?: PayloadEditStep
+}
+
+const toEditInput = (
+  context: DetailContext,
+  inputs: PageInputs,
+  canEdit: boolean
+): PayloadEditStep | null =>
+  canEdit ? (inputs.edit ?? openedEditor(context, inputs.query)) : null
+
+const editorOf = (
+  input: PayloadEditStep | null,
+  { event }: DetailContext
+): PayloadEditor | null =>
+  input?.step === 'edit' ? toPayloadEditor(input, toStoredJson(event)) : null
+
+const reviewOf = (
+  input: PayloadEditStep | null,
+  { event, state }: DetailContext
+): PayloadReview | null =>
+  input?.step === 'review'
+    ? toPayloadReview(input, toStoredJson(event), state)
+    : null
+
+/** The warning belongs to the editor and the review; the read-only payload gets none. */
+const toPayloadEdit = (
+  context: DetailContext,
+  key: EventKey,
+  inputs: PageInputs
 ) => {
+  const canEdit = canEditEvent(context.event, context.state)
+  const input = toEditInput(context, inputs, canEdit)
+
+  return {
+    canEdit,
+    editHref: toSelfHref(key, inputs.from, ['edit', 'payload']),
+    payloadEditor: editorOf(input, context),
+    payloadReview: reviewOf(input, context),
+    plainJsonWarning: input === null ? null : toPlainJsonWarning(context.event)
+  }
+}
+
+const toDetail = (event: EventDetail, key: EventKey, inputs: PageInputs) => {
+  const { query, from, form } = inputs
   const state = toEventState(event)
   const context = { event, state, count: toAttemptCount(event.attempts) }
   const attempts = toAttemptHistory(context)
@@ -669,35 +1056,64 @@ const toDetail = (
     errorRole: toLastErrorRole(state),
     ...toAttempts(context, attempts),
     payloadJson: toPayloadJson(event.payload),
-    ...toRedrive(state.deadLetter, key, query, from),
+    originalPayloadJson: toOriginalPayloadJson(event),
+    editedFact: toEditedFact(event),
+    ...toRedrive(state, key, query, from),
+    redrivePurgedNote: toRedrivePurgedNote(context),
+    redriveEditedNote: toRedriveEditedNote(event),
+    ...toPurge(context, key, query, from, form),
+    purgedFact: toPurgedFact(context),
+    ...toPayloadEdit(context, key, inputs),
     ...toLastRedriveDetail(event.lastRedrive),
     futileWarning: toFutileWarning(context),
     errorSearchHref: toErrorSearchHref(context, attempts)
   }
 }
 
-export const toEventPage = (
+type EventDetailModel = ReturnType<typeof toDetail>
+
+const toFoundDetail = (
   { outcome, event }: EventResult,
   key: EventKey,
-  query: EventPageQuery,
-  notice?: RedriveNotice
-): EventPageModel => {
-  const shell = toShell(key, query, notice)
+  inputs: PageInputs
+): EventDetailModel | null =>
+  outcome === 'found' && event !== null ? toDetail(event, key, inputs) : null
 
-  if (outcome !== 'found' || event === null) {
+const toBannerContext = (detail: EventDetailModel | null): BannerContext =>
+  detail === null
+    ? { expiresText: null, purged: null }
+    : { expiresText: detail.expiresText, purged: isPurgedStatus(detail.status) }
+
+/** A flash the redirect never delivered must not refill the form on another event. */
+const toPurgeForm = (key: EventKey, form?: PurgeFormNotice): PurgeFormNotice =>
+  form !== undefined && form.page === toEventHref(key) ? form : emptyPurgeForm
+
+export const toEventPage = (
+  result: EventResult,
+  key: EventKey,
+  query: EventPageQuery,
+  notice?: EventNotice,
+  form?: PurgeFormNotice,
+  edit?: PayloadEditStep
+): EventPageModel => {
+  const from = toSafeFrom(query.from)
+  const detail = toFoundDetail(result, key, {
+    query,
+    from,
+    form: toPurgeForm(key, form),
+    edit
+  })
+  const shell = toShell(key, from, toBannerContext(detail), notice)
+
+  if (detail === null) {
     return {
       unavailable: true,
-      timedOut: outcome === 'timed-out',
+      timedOut: result.outcome === 'timed-out',
       ...shell,
       ...emptyDetail,
       eventId: key.id
     }
   }
 
-  return {
-    unavailable: false,
-    timedOut: false,
-    ...shell,
-    ...toDetail(event, key, query, shell.from)
-  }
+  return { unavailable: false, timedOut: false, ...shell, ...detail }
 }
