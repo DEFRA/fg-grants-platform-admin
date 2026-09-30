@@ -322,7 +322,6 @@ describe('toTypeLabel', () => {
   })
 })
 
-
 describe('the claimed section', () => {
   test('is empty when nothing has been submitted', () => {
     expect(page().claimed).toEqual([])

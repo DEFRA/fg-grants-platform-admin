@@ -20,9 +20,9 @@ describe('claimed claims component', () => {
   test('heads the section', () => {
     const $section = render('claimed-claims', { claimed: [claim()] })
 
-    expect($section('[data-testid="claimed-claims-heading"]').text().trim()).toBe(
-      'Claimed'
-    )
+    expect(
+      $section('[data-testid="claimed-claims-heading"]').text().trim()
+    ).toBe('Claimed')
   })
 
   test('names the columns the caseworker reads', () => {
@@ -92,9 +92,9 @@ describe('claimed claims component', () => {
     const $section = render('claimed-claims', { claimed: [] })
 
     expect($section('[data-testid="claimed-claims"]')).toHaveLength(0)
-    expect($section('[data-testid="claimed-claims-heading"]').text().trim()).toBe(
-      'Claimed'
-    )
+    expect(
+      $section('[data-testid="claimed-claims-heading"]').text().trim()
+    ).toBe('Claimed')
     expect($section('[data-testid="no-claimed-claims"]').text().trim()).toBe(
       'No items claimed'
     )
