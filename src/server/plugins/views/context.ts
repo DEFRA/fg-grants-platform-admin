@@ -1,6 +1,5 @@
 import { assets } from './assets.ts'
 import type { ViewContextRequest } from './index.ts'
-import { config } from '../../../common/config.ts'
 
 const buildNavigation = (request?: ViewContextRequest) => [
   {
@@ -17,8 +16,8 @@ const buildNavigation = (request?: ViewContextRequest) => [
 
 export const context = async (request?: ViewContextRequest) => ({
   ...(await assets()),
-  serviceName: config.get('serviceName'),
-  serviceUrl: '/',
+  // Not config's serviceName, which names the deployment for logs and CDP.
+  serviceName: 'Grants Platform Administration',
   breadcrumbs: [] as { text: string; href?: string }[],
   navigation: buildNavigation(request)
 })

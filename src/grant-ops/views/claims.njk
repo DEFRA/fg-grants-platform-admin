@@ -3,6 +3,7 @@
 {% from "application-header/macro.njk" import appApplicationHeader %}
 {% from "awaiting-claims/macro.njk" import appAwaitingClaims %}
 {% from "available-entitlements/macro.njk" import appAvailableEntitlements %}
+{% from "claimed-claims/macro.njk" import appClaimedClaims %}
 {% from "govuk/components/notification-banner/macro.njk" import govukNotificationBanner %}
 {% from "govuk/components/service-navigation/macro.njk" import govukServiceNavigation %}
 {% from "govuk/components/error-summary/macro.njk" import govukErrorSummary %}
@@ -19,34 +20,33 @@
       {{ govukServiceNavigation({
         navigation: tabs,
         navigationLabel: "Application sections",
-        classes: "app-application-tabs govuk-!-margin-top-5"
+        classes: "app-section-navigation govuk-!-margin-top-5 govuk-!-margin-bottom-8"
       }) }}
 
-      <div class="app-section-panel">
-        {% if errorSummary | length %}
-          {{ govukErrorSummary({
-                titleText: "There is a problem",
-                errorList: errorSummary,
-                attributes: { "data-testid": "entitlement-refused" }
-          }) }}
-        {% endif %}
+      {% if errorSummary | length %}
+        {{ govukErrorSummary({
+              titleText: "There is a problem",
+              errorList: errorSummary,
+              attributes: { "data-testid": "entitlement-refused" }
+        }) }}
+      {% endif %}
 
-        {% if createdNotice %}
-          {% set createdHtml %}
-            <h3 class="govuk-notification-banner__heading">Claimable item created</h3>
-            <p class="govuk-body">{{ createdNotice }}</p>
-          {% endset %}
+      {% if createdNotice %}
+        {% set createdHtml %}
+          <h3 class="govuk-notification-banner__heading">Claimable item created</h3>
+          <p class="govuk-body">{{ createdNotice }}</p>
+        {% endset %}
 
-          {{ govukNotificationBanner({
-            type: "success",
-            html: createdHtml,
-            attributes: { "data-testid": "entitlement-created" }
-          }) }}
-        {% endif %}
+        {{ govukNotificationBanner({
+          type: "success",
+          html: createdHtml,
+          attributes: { "data-testid": "entitlement-created" }
+        }) }}
+      {% endif %}
 
-        {{ appAvailableEntitlements({ entitlements: entitlements }) }}
-        {{ appAwaitingClaims({ awaitingClaims: awaitingClaims }) }}
-      </div>
+      {{ appAvailableEntitlements({ entitlements: entitlements }) }}
+      {{ appAwaitingClaims({ awaitingClaims: awaitingClaims }) }}
+      {{ appClaimedClaims({ claimed: claimed }) }}
 
     </div>
   </div>

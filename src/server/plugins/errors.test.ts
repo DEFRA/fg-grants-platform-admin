@@ -23,7 +23,7 @@ describe('errors', () => {
     })
 
     expect(result).toEqual(
-      expect.stringContaining('Page not found | fg-grants-platform-admin')
+      expect.stringContaining('Page not found | Grants Platform Administration')
     )
     expect(statusCode).toBe(statusCodes.notFound)
   })

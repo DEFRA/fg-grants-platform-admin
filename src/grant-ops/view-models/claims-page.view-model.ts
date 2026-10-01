@@ -4,7 +4,8 @@ import type {
   ClaimableEntitlement,
   Claims,
   EntitlementTemplate,
-  EntitlementTemplateField
+  EntitlementTemplateField,
+  SubmittedClaim
 } from '../use-cases/get-claims.use-case.ts'
 
 // Unit codes a grant definition may carry on a decimal field. Anything not
@@ -41,6 +42,16 @@ export interface AwaitingClaimRow {
   amount: string
 }
 
+export interface ClaimedRow {
+  name: string
+  clientClaimRef: string
+  quantity: string
+  value: string
+  requiresApproval: string
+  approvalStatus: string
+  paymentStatus: string
+}
+
 export interface Tab {
   text: string
   href: string
@@ -55,6 +66,7 @@ export interface ClaimsPage {
   tabs: Tab[]
   entitlements: EntitlementRow[]
   awaitingClaims: AwaitingClaimRow[]
+  claimed: ClaimedRow[]
 }
 
 // The unit a case officer is asked to enter says what kind of entitlement this
@@ -150,6 +162,43 @@ const toAwaitingClaimRow = (
   }
 }
 
+const pencePerPound = 100
+
+const formatValue = (totalClaimAmountPence: number | null): string => {
+  if (totalClaimAmountPence === null) {
+    return ''
+  }
+
+  const fractionDigits = totalClaimAmountPence % pencePerPound === 0 ? 0 : 2
+
+  return new Intl.NumberFormat('en-GB', {
+    style: 'currency',
+    currency: 'GBP',
+    minimumFractionDigits: fractionDigits,
+    maximumFractionDigits: fractionDigits
+  }).format(totalClaimAmountPence / pencePerPound)
+}
+
+const formatQuantity = (quantity: SubmittedClaim['quantity']): string => {
+  if (!quantity) {
+    return ''
+  }
+
+  const amount = formatAmount(quantity.value)
+
+  return quantity.unit ? `${amount} ${quantity.unit.toLowerCase()}` : amount
+}
+
+const toClaimedRow = (claim: SubmittedClaim): ClaimedRow => ({
+  name: claim.name,
+  clientClaimRef: claim.clientClaimRef,
+  quantity: formatQuantity(claim.quantity),
+  value: formatValue(claim.totalClaimAmountPence),
+  requiresApproval: claim.requiresApproval ? 'Yes' : 'No',
+  approvalStatus: '',
+  paymentStatus: claim.paymentScheduled ? 'Payment scheduled' : ''
+})
+
 const toBase = (code: string, clientRef: string): string =>
   `/grant-ops/grants/${encodeURIComponent(code)}/applications/${encodeURIComponent(clientRef)}`
 
@@ -187,8 +236,9 @@ export const toClaimsPage = (
   {
     banner,
     availableEntitlements,
-    claimableEntitlements
-  }: Claims & { banner: Banner }
+    claimableEntitlements,
+    claims = []
+  }: Omit<Claims, 'claims'> & { banner: Banner; claims?: SubmittedClaim[] }
 ): ClaimsPage => {
   const base = toBase(code, clientRef)
   const claimsHref = `${base}/claims`
@@ -204,6 +254,7 @@ export const toClaimsPage = (
     ),
     awaitingClaims: claimableEntitlements.map((claimableEntitlement) =>
       toAwaitingClaimRow(claimableEntitlement, availableEntitlements)
-    )
+    ),
+    claimed: claims.map(toClaimedRow)
   }
 }

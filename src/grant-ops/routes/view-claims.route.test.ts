@@ -6,7 +6,8 @@ import { statusCodes } from '../../common/status-codes.ts'
 import { grantOps } from '../index.ts'
 import type {
   ClaimableEntitlement,
-  EntitlementTemplate
+  EntitlementTemplate,
+  SubmittedClaim
 } from '../use-cases/get-claims.use-case.ts'
 import { getClaimsUseCase } from '../use-cases/get-claims.use-case.ts'
 
@@ -70,15 +71,30 @@ const claimableEntitlement = (
   ...overrides
 })
 
+const submittedClaim = (
+  overrides: Partial<SubmittedClaim> = {}
+): SubmittedClaim => ({
+  clientClaimRef: 'WMP-TU3-LBJ-C07',
+  claimCode: 'ENT_CS_CAPITAL_PA3',
+  name: 'PA3 Woodland Management Plan entitlement',
+  quantity: { value: 23, unit: 'HA' },
+  totalClaimAmountPence: 150000,
+  requiresApproval: false,
+  paymentScheduled: true,
+  submittedAt: '2026-09-15T12:50:08.932Z',
+  ...overrides
+})
+
 const givenClaims = (
   availableEntitlements: EntitlementTemplate[] = [],
-  claimableEntitlements: ClaimableEntitlement[] = []
+  claimableEntitlements: ClaimableEntitlement[] = [],
+  claims: SubmittedClaim[] = []
 ) =>
   vi.mocked(getClaimsUseCase).mockResolvedValue({
     banner,
     availableEntitlements,
     claimableEntitlements,
-    claims: []
+    claims
   })
 
 const viewPage = async () => {
@@ -181,7 +197,7 @@ describe('viewClaimsRoute', () => {
     const { $ } = await viewPage()
 
     expect(
-      $('.app-application-tabs .govuk-service-navigation__item')
+      $('[aria-label="Application sections"] .govuk-service-navigation__item')
         .map((_, item) => $(item).text().trim())
         .get()
     ).toEqual(['Application data', 'Claims', 'Payments'])
@@ -191,7 +207,7 @@ describe('viewClaimsRoute', () => {
     const { $ } = await viewPage()
 
     const $current = $(
-      '.app-application-tabs .govuk-service-navigation__item--active'
+      '[aria-label="Application sections"] .govuk-service-navigation__item--active'
     )
 
     expect($current).toHaveLength(1)
@@ -348,6 +364,71 @@ describe('viewClaimsRoute', () => {
 
     expect($('[data-testid="no-awaiting-claims"]').text().trim()).toBe(
       'Nothing currently claimable'
+    )
+  })
+
+  test('shows a submitted claim in the claimed section', async () => {
+    givenClaims([], [], [submittedClaim()])
+
+    const { $ } = await viewPage()
+
+    expect($('[data-testid="claimed-claims-heading"]').text().trim()).toBe(
+      'Claimed'
+    )
+    expect(
+      $('[data-testid="claimed-claims"] thead th')
+        .map((_, header) => $(header).text().trim())
+        .get()
+    ).toEqual([
+      'Claim type',
+      'Quantity',
+      'Claim value',
+      'Requires approval',
+      'Approval status',
+      'Payment status'
+    ])
+    expect($('[data-testid="claimed-claim-name"]').text().trim()).toBe(
+      'PA3 Woodland Management Plan entitlement'
+    )
+    expect($('[data-testid="claimed-claim-reference"]').text().trim()).toBe(
+      'WMP-TU3-LBJ-C07'
+    )
+    expect($('[data-testid="claimed-claim-quantity"]').text().trim()).toBe(
+      '23 ha'
+    )
+    expect($('[data-testid="claimed-claim-value"]').text().trim()).toBe(
+      '£1,500'
+    )
+    expect(
+      $('[data-testid="claimed-claim-requires-approval"]').text().trim()
+    ).toBe('No')
+    expect(
+      $('[data-testid="claimed-claim-approval-status"]').text().trim()
+    ).toBe('')
+    expect(
+      $('[data-testid="claimed-claim-payment-status"]').text().trim()
+    ).toBe('Payment scheduled')
+  })
+
+  test('puts the claimed section after awaiting a claim', async () => {
+    givenClaims([template()], [claimableEntitlement()], [submittedClaim()])
+
+    const { $ } = await viewPage()
+
+    const headings = $('h2')
+      .map((_, heading) => $(heading).text().trim())
+      .get()
+
+    expect(headings.indexOf('Claimed')).toBeGreaterThan(
+      headings.indexOf('Awaiting a claim')
+    )
+  })
+
+  test('shows the claimed empty state', async () => {
+    const { $ } = await viewPage()
+
+    expect($('[data-testid="no-claimed-claims"]').text().trim()).toBe(
+      'No items claimed'
     )
   })
 })
