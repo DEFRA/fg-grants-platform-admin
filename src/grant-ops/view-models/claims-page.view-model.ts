@@ -164,7 +164,6 @@ const toAwaitingClaimRow = (
 
 const pencePerPound = 100
 
-// Whole pounds are shown without pence, as GOV.UK writes currency.
 const formatValue = (totalClaimAmountPence: number | null): string => {
   if (totalClaimAmountPence === null) {
     return ''
@@ -180,16 +179,16 @@ const formatValue = (totalClaimAmountPence: number | null): string => {
   }).format(totalClaimAmountPence / pencePerPound)
 }
 
-const formatQuantity = (quantity: SubmittedClaim['quantity']): string =>
-  quantity
-    ? `${formatAmount(quantity.value)} ${quantity.unit.toLowerCase()}`
-    : ''
+const formatQuantity = (quantity: SubmittedClaim['quantity']): string => {
+  if (!quantity) {
+    return ''
+  }
 
-/**
- * A claim's payment is scheduled once fg-gas-backend has raised one for it, so
- * a claim held for approval and one whose grant configures no payment both
- * read blank - neither has a payment on its way.
- */
+  const amount = formatAmount(quantity.value)
+
+  return quantity.unit ? `${amount} ${quantity.unit.toLowerCase()}` : amount
+}
+
 const toClaimedRow = (claim: SubmittedClaim): ClaimedRow => ({
   name: claim.name,
   clientClaimRef: claim.clientClaimRef,
@@ -238,8 +237,6 @@ export const toClaimsPage = (
     banner,
     availableEntitlements,
     claimableEntitlements,
-    // The entitlement-creation page shows no Claimed section, so the backend
-    // does not read the submitted claims for it.
     claims = []
   }: Omit<Claims, 'claims'> & { banner: Banner; claims?: SubmittedClaim[] }
 ): ClaimsPage => {

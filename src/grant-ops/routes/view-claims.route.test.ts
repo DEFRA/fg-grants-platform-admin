@@ -410,8 +410,6 @@ describe('viewClaimsRoute', () => {
     ).toBe('Payment scheduled')
   })
 
-  // The Claimed section is the last thing on the tab, below what is still
-  // awaiting a claim.
   test('puts the claimed section after awaiting a claim', async () => {
     givenClaims([template()], [claimableEntitlement()], [submittedClaim()])
 

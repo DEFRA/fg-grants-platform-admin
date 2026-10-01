@@ -51,19 +51,11 @@ export interface Banner {
   summary?: Record<string, BannerField>
 }
 
-/**
- * A claim the applicant has submitted, as fg-gas-backend resolves it: against
- * the template it was made under, and the Payment it raised.
- *
- * There is no approval state: no claim carries one yet, so the Approval status
- * column stays blank until a grant requires approval and the workflow exists.
- */
 export interface SubmittedClaim {
   clientClaimRef: string
   claimCode: string
   name: string
-  // Absent for a grant that measures nothing.
-  quantity: { value: number; unit: string } | null
+  quantity: { value: number; unit: string | null } | null
   totalClaimAmountPence: number | null
   requiresApproval: boolean
   paymentScheduled: boolean
@@ -89,11 +81,6 @@ export interface ClaimableEntitlement {
   claim: Record<string, unknown>
 }
 
-/**
- * The claims page for one claim code, as read when creating an entitlement
- * against it. It carries no submitted claims: the page shows none, so
- * fg-gas-backend does not read them for it.
- */
 export interface Claim extends Omit<Claims, 'claims'> {
   entitlementTemplate: EntitlementTemplate
 }

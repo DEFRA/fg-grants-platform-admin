@@ -367,14 +367,21 @@ describe('the claimed section', () => {
     expect(row.quantity).toBe('4,550 ha')
   })
 
+  test('shows the number alone when the template carries no unit', () => {
+    const [row] = claimed([
+      submittedClaim({ quantity: { value: 23, unit: null } })
+    ])
+
+    expect(row.quantity).toBe('23')
+  })
+
   test('leaves the quantity blank for a claim that measures nothing', () => {
     const [row] = claimed([submittedClaim({ quantity: null })])
 
     expect(row.quantity).toBe('')
   })
 
-  // Woodland requires no approval, so its rows read No with nothing in the
-  // approval column. The Yes branch has no source of approval state yet.
+  // No claim carries an approval state yet, so the column is blank either way.
   test.each([
     [false, 'No'],
     [true, 'Yes']

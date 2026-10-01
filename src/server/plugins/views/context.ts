@@ -16,10 +16,8 @@ const buildNavigation = (request?: ViewContextRequest) => [
 
 export const context = async (request?: ViewContextRequest) => ({
   ...(await assets()),
-  // What the service is called on screen. `serviceName` in config names the
-  // deployment, which is what the logs and CDP report it as.
+  // Not config's serviceName, which names the deployment for logs and CDP.
   serviceName: 'Grants Platform Administration',
-  serviceUrl: '/',
   breadcrumbs: [] as { text: string; href?: string }[],
   navigation: buildNavigation(request)
 })
