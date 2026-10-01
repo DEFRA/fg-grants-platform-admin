@@ -4,6 +4,7 @@
 {% from "govuk/components/service-navigation/macro.njk" import govukServiceNavigation %}
 
 {% from "heading/macro.njk" import appHeading %}
+{% from "defra-heading/macro.njk" import defraHeading %}
 
 {% set mainClasses = "app-main-wrapper" %}
 
@@ -20,14 +21,9 @@
 {% endblock %}
 
 {% block header %}
-  {# serviceName being used in govukHeader will be @deprecated in v6. It has moved to govukServiceNavigation - https://github.com/alphagov/govuk-frontend/blob/main/CHANGELOG.md#move-service-name-and-navigation-links-from-the-govuk-header-to-service-navigation-component #}
-  {{ govukHeader({
-    homepageUrl: "https://www.gov.uk/",
-    classes: "app-header",
-    containerClasses: "govuk-width-container",
+  {{ defraHeading({
     serviceName: serviceName,
-    serviceUrl: serviceUrl,
-    useTudorCrown: true
+    logoSrc: getAssetPath("src/client/assets/images/defra-logo.svg")
   }) }}
 
   {{ govukServiceNavigation({

@@ -7,7 +7,8 @@ export type {
   ClaimableEntitlement,
   Claims,
   EntitlementTemplate,
-  EntitlementTemplateField
+  EntitlementTemplateField,
+  SubmittedClaim
 } from '../repositories/claims.repository.ts'
 
 /**

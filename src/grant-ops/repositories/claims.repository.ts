@@ -51,12 +51,23 @@ export interface Banner {
   summary?: Record<string, BannerField>
 }
 
+export interface SubmittedClaim {
+  clientClaimRef: string
+  claimCode: string
+  name: string
+  quantity: { value: number; unit: string | null } | null
+  totalClaimAmountPence: number | null
+  requiresApproval: boolean
+  paymentScheduled: boolean
+  submittedAt: string
+}
+
 export interface Claims {
   // Absent until a grant configures a claims page.
   banner?: Banner
   availableEntitlements: EntitlementTemplate[]
   claimableEntitlements: ClaimableEntitlement[]
-  claims: unknown[]
+  claims: SubmittedClaim[]
 }
 
 export interface ClaimableEntitlement {
@@ -70,7 +81,7 @@ export interface ClaimableEntitlement {
   claim: Record<string, unknown>
 }
 
-export interface Claim extends Claims {
+export interface Claim extends Omit<Claims, 'claims'> {
   entitlementTemplate: EntitlementTemplate
 }
 

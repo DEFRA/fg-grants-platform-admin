@@ -68,8 +68,7 @@ describe('context', () => {
         { current: false, text: 'Operations Admin', href: '/dev-ops' },
         { current: false, text: 'Applications Admin', href: '/grant-ops' }
       ],
-      serviceName: 'fg-grants-platform-admin',
-      serviceUrl: '/'
+      serviceName: 'Grants Platform Administration'
     })
   })
 })
