@@ -3,6 +3,7 @@
 {% from "back/macro.njk" import back %}
 {% from "char-count/macro.njk" import charCount %}
 {% from "icon/macro.njk" import icon %}
+{% from "json-viewer/macro.njk" import jsonViewer %}
 {% from "status-badge/macro.njk" import statusBadge %}
 
 {# Tailwind only sees class names written literally in this file. #}
@@ -37,12 +38,6 @@
   instant to name, and `datetime` is what makes a `time` machine-readable.
 #}
 {% macro timestamp(text, instant, class, testId) %}{% if class %}<time class="{{ class }}"{% else %}<time{% endif %}{% if instant %} datetime="{{ instant }}"{% endif %}{% if testId %} data-testid="{{ testId }}"{% endif %}>{{ text }}</time>{% endmacro %}
-
-{% macro payloadLines(json, label, testId) %}
-  <div class="max-h-[30rem] w-full overflow-auto rounded-box border border-base-300 bg-base-200 py-2 font-mono text-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-base-content" tabindex="0" role="region" aria-label="{{ label }}" data-testid="{{ testId }}">
-    {% for line in json.split("\n") %}<pre class="flex gap-3 px-3" data-testid="{{ testId }}-line"><span class="w-9 shrink-0 text-right tabular-nums text-base-content/30 before:content-[attr(data-line)]" data-line="{{ loop.index }}" aria-hidden="true"></span><code>{{ line }}</code></pre>{% endfor %}
-  </div>
-{% endmacro %}
 
 {# A value a JSON round trip would change. Shown where the payload is about to be saved, never on the read-only view. #}
 {% macro plainJsonAlert(warning) %}
@@ -495,7 +490,7 @@
               <details class="collapse collapse-arrow border border-base-300" open data-testid="event-payload-current">
                 <summary class="collapse-title text-sm font-semibold" data-testid="event-payload-current-summary">The payload as it is now</summary>
                 <div class="collapse-content">
-                  {{ payloadLines(payloadEditor.currentJson, "The payload as it is now", "event-payload-current-lines") }}
+                  {{ jsonViewer({ view: payloadEditor.currentJson, label: "The payload as it is now", testId: "event-payload-current-lines" }) }}
                 </div>
               </details>
             {% endif %}
@@ -533,7 +528,7 @@
             <details class="collapse collapse-arrow border border-base-300"{% if payloadReview.diff.tooLong %} open{% endif %} data-testid="event-payload-to-save">
               <summary class="collapse-title text-sm font-semibold" data-testid="event-payload-to-save-summary">Show the payload you're about to save</summary>
               <div class="collapse-content">
-                {{ payloadLines(payloadReview.text, "The payload you're about to save", "event-payload-to-save-lines") }}
+                {{ jsonViewer({ view: payloadReview.toSave, label: "The payload you're about to save", testId: "event-payload-to-save-lines" }) }}
               </div>
             </details>
 
@@ -583,17 +578,17 @@
             </section>
           </do-payload-editor>
         {% else %}
-          {% if payloadJson %}
-            {{ payloadLines(payloadJson, "Payload", "event-payload") }}
+          {% if payloadView %}
+            {{ jsonViewer({ view: payloadView, label: "Payload", testId: "event-payload" }) }}
           {% else %}
             <p class="py-6 text-center text-sm text-base-content/70" data-testid="event-payload-empty">This event carries no payload.</p>
           {% endif %}
 
-          {% if originalPayloadJson %}
+          {% if originalPayloadView %}
             <details class="collapse collapse-arrow border border-base-300" data-testid="event-original-payload">
               <summary class="collapse-title text-sm font-semibold" data-testid="event-original-payload-summary">Payload before the first edit</summary>
               <div class="collapse-content">
-                {{ payloadLines(originalPayloadJson, "Payload before the first edit", "event-original-payload-lines") }}
+                {{ jsonViewer({ view: originalPayloadView, label: "Payload before the first edit", testId: "event-original-payload-lines" }) }}
               </div>
             </details>
           {% endif %}
