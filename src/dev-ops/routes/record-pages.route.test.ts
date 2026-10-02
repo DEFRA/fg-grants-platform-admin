@@ -7,12 +7,21 @@ import { devOps } from '../index.ts'
 import type { ApplicationPage } from '../use-cases/get-application-page.use-case.ts'
 import { caseCheckHop } from '../repositories/applications.repository.ts'
 import { getApplicationPageUseCase } from '../use-cases/get-application-page.use-case.ts'
+import type { CasePage } from '../use-cases/get-case-page.use-case.ts'
+import { getCasePageUseCase } from '../use-cases/get-case-page.use-case.ts'
+import { applicationCheckHop } from '../repositories/cases.repository.ts'
 
 vi.mock(import('../use-cases/get-application-page.use-case.ts'), async () => ({
   ...(await vi.importActual<
     typeof import('../use-cases/get-application-page.use-case.ts')
   >('../use-cases/get-application-page.use-case.ts')),
   getApplicationPageUseCase: vi.fn()
+}))
+vi.mock(import('../use-cases/get-case-page.use-case.ts'), async () => ({
+  ...(await vi.importActual<
+    typeof import('../use-cases/get-case-page.use-case.ts')
+  >('../use-cases/get-case-page.use-case.ts')),
+  getCasePageUseCase: vi.fn()
 }))
 vi.mock(import('../../common/config.ts'))
 
@@ -141,7 +150,7 @@ describe('the application page', () => {
     const { $ } = await viewPage()
 
     expect(part($, 'application-related')).toHaveLength(0)
-    expect(part($, 'application-case-unknown')).toHaveLength(0)
+    expect(part($, 'application-counterpart-unknown')).toHaveLength(0)
   })
 
   test('links to the case when it exists', async () => {
@@ -152,8 +161,8 @@ describe('the application page', () => {
     expect(part($, 'application-related').attr('aria-label')).toBe(
       'Related records'
     )
-    expect(textOf($, 'application-view-case')).toBe('View case')
-    expect(part($, 'application-view-case').attr('href')).toBe(
+    expect(textOf($, 'application-counterpart')).toBe('View case')
+    expect(part($, 'application-counterpart').attr('href')).toBe(
       '/dev-ops/cases/frps-private-beta/a7c-2f1-9e4'
     )
   })
@@ -171,7 +180,7 @@ describe('the application page', () => {
 
     const { $ } = await viewPage()
 
-    expect(textOf($, 'application-case-unknown')).toBe(
+    expect(textOf($, 'application-counterpart-unknown')).toBe(
       'CW unavailable. Case link unknown.'
     )
     expect(part($, 'application-related')).toHaveLength(0)
@@ -182,7 +191,7 @@ describe('the application page', () => {
 
     const { $ } = await viewPage()
 
-    expect(part($, 'application-case-unknown')).toHaveLength(0)
+    expect(part($, 'application-counterpart-unknown')).toHaveLength(0)
   })
 
   test('offers Overview, Events and Raw, marking the open one', async () => {
@@ -419,7 +428,7 @@ describe('the Events tab', () => {
     const { $ } = await viewPage(`${path}?section=events`)
 
     expect(part($, 'application-events-partial')).toHaveLength(0)
-    expect(part($, 'application-case-unknown')).toHaveLength(1)
+    expect(part($, 'application-counterpart-unknown')).toHaveLength(1)
   })
 
   test('says when there are no events', async () => {
@@ -458,7 +467,7 @@ describe('the Raw tab', () => {
     const { $ } = await viewPage(`${path}?section=raw`)
 
     expect(part($, 'application-raw').attr('aria-label')).toBe(
-      'Stored document'
+      'Application document'
     )
     expect(
       part($, 'application-raw-line')
@@ -502,5 +511,216 @@ describe('the Raw tab', () => {
       'Raw could not be loaded'
     )
     expect(part($, 'application-raw-too-large')).toHaveLength(0)
+  })
+})
+
+describe('the case page', () => {
+  const casePath = '/dev-ops/cases/woodland/f02-7d8-a61'
+
+  const caseHeader: CasePage['header'] = {
+    caseRef: 'f02-7d8-a61',
+    workflowCode: 'woodland',
+    position: {
+      phase: 'PHASE_POST_AGREEMENT',
+      stage: 'STAGE_MONITORING',
+      status: 'STATUS_ACTIVE'
+    },
+    closed: false,
+    closedAt: null,
+    counterpart: { exists: true },
+    fetchedAt: now.toISOString()
+  }
+
+  const caseOverview: NonNullable<CasePage['overview']> = {
+    workflowCode: 'woodland',
+    originalConfigVersion: '1.3.5',
+    currentConfigVersion: '1.4.2',
+    createdAt: '2026-08-27T12:31:16.000Z',
+    closed: false,
+    closedAt: null,
+    series: { latestRef: 'f02-7d8-a61', refs: ['9d3-5b1-e08', 'f02-7d8-a61'] },
+    storedBytes: 4096
+  }
+
+  const givenCase = (overrides: Partial<CasePage> = {}) =>
+    vi.mocked(getCasePageUseCase).mockResolvedValue({
+      outcome: 'found',
+      page: {
+        header: caseHeader,
+        overview: caseOverview,
+        sourceErrors: [],
+        sectionErrors: [],
+        ...overrides
+      }
+    })
+
+  beforeEach(() => {
+    givenCase()
+  })
+
+  test('reads the case in the URL and heads the page with it', async () => {
+    const { statusCode, $ } = await viewPage(casePath)
+
+    expect(statusCode).toBe(statusCodes.ok)
+    expect(getCasePageUseCase).toHaveBeenCalledWith(
+      { workflowCode: 'woodland', caseRef: 'f02-7d8-a61' },
+      'overview'
+    )
+    expect(textOf($, 'case-title')).toBe('Case f02-7d8-a61')
+    expect(textOf($, 'case-position')).toBe(
+      'Post agreement › Monitoring › Active'
+    )
+    expect(textOf($, 'case-back')).toBe('Back to cases')
+    expect(part($, 'case-back').attr('href')).toBe('/dev-ops/cases')
+    expect($('[data-testid="do-nav"] [aria-current="page"]').text()).toBe(
+      'Cases'
+    )
+  })
+
+  test('links to the application when it exists', async () => {
+    const { $ } = await viewPage(casePath)
+
+    expect(textOf($, 'case-counterpart')).toBe('View application')
+    expect(part($, 'case-counterpart').attr('href')).toBe(
+      '/dev-ops/applications/woodland/f02-7d8-a61'
+    )
+  })
+
+  test.each([
+    ['does not exist', { exists: false }],
+    ['could not be checked', null]
+  ])(
+    'shows no application link when the application %s',
+    async (_name, counterpart) => {
+      givenCase({ header: { ...caseHeader, counterpart } })
+
+      const { $ } = await viewPage(casePath)
+
+      expect(part($, 'case-related')).toHaveLength(0)
+      expect(part($, 'case-counterpart-unknown')).toHaveLength(0)
+    }
+  )
+
+  test('warns that the application link is unknown when GAS could not check it', async () => {
+    givenCase({
+      header: { ...caseHeader, counterpart: null },
+      sourceErrors: [{ hop: applicationCheckHop }]
+    })
+
+    const { $ } = await viewPage(casePath)
+
+    expect(textOf($, 'case-counterpart-unknown')).toBe(
+      'GAS unavailable. Application link unknown.'
+    )
+    expect(part($, 'case-related')).toHaveLength(0)
+  })
+
+  test.each([
+    'GAS Inbox',
+    'GAS Outbox',
+    'CW-BE Inbox',
+    'CW-BE Outbox',
+    'CW-BE Cases'
+  ])('says nothing of the application when %s failed', async (hop) => {
+    givenCase({ sourceErrors: [{ hop }] })
+
+    const { $ } = await viewPage(casePath)
+
+    expect(part($, 'case-counterpart-unknown')).toHaveLength(0)
+  })
+
+  test('leaves the application check out of the missed event sources', async () => {
+    givenCase({
+      overview: undefined,
+      events: { rows: [], more: false },
+      sourceErrors: [{ hop: applicationCheckHop }, { hop: 'GAS Inbox' }]
+    })
+
+    const { $ } = await viewPage(`${casePath}?section=events`)
+
+    expect(textOf($, 'case-events-partial')).toBe(
+      'Some event sources are unavailable: GAS Inbox. Showing the rest.'
+    )
+  })
+
+  test('lists Workflow, Created, Closed at, Series and Size', async () => {
+    const { $ } = await viewPage(casePath)
+
+    expect(
+      part($, 'case-facts')
+        .find('dt')
+        .toArray()
+        .map((label) => flatten($(label).text()))
+    ).toEqual(['Workflow', 'Created', 'Closed at', 'Series', 'Size'])
+    expect(textOf($, 'case-fact-workflow')).toBe(
+      'Workflow woodland@1.4.2 from 1.3.5'
+    )
+    expect(textOf($, 'case-closed-at')).toBe('—')
+    expect(textOf($, 'case-size')).toBe('4 KiB')
+    expect(part($, 'case-series-ref').first().attr('href')).toBe(
+      '/dev-ops/cases/woodland/9d3-5b1-e08'
+    )
+  })
+
+  test('says when a closed case closed', async () => {
+    givenCase({
+      overview: {
+        ...caseOverview,
+        closed: true,
+        closedAt: '2026-09-29T15:02:44.000Z'
+      }
+    })
+
+    const { $ } = await viewPage(casePath)
+
+    expect(textOf($, 'case-closed-at')).toBe('29 Sep 2026 16:02:44.000')
+  })
+
+  test('shows the stored case in the viewer on Raw', async () => {
+    givenCase({
+      overview: undefined,
+      raw: { caseRef: 'f02-7d8-a61' },
+      storedBytes: 30
+    })
+
+    const { $ } = await viewPage(`${casePath}?section=raw`)
+
+    expect(part($, 'case-raw').attr('aria-label')).toBe('Case document')
+    expect(part($, 'case-raw-line').eq(1).find('code').text()).toBe(
+      '  "caseRef": "f02-7d8-a61"'
+    )
+  })
+
+  test("answers GPA's own 404 page for a case CW does not have", async () => {
+    vi.mocked(getCasePageUseCase).mockResolvedValue({
+      outcome: 'not-found',
+      page: null
+    })
+
+    const { statusCode, $ } = await viewPage(casePath)
+
+    expect(statusCode).toBe(statusCodes.notFound)
+    expect($('body').text()).toContain('Page not found')
+  })
+
+  test('says CW timed out rather than drawing a partial case', async () => {
+    vi.mocked(getCasePageUseCase).mockResolvedValue({
+      outcome: 'timed-out',
+      page: null
+    })
+
+    const { $ } = await viewPage(casePath)
+
+    expect(textOf($, 'case-error')).toBe(
+      'This case could not be loaded: CW timed out waiting for it. Refresh to try again.'
+    )
+    expect(textOf($, 'case-title')).toBe('Case f02-7d8-a61')
+    expect(part($, 'case-tabs')).toHaveLength(0)
+  })
+
+  test('is never stored', async () => {
+    const { headers } = await viewPage(casePath)
+
+    expect(headers['cache-control']).toBe('no-store')
   })
 })

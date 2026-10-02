@@ -9,8 +9,11 @@ import type {
   ApplicationsPage
 } from '../use-cases/search-applications.use-case.ts'
 import { searchApplicationsUseCase } from '../use-cases/search-applications.use-case.ts'
+import type { CaseRow, CasesPage } from '../use-cases/search-cases.use-case.ts'
+import { searchCasesUseCase } from '../use-cases/search-cases.use-case.ts'
 
 vi.mock(import('../use-cases/search-applications.use-case.ts'))
+vi.mock(import('../use-cases/search-cases.use-case.ts'))
 vi.mock(import('../../common/config.ts'))
 
 const credentials = {
@@ -620,5 +623,191 @@ describe('a search by reference', () => {
         .toArray()
         .map((field) => `${$(field).attr('name')}=${$(field).attr('value')}`)
     ).toEqual(['code=woodland', 'from=2026-09-29T15:17:31.000Z', 'range=24h'])
+  })
+})
+
+describe('the cases list', () => {
+  const caseRow = (
+    caseRef: string,
+    overrides: Partial<CaseRow> = {}
+  ): CaseRow => ({
+    ref: { caseRef, workflowCode: 'woodland' },
+    position: { phase: null, stage: null, status: 'STATUS_IN_REVIEW' },
+    closed: false,
+    closedAt: null,
+    createdAt: '2026-09-30T15:10:31.000Z',
+    ...overrides
+  })
+
+  const givenCases = (overrides: Partial<CasesPage> = {}) =>
+    vi.mocked(searchCasesUseCase).mockResolvedValue({
+      page: {
+        rows: [
+          caseRow('f02-7d8-a61'),
+          caseRow('9d3-5b1-e08', {
+            closed: true,
+            closedAt: '2026-09-30T14:17:31.000Z'
+          })
+        ],
+        pagination: { endCursor: 'NEXT', hasNextPage: true },
+        total: { count: 45, capped: false },
+        workflowCodes: ['frps-private-beta', 'woodland'],
+        sourceErrors: [],
+        ...overrides
+      },
+      unavailable: false,
+      refused: false
+    })
+
+  beforeEach(() => {
+    givenCases()
+  })
+
+  test('opens on the newest cases, read from CW through GAS', async () => {
+    const { statusCode, $ } = await viewPage('/dev-ops/cases')
+
+    expect(statusCode).toBe(statusCodes.ok)
+    expect(searchCasesUseCase).toHaveBeenCalledWith({}, false)
+    expect(searchApplicationsUseCase).not.toHaveBeenCalled()
+    expect(
+      $('#cases-rows [data-testid="case-link"]')
+        .toArray()
+        .map((link) => $(link).attr('href'))
+    ).toEqual([
+      '/dev-ops/cases/woodland/f02-7d8-a61',
+      '/dev-ops/cases/woodland/9d3-5b1-e08'
+    ])
+    expect(textOf($, 'cases-total')).toBe('45 cases')
+  })
+
+  test('heads its columns Reference, Workflow, Status, Closed and Created', async () => {
+    const { $ } = await viewPage('/dev-ops/cases')
+
+    expect(
+      $('[data-testid="cases-head"] th')
+        .toArray()
+        .map((cell) => flatten($(cell).text()))
+    ).toEqual(['Reference', 'Workflow', 'Status', 'Closed', 'Created'])
+  })
+
+  test('says when a closed case closed, and draws a dash for an open one', async () => {
+    const { $ } = await viewPage('/dev-ops/cases')
+    const rows = part($, 'case-row')
+
+    expect(rows.eq(0).find('[data-testid="case-closed-none"]').text()).toBe('—')
+    expect(
+      flatten(rows.eq(1).find('[data-testid="case-closed-at"]').text())
+    ).toContain('1h 0m ago')
+    expect(rows.eq(1).find('[data-testid="case-workflow"]').text()).toBe(
+      'woodland'
+    )
+  })
+
+  test('filters by workflow as ?code=, asking GAS for its workflow code', async () => {
+    const { $ } = await viewPage('/dev-ops/cases?code=woodland')
+
+    expect(searchCasesUseCase).toHaveBeenCalledWith(
+      { workflowCode: 'woodland' },
+      false
+    )
+    expect(
+      part($, 'cases-filter-workflow-chip')
+        .toArray()
+        .map((chip) => $(chip).attr('href'))
+    ).toEqual([
+      '/dev-ops/cases',
+      '/dev-ops/cases?code=frps-private-beta',
+      '/dev-ops/cases?code=woodland'
+    ])
+    expect(textOf($, 'cases-filter-workflow-button')).toBe('Workflow: woodland')
+    expect(textOf($, 'cases-note-workflow')).toBe('Workflow: "woodland"')
+  })
+
+  test('lists the workflows in order, as the Grant menu lists grants', async () => {
+    givenCases({
+      workflowCodes: ['woodland', 'frps-private-beta', 'pigs-might-fly']
+    })
+
+    const { $ } = await viewPage('/dev-ops/cases')
+
+    expect(
+      part($, 'cases-filter-workflow-chip')
+        .toArray()
+        .map((chip) => flatten($(chip).text()))
+    ).toEqual(['All', 'frps-private-beta', 'pigs-might-fly', 'woodland'])
+  })
+
+  test('shows no rows and no band when CW is down', async () => {
+    vi.mocked(searchCasesUseCase).mockResolvedValue({
+      page: {
+        rows: [],
+        pagination: { endCursor: null, hasNextPage: false },
+        sourceErrors: []
+      },
+      unavailable: true,
+      refused: false
+    })
+
+    const { $ } = await viewPage('/dev-ops/cases')
+
+    expect(textOf($, 'cases-error')).toBe('Cases could not be loaded from CW.')
+    expect(part($, 'case-row')).toHaveLength(0)
+    expect(part($, 'cases-card-header')).toHaveLength(0)
+  })
+
+  test('keeps a searched case ref out of the URL, and reads it back once', async () => {
+    const posted = await server.inject({
+      method: 'POST',
+      url: '/dev-ops/cases',
+      payload: { q: 'f02-7d8-a61', code: 'woodland' },
+      auth: { strategy: 'session', credentials }
+    })
+
+    expect(posted.headers.location).toBe('/dev-ops/cases?code=woodland')
+
+    const { $ } = await viewPage(
+      '/dev-ops/cases?code=woodland',
+      cookieOf(posted.headers['set-cookie'])
+    )
+
+    expect(searchCasesUseCase).toHaveBeenCalledWith(
+      { workflowCode: 'woodland', ref: 'f02-7d8-a61' },
+      false
+    )
+    expect(textOf($, 'cases-note-search')).toBe('Matching "f02-7d8-a61"')
+  })
+
+  test('keeps its own search apart from the applications one', async () => {
+    const posted = await search({ q: '9d3-5b1-e08' })
+
+    await viewPage('/dev-ops/cases', posted.cookie)
+
+    expect(searchCasesUseCase).toHaveBeenCalledWith({}, false)
+  })
+
+  test('scrolls on with its own noun and both drawings of its rows', async () => {
+    const { $ } = await viewPage('/dev-ops/cases')
+    const more = part($, 'cases-load-more')
+
+    expect(more.attr('data-next-page')).toBe('/dev-ops/cases?cursor=NEXT')
+    expect(more.attr('data-rows')).toBe('cases-rows cases-list')
+    expect(more.attr('data-noun-many')).toBe('cases')
+  })
+
+  test('titles the time presets for cases', async () => {
+    const { $ } = await viewPage('/dev-ops/cases')
+
+    expect(part($, 'cases-range-preset').first().attr('title')).toBe(
+      'Cases created in the last 15m'
+    )
+  })
+
+  test('sends private, no-cache and marks Cases in the nav', async () => {
+    const { headers, $ } = await viewPage('/dev-ops/cases')
+
+    expect(headers['cache-control']).toBe('private, no-cache')
+    expect($('[data-testid="do-nav"] [aria-current="page"]').text()).toBe(
+      'Cases'
+    )
   })
 })
