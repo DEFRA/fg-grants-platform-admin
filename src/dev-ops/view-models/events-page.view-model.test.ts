@@ -781,8 +781,8 @@ describe('toEventsPage', () => {
   })
 
   test('empties both range boxes on a page with no window on it', () => {
-    expect(model([event()]).fromInput).toBe('')
-    expect(model([event()]).toInput).toBe('')
+    expect(model([event()]).timeRange.fromInput).toBe('')
+    expect(model([event()]).timeRange.toInput).toBe('')
   })
 
   test('says the window nowhere but on the time-range button', () => {
@@ -799,14 +799,16 @@ describe('toEventsPage', () => {
     const { fromInput, toInput } = modelFor({
       from: '2026-06-16T09:00:00.000Z',
       to: '2026-06-16T10:20:30.000Z'
-    })
+    }).timeRange
 
     expect(fromInput).toBe('2026-06-16T10:00:00')
     expect(toInput).toBe('2026-06-16T11:20:30')
   })
 
   test('hands an unreadable range value back to the box as it stands', () => {
-    expect(modelFor({ from: 'last tuesday' }).fromInput).toBe('last tuesday')
+    expect(modelFor({ from: 'last tuesday' }).timeRange.fromInput).toBe(
+      'last tuesday'
+    )
   })
 
   test('keeps the range on every filter link', () => {
@@ -1274,6 +1276,17 @@ describe('the time range control', () => {
     ).toBe('2026-09-01 01:00 – now')
   })
 
+  test('titles each preset as a window of events', () => {
+    expect(timeRangeFor().presets.map(({ title }) => title)).toEqual([
+      'Events from the last 15m',
+      'Events from the last 1h',
+      'Events from the last 6h',
+      'Events from the last 24h',
+      'Events from the last 7d',
+      'Events from the last 30d'
+    ])
+  })
+
   test('puts the label on the button title too', () => {
     expect(timeRangeFor().title).toBe('Time range: All')
   })
@@ -1334,7 +1347,7 @@ describe('the audit population', () => {
       name: 'audit',
       value: 'include'
     })
-    expect(page.rangeFilters).toContainEqual({
+    expect(page.timeRange.hiddenFields).toContainEqual({
       name: 'audit',
       value: 'include'
     })

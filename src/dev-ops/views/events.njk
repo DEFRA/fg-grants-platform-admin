@@ -5,6 +5,7 @@
 {% from "load-more/macro.njk" import loadMore %}
 {% from "status-badge/macro.njk" import statusBadge %}
 {% from "sticky-top/macro.njk" import stickyTop %}
+{% from "time-range-menu/macro.njk" import timeRangeMenu %}
 
 {# Tailwind only sees class names written literally in this file. #}
 
@@ -103,41 +104,7 @@
     </div>
 
     <div class="mb-3 flex flex-wrap items-center gap-2" data-testid="events-toolbar">
-      <div class="flex items-center gap-2" data-testid="events-range">
-        <button class="{{ triggerActive if timeRange.active else trigger }}" type="button" popovertarget="events-range-panel" title="{{ timeRange.title }}" data-testid="events-range-button">
-          {{ icon({ name: 'clock', class: 'size-4 opacity-60' }) }}
-          <span><span class="{{ triggerName }}">Time:</span> {{ timeRange.label }}</span>
-          {{ icon({ name: 'chevron-down', class: chevron }) }}
-        </button>
-        <div class="dropdown card card-sm mt-2 w-72 border border-base-300 bg-base-100 shadow-md" popover id="events-range-panel" data-testid="events-range-panel">
-          <div class="card-body gap-2 p-2">
-            <ul class="menu menu-md w-full p-0" data-testid="events-range-presets">
-              <li>
-                <a class="{{ menuItemActive if timeRange.anyTimeActive else menuItem }}" href="{{ timeRange.anyTimeHref }}"{% if timeRange.anyTimeActive %} aria-current="page"{% endif %} data-testid="events-range-any">{{ icon({ name: 'check', class: tick if timeRange.anyTimeActive else tickHidden }) }}<span>All</span></a>
-              </li>
-              {% for preset in timeRange.presets %}
-                <li>
-                  <a class="{{ menuItemActive if preset.active else menuItem }}" href="{{ preset.href }}" title="{{ preset.title }}"{% if preset.active %} aria-current="true"{% endif %} data-value="{{ preset.key }}" data-testid="events-range-preset">{{ icon({ name: 'check', class: tick if preset.active else tickHidden }) }}<span>{{ preset.label }}</span></a>
-                </li>
-              {% endfor %}
-            </ul>
-
-            <form method="get" action="/dev-ops/events" data-testid="events-range-form">
-              {% for field in rangeFilters %}
-                <input type="hidden" name="{{ field.name }}" value="{{ field.value }}" data-testid="events-range-filter">
-              {% endfor %}
-              <fieldset class="fieldset border-t border-base-300 pt-2">
-                <legend class="fieldset-legend text-sm" data-testid="events-range-absolute-heading">Custom</legend>
-                <label class="label" for="events-range-from" data-testid="events-range-from-label">From</label>
-                <input class="input w-full font-mono text-sm" id="events-range-from" type="datetime-local" step="1" name="from" value="{{ fromInput }}" data-testid="events-range-from">
-                <label class="label" for="events-range-to" data-testid="events-range-to-label">To</label>
-                <input class="input w-full font-mono text-sm" id="events-range-to" type="datetime-local" step="1" name="to" value="{{ toInput }}" data-testid="events-range-to">
-                <button class="btn btn-sm mt-2 self-end" type="submit" data-testid="events-range-apply">Apply</button>
-              </fieldset>
-            </form>
-          </div>
-        </div>
-      </div>
+      {{- timeRangeMenu({ id: "events", range: timeRange }) }}
 
       {%- set service = serviceFilters | selectattr("active") | first -%}
       <div class="flex items-center gap-2" data-testid="events-filter-service">
@@ -248,7 +215,15 @@
           </table>
         </div>
 
-        {{ loadMore({ nextHref: nextHref, rows: "events-rows" }) }}
+        {{ loadMore({
+          id: "events",
+          nextHref: nextHref,
+          rowLink: '[data-testid="event-link"]',
+          outage: '[data-testid="events-error"], [data-testid="events-refused"]',
+          partial: '[data-testid="events-partial"] span',
+          nounMany: "events",
+          nounOne: "event"
+        }) }}
     </div>
   {% else %}
     <div class="card card-border min-h-0 flex-1 bg-base-100" data-testid="events-card">
