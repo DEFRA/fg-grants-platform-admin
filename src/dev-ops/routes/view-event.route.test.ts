@@ -235,19 +235,36 @@ describe('viewEventRoute', () => {
     expect($('main').html()).not.toContain('UTC')
   })
 
-  test('heads the page with the event name, the status straight under it', async () => {
+  test('heads the page with the type then the id on one line, the status straight under it', async () => {
     const { $ } = await viewPage()
 
     const title = $('[data-testid="event-title"]')
 
     expect(title.is('h1')).toBe(true)
     expect(title.attr('class')).toContain('text-xl')
+    expect(title.attr('class')).toContain('items-baseline')
     expect(title.attr('class')).not.toContain('font-mono')
     expect(title.find('[data-testid="event-type-name"]').text()).toBe(
       'CaseStatusUpdated'
     )
+    expect(title.children().last().attr('data-testid')).toBe('event-id')
     expect(title.attr('title')).toBe('case.status.updated')
-    expect(title.next().attr('data-testid')).toBe('event-id')
+    expect(title.next().attr('data-testid')).toBe('event-header-status')
+  })
+
+  test('heads an ApplicationCreated event with the type then the id on one line', async () => {
+    givenEvent(detail({ type: 'application.created' }))
+
+    const { $ } = await viewPage()
+    const title = $('[data-testid="event-title"]')
+
+    expect(title.find('[data-testid="event-type-name"]').text()).toBe(
+      'ApplicationCreated'
+    )
+    expect(title.children().last().attr('data-testid')).toBe('event-id')
+    expect(flatten(title.text())).toBe(
+      'ApplicationCreatedApplication created 3f2c1a0e-1111-2222-3333-444455556666'
+    )
   })
 
   test('speaks the name spaced, and shows it in PascalCase', async () => {
@@ -325,16 +342,16 @@ describe('viewEventRoute', () => {
     expect($('main').html()).not.toContain('badge-soft')
   })
 
-  test('shows the whole event id under the name, as plain selectable text', async () => {
+  test('shows the whole event id beside the name, as plain selectable text', async () => {
     const { $ } = await viewPage()
 
     const line = $('[data-testid="event-id"]')
 
     expect(line.text()).toBe('3f2c1a0e-1111-2222-3333-444455556666')
-    expect(line.is('p')).toBe(true)
+    expect(line.parent().attr('data-testid')).toBe('event-title')
+    expect(line.attr('class')).toContain('font-mono')
     expect(line.attr('class')).toContain('select-all')
     expect(line.attr('class')).toContain('break-all')
-    expect(line.prev().attr('data-testid')).toBe('event-title')
   })
 
   test('prints the event id once at the top of the page', async () => {
@@ -1026,9 +1043,9 @@ describe('viewEventRoute', () => {
     const line = $('[data-testid="event-id"]')
 
     expect(line.text()).toBe(id)
-    expect(line.is('p')).toBe(true)
+    expect(line.parent().attr('data-testid')).toBe('event-title')
     expect($('h1')).toHaveLength(1)
-    expect(valueOf($, 'event-title')).toBe('Event')
+    expect(valueOf($, 'event-title')).toBe(`Event ${id}`)
     // A role="alert" should speak its sentence, not read out a uuid.
     expect($('[data-testid="event-error"]').text()).not.toContain(id)
   })
@@ -3157,5 +3174,99 @@ describe('the payload editor', () => {
     expect($('[data-testid="event-payload-editor-text"]').text()).toContain(
       `</textarea>${xss}`
     )
+  })
+})
+
+describe('the record link', () => {
+  const relatedRecords = ($: CheerioAPI) =>
+    $('[data-testid="event-related-records"]')
+
+  test('links a GAS event to its application when the application exists', async () => {
+    givenEvent(
+      detail({
+        type: 'application.created',
+        record: {
+          kind: 'application',
+          code: 'frps-private-beta',
+          ref: 'f02-7d8-a61'
+        }
+      })
+    )
+
+    const { $ } = await viewPage()
+    const link = $('[data-testid="event-record-link"]')
+
+    expect(relatedRecords($).attr('aria-label')).toBe('Related records')
+    expect(flatten(link.text())).toBe('View application')
+    expect(link.attr('href')).toBe(
+      '/dev-ops/applications/frps-private-beta/f02-7d8-a61'
+    )
+  })
+
+  test('links a GAS-stored case status update to the application, as GAS names it', async () => {
+    givenEvent(
+      detail({
+        box: 'inbox',
+        type: 'case.status.updated',
+        record: { kind: 'application', code: 'woodland', ref: 'f02-7d8-a61' }
+      })
+    )
+
+    const { $ } = await viewPage(inboxPath)
+
+    expect(flatten($('[data-testid="event-record-link"]').text())).toBe(
+      'View application'
+    )
+  })
+
+  test('links a CW event to its case when the case exists', async () => {
+    givenEvent(
+      detail({
+        service: 'caseworking',
+        record: { kind: 'case', code: 'woodland', ref: 'f02-7d8-a61' }
+      })
+    )
+
+    const { $ } = await viewPage(`/dev-ops/events/caseworking/outbox/${id}`)
+    const link = $('[data-testid="event-record-link"]')
+
+    expect(flatten(link.text())).toBe('View case')
+    expect(link.attr('href')).toBe('/dev-ops/cases/woodland/f02-7d8-a61')
+  })
+
+  test('shows no record link for an event with no record, leaving the segregation ref to search with', async () => {
+    givenEvent(
+      detail({
+        service: 'caseworking',
+        box: 'inbox',
+        type: 'case.create',
+        record: null,
+        segregationRef: 'f02-7d8-a61-woodland'
+      })
+    )
+
+    const { $ } = await viewPage(`/dev-ops/events/caseworking/inbox/${id}`)
+
+    expect(relatedRecords($)).toHaveLength(0)
+    expect($('[data-testid="event-segregation-ref"]').attr('href')).toBe(
+      '/dev-ops/events?q=f02-7d8-a61-woodland'
+    )
+    expect($('main').text()).not.toContain('Related')
+  })
+
+  test('shows no record link on an audit event', async () => {
+    givenEvent(detail({ type: 'audit', record: null }))
+
+    const { $ } = await viewPage()
+
+    expect(relatedRecords($)).toHaveLength(0)
+  })
+
+  test('shows no record link when an older GAS sends no record', async () => {
+    givenEvent(detail())
+
+    const { $ } = await viewPage()
+
+    expect(relatedRecords($)).toHaveLength(0)
   })
 })
