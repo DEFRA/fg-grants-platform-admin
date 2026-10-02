@@ -2,43 +2,86 @@ const preloadMarginPx = 600
 
 const announceEveryMs = 1500
 
-export const loadedMessage = (count: number): string =>
-  `${count} more ${count === 1 ? 'event' : 'events'} loaded`
+export interface Noun {
+  one: string
+  many: string
+}
+
+export const loadedMessage = (count: number, noun: Noun): string =>
+  `${count} more ${count === 1 ? noun.one : noun.many} loaded`
+
+/** What to look for in a fetched page, all set by the list through data attributes. */
+interface PageSelectors {
+  rowLink?: string
+  outage?: string
+  empty?: string
+  partial?: string
+}
+
+const selectorsOf = ({
+  rowLink,
+  pageOutage,
+  pageEmpty,
+  pagePartial
+}: DOMStringMap): PageSelectors => ({
+  rowLink,
+  outage: pageOutage,
+  empty: pageEmpty,
+  partial: pagePartial
+})
+
+const nounOf = ({ nounOne, nounMany }: DOMStringMap): Noun | null =>
+  nounOne && nounMany ? { one: nounOne, many: nounMany } : null
 
 interface Page {
-  rows: Node[]
+  rows: Node[][]
   next: string | null
   partial: string | null
 }
 
-const outage = '[data-testid="events-error"], [data-testid="events-refused"]'
+const find = (root: ParentNode, selector?: string): Element | null =>
+  selector ? root.querySelector(selector) : null
 
-/** A 200 is not always a page of events: the outage and refused states are 200s too. */
-const isPageOfEvents = (page: Document): boolean =>
-  !page.querySelector(outage) &&
-  Boolean(
-    page.querySelector('do-load-more') ??
-    page.querySelector('[data-testid="events-empty"]')
-  )
+/** A 200 is not always a page of rows: an outage can be a 200 too. */
+const isPageOfRows = (page: Document, selectors: PageSelectors): boolean =>
+  !find(page, selectors.outage) &&
+  Boolean(find(page, 'do-load-more') ?? find(page, selectors.empty))
 
 const nextPageOf = (page: Document): string | null =>
   page.querySelector('do-load-more')?.getAttribute('data-next-page') ?? null
 
-const partialOf = (page: Document): string | null =>
-  page.querySelector('[data-testid="events-partial"] span')?.textContent ?? null
+const partialOf = (page: Document, selector?: string): string | null =>
+  find(page, selector)?.textContent?.trim() ?? null
 
-const hrefOf = (row: Element): string | null =>
-  row.querySelector('[data-testid="event-link"]')?.getAttribute('href') ?? null
+/** Every container the rows are drawn in, or none if any is missing. */
+const rowsOf = (ids = ''): HTMLElement[] | null => {
+  const rows = ids
+    .split(' ')
+    .filter(Boolean)
+    .map((id) => document.getElementById(id))
 
-const readPage = (page: Document, rowsId: string): Page => ({
-  rows: [...page.querySelectorAll(`[id="${rowsId}"] > tr`)].map((row) =>
-    document.importNode(row, true)
+  return rows.length > 0 && rows.every(Boolean) ? (rows as HTMLElement[]) : null
+}
+
+const readPage = (
+  page: Document,
+  rowsIds: string[],
+  selectors: PageSelectors
+): Page => ({
+  rows: rowsIds.map((rowsId) =>
+    [...page.querySelectorAll(`[id="${rowsId}"] > *`)].map((row) =>
+      document.importNode(row, true)
+    )
   ),
   next: nextPageOf(page),
-  partial: partialOf(page)?.trim() ?? null
+  partial: partialOf(page, selectors.partial)
 })
 
-const fetchPage = async (href: string, rowsId: string): Promise<Page> => {
+const fetchPage = async (
+  href: string,
+  rowsIds: string[],
+  selectors: PageSelectors
+): Promise<Page> => {
   const response = await fetch(href, {
     headers: { accept: 'text/html' },
     credentials: 'same-origin'
@@ -53,16 +96,18 @@ const fetchPage = async (href: string, rowsId: string): Promise<Page> => {
     'text/html'
   )
 
-  if (!isPageOfEvents(page)) {
-    throw new Error('Not a page of events')
+  if (!isPageOfRows(page, selectors)) {
+    throw new Error('Not a page of rows')
   }
 
-  return readPage(page, rowsId)
+  return readPage(page, rowsIds, selectors)
 }
 
 interface Parts {
-  rows: HTMLElement
-  table: HTMLElement
+  /** The table body, and any other drawing of the same rows, such as a phone list. */
+  rows: HTMLElement[]
+  busy: HTMLElement[]
+  noun: Noun
   sentinel: HTMLElement
   spinner: HTMLElement
   end: HTMLElement
@@ -74,6 +119,7 @@ interface Parts {
 
 export class LoadMore extends HTMLElement {
   #parts: Parts | null = null
+  #selectors: PageSelectors = {}
   #next: string | null = null
   #busy = false
   #failed = false
@@ -93,10 +139,16 @@ export class LoadMore extends HTMLElement {
   }
 
   #find(): Parts | null {
-    const rows = document.getElementById(this.dataset.rows ?? '')
+    const rows = rowsOf(this.dataset.rows)
+
+    if (!rows) {
+      return null
+    }
+
     const parts = {
       rows,
-      table: rows?.closest('table'),
+      busy: rows.map((row) => row.closest('table') ?? row),
+      noun: nounOf(this.dataset),
       sentinel: this.querySelector('[data-load-more-sentinel]'),
       spinner: this.querySelector('[data-load-more-spinner]'),
       end: this.querySelector('[data-load-more-end]'),
@@ -119,6 +171,7 @@ export class LoadMore extends HTMLElement {
     }
     this.#parts = parts
     this.#next = this.dataset.nextPage ?? null
+    this.#selectors = selectorsOf(this.dataset)
     parts.retry.addEventListener('click', () => this.#retry(parts))
     this.#startWatching(parts)
   }
@@ -180,26 +233,37 @@ export class LoadMore extends HTMLElement {
   }
 
   async #append(parts: Parts, href: string) {
-    const { rows, next, partial } = await fetchPage(href, parts.rows.id)
-    const fresh = this.#withoutShown(parts, rows)
+    const { rows, next, partial } = await fetchPage(
+      href,
+      parts.rows.map((container) => container.id),
+      this.#selectors
+    )
+    const fresh = parts.rows.map((container, index) =>
+      this.#withoutShown(container, rows[index])
+    )
 
-    parts.rows.append(...fresh)
+    parts.rows.forEach((container, index) => container.append(...fresh[index]))
     this.#next = next
     this.#showPartialNotice(parts, partial)
     if (next === null) {
       this.#end(parts, href, partial)
     }
-    this.#queueAnnouncement(parts, fresh.length, partial)
+    // Every container draws the same rows, so the first one counts them.
+    this.#queueAnnouncement(parts, fresh[0].length, partial)
+  }
+
+  #hrefOf(row: Element): string | null {
+    return find(row, this.#selectors.rowLink)?.getAttribute('href') ?? null
   }
 
   /** A retried page can repeat rows already shown. */
-  #withoutShown(parts: Parts, rows: Node[]): Node[] {
+  #withoutShown(container: HTMLElement, rows: Node[]): Node[] {
     const shown = new Set(
-      [...parts.rows.querySelectorAll('tr')].map(hrefOf).filter(Boolean)
+      [...container.children].map((row) => this.#hrefOf(row)).filter(Boolean)
     )
 
     return rows.filter((row) => {
-      const href = row instanceof Element ? hrefOf(row) : null
+      const href = row instanceof Element ? this.#hrefOf(row) : null
 
       return href === null || !shown.has(href)
     })
@@ -227,7 +291,9 @@ export class LoadMore extends HTMLElement {
   #setBusy(parts: Parts, busy: boolean) {
     this.#busy = busy
     parts.spinner.hidden = !busy
-    parts.table.setAttribute('aria-busy', String(busy))
+    for (const element of parts.busy) {
+      element.setAttribute('aria-busy', String(busy))
+    }
   }
 
   #keepFilling(parts: Parts) {
@@ -244,7 +310,7 @@ export class LoadMore extends HTMLElement {
 
   #fail(parts: Parts) {
     this.#failed = true
-    parts.error.textContent = 'More events could not be loaded.'
+    parts.error.textContent = `More ${parts.noun.many} could not be loaded.`
     parts.error.hidden = false
     parts.retry.hidden = false
   }
@@ -281,9 +347,9 @@ export class LoadMore extends HTMLElement {
 
   #announce(parts: Parts) {
     const message = [
-      this.#pending > 0 ? loadedMessage(this.#pending) : null,
+      this.#pending > 0 ? loadedMessage(this.#pending, parts.noun) : null,
       this.#pendingPartial,
-      this.#pendingEnd ? 'No more events' : null
+      this.#pendingEnd ? `No more ${parts.noun.many}` : null
     ]
       .filter(Boolean)
       .join('. ')
