@@ -16,7 +16,7 @@ export interface StoredSearch {
   fresh: boolean
 }
 
-export type StoredSearchKey = 'applicationsSearch'
+export type StoredSearchKey = 'applicationsSearch' | 'casesSearch'
 
 const maxAgeMs = 15 * 60 * 1000
 
