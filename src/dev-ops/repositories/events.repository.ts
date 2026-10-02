@@ -126,6 +126,13 @@ export interface EventAttempt {
   stack: string | null
 }
 
+/** The one record an event belongs to, named by the service that stored the row. */
+export interface EventRecord {
+  kind: 'application' | 'case'
+  code: string
+  ref: string
+}
+
 export interface EventDetail extends EventWithAttempts {
   attemptHistory: EventAttempt[]
   payload: unknown
@@ -147,6 +154,8 @@ export interface EventDetail extends EventWithAttempts {
   originalPayload?: unknown
   /** False when a JSON round trip would change a stored value; null when the service can't tell. */
   payloadIsPlainJson?: boolean | null
+  /** Sent only where the owning service has the record. */
+  record?: EventRecord | null
 }
 
 export interface EventLastRedrive {
