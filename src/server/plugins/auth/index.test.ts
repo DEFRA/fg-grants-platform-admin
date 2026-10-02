@@ -229,6 +229,15 @@ describe('auth', () => {
     expect(destinationsOf(payload).link).toBe('/auth/login')
   })
 
+  test('clears the browser cache on the signed out page, so Back shows no list', async () => {
+    const { headers } = await server.inject({
+      method: 'GET',
+      url: '/auth/signed-out'
+    })
+
+    expect(headers['clear-site-data']).toBe('"cache"')
+  })
+
   test('ends signing out on a page, not back inside the app', async () => {
     const callback = await server.inject({
       method: 'POST',
