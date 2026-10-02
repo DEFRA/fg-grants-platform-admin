@@ -84,7 +84,8 @@ const signedOutRoute: ServerRoute = {
     auth: false as const
   },
   handler(_request: unknown, h: ResponseToolkit) {
-    return h.response(signedOutPage())
+    // Back on a shared machine must not bring a list back from the cache.
+    return h.response(signedOutPage()).header('clear-site-data', '"cache"')
   }
 }
 

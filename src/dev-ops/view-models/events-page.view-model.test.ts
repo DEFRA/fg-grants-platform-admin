@@ -5,7 +5,7 @@ import type {
   EventFacets,
   EventRow as EventRowResponse,
   EventService,
-  EventsPagination,
+  ListPagination,
   EventsQuery,
   EventsResult,
   ServiceFilter,
@@ -74,8 +74,8 @@ const services: ServiceFilter[] = [
 ]
 
 const pagination = (
-  overrides: Partial<EventsPagination> = {}
-): EventsPagination => ({
+  overrides: Partial<ListPagination> = {}
+): ListPagination => ({
   endCursor: null,
   hasNextPage: false,
   ...overrides
@@ -97,7 +97,7 @@ const facets = (overrides: Partial<EventCounts> = {}): EventFacets => ({
 
 const result = (
   events: EventRowResponse[],
-  overrides: Partial<EventsPagination> = {},
+  overrides: Partial<ListPagination> = {},
   sourceErrors: SourceError[] = []
 ): EventsResult => ({
   page: { events, pagination: pagination(overrides), sourceErrors },
@@ -110,7 +110,7 @@ const result = (
 
 const model = (
   events: EventRowResponse[],
-  overrides: Partial<EventsPagination> = {},
+  overrides: Partial<ListPagination> = {},
   sourceErrors: SourceError[] = [],
   query: EventsQuery = {}
 ) => toEventsPage(result(events, overrides, sourceErrors), query, now)

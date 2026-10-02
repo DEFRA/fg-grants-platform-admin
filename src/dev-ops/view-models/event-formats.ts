@@ -179,6 +179,23 @@ export const toValidDate = (value: string): Date | null => {
   return Number.isNaN(date.getTime()) ? null : date
 }
 
+const isoInstant =
+  /^(\d{4})-(\d{2})-(\d{2})T([01]\d|2[0-3]):[0-5]\d(:[0-5]\d(\.\d+)?)?(Z|[+-]([01]\d|2[0-3]):[0-5]\d)$/
+
+/** ISO 8601 with a zone, on a day the calendar has: `new Date` reads far more than that. */
+export const isIsoInstant = (value: string): boolean => {
+  const match = isoInstant.exec(value)
+
+  if (match === null) {
+    return false
+  }
+
+  const [year, month, day] = match.slice(1, 4).map(Number)
+  const date = new Date(Date.UTC(year, month - 1, day))
+
+  return date.getUTCMonth() === month - 1 && date.getUTCDate() === day
+}
+
 /** The instant a developer pastes into a log query: `2026-06-16T10:00:00Z`. */
 export const toAbsolute = (value: string): string | null =>
   toValidDate(value)?.toISOString().replace('.000', '') ?? null

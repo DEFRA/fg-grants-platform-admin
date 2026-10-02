@@ -1,4 +1,5 @@
 import type { Request } from '@hapi/hapi'
+import type { GasActor } from '../../common/gas-actor.ts'
 
 /**
  * Defensive about the field as well as the value: the type says both are
@@ -29,3 +30,15 @@ export const toActor = (request: Request): string | undefined => {
 
   return user === undefined ? undefined : toIdentifier(user) || undefined
 }
+
+/** The Entra object id GAS records as the audit `user`; `undefined` sends no header. */
+export const toActorId = (request: Request): string | undefined => {
+  const user = request.auth.credentials?.user as { id?: string } | undefined
+
+  return toTrimmed(user?.id) || undefined
+}
+
+export const toGasActor = (request: Request): GasActor => ({
+  name: toActor(request),
+  id: toActorId(request)
+})
