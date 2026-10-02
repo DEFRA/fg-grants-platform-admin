@@ -22,6 +22,8 @@ import type {
 import { scanJson } from '../use-cases/json-scan.ts'
 import { isAfter, toAbsoluteInstant, toPreciseOrNone } from './event-formats.ts'
 import type { EventState } from './event-state.ts'
+import { toJsonTextView, toJsonView } from './json-viewer.view-model.ts'
+import type { JsonView } from './json-viewer.view-model.ts'
 import type { PayloadDiff } from './payload-diff.ts'
 import { toPayloadDiff } from './payload-diff.ts'
 
@@ -91,11 +93,11 @@ export const toEditedFact = (event: EventDetail): EditedFact | null => {
   }
 }
 
-/** Printed as the payload is, so the two read line for line. */
-export const toOriginalPayloadJson = (event: EventDetail): string | null =>
+/** Drawn as the payload is, so the two read line for line. */
+export const toOriginalPayloadView = (event: EventDetail): JsonView | null =>
   event.originalPayload === undefined || event.originalPayload === null
     ? null
-    : JSON.stringify(event.originalPayload, null, 2)
+    : toJsonView(event.originalPayload)
 
 export const toRedriveEditedNote = (event: EventDetail): string | null => {
   const edit = lastEditOf(event)
@@ -127,7 +129,7 @@ export interface PayloadEditor {
   rows: number
   alert: EditorAlert | null
   /** The payload as it is now, shown beside the operator's text once theirs has gone stale. */
-  currentJson: string | null
+  currentJson: JsonView | null
 }
 
 interface NoteErrorLink {
@@ -137,6 +139,7 @@ interface NoteErrorLink {
 
 export interface PayloadReview {
   text: string
+  toSave: JsonView
   revision: number
   diff: PayloadDiff
   confirmBody: string
@@ -240,6 +243,15 @@ const maxRows = 24
 const toRows = (text: string): number =>
   Math.min(text.split('\n').length, maxRows)
 
+/** An event with no payload has nothing to show beside a stale edit. */
+const toCurrentJson = (
+  input: Extract<PayloadEditStep, { step: 'edit' }>,
+  storedJson: string
+): JsonView | null =>
+  input.problem?.kind === 'stale' && storedJson !== ''
+    ? toJsonTextView(storedJson)
+    : null
+
 export const toPayloadEditor = (
   input: Extract<PayloadEditStep, { step: 'edit' }>,
   storedJson: string
@@ -248,7 +260,7 @@ export const toPayloadEditor = (
   revision: input.revision,
   rows: toRows(input.text),
   alert: input.problem === null ? null : toEditorAlert(input.problem),
-  currentJson: input.problem?.kind === 'stale' ? storedJson : null
+  currentJson: toCurrentJson(input, storedJson)
 })
 
 const editNoteId = 'edit-note'
@@ -297,6 +309,7 @@ export const toPayloadReview = (
   state: EventState
 ): PayloadReview => ({
   text: input.text,
+  toSave: toJsonTextView(input.text),
   revision: input.revision,
   diff: toPayloadDiff(storedJson, input.text),
   confirmBody: toConfirmBody(state),

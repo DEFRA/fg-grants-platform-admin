@@ -645,16 +645,20 @@ describe('viewEventRoute', () => {
     expect(payload.attr('class')).toContain('border border-base-300')
     expect(payload.attr('class')).toContain('max-h-[30rem]')
     expect(payload.attr('class')).toContain('overflow-auto')
-    expect(payload.find('pre > code')).toHaveLength(json.split('\n').length)
+    expect(payload.find('[data-testid="event-payload-line"]')).toHaveLength(
+      json.split('\n').length
+    )
     expect(
       payload
-        .find('code')
+        .find('[data-testid="event-payload-line"] code')
         .toArray()
         .map((line) => $(line).text())
         .join('\n')
     ).toBe(json)
 
-    const gutter = payload.find('[data-testid="event-payload-line"] > span')
+    const gutter = payload.find(
+      '[data-testid="event-payload-line"] > span[data-line]'
+    )
     const numbers = gutter.toArray().map((line) => $(line).attr('data-line'))
 
     expect(numbers.slice(0, 3)).toEqual(['1', '2', '3'])
@@ -713,10 +717,14 @@ describe('viewEventRoute', () => {
     )
   })
 
-  test('offers the payload as selectable text, behind no button', async () => {
+  test('offers the payload as selectable text, with Copy shown only by script', async () => {
     const { $ } = await viewPage()
 
-    expect($('[data-testid="event-payload-card"] button')).toHaveLength(0)
+    const copy = $('[data-testid="event-payload-copy"]')
+
+    expect($('[data-testid="event-payload-card"] button')).toHaveLength(1)
+    expect(copy.parent().attr('hidden')).toBeDefined()
+    expect(copy.text()).toBe('Copy payload')
     expect(flatten($('[data-testid="event-payload"]').text())).toContain(
       '"caseRef": "GLD-9B2"'
     )
@@ -2778,7 +2786,7 @@ describe('an edited event', () => {
 
     expect(original.is('details')).toBe(true)
     expect(original.attr('open')).toBeUndefined()
-    expect(original.prev().attr('data-testid')).toBe('event-payload')
+    expect(original.prev().attr('data-testid')).toBe('event-payload-viewer')
     expect(valueOf($, 'event-original-payload-summary')).toBe(
       'Payload before the first edit'
     )
@@ -2897,6 +2905,61 @@ describe('the edit button', () => {
     const { $ } = await viewPage()
 
     expect($('[data-testid="event-edit"]')).toHaveLength(0)
+  })
+})
+
+describe('the payload viewer', () => {
+  const parcels = (count: number) =>
+    Array.from({ length: count }, (_, index) => `P${index}`)
+
+  const linesOf = ($: CheerioAPI) =>
+    $('[data-testid="event-payload-line"]')
+      .toArray()
+      .map((line) => [
+        Number($(line).children('[data-line]').attr('data-line')),
+        $(line).find('code').text()
+      ])
+
+  test('folds an array of 13 items and leaves one of 12 open', async () => {
+    givenEvent(detail({ payload: { long: parcels(13), short: parcels(12) } }))
+
+    const { $ } = await viewPage()
+
+    const folds = $('[data-testid="event-payload"] details')
+
+    expect(folds).toHaveLength(3)
+    expect(folds.eq(1).attr('open')).toBeUndefined()
+    expect(
+      flatten(
+        folds.eq(1).find('[data-testid="event-payload-folded"]').first().text()
+      )
+    ).toBe('13 items ],')
+    expect(folds.eq(2).attr('open')).toBeDefined()
+  })
+
+  test('folds with no script: each fold is a details and its summary', async () => {
+    givenEvent(detail({ payload: { long: parcels(13) } }))
+
+    const { $ } = await viewPage()
+
+    const fold = $('[data-testid="event-payload"] details').eq(1)
+
+    expect(fold.children().first().is('summary')).toBe(true)
+    expect(fold.find('script')).toHaveLength(0)
+  })
+
+  test('numbers every line as the editor text box does, folded or not', async () => {
+    const payload = { long: parcels(13), data: { caseRef: 'GLD-9B2' } }
+    givenEvent(detail({ payload, payloadRevision: 2 }))
+
+    const viewer = linesOf((await viewPage()).$)
+    const editor = (await viewPage(`${path}?edit=payload`))
+      .$('[data-testid="event-payload-editor-text"]')
+      .text()
+      .split('\n')
+
+    expect(viewer).toEqual(editor.map((text, index) => [index + 1, text]))
+    expect(viewer.find(([, text]) => text === '  "data": {')?.[0]).toBe(17)
   })
 })
 
