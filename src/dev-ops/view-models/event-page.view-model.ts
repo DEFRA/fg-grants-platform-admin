@@ -36,6 +36,8 @@ import {
   toTraceHref,
   toValidDate
 } from './event-formats.ts'
+import { toJsonViewOrNone } from './json-viewer.view-model.ts'
+import type { JsonView } from './json-viewer.view-model.ts'
 import type { PurgeFormError } from './purge-form.ts'
 import {
   noteMaxLength,
@@ -54,7 +56,7 @@ import {
   isEditedSinceAttempts,
   isEditedSinceRedrive,
   toEditedFact,
-  toOriginalPayloadJson,
+  toOriginalPayloadView,
   toPayloadEditor,
   toPayloadReview,
   toPlainJsonWarning,
@@ -179,8 +181,8 @@ export interface EventPageModel {
   attemptsBlock: AttemptsBlock
   noAttemptsSinceEdit: boolean
 
-  payloadJson: string | null
-  originalPayloadJson: string | null
+  payloadView: JsonView | null
+  originalPayloadView: JsonView | null
   editedFact: EditedFact | null
 
   canRedrive: boolean
@@ -237,9 +239,6 @@ const toSelfHref = (
 
   return params.size ? `${toEventHref(key)}?${params}` : toEventHref(key)
 }
-
-const toPayloadJson = (payload: unknown): string | null =>
-  payload === undefined ? null : JSON.stringify(payload, null, 2)
 
 /** Both writes leave their outcome here, under the redrive's key so a session in flight across a deploy still finds its message. */
 export const redriveNoticeKey = 'redriveOutcome'
@@ -452,8 +451,8 @@ const emptyDetail: Omit<EventPageModel, ShellKey> = {
   attemptSuccess: null,
   attemptsBlock: 'notYet',
   noAttemptsSinceEdit: false,
-  payloadJson: null,
-  originalPayloadJson: null,
+  payloadView: null,
+  originalPayloadView: null,
   editedFact: null,
   canRedrive: false,
   confirmRedrive: false,
@@ -1055,8 +1054,8 @@ const toDetail = (event: EventDetail, key: EventKey, inputs: PageInputs) => {
     ...toFailure(event.lastError),
     errorRole: toLastErrorRole(state),
     ...toAttempts(context, attempts),
-    payloadJson: toPayloadJson(event.payload),
-    originalPayloadJson: toOriginalPayloadJson(event),
+    payloadView: toJsonViewOrNone(event.payload),
+    originalPayloadView: toOriginalPayloadView(event),
     editedFact: toEditedFact(event),
     ...toRedrive(state, key, query, from),
     redrivePurgedNote: toRedrivePurgedNote(context),

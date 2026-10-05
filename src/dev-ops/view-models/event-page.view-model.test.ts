@@ -13,9 +13,17 @@ import type {
 import { hoursPerDay, minutesPerHour, msPerMinute } from './event-formats.ts'
 import { toEventPage, toSafeFrom } from './event-page.view-model.ts'
 import { toEventsPage } from './events-page.view-model.ts'
+import type { JsonView } from './json-viewer.view-model.ts'
 
 vi.mock(import('../../common/config.ts'))
 vi.mock(import('../../common/logger.ts'))
+
+const textOf = (view: JsonView | null): string | null =>
+  view === null
+    ? null
+    : view.rows
+        .flatMap((row) => (row.kind === 'end' ? [] : [row.text]))
+        .join('\n')
 
 const logsBase = 'https://logs.dev.cdp-int.defra.cloud'
 
@@ -250,17 +258,19 @@ describe('toEventPage', () => {
   })
 
   test('pretty-prints the payload at two spaces', () => {
-    expect(model().payloadJson).toBe(
+    expect(textOf(model().payloadView)).toBe(
       '{\n  "data": {\n    "caseRef": "GLD-9B2"\n  }\n}'
     )
   })
 
   test('prints a stored null as a payload', () => {
-    expect(model(found(detail({ payload: null }))).payloadJson).toBe('null')
+    expect(textOf(model(found(detail({ payload: null }))).payloadView)).toBe(
+      'null'
+    )
   })
 
   test('has nothing to print when the endpoint sent no payload', () => {
-    expect(model(found(detail({ payload: undefined }))).payloadJson).toBeNull()
+    expect(model(found(detail({ payload: undefined }))).payloadView).toBeNull()
   })
 
   test('reads the failure in full, class and instant apart', () => {
@@ -372,7 +382,7 @@ describe('toEventPage', () => {
 
     expect(page.unavailable).toBe(true)
     expect(page.backHref).toBe('/dev-ops/events?status=FAILED')
-    expect(page.payloadJson).toBeNull()
+    expect(page.payloadView).toBeNull()
     expect(page.canRedrive).toBe(false)
   })
 
@@ -2095,8 +2105,10 @@ describe('an edited payload', () => {
 
   test('prints the payload before the first edit as the payload is printed', () => {
     expect(
-      model(found(detail({ originalPayload: { sheetId: 12345 } })))
-        .originalPayloadJson
+      textOf(
+        model(found(detail({ originalPayload: { sheetId: 12345 } })))
+          .originalPayloadView
+      )
     ).toBe('{\n  "sheetId": 12345\n}')
   })
 
@@ -2104,7 +2116,7 @@ describe('an edited payload', () => {
     ['absent', {}],
     ['null', { originalPayload: null }]
   ])('keeps no original when the field is %s', (_name, overrides) => {
-    expect(model(found(detail(overrides))).originalPayloadJson).toBeNull()
+    expect(model(found(detail(overrides))).originalPayloadView).toBeNull()
   })
 })
 
@@ -2176,7 +2188,7 @@ describe('the payload editor', () => {
       revision: 2,
       rows: 5,
       alert: null,
-      currentJson: null
+      currentView: null
     })
     expect(page.payloadReview).toBeNull()
   })
