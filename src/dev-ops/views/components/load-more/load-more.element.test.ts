@@ -37,12 +37,21 @@ const intersect = () => {
   )
 }
 
+const eventsParams = {
+  id: 'events',
+  rowLink: '[data-testid="event-link"]',
+  outage: '[data-testid="events-error"], [data-testid="events-refused"]',
+  partial: '[data-testid="events-partial"] span',
+  nounMany: 'events',
+  nounOne: 'event'
+}
+
 const pageOf = (ids: string[], next: string | null) =>
   `<table><tbody id="events-rows">${ids
     .map((id) => `<tr data-testid="event-row"><td>${id}</td></tr>`)
     .join('')}</tbody></table>${render('load-more', {
-    nextHref: next,
-    rows: 'events-rows'
+    ...eventsParams,
+    nextHref: next
   })('body').html()}`
 
 const outagePage = `<div data-testid="events-card"><div role="alert" data-testid="events-error"><span>Events could not be loaded from GAS.</span></div></div>`
@@ -281,8 +290,8 @@ describe('do-load-more', () => {
           `<tr data-testid="event-row"><td><a data-testid="event-link" href="/dev-ops/events/gas/inbox/${id}">${id}</a></td></tr>`
       )
       .join('')}</tbody></table>${render('load-more', {
-      nextHref: next,
-      rows: 'events-rows'
+      ...eventsParams,
+      nextHref: next
     })('body').html()}`
 
   test('offers Retry on a partial last page, and appends only what it had not shown', async () => {
@@ -430,6 +439,30 @@ describe('do-load-more', () => {
     ).toBe(false)
   })
 
+  test('does not start without the noun it announces rows by', async () => {
+    await import('../index.ts')
+    document.body.innerHTML = pageOf(['1'], '/dev-ops/events?cursor=A').replace(
+      ' data-noun-many="events"',
+      ''
+    )
+    await vi.advanceTimersByTimeAsync(0)
+
+    expect(FakeObserver.made).toHaveLength(0)
+    expect(
+      document.querySelector<HTMLElement>(
+        '[data-testid="events-load-more-link"]'
+      )?.hidden
+    ).toBe(false)
+  })
+
+  test('reads its rows and its empty page off its id unless told otherwise', () => {
+    const $ = render('load-more', { ...eventsParams, nextHref: null })
+    const element = $('do-load-more')
+
+    expect(element.attr('data-rows')).toBe('events-rows')
+    expect(element.attr('data-page-empty')).toBe('[data-testid="events-empty"]')
+  })
+
   test('leaves markup it does not recognise alone', async () => {
     await import('../index.ts')
     document.body.innerHTML =
@@ -440,9 +473,144 @@ describe('do-load-more', () => {
   })
 })
 
+describe('do-load-more on another list', () => {
+  const applicationsParams = {
+    id: 'applications',
+    rows: 'applications-rows applications-list',
+    rowLink: '[data-testid="application-link"]',
+    nounMany: 'applications',
+    nounOne: 'application'
+  }
+
+  const applicationsPage = (ids: string[], next: string | null) =>
+    `<table><tbody id="applications-rows">${ids
+      .map(
+        (id) =>
+          `<tr><td><a data-testid="application-link" href="/dev-ops/applications/frps/${id}">${id}</a></td></tr>`
+      )
+      .join('')}</tbody></table><ul id="applications-list">${ids
+      .map(
+        (id) =>
+          `<li><a data-testid="application-link" href="/dev-ops/applications/frps/${id}">${id}</a></li>`
+      )
+      .join('')}</ul>${render('load-more', {
+      ...applicationsParams,
+      nextHref: next
+    })('body').html()}`
+
+  const textOf = (selector: string) =>
+    [...document.querySelectorAll(selector)].map((row) =>
+      row.textContent?.trim()
+    )
+
+  const part = (testId: string) =>
+    document.querySelector<HTMLElement>(`[data-testid="${testId}"]`)!
+
+  beforeEach(() => {
+    vi.useFakeTimers({
+      toFake: ['setTimeout', 'clearTimeout', 'requestAnimationFrame']
+    })
+    FakeObserver.made = []
+    vi.stubGlobal('IntersectionObserver', FakeObserver)
+    fetchMock.mockReset()
+    vi.stubGlobal('fetch', fetchMock)
+    document.body.innerHTML = ''
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+    vi.unstubAllGlobals()
+  })
+
+  const mountApplications = async () => {
+    await import('../index.ts')
+    document.body.innerHTML = applicationsPage(
+      ['a1'],
+      '/dev-ops/applications?cursor=A'
+    )
+    await vi.advanceTimersByTimeAsync(0)
+    farAway(part('applications-load-more-sentinel'))
+  }
+
+  test('appends the next page to the table and the phone list alike', async () => {
+    await mountApplications()
+    fetchMock.mockResolvedValueOnce(
+      answer(applicationsPage(['a2', 'a3'], null))
+    )
+    intersect()
+    await vi.advanceTimersByTimeAsync(0)
+
+    expect(textOf('#applications-rows > tr')).toEqual(['a1', 'a2', 'a3'])
+    expect(textOf('#applications-list > li')).toEqual(['a1', 'a2', 'a3'])
+  })
+
+  test('says what it loaded, and that there is no more, in its own noun', async () => {
+    await mountApplications()
+    fetchMock.mockResolvedValueOnce(
+      answer(
+        applicationsPage(
+          Array.from({ length: 20 }, (_, index) => `b${index}`),
+          null
+        )
+      )
+    )
+    intersect()
+    await vi.advanceTimersByTimeAsync(1600)
+
+    expect(part('applications-load-more-end').textContent).toBe(
+      'No more applications'
+    )
+    expect(part('applications-load-more-status').textContent).toBe(
+      '20 more applications loaded. No more applications'
+    )
+  })
+
+  test('ends on its own empty page', async () => {
+    await mountApplications()
+    fetchMock.mockResolvedValueOnce(
+      answer('<p data-testid="applications-empty">No applications found.</p>')
+    )
+    intersect()
+    await vi.advanceTimersByTimeAsync(0)
+
+    expect(part('applications-load-more-end').hidden).toBe(false)
+    expect(part('applications-load-more-error').hidden).toBe(true)
+  })
+
+  test('fails in its own noun on a page it does not recognise', async () => {
+    await mountApplications()
+    fetchMock.mockResolvedValueOnce(answer('<p>Something else</p>'))
+    intersect()
+    await vi.advanceTimersByTimeAsync(0)
+
+    expect(part('applications-load-more-error').textContent).toBe(
+      'More applications could not be loaded.'
+    )
+  })
+
+  test('keeps the More link for no script, naming its rows', () => {
+    const $ = render('load-more', {
+      ...applicationsParams,
+      nextHref: '/dev-ops/applications?cursor=A'
+    })
+
+    expect($('[data-testid="applications-load-more-link"]').text()).toBe(
+      'More applications'
+    )
+  })
+})
+
 describe('loadedMessage', () => {
   test('counts what arrived, in the singular for one', () => {
-    expect(loadedMessage(20)).toBe('20 more events loaded')
-    expect(loadedMessage(1)).toBe('1 more event loaded')
+    const noun = { one: 'event', many: 'events' }
+
+    expect(loadedMessage(20, noun)).toBe('20 more events loaded')
+    expect(loadedMessage(1, noun)).toBe('1 more event loaded')
+  })
+
+  test('names the rows of whichever list it serves', () => {
+    expect(
+      loadedMessage(20, { one: 'application', many: 'applications' })
+    ).toBe('20 more applications loaded')
   })
 })
