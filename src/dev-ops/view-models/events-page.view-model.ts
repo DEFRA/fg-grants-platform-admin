@@ -4,16 +4,16 @@ import { toEventName } from './event-names.ts'
 import type { EventName } from './event-names.ts'
 import { isDeadLetterStatus } from './event-state.ts'
 import {
-  hoursPerDay,
-  minutesPerHour,
-  msPerMinute,
   none,
   toClock,
   toEventHref,
   toTimestamp,
-  toValidDate,
-  toZonedInput
+  toValidDate
 } from './event-formats.ts'
+import { toTimeRange } from './time-range.view-model.ts'
+import type { TimeRange, TimeRangeList } from './time-range.view-model.ts'
+import { toFields, toFilterHref } from './list-filters.ts'
+import type { FilterField } from './list-filters.ts'
 import type {
   EventBreakdownGroup,
   EventBreakdownPage,
@@ -56,23 +56,6 @@ interface ErrorNote {
   label: string
   title: string
   clearHref: string
-}
-
-interface TimeRangePreset {
-  key: string
-  label: string
-  href: string
-  title: string
-  active: boolean
-}
-
-interface TimeRange {
-  label: string
-  title: string
-  active: boolean
-  presets: TimeRangePreset[]
-  anyTimeHref: string
-  anyTimeActive: boolean
 }
 
 interface FailureGroup {
@@ -120,11 +103,6 @@ interface AuditSwitch {
   title: string
 }
 
-interface SearchFilter {
-  name: string
-  value: string
-}
-
 export interface EventsPageModel {
   rows: EventRow[]
   statusFilters: FilterChip[]
@@ -135,10 +113,7 @@ export interface EventsPageModel {
   errorFilter: ErrorNote | null
   timeRange: TimeRange
   topFailures: TopFailures | null
-  searchFilters: SearchFilter[]
-  rangeFilters: SearchFilter[]
-  fromInput: string
-  toInput: string
+  searchFilters: FilterField[]
   nextHref: string | null
   unavailableSources: string
   unavailable: boolean
@@ -217,32 +192,10 @@ type FilterKey = (typeof filterKeys)[number]
 const filterKeysWithout = (...dropped: FilterKey[]): FilterKey[] =>
   filterKeys.filter((key) => !dropped.includes(key))
 
-const toFields = (
-  query: EventsPageQuery,
-  keys: readonly FilterKey[]
-): SearchFilter[] =>
-  keys.flatMap((name) => {
-    const value = query[name]
+const eventsPath = '/dev-ops/events'
 
-    return value ? [{ name, value }] : []
-  })
-
-const addFilters = (
-  params: URLSearchParams,
-  query: EventsPageQuery
-): URLSearchParams => {
-  for (const { name, value } of toFields(query, filterKeys)) {
-    params.set(name, value)
-  }
-
-  return params
-}
-
-const toFilterHref = (query: EventsPageQuery): string => {
-  const params = addFilters(new URLSearchParams(), query)
-
-  return params.size ? `/dev-ops/events?${params}` : '/dev-ops/events'
-}
+const toEventsHref = (query: EventsPageQuery): string =>
+  toFilterHref(eventsPath, filterKeys, query)
 
 const toCount = (count: number | null) => ({
   countLabel: count === null ? null : counted.format(count),
@@ -270,7 +223,7 @@ const toStatusChips = (
     {
       value: null,
       label: 'All',
-      href: toFilterHref({ ...query, status: undefined }),
+      href: toEventsHref({ ...query, status: undefined }),
       active: !query.status,
       alarming: false,
       title: null,
@@ -286,7 +239,7 @@ const toStatusChips = (
       return {
         value,
         label,
-        href: toFilterHref({ ...query, status: value }),
+        href: toEventsHref({ ...query, status: value }),
         active: query.status === value,
         alarming: isAlarming(value, count),
         title: explainer,
@@ -303,13 +256,13 @@ const toServiceChips = (
   {
     value: null,
     label: 'All',
-    href: toFilterHref({ ...query, service: undefined }),
+    href: toEventsHref({ ...query, service: undefined }),
     active: !query.service
   },
   ...services.map(({ value }) => ({
     value,
     label: toServiceLabel(value, services),
-    href: toFilterHref({ ...query, service: value }),
+    href: toEventsHref({ ...query, service: value }),
     active: query.service === value
   }))
 ]
@@ -319,7 +272,7 @@ const toAuditSwitch = (query: EventsPageQuery): AuditSwitch => {
 
   return {
     checked,
-    href: toFilterHref({ ...query, audit: checked ? undefined : 'include' }),
+    href: toEventsHref({ ...query, audit: checked ? undefined : 'include' }),
     label: 'Show audit events',
     title: checked
       ? 'Hide audit events: the queue alone'
@@ -328,12 +281,14 @@ const toAuditSwitch = (query: EventsPageQuery): AuditSwitch => {
 }
 
 /** The search form carries every filter but the search itself. */
-const toSearchFilters = (query: EventsPageQuery): SearchFilter[] =>
+const toSearchFilters = (query: EventsPageQuery): FilterField[] =>
   toFields(query, filterKeysWithout('q'))
 
-/** The range form carries every filter but the range it sets. */
-const toRangeFilters = (query: EventsPageQuery): SearchFilter[] =>
-  toFields(query, filterKeysWithout('from', 'to', 'range'))
+const eventsList: TimeRangeList<EventsPageQuery> = {
+  basePath: eventsPath,
+  filterKeys,
+  presetTitlePrefix: 'Events from the last'
+}
 
 const toNextHref = (
   { hasNextPage, endCursor }: EventsPagination,
@@ -343,30 +298,18 @@ const toNextHref = (
     return null
   }
 
-  const params = addFilters(new URLSearchParams({ cursor: endCursor }), query)
-
-  return `/dev-ops/events?${params}`
+  return toFilterHref(
+    eventsPath,
+    filterKeys,
+    query,
+    new URLSearchParams({ cursor: endCursor })
+  )
 }
 
 const toSearch = (value: string | undefined): string | null => {
   const needle = value?.trim() ?? ''
 
   return needle === '' ? null : needle
-}
-
-/**
- * `datetime-local` carries no zone, so the digits in the Custom boxes have to
- * be the ones the page displays. Writing the UTC wall clock into a control the
- * browser reads as local was an hour out at both edges of a range under BST.
- */
-const toRangeInput = (value: string | undefined): string => {
-  if (!value) {
-    return ''
-  }
-
-  const date = toValidDate(value)
-
-  return date === null ? value : toZonedInput(date)
 }
 
 const displayedFilterErrorChars = 60
@@ -381,87 +324,7 @@ const toErrorNote = (query: EventsPageQuery): ErrorNote | null => {
   return {
     label: truncate(message, displayedFilterErrorChars),
     title: message,
-    clearHref: toFilterHref({ ...query, error: undefined })
-  }
-}
-
-const timeRangePresets: { key: string; minutes: number }[] = [
-  { key: '15m', minutes: 15 },
-  { key: '1h', minutes: minutesPerHour },
-  { key: '6h', minutes: 6 * minutesPerHour },
-  { key: '24h', minutes: hoursPerDay * minutesPerHour },
-  { key: '7d', minutes: 7 * hoursPerDay * minutesPerHour },
-  { key: '30d', minutes: 30 * hoursPerDay * minutesPerHour }
-]
-
-const presetLabel = (key: string) => `Last ${key}`
-
-const presetTitle = (key: string) => `Events from the last ${key}`
-
-const toActivePreset = ({ from, to, range }: EventsPageQuery) =>
-  from && !to
-    ? timeRangePresets.find((preset) => preset.key === range)
-    : undefined
-
-const toPresets = (query: EventsPageQuery, now: Date): TimeRangePreset[] => {
-  const active = toActivePreset(query)
-
-  return timeRangePresets.map(({ key, minutes }) => ({
-    key,
-    label: presetLabel(key),
-    title: presetTitle(key),
-    active: active?.key === key,
-    href: toFilterHref({
-      ...query,
-      from: new Date(now.getTime() - minutes * msPerMinute).toISOString(),
-      to: undefined,
-      range: key
-    })
-  }))
-}
-
-const toAbsoluteMinute = (value: string): string => {
-  const date = toValidDate(value)
-
-  return date === null
-    ? value
-    : toZonedInput(date).slice(0, 'yyyy-mm-ddThh:mm'.length).replace('T', ' ')
-}
-
-const toAbsoluteRangeLabel = (from?: string, to?: string): string => {
-  const start = from ? toAbsoluteMinute(from) : 'earliest'
-  const end = to ? toAbsoluteMinute(to) : 'now'
-
-  return `${start} – ${end}`
-}
-
-const toTimeRangeLabel = (query: EventsPageQuery): string => {
-  const { from, to } = query
-
-  if (!from && !to) {
-    return 'All'
-  }
-
-  const preset = toActivePreset(query)
-
-  return preset ? presetLabel(preset.key) : toAbsoluteRangeLabel(from, to)
-}
-
-const toTimeRange = (query: EventsPageQuery, now: Date): TimeRange => {
-  const label = toTimeRangeLabel(query)
-
-  return {
-    label,
-    title: `Time range: ${label}`,
-    active: Boolean(query.from ?? query.to),
-    presets: toPresets(query, now),
-    anyTimeHref: toFilterHref({
-      ...query,
-      from: undefined,
-      to: undefined,
-      range: undefined
-    }),
-    anyTimeActive: !query.from && !query.to
+    clearHref: toEventsHref({ ...query, error: undefined })
   }
 }
 
@@ -492,7 +355,7 @@ const toFailureGroup =
       href:
         group.error === null
           ? null
-          : toFilterHref({ ...query, error: group.error })
+          : toEventsHref({ ...query, error: group.error })
     }
   }
 
@@ -541,14 +404,11 @@ export const toEventsPage = (
     serviceFilters: toServiceChips(filters, services),
     showAudit: toAuditSwitch(filters),
     q,
-    clearSearchHref: toFilterHref({ ...filters, q: undefined }),
+    clearSearchHref: toEventsHref({ ...filters, q: undefined }),
     errorFilter: toErrorNote(filters),
-    timeRange: toTimeRange(filters, now),
+    timeRange: toTimeRange(eventsList, filters, now),
     topFailures: toTopFailures(breakdown, filters, now),
     searchFilters: toSearchFilters(filters),
-    rangeFilters: toRangeFilters(filters),
-    fromInput: toRangeInput(query.from),
-    toInput: toRangeInput(query.to),
     nextHref: toNextHref(pagination, filters),
     unavailableSources: toUnavailableSources(sourceErrors),
     unavailable,
