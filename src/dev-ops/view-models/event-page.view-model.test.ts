@@ -11,7 +11,11 @@ import type {
   ServiceFilter
 } from '../use-cases/get-events.use-case.ts'
 import { hoursPerDay, minutesPerHour, msPerMinute } from './event-formats.ts'
-import { toEventPage, toSafeFrom } from './event-page.view-model.ts'
+import {
+  toEventPage,
+  toSafeFrom,
+  UnknownRecordKindError
+} from './event-page.view-model.ts'
 import { toEventsPage } from './events-page.view-model.ts'
 import type { JsonView } from './json-viewer.view-model.ts'
 
@@ -2470,5 +2474,28 @@ describe('the message an edit leaves behind', () => {
         'could not be reached'
       )
     }
+  })
+})
+
+describe('the record link', () => {
+  test.each([
+    ['application', 'View application', '/dev-ops/applications/woodland/f02'],
+    ['case', 'View case', '/dev-ops/cases/woodland/f02']
+  ] as const)('links an %s with its own label', (kind, label, href) => {
+    expect(
+      model(found(detail({ record: { kind, code: 'woodland', ref: 'f02' } })))
+        .recordLink
+    ).toEqual({ href, label })
+  })
+
+  test('throws, naming the kind, on a record kind it does not know', () => {
+    const record = { kind: 'agreement', code: 'woodland', ref: 'f02' }
+    const read = () =>
+      model(
+        found(detail({ record: record as unknown as EventDetail['record'] }))
+      )
+
+    expect(read).toThrow(UnknownRecordKindError)
+    expect(read).toThrow('Unknown event record kind: agreement')
   })
 })
