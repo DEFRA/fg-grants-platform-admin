@@ -1,5 +1,6 @@
 import Boom from '@hapi/boom'
 import type { Request, ResponseToolkit, ServerRoute } from '@hapi/hapi'
+import { toActor } from '../../common/view-models/actor.ts'
 import { createClaimableItemUseCase } from '../use-cases/create-claimable-item.use-case.ts'
 import { viewNewClaimableItemUseCase } from '../use-cases/view-new-claimable-item.use-case.ts'
 import { getClaimsUseCase } from '../use-cases/get-claims.use-case.ts'
@@ -9,10 +10,14 @@ import {
   toClaimableItemForm,
   toCreatedNotice,
   toErrorSummary,
-  toRefusalSummary,
+  toFinalRefusalSummary,
+  toSaveRefusalSummary,
   validateClaimableItem
 } from '../view-models/claimable-item-form.view-model.ts'
-import { toClaimsPage } from '../view-models/claims-page.view-model.ts'
+import {
+  toClaimsPage,
+  toClaimsRefusalPage
+} from '../view-models/claims-page.view-model.ts'
 import Joi from 'joi'
 
 interface ClaimableItemParams {
@@ -21,44 +26,34 @@ interface ClaimableItemParams {
   claimCode: string
 }
 
-interface GasError {
-  output?: { statusCode?: number; payload?: { message?: string } }
-  data?: { payload?: { message?: string } }
-}
-
-const statusOf = (error: unknown) =>
-  (error as GasError | undefined)?.output?.statusCode
-
-const dataPayloadOf = (error: unknown) =>
-  (error as GasError | undefined)?.data?.payload ?? {}
-
-const outputPayloadOf = (error: unknown) =>
-  (error as GasError | undefined)?.output?.payload ?? {}
-
-const messageOf = (error: unknown) =>
-  dataPayloadOf(error).message ??
-  outputPayloadOf(error).message ??
-  'The backend refused the request.'
-
 const params = Joi.object({
   code: Joi.string().required(),
   clientRef: Joi.string().required(),
   claimCode: Joi.string().required()
 })
 
+const noClaimsPage = (code: string) =>
+  Boom.notFound(`No claims page is configured for grant "${code}"`)
+
 const resolvePage = async ({
   code,
   clientRef,
   claimCode
 }: ClaimableItemParams) => {
-  const { banner, claimableTemplate, ...claims } =
-    await viewNewClaimableItemUseCase(code, clientRef, claimCode)
+  const newItem = await viewNewClaimableItemUseCase(code, clientRef, claimCode)
+
+  if (newItem.kind === 'refusal') {
+    return newItem
+  }
+
+  const { banner, claimableTemplate, ...claims } = newItem.claimableItem
 
   if (!banner) {
-    throw Boom.notFound(`No claims page is configured for grant "${code}"`)
+    throw noClaimsPage(code)
   }
 
   return {
+    kind: 'page' as const,
     claimableTemplate,
     page: {
       claimableTemplate,
@@ -67,40 +62,28 @@ const resolvePage = async ({
   }
 }
 
-type ResolvedPage = Awaited<ReturnType<typeof resolvePage>>
-
-type PostPage =
-  | { kind: 'page'; resolvedPage: ResolvedPage }
-  | { kind: 'refusal'; message: string }
-
-const resolvePostPage = async (
-  params: ClaimableItemParams
-): Promise<PostPage> => {
-  try {
-    return { kind: 'page', resolvedPage: await resolvePage(params) }
-  } catch (error) {
-    return statusOf(error) === 409
-      ? { kind: 'refusal', message: messageOf(error) }
-      : Promise.reject(error)
-  }
-}
-
-const referenceRefusalPage = async (
-  code: string,
-  clientRef: string,
+const viewRefusal = async (
+  h: ResponseToolkit,
+  { code, clientRef }: ClaimableItemParams,
   message: string
 ) => {
   const { banner, ...claims } = await getClaimsUseCase(code, clientRef)
 
   if (!banner) {
-    throw Boom.notFound(`No claims page is configured for grant "${code}"`)
+    throw noClaimsPage(code)
   }
 
-  return {
-    pageTitle: 'Error: Claims',
-    errorSummary: toRefusalSummary(message),
-    ...toClaimsPage(code, clientRef, { ...claims, banner })
-  }
+  return h
+    .view(
+      'claims',
+      toClaimsRefusalPage(
+        code,
+        clientRef,
+        { ...claims, banner },
+        toFinalRefusalSummary(message)
+      )
+    )
+    .code(409)
 }
 
 export const newClaimableItemRoute: ServerRoute = {
@@ -110,9 +93,14 @@ export const newClaimableItemRoute: ServerRoute = {
     validate: { params }
   },
   async handler(request: Request, h: ResponseToolkit) {
-    const { claimableTemplate, page } = await resolvePage(
-      request.params as unknown as ClaimableItemParams
-    )
+    const routeParams = request.params as unknown as ClaimableItemParams
+    const resolved = await resolvePage(routeParams)
+
+    if (resolved.kind === 'refusal') {
+      return viewRefusal(h, routeParams, resolved.message)
+    }
+
+    const { claimableTemplate, page } = resolved
 
     return h.view('new-claimable-item', {
       pageTitle: 'Add claimable item',
@@ -137,18 +125,13 @@ export const createClaimableItemRoute: ServerRoute = {
 
     const form = request.payload as Record<string, string>
 
-    const postPage = await resolvePostPage({ code, clientRef, claimCode })
+    const resolved = await resolvePage({ code, clientRef, claimCode })
 
-    if (postPage.kind === 'refusal') {
-      return h
-        .view(
-          'claims',
-          await referenceRefusalPage(code, clientRef, postPage.message)
-        )
-        .code(409)
+    if (resolved.kind === 'refusal') {
+      return viewRefusal(h, { code, clientRef, claimCode }, resolved.message)
     }
 
-    const { claimableTemplate, page } = postPage.resolvedPage
+    const { claimableTemplate, page } = resolved
 
     const errors: FieldError[] = validateClaimableItem(claimableTemplate, form)
 
@@ -167,14 +150,15 @@ export const createClaimableItemRoute: ServerRoute = {
       code,
       clientRef,
       claimableTemplate,
-      form
+      form,
+      toActor(request)
     )
 
     if (refusal) {
       return h
         .view('new-claimable-item', {
           pageTitle: 'Error: Add claimable item',
-          errorSummary: toRefusalSummary(refusal.message),
+          errorSummary: toSaveRefusalSummary(refusal),
           formFields: toClaimableItemForm(claimableTemplate, form),
           ...page
         })

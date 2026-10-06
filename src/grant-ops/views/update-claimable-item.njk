@@ -2,6 +2,8 @@
 
 {% from "application-header/macro.njk" import appApplicationHeader %}
 {% from "available-entitlements/macro.njk" import appAvailableEntitlements %}
+{% from "awaiting-claims/macro.njk" import appAwaitingClaims %}
+{% from "claimed-claims/macro.njk" import appClaimedClaims %}
 {% from "govuk/components/service-navigation/macro.njk" import govukServiceNavigation %}
 {% from "govuk/components/details/macro.njk" import govukDetails %}
 {% from "govuk/components/error-summary/macro.njk" import govukErrorSummary %}
@@ -20,13 +22,15 @@
         classes: "app-section-navigation govuk-!-margin-top-5 govuk-!-margin-bottom-8"
       }) }}
 
-      {{ appAvailableEntitlements({
-        entitlements: entitlements,
-        creatingClaimCode: claimableTemplate.claimCode
+      {{ appAvailableEntitlements({ entitlements: entitlements }) }}
+
+      {{ appAwaitingClaims({
+        awaitingClaims: awaitingClaims,
+        changingEntitlementId: changingEntitlementId
       }) }}
 
-      <div class="app-card" id="new-entitlement">
-        <h2 class="govuk-heading-m" data-testid="claimable-heading">Add claimable item</h2>
+      <div class="app-card govuk-!-margin-bottom-6" id="change-entitlement">
+        <h2 class="govuk-heading-m" data-testid="claimable-heading">Change claimable item</h2>
 
         {% if claimableTemplate.description %}
           <p class="govuk-body" data-testid="claimable-template-description">
@@ -83,7 +87,7 @@
 
           <div class="govuk-button-group">
             {{ govukButton({
-              text: "Save item",
+              text: "Save changes",
               attributes: { "data-testid": "claimable-submit" }
             }) }}
 
@@ -91,6 +95,8 @@
           </div>
         </form>
       </div>
+
+      {{ appClaimedClaims({ claimed: claimed }) }}
 
     </div>
   </div>

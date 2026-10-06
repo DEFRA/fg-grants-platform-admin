@@ -40,15 +40,33 @@ describe('createClaimableItemUseCase', () => {
       reference: 'WMP-1'
     })
 
-    expect(createEntitlement).toHaveBeenCalledWith({
-      clientRef: 'wood-1001',
-      grantCode: 'woodland',
-      claimCode: 'ENT_CS_CAPITAL_PA3',
-      data: {
-        totalHectares: { value: 4025 },
-        reference: { value: 'WMP-1' }
-      }
-    })
+    expect(createEntitlement).toHaveBeenCalledWith(
+      {
+        clientRef: 'wood-1001',
+        grantCode: 'woodland',
+        claimCode: 'ENT_CS_CAPITAL_PA3',
+        data: {
+          totalHectares: { value: 4025 },
+          reference: { value: 'WMP-1' }
+        }
+      },
+      undefined
+    )
+  })
+
+  test('passes on the person who asked', async () => {
+    await createClaimableItemUseCase(
+      'woodland',
+      'wood-1001',
+      template(),
+      { totalHectares: '40.25', reference: 'WMP-1' },
+      'Ada Lovelace'
+    )
+
+    expect(createEntitlement).toHaveBeenCalledWith(
+      expect.any(Object),
+      'Ada Lovelace'
+    )
   })
 
   test('sends integer fields as numbers', async () => {

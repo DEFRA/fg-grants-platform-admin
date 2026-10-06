@@ -68,6 +68,7 @@ const claimableEntitlement = (
   entitlementId: 'entitlement-1',
   instanceNumber: 1,
   claim: {},
+  canEdit: true,
   ...overrides
 })
 
@@ -347,7 +348,7 @@ describe('viewClaimsRoute', () => {
       $('[data-testid="awaiting-claims"] thead th')
         .map((_, header) => $(header).text().trim())
         .get()
-    ).toEqual(['Claimable item', 'Amount'])
+    ).toEqual(['Claimable item', 'Amount', 'Actions'])
     expect($('[data-testid="awaiting-claim-description"]').text().trim()).toBe(
       'Entitlement for Woodland Management Plan (PA3).'
     )

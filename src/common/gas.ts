@@ -27,15 +27,12 @@ const HEADER_SAFE = /^[\u0020-\u00ff]*$/
 export const toHeaderActor = (actor: string): string =>
   HEADER_SAFE.test(actor) ? actor : `UTF-8''${encodeURIComponent(actor)}`
 
-/**
- * A non-2xx rejects with wreck's Boom unchanged: callers read the status and body from it.
- * @param path An absolute path, with its segments already escaped.
- */
-export const postToGas = async <T>(
+const writeToGas = async <T>(
+  method: 'post' | 'put',
   path: string,
   { payload, actor }: GasWriteOptions = {}
 ): Promise<T> => {
-  const { payload: body } = await wreck.post<T>(
+  const { payload: body } = await wreck[method]<T>(
     `${config.get('gas.apiUrl')}${path}`,
     {
       json: true,
@@ -50,3 +47,21 @@ export const postToGas = async <T>(
 
   return body
 }
+
+/**
+ * A non-2xx rejects with wreck's Boom unchanged: callers read the status and body from it.
+ * @param path An absolute path, with its segments already escaped.
+ */
+export const postToGas = async <T>(
+  path: string,
+  options?: GasWriteOptions
+): Promise<T> => writeToGas<T>('post', path, options)
+
+/**
+ * A non-2xx rejects with wreck's Boom unchanged: callers read the status and body from it.
+ * @param path An absolute path, with its segments already escaped.
+ */
+export const putToGas = async <T>(
+  path: string,
+  options?: GasWriteOptions
+): Promise<T> => writeToGas<T>('put', path, options)

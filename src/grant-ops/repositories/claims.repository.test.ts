@@ -1,8 +1,10 @@
-import { getFromGas, postToGas } from '../../common/gas.ts'
+import { getFromGas, postToGas, putToGas } from '../../common/gas.ts'
 import {
   createEntitlement,
   findClaim,
-  findClaims
+  findClaims,
+  findEntitlement,
+  updateEntitlement
 } from './claims.repository.ts'
 
 vi.mock(import('../../common/gas.ts'))
@@ -57,6 +59,16 @@ describe('findClaim', () => {
   })
 })
 
+describe('findEntitlement', () => {
+  test('reads one entitlement, escaping every path segment', async () => {
+    await findEntitlement('woodland/../admin', 'wood 1001', 'entitlement/1')
+
+    expect(getFromGas).toHaveBeenCalledWith(
+      '/grant-admin/grants/woodland%2F..%2Fadmin/applications/wood%201001/claims/entitlements/entitlement%2F1'
+    )
+  })
+})
+
 describe('createEntitlement', () => {
   const entitlement = {
     clientRef: 'wood-1001',
@@ -74,6 +86,15 @@ describe('createEntitlement', () => {
     )
   })
 
+  test('names the person who asked', async () => {
+    await createEntitlement(entitlement, 'Ada Lovelace')
+
+    expect(postToGas).toHaveBeenCalledWith(expect.any(String), {
+      payload: entitlement,
+      actor: 'Ada Lovelace'
+    })
+  })
+
   test('escapes path segments', async () => {
     await createEntitlement({
       ...entitlement,
@@ -84,6 +105,24 @@ describe('createEntitlement', () => {
     expect(postToGas).toHaveBeenCalledWith(
       '/grant-admin/grants/woodland%2F..%2Fadmin/applications/wood%201001/claims/entitlements',
       expect.anything()
+    )
+  })
+})
+
+describe('updateEntitlement', () => {
+  const update = {
+    clientRef: 'wood 1001',
+    grantCode: 'woodland',
+    entitlementId: 'entitlement/1',
+    data: { totalHectares: { value: 455000 } }
+  }
+
+  test('puts the data to the entitlement, naming the person who asked', async () => {
+    await updateEntitlement(update, 'Ada Lovelace')
+
+    expect(putToGas).toHaveBeenCalledWith(
+      '/grant-admin/grants/woodland/applications/wood%201001/claims/entitlements/entitlement%2F1',
+      { payload: { data: update.data }, actor: 'Ada Lovelace' }
     )
   })
 })
