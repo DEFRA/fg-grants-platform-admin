@@ -8,7 +8,10 @@ import type {
   ServiceFilter,
   StatusFilter
 } from '../repositories/events.repository.ts'
-import { findEventsPage } from '../repositories/events.repository.ts'
+import {
+  findEventsPage,
+  noNextPage
+} from '../repositories/events.repository.ts'
 import { statusCodes } from '../../common/status-codes.ts'
 import { toGasStatusCode } from './gas-status.ts'
 import { logSectionErrors } from './section-errors.ts'
@@ -25,7 +28,7 @@ export type {
   EventRow,
   EventService,
   EventsPage,
-  EventsPagination,
+  ListPagination,
   EventsQuery,
   SectionError,
   ServiceFilter,
@@ -45,10 +48,7 @@ export interface EventsResult {
 
 const noPage: EventsPage = {
   events: [],
-  pagination: {
-    endCursor: null,
-    hasNextPage: false
-  },
+  pagination: noNextPage,
   sourceErrors: []
 }
 

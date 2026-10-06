@@ -32,3 +32,13 @@ export const toFilterHref = <Q extends object>(
 
   return params.size ? `${basePath}?${params}` : basePath
 }
+
+/**
+ * A list keeps out of shared caches but stays eligible for the back/forward
+ * cache, so Back from a record restores its loaded pages and scroll with no
+ * new read. Sign-out clears the browser's cache of it.
+ */
+export const listPageCache = { otherwise: 'private, no-cache' }
+
+/** A record's page holds its whole document, so no cache keeps it. */
+export const recordPageCache = { otherwise: 'no-store' }

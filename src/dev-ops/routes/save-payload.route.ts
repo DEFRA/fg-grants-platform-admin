@@ -22,8 +22,7 @@ import {
   toPayloadPage,
   toUnattributedPage
 } from '../view-models/payload-edit-page.ts'
-
-const seeOther = 303
+import { seeOther } from '../view-models/see-other.ts'
 
 /** Longer than any query this app builds for itself, and still bounded. */
 const fromMax = 2048

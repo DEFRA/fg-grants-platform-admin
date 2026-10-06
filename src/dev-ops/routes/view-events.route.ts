@@ -4,7 +4,7 @@ import Joi from 'joi'
 import type { EventsQuery } from '../use-cases/get-events.use-case.ts'
 import { getEventsUseCase } from '../use-cases/get-events.use-case.ts'
 import { eventEnumFilters } from '../view-models/event-filters.ts'
-import { present } from '../view-models/list-filters.ts'
+import { listPageCache, present } from '../view-models/list-filters.ts'
 import type { EventsPageQuery } from '../view-models/events-page.view-model.ts'
 import { toEventsPage } from '../view-models/events-page.view-model.ts'
 import {
@@ -35,6 +35,7 @@ export const viewEventsRoute: ServerRoute = {
   method: 'GET',
   path: '/dev-ops/events',
   options: {
+    cache: listPageCache,
     validate: {
       query: Joi.object({
         cursor: Joi.string(),

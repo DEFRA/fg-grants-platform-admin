@@ -10,13 +10,7 @@ import {
   toSafeFrom
 } from '../view-models/event-page.view-model.ts'
 import { toActor } from '../view-models/actor.ts'
-
-/**
- * See other: the browser follows a write with a GET, so a reload of the page
- * that lands never re-submits the redrive. Spelled out here because a route
- * may not reach into common/status-codes.ts.
- */
-const seeOther = 303
+import { seeOther } from '../view-models/see-other.ts'
 
 /**
  * The page the operator was on, and nothing about the outcome: a parameter

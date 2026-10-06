@@ -37,9 +37,15 @@ export interface EventWithAttempts extends Event {
   lastError: EventLastError | null
 }
 
-export interface EventsPagination {
+export interface ListPagination {
   endCursor: string | null
   hasNextPage: boolean
+}
+
+/** Any list's page with nothing after it: the one a failed read leaves. */
+export const noNextPage: ListPagination = {
+  endCursor: null,
+  hasNextPage: false
 }
 
 export interface SourceError {
@@ -59,7 +65,7 @@ export interface ServiceFilter {
 
 export interface EventsPage {
   events: EventRow[]
-  pagination: EventsPagination
+  pagination: ListPagination
   sourceErrors: SourceError[]
 }
 

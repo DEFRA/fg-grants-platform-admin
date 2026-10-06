@@ -1,0 +1,23 @@
+{# Tailwind only sees class names written literally in this file. A whole
+   row is one link, so it takes the focus ring; any list of such rows uses these. #}
+{% set rowClass = "relative cursor-pointer hover:bg-base-200 has-[:focus-visible]:bg-base-200 has-[:focus-visible]:outline-2 has-[:focus-visible]:-outline-offset-2 has-[:focus-visible]:outline-base-content" %}
+{% set rowClassDeadLetter = "relative cursor-pointer bg-error/5 hover:bg-error/10 has-[:focus-visible]:bg-error/10 has-[:focus-visible]:outline-2 has-[:focus-visible]:-outline-offset-2 has-[:focus-visible]:outline-base-content" %}
+
+{% macro eventRow(params) %}
+    {%- include "./template.njk" -%}
+{% endmacro %}
+
+{# The events table's head, for every table of event rows. #}
+{% macro eventsHead(params) %}
+    {%- include "./head.njk" -%}
+{% endmacro %}
+
+{# A Created cell as the events list draws it, for any list with a created time. #}
+{% macro createdCell(params) %}
+    {%- include "./created.njk" -%}
+{% endmacro %}
+
+{# A created time alone, for a row with no table cell to hold it. #}
+{% macro createdAt(params) %}
+    {%- include "./created-at.njk" -%}
+{% endmacro %}

@@ -934,10 +934,12 @@ describe('viewEventRoute', () => {
     expect($('[data-testid="event-redrive-from"]').attr('value')).toBe('')
   })
 
-  test('carries the area name in the header, as every page does', async () => {
+  test('marks Events as the area in the header nav, as every page does', async () => {
     const { $ } = await viewPage()
 
-    expect($('[data-testid="do-brand-suffix"]').text().trim()).toBe('· Events')
+    expect($('[data-testid="do-nav"] [aria-current="page"]').text()).toBe(
+      'Events'
+    )
   })
 
   test('shows no banner on a page nothing redirected to', async () => {
@@ -962,7 +964,9 @@ describe('viewEventRoute', () => {
 
     expect(statusCode).toBe(statusCodes.ok)
     expect($('[data-testid="event-not-found"]').text()).toBe('Event not found')
-    expect($('[data-testid="do-brand-suffix"]').text().trim()).toBe('· Events')
+    expect($('[data-testid="do-nav"] [aria-current="page"]').text()).toBe(
+      'Events'
+    )
     expect($('[data-testid="event-back"]').attr('href')).toBe('/dev-ops/events')
     expect($('[data-testid="event-payload-card"]')).toHaveLength(0)
   })

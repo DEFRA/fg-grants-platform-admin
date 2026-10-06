@@ -1,26 +1,15 @@
-{% extends 'layouts/page.njk' %}
+{% extends 'layouts/list-page.njk' %}
+{% set navActive = 'events' %}
 
 {% from "audit-switch/macro.njk" import auditSwitch %}
+{% from "event-row/macro.njk" import eventRow, eventsHead %}
+{% from "filter-menu/macro.njk" import filterMenu %}
 {% from "icon/macro.njk" import icon %}
 {% from "load-more/macro.njk" import loadMore %}
-{% from "status-badge/macro.njk" import statusBadge %}
 {% from "sticky-top/macro.njk" import stickyTop %}
 {% from "time-range-menu/macro.njk" import timeRangeMenu %}
 
 {# Tailwind only sees class names written literally in this file. #}
-
-{% set trigger = "btn [&:has(+:popover-open)]:[--btn-bg:color-mix(in_oklab,var(--btn-color,var(--color-base-200)),#000_5%)] [&:has(+:popover-open)]:[--btn-border:color-mix(in_oklab,var(--btn-color,var(--color-base-200)),#000_7%)] [&:has(+:popover-open)]:[--btn-shadow:0_0_0_0_oklch(0%_0_0/0)] [&:has(+:popover-open)]:translate-y-[0.5px]" %}
-{% set triggerActive = "btn font-semibold shadow-[inset_0_-3px_0_var(--color-base-content)] [&:has(+:popover-open)]:[--btn-bg:color-mix(in_oklab,var(--btn-color,var(--color-base-200)),#000_5%)] [&:has(+:popover-open)]:[--btn-border:color-mix(in_oklab,var(--btn-color,var(--color-base-200)),#000_7%)] [&:has(+:popover-open)]:translate-y-[0.5px]" %}
-{# The menu is the trigger's next sibling, so `:has(+:popover-open)` turns the chevron with no script. #}
-{% set chevron = "size-4 opacity-60 transition-transform [:has(+:popover-open)>&]:rotate-180" %}
-
-{% set triggerName = "font-normal opacity-70" %}
-
-{% set menu = "dropdown menu menu-md mt-2 w-60 rounded-box border border-base-300 bg-base-100 p-2 shadow-md" %}
-{% set menuItem = "flex items-center gap-2" %}
-{% set menuItemActive = "flex items-center gap-2 font-semibold" %}
-{% set tick = "size-4.5 shrink-0" %}
-{% set tickHidden = "size-4.5 shrink-0 invisible" %}
 
 {% set tile = "stat px-4 py-2 hover:bg-base-200 focus-visible:outline-2 focus-visible:-outline-offset-4 focus-visible:outline-base-content" %}
 {% set tileActive = "stat px-4 py-2 shadow-[inset_0_-3px_0_var(--color-base-content)] focus-visible:outline-2 focus-visible:-outline-offset-4 focus-visible:outline-base-content" %}
@@ -30,50 +19,6 @@
 {% set tileValueQuiet = "stat-value min-w-[7ch] text-xl tabular-nums text-base-content/60" %}
 {# Accepted contrast shortfall: 2.86:1 in light. #}
 {% set tileValueAlarm = "stat-value min-w-[7ch] text-xl tabular-nums text-error" %}
-
-{% set rowClass = "relative cursor-pointer hover:bg-base-200 has-[:focus-visible]:bg-base-200 has-[:focus-visible]:outline-2 has-[:focus-visible]:-outline-offset-2 has-[:focus-visible]:outline-base-content" %}
-{% set rowClassDeadLetter = "relative cursor-pointer bg-error/5 hover:bg-error/10 has-[:focus-visible]:bg-error/10 has-[:focus-visible]:outline-2 has-[:focus-visible]:-outline-offset-2 has-[:focus-visible]:outline-base-content" %}
-
-{% macro identity(row) %}
-  <a href="{{ row.eventHref }}" class="block truncate text-sm font-semibold no-underline after:absolute after:inset-0 focus-visible:outline-none" data-testid="event-link"><span aria-hidden="true" data-testid="event-type-name">{{ row.eventName.name }}</span><span class="sr-only" data-testid="event-link-name">{{ row.eventName.spoken }}, event {{ row.eventId }}</span></a>
-  <div class="relative w-fit max-w-full truncate font-mono text-sm text-base-content/70" aria-hidden="true" data-testid="event-id">{{ row.eventId }}</div>
-{% endmacro %}
-
-{% macro statusDetail(row) %}
-  {%- if row.latency -%}
-    <div class="relative w-fit truncate pl-3.5 font-mono text-sm tabular-nums text-base-content/70" title="{{ row.latencyTitle }}" data-testid="event-latency">took {{ row.latency }}</div>
-  {%- endif -%}
-{% endmacro %}
-
-{% macro eventRow(row) %}
-  <tr class="{{ rowClassDeadLetter if row.isDeadLetter else rowClass }}" data-testid="event-row">
-    <td>{{ identity(row) }}</td>
-    <td class="text-center"><div class="truncate" data-testid="event-service">{{ row.serviceLabel }}</div></td>
-    <td class="text-center"><div class="truncate" data-testid="event-box">{{ row.boxLabel }}</div></td>
-    <td class="overflow-hidden" data-testid="event-status">
-      {# Lifted over the row's stretched link, so its title is reachable by mouse. #}
-      <span class="relative inline-flex">{{ statusBadge({
-        status: row.status,
-        label: row.statusLabel,
-        role: row.statusRole,
-        retrying: row.statusRetrying
-      }) }}</span>
-      {{ statusDetail(row) }}
-    </td>
-    <td class="text-right">
-      {%- if row.createdAtInstant -%}
-        <time class="relative ml-auto block w-fit font-mono text-sm tabular-nums" datetime="{{ row.createdAtInstant }}" title="{{ row.createdAtPrecise }}" data-testid="event-created-at">{{ row.createdAt }}<span class="sr-only" data-testid="event-created-absolute"> ({{ row.createdAtPrecise }})</span></time>
-      {%- else -%}
-        {# No instant to name, so no `time`: its text would not be machine-readable. #}
-        <span class="relative ml-auto block w-fit font-mono text-sm tabular-nums" data-testid="event-created-at">{{ row.createdAt }}</span>
-      {%- endif -%}
-      {% if row.createdAtClock %}<time class="relative ml-auto block w-fit font-mono text-sm tabular-nums text-base-content/70" datetime="{{ row.createdAtInstant }}" title="{{ row.createdAtPrecise }}" aria-hidden="true" data-testid="event-created-clock"><span data-testid="event-created-clock-text">{{ row.createdAtClock }}</span></time>{% endif %}
-    </td>
-  </tr>
-{% endmacro %}
-
-{% block htmlAttributes %} class="[@media(min-width:64rem)_and_(min-height:40rem)]:scroll-pt-[calc(var(--sticky-top,15rem)+3rem)]"{% endblock %}
-{% block navbarClass %} top-0 [@media(min-width:64rem)_and_(min-height:40rem)]:sticky [@media(min-width:64rem)_and_(min-height:40rem)]:z-30{% endblock %}
 
 {% block content %}
   {% call stickyTop() %}
@@ -106,19 +51,14 @@
     <div class="mb-3 flex flex-wrap items-center gap-2" data-testid="events-toolbar">
       {{- timeRangeMenu({ id: "events", range: timeRange }) }}
 
-      {%- set service = serviceFilters | selectattr("active") | first -%}
-      <div class="flex items-center gap-2" data-testid="events-filter-service">
-        <button class="{{ triggerActive if service and service.value else trigger }}" type="button" popovertarget="events-service-panel" data-testid="events-filter-service-button">
-          {{ icon({ name: 'server', class: 'size-4.5 opacity-60' }) }}
-          <span><span class="{{ triggerName }}">Service:</span> {{ service.label if service else "All" }}</span>
-          {{ icon({ name: 'chevron-down', class: chevron }) }}
-        </button>
-        <ul class="{{ menu }}" popover id="events-service-panel" aria-label="Filter by service" data-testid="events-filter-service-panel">
-          {% for chip in serviceFilters %}
-            <li><a class="{{ menuItemActive if chip.active else menuItem }}" href="{{ chip.href }}"{% if chip.active %} aria-current="page"{% endif %}{% if chip.value %} data-value="{{ chip.value }}"{% endif %} data-testid="events-filter-service-chip">{{ icon({ name: 'check', class: tick if chip.active else tickHidden }) }}<span>{{ chip.label }}</span></a></li>
-          {% endfor %}
-        </ul>
-      </div>
+      {{- filterMenu({
+        testId: "events-filter-service",
+        panelId: "events-service-panel",
+        name: "Service",
+        icon: "server",
+        label: "Filter by service",
+        items: serviceFilters
+      }) }}
 
       {{ auditSwitch(showAudit) }}
 
@@ -200,15 +140,7 @@
         {# Sticky and sideways scrolling cannot share a box: overflow here unpins the header. #}
         <div class="w-full overflow-x-auto [@media(min-width:64rem)_and_(min-height:40rem)]:overflow-visible" data-testid="events-scroller">
           <table class="table table-pin-rows w-full min-w-[64rem] table-fixed [@media(min-width:64rem)_and_(min-height:40rem)]:min-w-0 [@media(min-width:64rem)_and_(min-height:40rem)]:[&_thead]:top-[var(--sticky-top,15rem)]" data-testid="events-table">
-            <thead>
-              <tr data-testid="events-head">
-                <th scope="col" class="w-[41%] xl:w-[52.5%]">Event</th>
-                <th scope="col" class="w-[9%] text-center xl:w-[6.5%]">Service</th>
-                <th scope="col" class="w-[21%] text-center xl:w-[18.5%]">Queue</th>
-                <th scope="col" class="w-[15%] xl:w-[12.5%]">Status</th>
-                <th scope="col" class="w-[14%] text-right xl:w-[10%]">Created</th>
-              </tr>
-            </thead>
+            {{ eventsHead({ testId: "events-head" }) }}
             <tbody id="events-rows">
               {% for row in rows %}{{ eventRow(row) }}{% endfor %}
             </tbody>
