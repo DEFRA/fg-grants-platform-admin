@@ -2,6 +2,7 @@ import type {
   EventDetail,
   EventKey,
   EventLastPurge,
+  EventRecord,
   EventResult
 } from '../use-cases/get-event.use-case.ts'
 import type {
@@ -15,8 +16,13 @@ import type {
 import type { PayloadEditStep } from '../use-cases/edit-payload-step.ts'
 import { toOpenedStep, toStoredJson } from '../use-cases/edit-payload-step.ts'
 import type { EditResult } from '../use-cases/edit-payload.use-case.ts'
+import {
+  applicationType,
+  toApplicationHref
+} from './applications-page.view-model.ts'
 import { toAttemptCount } from './attempt-count.ts'
 import type { AttemptCount } from './attempt-count.ts'
+import { caseType, toCaseHref } from './cases-page.view-model.ts'
 import { toBoxLabel, toServiceLabel } from './event-labels.ts'
 import { toEventName } from './event-names.ts'
 import type { EventName } from './event-names.ts'
@@ -36,6 +42,8 @@ import {
   toTraceHref,
   toValidDate
 } from './event-formats.ts'
+import { toJsonViewOrNone } from './json-viewer.view-model.ts'
+import type { JsonView } from './json-viewer.view-model.ts'
 import type { PurgeFormError } from './purge-form.ts'
 import {
   noteMaxLength,
@@ -54,7 +62,7 @@ import {
   isEditedSinceAttempts,
   isEditedSinceRedrive,
   toEditedFact,
-  toOriginalPayloadJson,
+  toOriginalPayloadView,
   toPayloadEditor,
   toPayloadReview,
   toPlainJsonWarning,
@@ -157,6 +165,7 @@ export interface EventPageModel {
   segregationRef: string | null
   segregationRefHref: string | null
   segregationRefTitle: string | null
+  recordLink: RecordLink | null
   traceId: string | null
   traceHref: string | null
   expiresText: string | null
@@ -179,8 +188,8 @@ export interface EventPageModel {
   attemptsBlock: AttemptsBlock
   noAttemptsSinceEdit: boolean
 
-  payloadJson: string | null
-  originalPayloadJson: string | null
+  payloadView: JsonView | null
+  originalPayloadView: JsonView | null
   editedFact: EditedFact | null
 
   canRedrive: boolean
@@ -237,9 +246,6 @@ const toSelfHref = (
 
   return params.size ? `${toEventHref(key)}?${params}` : toEventHref(key)
 }
-
-const toPayloadJson = (payload: unknown): string | null =>
-  payload === undefined ? null : JSON.stringify(payload, null, 2)
 
 /** Both writes leave their outcome here, under the redrive's key so a session in flight across a deploy still finds its message. */
 export const redriveNoticeKey = 'redriveOutcome'
@@ -435,6 +441,7 @@ const emptyDetail: Omit<EventPageModel, ShellKey> = {
   segregationRef: null,
   segregationRefHref: null,
   segregationRefTitle: null,
+  recordLink: null,
   traceId: null,
   traceHref: null,
   expiresText: null,
@@ -452,8 +459,8 @@ const emptyDetail: Omit<EventPageModel, ShellKey> = {
   attemptSuccess: null,
   attemptsBlock: 'notYet',
   noAttemptsSinceEdit: false,
-  payloadJson: null,
-  originalPayloadJson: null,
+  payloadView: null,
+  originalPayloadView: null,
   editedFact: null,
   canRedrive: false,
   confirmRedrive: false,
@@ -526,6 +533,56 @@ const toSegregationRef = (event: EventDetail) => {
         segregationRefHref: toSearchHref(segregationRef, isAuditRecord(event)),
         segregationRefTitle: toSearchTitle(segregationRef, 'segregation ref')
       }
+}
+
+interface RecordLink {
+  href: string
+  label: string
+}
+
+export class UnknownRecordKindError extends Error {
+  constructor(kind: string) {
+    super(`Unknown event record kind: ${kind}`)
+    this.name = 'UnknownRecordKindError'
+  }
+}
+
+const recordLinks = new Map<
+  string,
+  { toHref: (record: EventRecord) => string; label: string }
+>([
+  [
+    'application',
+    {
+      toHref: ({ code, ref }) => toApplicationHref({ code, clientRef: ref }),
+      label: applicationType.linkLabel
+    }
+  ],
+  [
+    'case',
+    {
+      toHref: ({ code, ref }) =>
+        toCaseHref({ workflowCode: code, caseRef: ref }),
+      label: caseType.linkLabel
+    }
+  ]
+])
+
+/** One link, to the record the row's own service has. */
+const toRecordLink = (
+  record: EventRecord | null | undefined
+): RecordLink | null => {
+  if (!record) {
+    return null
+  }
+
+  const link = recordLinks.get(record.kind)
+
+  if (!link) {
+    throw new UnknownRecordKindError(record.kind)
+  }
+
+  return { href: link.toHref(record), label: link.label }
 }
 
 const lastKnownAt = (attempts: EventDetail['attemptHistory']): string | null =>
@@ -1049,14 +1106,15 @@ const toDetail = (event: EventDetail, key: EventKey, inputs: PageInputs) => {
     boxLabel: toBoxLabel(event.box),
     targetTopic: event.targetTopic,
     ...toSegregationRef(event),
+    recordLink: toRecordLink(event.record),
     ...toTrace(event),
     ...toExpiry(event),
     isInbox: key.box === 'inbox',
     ...toFailure(event.lastError),
     errorRole: toLastErrorRole(state),
     ...toAttempts(context, attempts),
-    payloadJson: toPayloadJson(event.payload),
-    originalPayloadJson: toOriginalPayloadJson(event),
+    payloadView: toJsonViewOrNone(event.payload),
+    originalPayloadView: toOriginalPayloadView(event),
     editedFact: toEditedFact(event),
     ...toRedrive(state, key, query, from),
     redrivePurgedNote: toRedrivePurgedNote(context),

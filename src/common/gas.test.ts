@@ -1,4 +1,5 @@
 import { config } from './config.ts'
+import { asGasActor } from './gas-actor.ts'
 import { getFromGas, postToGas, putToGas, toHeaderActor } from './gas.ts'
 import { wreck } from './wreck.ts'
 
@@ -206,6 +207,70 @@ describe('postToGas', () => {
   })
 })
 
+describe('the operator on every call', () => {
+  const operator = {
+    name: 'Ada Lovelace',
+    id: '6f1e9c2a-3b4d-4e5f-8a9b-0c1d2e3f4a5b'
+  }
+
+  const headersOf = (mock: ReturnType<typeof vi.fn>) =>
+    (mock.mock.lastCall?.[1] as { headers: Record<string, string> }).headers
+
+  beforeEach(() => {
+    vi.mocked(wreck.get).mockResolvedValue({ payload: {} } as never)
+    vi.mocked(wreck.post).mockResolvedValue({ payload: {} } as never)
+  })
+
+  test('names the operator on a read', async () => {
+    await asGasActor(operator, () => getFromGas('/grant-admin/events/page'))
+
+    expect(headersOf(vi.mocked(wreck.get))).toEqual({
+      authorization: `Bearer ${config.get('gas.serviceToken')}`,
+      'x-actor': 'Ada Lovelace',
+      'x-actor-id': operator.id
+    })
+  })
+
+  test('names the operator on a write, by id too', async () => {
+    await asGasActor(operator, () =>
+      postToGas('/grant-admin/events/gas/outbox/1/redrive')
+    )
+
+    expect(headersOf(vi.mocked(wreck.post))).toMatchObject({
+      'x-actor': 'Ada Lovelace',
+      'x-actor-id': operator.id
+    })
+  })
+
+  test('encodes a name a header cannot carry', async () => {
+    await asGasActor({ name: 'Łukasz', id: operator.id }, () =>
+      getFromGas('/x')
+    )
+
+    expect(headersOf(vi.mocked(wreck.get))['x-actor']).toBe(
+      "UTF-8''%C5%81ukasz"
+    )
+  })
+
+  test('sends extra headers a call asks for', async () => {
+    await asGasActor(operator, () =>
+      postToGas('/grant-admin/applications/search', {
+        headers: { 'x-search-repeat': '1' }
+      })
+    )
+
+    expect(headersOf(vi.mocked(wreck.post))['x-search-repeat']).toBe('1')
+  })
+
+  test('names nobody outside a request', async () => {
+    await getFromGas('/x')
+
+    expect(headersOf(vi.mocked(wreck.get))).toEqual({
+      authorization: `Bearer ${config.get('gas.serviceToken')}`
+    })
+  })
+})
+
 describe('putToGas', () => {
   beforeEach(() => {
     vi.mocked(wreck.put).mockResolvedValue({
@@ -226,6 +291,20 @@ describe('putToGas', () => {
         headers: {
           authorization: `Bearer ${config.get('gas.serviceToken')}`
         }
+      })
+    )
+  })
+
+  test('names the person who asked', async () => {
+    await putToGas('/grant-admin/entitlements/1', {
+      payload: { data: {} },
+      actor: 'Ada Lovelace'
+    })
+
+    expect(wreck.put).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({
+        headers: expect.objectContaining({ 'x-actor': 'Ada Lovelace' })
       })
     )
   })

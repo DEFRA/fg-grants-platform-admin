@@ -1,7 +1,18 @@
 import type { Server } from '@hapi/hapi'
 
 import { scopedTo } from '../server/plugins/auth/scoped-to.ts'
+import { asOperator } from './as-operator.ts'
 import { purgeEventRoute } from './routes/purge-event.route.ts'
+import {
+  searchApplicationsRoute,
+  searchCasesRoute,
+  viewApplicationsRoute,
+  viewCasesRoute
+} from './routes/record-lists.route.ts'
+import {
+  viewApplicationRoute,
+  viewCaseRoute
+} from './routes/record-pages.route.ts'
 import { redriveEventRoute } from './routes/redrive-event.route.ts'
 import { reviewPayloadRoute } from './routes/review-payload.route.ts'
 import { savePayloadRoute } from './routes/save-payload.route.ts'
@@ -21,15 +32,24 @@ export const devOps = {
       })
 
       server.route(
-        scopedTo('FCP.GrantOperationsAdmin', [
-          viewDevOpsRoute,
-          viewEventsRoute,
-          viewEventRoute,
-          redriveEventRoute,
-          purgeEventRoute,
-          reviewPayloadRoute,
-          savePayloadRoute
-        ])
+        scopedTo(
+          'FCP.GrantOperationsAdmin',
+          asOperator([
+            viewDevOpsRoute,
+            viewApplicationsRoute,
+            searchApplicationsRoute,
+            viewApplicationRoute,
+            viewCasesRoute,
+            searchCasesRoute,
+            viewCaseRoute,
+            viewEventsRoute,
+            viewEventRoute,
+            redriveEventRoute,
+            purgeEventRoute,
+            reviewPayloadRoute,
+            savePayloadRoute
+          ])
+        )
       )
     }
   }

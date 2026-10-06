@@ -235,19 +235,36 @@ describe('viewEventRoute', () => {
     expect($('main').html()).not.toContain('UTC')
   })
 
-  test('heads the page with the event name, the status straight under it', async () => {
+  test('heads the page with the type then the id on one line, the status straight under it', async () => {
     const { $ } = await viewPage()
 
     const title = $('[data-testid="event-title"]')
 
     expect(title.is('h1')).toBe(true)
     expect(title.attr('class')).toContain('text-xl')
+    expect(title.attr('class')).toContain('items-baseline')
     expect(title.attr('class')).not.toContain('font-mono')
     expect(title.find('[data-testid="event-type-name"]').text()).toBe(
       'CaseStatusUpdated'
     )
+    expect(title.children().last().attr('data-testid')).toBe('event-id')
     expect(title.attr('title')).toBe('case.status.updated')
-    expect(title.next().attr('data-testid')).toBe('event-id')
+    expect(title.next().attr('data-testid')).toBe('event-header-status')
+  })
+
+  test('heads an ApplicationCreated event with the type then the id on one line', async () => {
+    givenEvent(detail({ type: 'application.created' }))
+
+    const { $ } = await viewPage()
+    const title = $('[data-testid="event-title"]')
+
+    expect(title.find('[data-testid="event-type-name"]').text()).toBe(
+      'ApplicationCreated'
+    )
+    expect(title.children().last().attr('data-testid')).toBe('event-id')
+    expect(flatten(title.text())).toBe(
+      'ApplicationCreatedApplication created 3f2c1a0e-1111-2222-3333-444455556666'
+    )
   })
 
   test('speaks the name spaced, and shows it in PascalCase', async () => {
@@ -325,16 +342,16 @@ describe('viewEventRoute', () => {
     expect($('main').html()).not.toContain('badge-soft')
   })
 
-  test('shows the whole event id under the name, as plain selectable text', async () => {
+  test('shows the whole event id beside the name, as plain selectable text', async () => {
     const { $ } = await viewPage()
 
     const line = $('[data-testid="event-id"]')
 
     expect(line.text()).toBe('3f2c1a0e-1111-2222-3333-444455556666')
-    expect(line.is('p')).toBe(true)
+    expect(line.parent().attr('data-testid')).toBe('event-title')
+    expect(line.attr('class')).toContain('font-mono')
     expect(line.attr('class')).toContain('select-all')
     expect(line.attr('class')).toContain('break-all')
-    expect(line.prev().attr('data-testid')).toBe('event-title')
   })
 
   test('prints the event id once at the top of the page', async () => {
@@ -645,23 +662,27 @@ describe('viewEventRoute', () => {
     expect(payload.attr('class')).toContain('border border-base-300')
     expect(payload.attr('class')).toContain('max-h-[30rem]')
     expect(payload.attr('class')).toContain('overflow-auto')
-    expect(payload.find('pre > code')).toHaveLength(json.split('\n').length)
+    expect(payload.find('[data-testid="event-payload-line"]')).toHaveLength(
+      json.split('\n').length
+    )
     expect(
       payload
-        .find('code')
+        .find('[data-testid="event-payload-line"] code')
         .toArray()
         .map((line) => $(line).text())
         .join('\n')
     ).toBe(json)
 
-    const gutter = payload.find('[data-testid="event-payload-line"] > span')
+    const gutter = payload.find(
+      '[data-testid="event-payload-line"] > span[data-line]'
+    )
     const numbers = gutter.toArray().map((line) => $(line).attr('data-line'))
 
     expect(numbers.slice(0, 3)).toEqual(['1', '2', '3'])
     expect(numbers).toHaveLength(json.split('\n').length)
     expect(gutter.first().text()).toBe('')
-    expect(gutter.first().attr('class')).toContain(
-      'before:content-[attr(data-line)]'
+    expect(payload.attr('class')).toContain(
+      '[&_[data-line]]:before:content-[attr(data-line)]'
     )
     expect(gutter.first().attr('aria-hidden')).toBe('true')
   })
@@ -713,10 +734,14 @@ describe('viewEventRoute', () => {
     )
   })
 
-  test('offers the payload as selectable text, behind no button', async () => {
+  test('offers the payload as selectable text, with Copy shown only by script', async () => {
     const { $ } = await viewPage()
 
-    expect($('[data-testid="event-payload-card"] button')).toHaveLength(0)
+    const copy = $('[data-testid="event-payload-copy"]')
+
+    expect($('[data-testid="event-payload-card"] button')).toHaveLength(1)
+    expect(copy.parent().attr('hidden')).toBeDefined()
+    expect(copy.text()).toBe('Copy payload')
     expect(flatten($('[data-testid="event-payload"]').text())).toContain(
       '"caseRef": "GLD-9B2"'
     )
@@ -926,10 +951,12 @@ describe('viewEventRoute', () => {
     expect($('[data-testid="event-redrive-from"]').attr('value')).toBe('')
   })
 
-  test('carries the area name in the header, as every page does', async () => {
+  test('marks Events as the area in the header nav, as every page does', async () => {
     const { $ } = await viewPage()
 
-    expect($('[data-testid="do-brand-suffix"]').text().trim()).toBe('· Events')
+    expect($('[data-testid="do-nav"] [aria-current="page"]').text()).toBe(
+      'Events'
+    )
   })
 
   test('shows no banner on a page nothing redirected to', async () => {
@@ -954,7 +981,9 @@ describe('viewEventRoute', () => {
 
     expect(statusCode).toBe(statusCodes.ok)
     expect($('[data-testid="event-not-found"]').text()).toBe('Event not found')
-    expect($('[data-testid="do-brand-suffix"]').text().trim()).toBe('· Events')
+    expect($('[data-testid="do-nav"] [aria-current="page"]').text()).toBe(
+      'Events'
+    )
     expect($('[data-testid="event-back"]').attr('href')).toBe('/dev-ops/events')
     expect($('[data-testid="event-payload-card"]')).toHaveLength(0)
   })
@@ -1014,9 +1043,9 @@ describe('viewEventRoute', () => {
     const line = $('[data-testid="event-id"]')
 
     expect(line.text()).toBe(id)
-    expect(line.is('p')).toBe(true)
+    expect(line.parent().attr('data-testid')).toBe('event-title')
     expect($('h1')).toHaveLength(1)
-    expect(valueOf($, 'event-title')).toBe('Event')
+    expect(valueOf($, 'event-title')).toBe(`Event ${id}`)
     // A role="alert" should speak its sentence, not read out a uuid.
     expect($('[data-testid="event-error"]').text()).not.toContain(id)
   })
@@ -2778,7 +2807,7 @@ describe('an edited event', () => {
 
     expect(original.is('details')).toBe(true)
     expect(original.attr('open')).toBeUndefined()
-    expect(original.prev().attr('data-testid')).toBe('event-payload')
+    expect(original.prev().attr('data-testid')).toBe('event-payload-viewer')
     expect(valueOf($, 'event-original-payload-summary')).toBe(
       'Payload before the first edit'
     )
@@ -2897,6 +2926,61 @@ describe('the edit button', () => {
     const { $ } = await viewPage()
 
     expect($('[data-testid="event-edit"]')).toHaveLength(0)
+  })
+})
+
+describe('the payload viewer', () => {
+  const parcels = (count: number) =>
+    Array.from({ length: count }, (_, index) => `P${index}`)
+
+  const linesOf = ($: CheerioAPI) =>
+    $('[data-testid="event-payload-line"]')
+      .toArray()
+      .map((line) => [
+        Number($(line).children('[data-line]').attr('data-line')),
+        $(line).find('code').text()
+      ])
+
+  test('folds an array of 13 items and leaves one of 12 open', async () => {
+    givenEvent(detail({ payload: { long: parcels(13), short: parcels(12) } }))
+
+    const { $ } = await viewPage()
+
+    const folds = $('[data-testid="event-payload"] details')
+
+    expect(folds).toHaveLength(3)
+    expect(folds.eq(1).attr('open')).toBeUndefined()
+    expect(
+      flatten(
+        folds.eq(1).find('[data-testid="event-payload-folded"]').first().text()
+      )
+    ).toBe('13 items ],')
+    expect(folds.eq(2).attr('open')).toBeDefined()
+  })
+
+  test('folds with no script: each fold is a details and its summary', async () => {
+    givenEvent(detail({ payload: { long: parcels(13) } }))
+
+    const { $ } = await viewPage()
+
+    const fold = $('[data-testid="event-payload"] details').eq(1)
+
+    expect(fold.children().first().is('summary')).toBe(true)
+    expect(fold.find('script')).toHaveLength(0)
+  })
+
+  test('numbers every line as the editor text box does, folded or not', async () => {
+    const payload = { long: parcels(13), data: { caseRef: 'GLD-9B2' } }
+    givenEvent(detail({ payload, payloadRevision: 2 }))
+
+    const viewer = linesOf((await viewPage()).$)
+    const editor = (await viewPage(`${path}?edit=payload`))
+      .$('[data-testid="event-payload-editor-text"]')
+      .text()
+      .split('\n')
+
+    expect(viewer).toEqual(editor.map((text, index) => [index + 1, text]))
+    expect(viewer.find(([, text]) => text === '  "data": {')?.[0]).toBe(17)
   })
 })
 
@@ -3090,5 +3174,99 @@ describe('the payload editor', () => {
     expect($('[data-testid="event-payload-editor-text"]').text()).toContain(
       `</textarea>${xss}`
     )
+  })
+})
+
+describe('the record link', () => {
+  const relatedRecords = ($: CheerioAPI) =>
+    $('[data-testid="event-related-records"]')
+
+  test('links a GAS event to its application when the application exists', async () => {
+    givenEvent(
+      detail({
+        type: 'application.created',
+        record: {
+          kind: 'application',
+          code: 'frps-private-beta',
+          ref: 'f02-7d8-a61'
+        }
+      })
+    )
+
+    const { $ } = await viewPage()
+    const link = $('[data-testid="event-record-link"]')
+
+    expect(relatedRecords($).attr('aria-label')).toBe('Related records')
+    expect(flatten(link.text())).toBe('View application')
+    expect(link.attr('href')).toBe(
+      '/dev-ops/applications/frps-private-beta/f02-7d8-a61'
+    )
+  })
+
+  test('links a GAS-stored case status update to the application, as GAS names it', async () => {
+    givenEvent(
+      detail({
+        box: 'inbox',
+        type: 'case.status.updated',
+        record: { kind: 'application', code: 'woodland', ref: 'f02-7d8-a61' }
+      })
+    )
+
+    const { $ } = await viewPage(inboxPath)
+
+    expect(flatten($('[data-testid="event-record-link"]').text())).toBe(
+      'View application'
+    )
+  })
+
+  test('links a CW event to its case when the case exists', async () => {
+    givenEvent(
+      detail({
+        service: 'caseworking',
+        record: { kind: 'case', code: 'woodland', ref: 'f02-7d8-a61' }
+      })
+    )
+
+    const { $ } = await viewPage(`/dev-ops/events/caseworking/outbox/${id}`)
+    const link = $('[data-testid="event-record-link"]')
+
+    expect(flatten(link.text())).toBe('View case')
+    expect(link.attr('href')).toBe('/dev-ops/cases/woodland/f02-7d8-a61')
+  })
+
+  test('shows no record link for an event with no record, leaving the segregation ref to search with', async () => {
+    givenEvent(
+      detail({
+        service: 'caseworking',
+        box: 'inbox',
+        type: 'case.create',
+        record: null,
+        segregationRef: 'f02-7d8-a61-woodland'
+      })
+    )
+
+    const { $ } = await viewPage(`/dev-ops/events/caseworking/inbox/${id}`)
+
+    expect(relatedRecords($)).toHaveLength(0)
+    expect($('[data-testid="event-segregation-ref"]').attr('href')).toBe(
+      '/dev-ops/events?q=f02-7d8-a61-woodland'
+    )
+    expect($('main').text()).not.toContain('Related')
+  })
+
+  test('shows no record link on an audit event', async () => {
+    givenEvent(detail({ type: 'audit', record: null }))
+
+    const { $ } = await viewPage()
+
+    expect(relatedRecords($)).toHaveLength(0)
+  })
+
+  test('shows no record link when an older GAS sends no record', async () => {
+    givenEvent(detail())
+
+    const { $ } = await viewPage()
+
+    expect(relatedRecords($)).toHaveLength(0)
   })
 })

@@ -1,0 +1,161 @@
+{% extends 'layouts/page.njk' %}
+{% set navActive = record.listId %}
+
+{% from "back/macro.njk" import back %}
+{% from "event-row/macro.njk" import eventRow, eventsHead %}
+{% from "icon/macro.njk" import icon %}
+{% from "json-viewer/macro.njk" import jsonViewer %}
+
+{# Tailwind only sees class names written literally in this file. #}
+{% set factLabel = "text-sm font-medium text-base-content/70" %}
+{% set monoValue = "font-mono text-sm leading-none break-all" %}
+{% set monoMuted = "font-mono text-sm leading-none text-base-content/70" %}
+{% set monoTime = "font-mono text-sm leading-none tabular-nums whitespace-nowrap" %}
+{% set factList = "grid grid-cols-1 content-start gap-x-6 gap-y-3 sm:grid-cols-[8rem_minmax(0,1fr)]" %}
+
+{% macro noData(record) %}
+  <div role="alert" class="alert alert-warning alert-soft text-sm" data-testid="{{ record.itemId }}-no-data">
+    {{ icon({ name: 'exclamation-triangle', class: 'size-4 shrink-0' }) }}
+    <span>{{ record.source }} returned no data for this tab</span>
+  </div>
+{% endmacro %}
+
+{% macro factValue(fact, testId) %}
+  {%- if fact.kind == "mono" -%}
+    <span class="{{ monoValue }}" data-testid="{{ testId }}">{{ fact.text }}</span>{% if fact.from %} <span class="{{ monoMuted }}" data-testid="{{ testId }}-from">from {{ fact.from }}</span>{% endif %}
+  {%- elif fact.kind == "date" and fact.instant -%}
+    <time class="{{ monoTime }}" datetime="{{ fact.instant }}" data-testid="{{ testId }}">{{ fact.text }}</time>
+  {%- elif fact.kind == "date" -%}
+    {# Stored but empty: said as such, so it never reads as missing. #}
+    <span class="{{ monoMuted }}" data-testid="{{ testId }}">{{ fact.text if fact.text else '""' }}</span>
+  {%- elif fact.kind == "series" and fact.items | length -%}
+    <span class="flex flex-wrap items-center gap-x-1.5 gap-y-1" data-testid="{{ testId }}">
+      {% for item in fact.items %}
+        {% if not loop.first %}{{ icon({ name: 'arrow-right', class: 'size-3.5 shrink-0 text-base-content/50' }) }}{% endif %}
+        {% if item.href %}
+          <a class="link link-hover {{ monoValue }}" href="{{ item.href }}" data-testid="{{ testId }}-ref">{{ item.ref }}</a>
+        {% else %}
+          <span class="{{ monoValue }} font-semibold" aria-current="page" data-testid="{{ testId }}-ref">{{ item.ref }}</span>
+        {% endif %}
+        {% if item.latest %}<span class="badge badge-ghost badge-sm" data-testid="{{ testId }}-latest">latest</span>{% endif %}
+      {% endfor %}
+    </span>
+  {%- elif fact.kind == "series" -%}
+    <span class="{{ monoMuted }}" data-testid="{{ testId }}-none">—</span>
+  {%- else -%}
+    <span data-testid="{{ testId }}">{{ fact.text }}</span>
+  {%- endif -%}
+{% endmacro %}
+
+{% block pageTitle %}{{ record.title }} {{ ref }} | {{ serviceName }}{% endblock %}
+
+{% block content %}
+  {{ back({ href: record.path, list: record.listId, navLabel: (record.listId | capitalize) ~ " list", testId: record.itemId }) }}
+
+  <header class="mt-2 mb-5 flex flex-wrap items-start justify-between gap-x-6 gap-y-2" data-testid="{{ record.itemId }}-header">
+    <div class="min-w-0">
+      <h1 class="flex flex-wrap items-baseline gap-x-2 text-xl font-semibold break-words" data-testid="{{ record.itemId }}-title"><span>{{ record.title }}</span> <span class="font-mono text-sm font-normal break-all text-base-content/70 select-all" data-testid="{{ record.itemId }}-ref">{{ ref }}</span></h1>
+      {% if trail | length %}
+        <p class="mt-2 flex flex-wrap items-center gap-x-1.5 text-sm" data-testid="{{ record.itemId }}-position">
+          {% for step in trail %}
+            <span{% if step.current %} class="font-semibold"{% endif %} data-testid="{{ record.itemId }}-position-step">{{ step.label }}</span>{% if not loop.last %}<span class="sr-only">,</span>
+            {{ icon({ name: 'chevron-down', class: 'size-3.5 shrink-0 -rotate-90 text-base-content/50' }) }}{% endif %}
+          {% endfor %}
+        </p>
+      {% endif %}
+    </div>
+    {% if counterpartHref %}
+      <nav class="text-sm" aria-label="Related records" data-testid="{{ record.itemId }}-related">
+        <a class="link link-hover inline-flex items-center gap-1" href="{{ counterpartHref }}" data-testid="{{ record.itemId }}-counterpart">{{ record.counterpartLabel }}{{ icon({ name: 'arrow-right', class: 'size-4' }) }}</a>
+      </nav>
+    {% endif %}
+  </header>
+
+  {% if unavailable %}
+    <div role="alert" class="alert alert-error alert-soft text-sm" data-testid="{{ record.itemId }}-error">
+      {{ icon({ name: 'exclamation-circle', class: 'size-4 shrink-0' }) }}
+      <span>{% if timedOut %}This {{ record.title | lower }} could not be loaded: {{ record.source }} timed out waiting for it. Refresh to try again.{% else %}This {{ record.title | lower }} could not be loaded from {{ record.source }}.{% endif %}</span>
+    </div>
+  {% else %}
+    {% if counterpartUnknown %}
+      <div role="alert" class="alert alert-warning alert-soft mb-4 text-sm" data-testid="{{ record.itemId }}-counterpart-unknown">
+        {{ icon({ name: 'exclamation-triangle', class: 'size-4 shrink-0' }) }}
+        <span>{{ record.counterpartCheck.unknown }}</span>
+      </div>
+    {% endif %}
+
+    <nav class="mb-4" aria-label="Sections" data-testid="{{ record.itemId }}-tabs">
+      <div class="tabs tabs-border">
+        {% for item in tabs %}
+          <a class="tab{% if item.active %} tab-active{% endif %}" href="{{ item.href }}"{% if item.active %} aria-current="page"{% endif %} data-testid="{{ record.itemId }}-tab">{{ item.label }}</a>
+        {% endfor %}
+      </div>
+    </nav>
+
+    {% if sectionError %}
+      <div role="alert" class="alert alert-error alert-soft text-sm" data-testid="{{ record.itemId }}-section-error">
+        {{ icon({ name: 'exclamation-circle', class: 'size-4 shrink-0' }) }}
+        <span>{{ sectionError }}</span>
+      </div>
+    {% elif tab == "overview" and facts %}
+      <section class="card card-border bg-base-100" aria-label="Overview" data-testid="{{ record.itemId }}-overview">
+        <div class="card-body p-5">
+          {# Two lists, not one grid: auto-placement never goes backwards, so the right-hand facts would stack below the left. #}
+          <div class="grid gap-x-6 gap-y-3 text-sm lg:grid-cols-2" data-testid="{{ record.itemId }}-facts">
+            {% for column in facts %}
+              <dl class="{{ factList }}">
+                {% for fact in column %}
+                  <div class="contents" data-testid="{{ record.itemId }}-fact-{{ fact.id }}">
+                    <dt class="{{ factLabel }}">{{ fact.label }}</dt>
+                    <dd class="min-w-0">{{ factValue(fact, record.itemId ~ "-" ~ fact.id) }}</dd>
+                  </div>
+                {% endfor %}
+              </dl>
+            {% endfor %}
+          </div>
+        </div>
+      </section>
+    {% elif tab == "events" and events %}
+      {% if unavailableSources %}
+        <div role="alert" class="alert alert-warning alert-soft mb-3 text-sm" data-testid="{{ record.itemId }}-events-partial">
+          {{ icon({ name: 'exclamation-triangle', class: 'size-4 shrink-0' }) }}
+          <span>Some event sources are unavailable: {{ unavailableSources }}. Showing the rest.</span>
+        </div>
+      {% endif %}
+      <div class="card card-border overflow-clip bg-base-100" data-testid="{{ record.itemId }}-events">
+        {% if events.rows | length %}
+          <div class="w-full overflow-x-auto">
+            <table class="table w-full min-w-[64rem] table-fixed" data-testid="{{ record.itemId }}-events-table">
+              {{ eventsHead({}) }}
+              <tbody>
+                {% for row in events.rows %}{{ eventRow(row) }}{% endfor %}
+              </tbody>
+            </table>
+          </div>
+          {% if events.allHref %}
+            <p class="border-t border-base-300 px-4 py-3 text-sm" data-testid="{{ record.itemId }}-events-more"><a class="link" href="{{ events.allHref }}" data-testid="{{ record.itemId }}-events-all">All in Events</a></p>
+          {% endif %}
+        {% else %}
+          <p class="px-4 py-10 text-center text-sm text-base-content/60" data-testid="{{ record.itemId }}-events-empty">No events found.</p>
+        {% endif %}
+      </div>
+    {% elif tab == "raw" and raw %}
+      {% if raw.tooLarge %}
+        <div role="alert" class="alert alert-warning alert-soft text-sm" data-testid="{{ record.itemId }}-raw-too-large">
+          {{ icon({ name: 'exclamation-triangle', class: 'size-4 shrink-0' }) }}
+          <span>Too large to show</span>
+        </div>
+      {% elif raw.view %}
+        <section class="card card-border bg-base-100" aria-label="Raw" data-testid="{{ record.itemId }}-raw-card">
+          <div class="card-body p-5">
+            {{ jsonViewer({ view: raw.view, label: record.title ~ " document", testId: record.itemId ~ "-raw" }) }}
+          </div>
+        </section>
+      {% else %}
+        {{ noData(record) }}
+      {% endif %}
+    {% else %}
+      {{ noData(record) }}
+    {% endif %}
+  {% endif %}
+{% endblock %}

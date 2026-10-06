@@ -37,9 +37,15 @@ export interface EventWithAttempts extends Event {
   lastError: EventLastError | null
 }
 
-export interface EventsPagination {
+export interface ListPagination {
   endCursor: string | null
   hasNextPage: boolean
+}
+
+/** Any list's page with nothing after it: the one a failed read leaves. */
+export const noNextPage: ListPagination = {
+  endCursor: null,
+  hasNextPage: false
 }
 
 export interface SourceError {
@@ -59,7 +65,7 @@ export interface ServiceFilter {
 
 export interface EventsPage {
   events: EventRow[]
-  pagination: EventsPagination
+  pagination: ListPagination
   sourceErrors: SourceError[]
 }
 
@@ -126,6 +132,13 @@ export interface EventAttempt {
   stack: string | null
 }
 
+/** The one record an event belongs to, named by the service that stored the row. */
+export interface EventRecord {
+  kind: 'application' | 'case'
+  code: string
+  ref: string
+}
+
 export interface EventDetail extends EventWithAttempts {
   attemptHistory: EventAttempt[]
   payload: unknown
@@ -147,6 +160,8 @@ export interface EventDetail extends EventWithAttempts {
   originalPayload?: unknown
   /** False when a JSON round trip would change a stored value; null when the service can't tell. */
   payloadIsPlainJson?: boolean | null
+  /** Sent only where the owning service has the record. */
+  record?: EventRecord | null
 }
 
 export interface EventLastRedrive {

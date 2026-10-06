@@ -17,7 +17,7 @@ describe('viewDevOpsRoute', () => {
     await server.stop()
   })
 
-  test('sends an operations admin on to the events page, temporarily', async () => {
+  test('sends an operations admin on to the applications page, temporarily', async () => {
     const { statusCode, headers } = await server.inject({
       method: 'GET',
       url: '/dev-ops',
@@ -31,6 +31,6 @@ describe('viewDevOpsRoute', () => {
     })
 
     expect(statusCode).toBe(statusCodes.found)
-    expect(headers.location).toBe('/dev-ops/events')
+    expect(headers.location).toBe('/dev-ops/applications')
   })
 })

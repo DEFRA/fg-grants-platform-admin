@@ -1,8 +1,10 @@
 {% extends 'layouts/page.njk' %}
+{% set navActive = 'events' %}
 
 {% from "back/macro.njk" import back %}
 {% from "char-count/macro.njk" import charCount %}
 {% from "icon/macro.njk" import icon %}
+{% from "json-viewer/macro.njk" import jsonViewer %}
 {% from "status-badge/macro.njk" import statusBadge %}
 
 {# Tailwind only sees class names written literally in this file. #}
@@ -14,7 +16,8 @@
 {% set monoTime = "font-mono text-sm leading-none tabular-nums whitespace-nowrap" %}
 {# `select-all` so one click takes the whole id, and `break-all` so the hex
    wraps inside the column rather than widening a phone. #}
-{% set idLine = "font-mono text-sm break-all text-base-content/70 select-all" %}
+{% set idInline = "font-mono text-sm font-normal break-all text-base-content/70 select-all" %}
+{% set titleLine = "flex flex-wrap items-baseline gap-x-2 text-xl font-semibold break-words" %}
 {# The success role is solid: `alert-soft` writes the message in the role's own
    colour on a tint of that colour, and for success that is a pale green on a
    pale green, under 3:1. #}
@@ -37,12 +40,6 @@
   instant to name, and `datetime` is what makes a `time` machine-readable.
 #}
 {% macro timestamp(text, instant, class, testId) %}{% if class %}<time class="{{ class }}"{% else %}<time{% endif %}{% if instant %} datetime="{{ instant }}"{% endif %}{% if testId %} data-testid="{{ testId }}"{% endif %}>{{ text }}</time>{% endmacro %}
-
-{% macro payloadLines(json, label, testId) %}
-  <div class="max-h-[30rem] w-full overflow-auto rounded-box border border-base-300 bg-base-200 py-2 font-mono text-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-base-content" tabindex="0" role="region" aria-label="{{ label }}" data-testid="{{ testId }}">
-    {% for line in json.split("\n") %}<pre class="flex gap-3 px-3" data-testid="{{ testId }}-line"><span class="w-9 shrink-0 text-right tabular-nums text-base-content/30 before:content-[attr(data-line)]" data-line="{{ loop.index }}" aria-hidden="true"></span><code>{{ line }}</code></pre>{% endfor %}
-  </div>
-{% endmacro %}
 
 {# A value a JSON round trip would change. Shown where the payload is about to be saved, never on the read-only view. #}
 {% macro plainJsonAlert(warning) %}
@@ -81,10 +78,9 @@
       </div>
     {% endif %}
     <header class="mt-3 mb-5" data-testid="event-header">
-      {# Nothing came back to name the page after, so the heading falls back to
-         the same word the `title` does rather than inventing a second one. #}
-      <h1 class="text-xl font-semibold" data-testid="event-title">{{ pageTitle }}</h1>
-      <p class="mt-1 {{ idLine }}" data-testid="event-id">{{ eventId }}</p>
+      {# Nothing came back to name the event by, so the heading is the page's own
+         word, "Event", then the id from the address. #}
+      <h1 class="{{ titleLine }}" data-testid="event-title"><span>{{ pageTitle }}</span> <span class="{{ idInline }}" data-testid="event-id">{{ eventId }}</span></h1>
     </header>
 
     {% if heldEdit %}
@@ -139,17 +135,21 @@
       </section>
     {% endif %}
   {% else %}
-    <header class="mt-2 mb-5" data-testid="event-header">
-      {% if eventName.name %}
-        <h1 class="text-xl font-semibold break-words" title="{{ type }}" data-testid="event-title"><span aria-hidden="true" data-testid="event-type-name">{{ eventName.name }}</span><span class="sr-only" data-testid="event-type-spoken">{{ eventName.spoken }}</span></h1>
-        {# A `p`, never a heading: it names the same thing the h1 does, and a
-           second heading would put two entries in the outline for one subject. #}
-        <p class="mt-1 {{ idLine }}" data-testid="event-id">{{ eventId }}</p>
-      {% else %}
-        {# No name to head with, so the id is the heading and is not repeated. #}
-        <h1 class="font-mono text-xl font-semibold break-all" data-testid="event-title">{{ eventId }}</h1>
+    <header class="mt-2 mb-5 flex flex-wrap items-start justify-between gap-x-6 gap-y-2" data-testid="event-header">
+      <div class="min-w-0">
+        {% if eventName.name %}
+          <h1 class="{{ titleLine }}" title="{{ type }}" data-testid="event-title"><span aria-hidden="true" data-testid="event-type-name">{{ eventName.name }}</span><span class="sr-only" data-testid="event-type-spoken">{{ eventName.spoken }}</span> <span class="{{ idInline }}" data-testid="event-id">{{ eventId }}</span></h1>
+        {% else %}
+          {# No name to head with, so the id is the heading and is not repeated. #}
+          <h1 class="font-mono text-xl font-semibold break-all" data-testid="event-title">{{ eventId }}</h1>
+        {% endif %}
+        <p class="mt-2" data-testid="event-header-status">{{ statusBadge({ status: status, label: statusLabel, role: statusRole, retrying: statusRetrying, variant: "solid" }) }}</p>
+      </div>
+      {% if recordLink %}
+        <nav class="text-sm" aria-label="Related records" data-testid="event-related-records">
+          <a class="link link-hover inline-flex items-center gap-1" href="{{ recordLink.href }}" data-testid="event-record-link">{{ recordLink.label }}{{ icon({ name: 'arrow-right', class: 'size-4' }) }}</a>
+        </nav>
       {% endif %}
-      <p class="mt-2" data-testid="event-header-status">{{ statusBadge({ status: status, label: statusLabel, role: statusRole, retrying: statusRetrying, variant: "solid" }) }}</p>
     </header>
 
     <section class="card card-border mb-5 bg-base-100" data-testid="event-facts-card">
@@ -491,11 +491,11 @@
               </div>
             </form>
 
-            {% if payloadEditor.currentJson %}
+            {% if payloadEditor.currentView %}
               <details class="collapse collapse-arrow border border-base-300" open data-testid="event-payload-current">
                 <summary class="collapse-title text-sm font-semibold" data-testid="event-payload-current-summary">The payload as it is now</summary>
                 <div class="collapse-content">
-                  {{ payloadLines(payloadEditor.currentJson, "The payload as it is now", "event-payload-current-lines") }}
+                  {{ jsonViewer({ view: payloadEditor.currentView, label: "The payload as it is now", testId: "event-payload-current-lines" }) }}
                 </div>
               </details>
             {% endif %}
@@ -533,7 +533,7 @@
             <details class="collapse collapse-arrow border border-base-300"{% if payloadReview.diff.tooLong %} open{% endif %} data-testid="event-payload-to-save">
               <summary class="collapse-title text-sm font-semibold" data-testid="event-payload-to-save-summary">Show the payload you're about to save</summary>
               <div class="collapse-content">
-                {{ payloadLines(payloadReview.text, "The payload you're about to save", "event-payload-to-save-lines") }}
+                {{ jsonViewer({ view: payloadReview.toSave, label: "The payload you're about to save", testId: "event-payload-to-save-lines" }) }}
               </div>
             </details>
 
@@ -583,17 +583,17 @@
             </section>
           </do-payload-editor>
         {% else %}
-          {% if payloadJson %}
-            {{ payloadLines(payloadJson, "Payload", "event-payload") }}
+          {% if payloadView %}
+            {{ jsonViewer({ view: payloadView, label: "Payload", testId: "event-payload" }) }}
           {% else %}
             <p class="py-6 text-center text-sm text-base-content/70" data-testid="event-payload-empty">This event carries no payload.</p>
           {% endif %}
 
-          {% if originalPayloadJson %}
+          {% if originalPayloadView %}
             <details class="collapse collapse-arrow border border-base-300" data-testid="event-original-payload">
               <summary class="collapse-title text-sm font-semibold" data-testid="event-original-payload-summary">Payload before the first edit</summary>
               <div class="collapse-content">
-                {{ payloadLines(originalPayloadJson, "Payload before the first edit", "event-original-payload-lines") }}
+                {{ jsonViewer({ view: originalPayloadView, label: "Payload before the first edit", testId: "event-original-payload-lines" }) }}
               </div>
             </details>
           {% endif %}
