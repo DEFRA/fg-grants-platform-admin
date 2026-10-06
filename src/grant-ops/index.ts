@@ -1,5 +1,6 @@
 import type { Server } from '@hapi/hapi'
 
+import { asOperator } from '../common/as-operator.ts'
 import { scopedTo } from '../server/plugins/auth/scoped-to.ts'
 import { viewOptions } from '../server/plugins/views/index.ts'
 import {
@@ -24,14 +25,17 @@ export const grantOps = {
       })
 
       server.route(
-        scopedTo('FCP.GrantApplicationsAdmin', [
-          viewGrantOpsRoute,
-          viewClaimsRoute,
-          newClaimableItemRoute,
-          createClaimableItemRoute,
-          changeClaimableItemRoute,
-          updateClaimableItemRoute
-        ])
+        scopedTo(
+          'FCP.GrantApplicationsAdmin',
+          asOperator([
+            viewGrantOpsRoute,
+            viewClaimsRoute,
+            newClaimableItemRoute,
+            createClaimableItemRoute,
+            changeClaimableItemRoute,
+            updateClaimableItemRoute
+          ])
+        )
       )
     }
   }

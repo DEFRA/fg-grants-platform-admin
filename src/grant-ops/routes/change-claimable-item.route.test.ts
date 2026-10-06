@@ -2,6 +2,7 @@ import { load } from 'cheerio'
 import Boom from '@hapi/boom'
 import type { Server } from '@hapi/hapi'
 
+import { currentGasActor } from '../../common/gas-actor.ts'
 import { createServer } from '../../server/index.ts'
 import { statusCodes } from '../../common/status-codes.ts'
 import { grantOps } from '../index.ts'
@@ -209,6 +210,33 @@ describe('changeClaimableItemRoute', () => {
     const { $ } = await viewPage()
 
     expect($('[data-testid="claimable-cancel"]').attr('href')).toBe(claimsUrl)
+  })
+
+  test('reads from GAS as the signed in operator', async () => {
+    let actor = {}
+    const item = await findEntitlement(
+      'woodland',
+      'WMP-1T9-RXN',
+      'entitlement-1'
+    )
+    vi.mocked(findEntitlement).mockImplementation(async () => {
+      actor = currentGasActor()
+      return item
+    })
+
+    await server.inject({
+      method: 'GET',
+      url,
+      auth: {
+        strategy: 'session',
+        credentials: {
+          ...credentials,
+          user: { name: 'Ada Lovelace', id: 'entra-object-id-1' }
+        }
+      }
+    })
+
+    expect(actor).toEqual({ name: 'Ada Lovelace', id: 'entra-object-id-1' })
   })
 
   test('asks GAS for the entitlement in the url', async () => {
