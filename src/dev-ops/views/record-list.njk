@@ -1,0 +1,186 @@
+{% extends 'layouts/list-page.njk' %}
+{% set navActive = list.listId %}
+
+{% from "event-row/macro.njk" import createdAt, createdCell, rowClass %}
+{% from "filter-menu/macro.njk" import filterMenu %}
+{% from "icon/macro.njk" import icon %}
+{% from "load-more/macro.njk" import loadMore %}
+{% from "status-badge/macro.njk" import statusBadge %}
+{% from "sticky-top/macro.njk" import stickyTop %}
+{% from "time-range-menu/macro.njk" import timeRangeMenu %}
+
+{# Tailwind only sees class names written literally in this file. #}
+{% set rowLink = "block w-fit break-all font-mono text-sm font-semibold no-underline after:absolute after:inset-0 focus-visible:outline-none" %}
+
+{% macro searchFilters(list, fields) %}
+  {% for field in fields %}
+    <input type="hidden" name="{{ field.name }}" value="{{ field.value }}" data-testid="{{ list.listId }}-search-filter">
+  {% endfor %}
+{% endmacro %}
+
+{# A search lives in the session, so clearing it is a post, as setting it was. #}
+{% macro clearSearch(list, fields, label, testId) %}
+  <form class="inline" method="post" action="{{ list.path }}">
+    {{ searchFilters(list, fields) }}
+    <input type="hidden" name="q" value="">
+    <button class="link text-base-content/70" type="submit" data-testid="{{ testId }}">{{ label }}</button>
+  </form>
+{% endmacro %}
+
+{% macro status(row) %}
+  {%- if row.statusLabel -%}
+    {# Lifted over the row's stretched link, so its title is reachable by mouse; the whole position is spoken, the badge is not. #}
+    <span class="relative inline-flex"><span aria-hidden="true">{{ statusBadge({ status: row.positionLabel, label: row.statusLabel, role: "neutral" }) }}</span><span class="sr-only">{{ row.positionLabel }}</span></span>
+  {%- else -%}
+    <span class="text-base-content/70">—</span>
+  {%- endif -%}
+{% endmacro %}
+
+{% macro created(cell, testId) %}
+  {{- createdCell({ text: cell.text, instant: cell.instant, precise: cell.precise, clock: cell.clock, testId: testId }) -}}
+{% endmacro %}
+
+{% block content %}
+  {% set codeKey = list.codeName | lower %}
+  {% call stickyTop() %}
+    <h1 class="sr-only" data-testid="{{ list.listId }}-title">{{ pageTitle }}</h1>
+
+    {# Top-aligned, so the error a bad search puts under its box moves nothing beside it. #}
+    <div class="mb-3 flex flex-wrap items-start gap-2" data-testid="{{ list.listId }}-toolbar">
+      {{- timeRangeMenu({ id: list.listId, range: timeRange }) }}
+
+      {{- filterMenu({
+        testId: list.listId ~ "-filter-" ~ codeKey,
+        panelId: list.listId ~ "-" ~ codeKey ~ "-panel",
+        name: list.codeName,
+        label: "Filter by " ~ codeKey,
+        items: codeFilters
+      }) }}
+
+      <form class="w-full sm:ml-auto sm:w-auto" method="post" action="{{ list.path }}" role="search" data-testid="{{ list.listId }}-search">
+        {{ searchFilters(list, searchFields) }}
+        <div class="join flex">
+          <label class="input join-item min-w-0 flex-1 sm:w-80 sm:flex-none{% if searchError %} input-error{% endif %}" data-testid="{{ list.listId }}-search-label">
+            {{ icon({ name: 'search', class: 'size-4.5 shrink-0 opacity-50' }) }}
+            <input type="search" name="q" value="{{ searchValue if searchError else q }}" placeholder="Reference" aria-label="Search {{ list.noun.many }} by reference" autocomplete="off" spellcheck="false"{% if searchError %} aria-invalid="true" aria-describedby="{{ list.listId }}-search-error"{% endif %} data-testid="{{ list.listId }}-search-input">
+          </label>
+          <button class="btn join-item" type="submit" data-testid="{{ list.listId }}-search-submit">Search</button>
+        </div>
+        {% if searchError %}<p class="mt-1 text-sm text-error" id="{{ list.listId }}-search-error" data-testid="{{ list.listId }}-search-error">{{ searchError }}</p>{% endif %}
+      </form>
+    </div>
+  {% endcall %}
+
+  {% if q or codeNote %}
+    <div class="mb-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm" data-testid="{{ list.listId }}-filter-notes">
+      {% if q %}
+        <span class="text-base-content/60" data-testid="{{ list.listId }}-note-search">Matching <span class="font-mono text-base-content/80">"{{ q }}"</span></span>
+        {{ clearSearch(list, searchFields, "Clear ×", list.listId ~ "-note-search-clear") }}
+      {% endif %}
+      {% if codeNote %}
+        {% if q %}<span class="text-base-content/30" aria-hidden="true">·</span>{% endif %}
+        <span class="text-base-content/60" data-testid="{{ list.listId }}-note-{{ codeKey }}">{{ list.codeName }}: <span class="font-mono text-base-content/80">"{{ codeNote.code }}"</span></span>
+        <a class="link text-base-content/70" href="{{ codeNote.clearHref }}" data-testid="{{ list.listId }}-note-{{ codeKey }}-clear">Clear ×</a>
+      {% endif %}
+    </div>
+  {% endif %}
+
+  {% if rows | length %}
+    {# `overflow-clip` makes no scroll container, so the header row can still stick. #}
+    <div class="card card-border flex flex-col overflow-clip bg-base-100" data-testid="{{ list.listId }}-card">
+      {% if totalLabel %}
+        <div class="shrink-0 border-b border-base-300" data-testid="{{ list.listId }}-card-header">
+          <div class="flex min-h-10 items-center justify-end bg-base-100 px-4 py-0 text-sm text-base-content/70">
+            <span class="tabular-nums" data-testid="{{ list.listId }}-total">{{ totalLabel }}</span>
+          </div>
+        </div>
+      {% endif %}
+
+      {# Sticky and sideways scrolling cannot share a box: overflow here unpins the header. #}
+      <div class="hidden w-full overflow-x-auto sm:block [@media(min-width:64rem)_and_(min-height:40rem)]:overflow-visible" data-testid="{{ list.listId }}-scroller">
+        <table class="table table-pin-rows w-full table-fixed [@media(min-width:64rem)_and_(min-height:40rem)]:[&_thead]:top-[var(--sticky-top,15rem)]" data-testid="{{ list.listId }}-table">
+          <thead>
+            <tr data-testid="{{ list.listId }}-head">
+              <th scope="col">Reference</th>
+              <th scope="col">{{ list.codeName }}</th>
+              <th scope="col">Status</th>
+              {% if list.showClosed %}
+                <th scope="col" class="text-right">Closed</th>
+              {% endif %}
+              <th scope="col" class="text-right">Created</th>
+            </tr>
+          </thead>
+          <tbody id="{{ list.listId }}-rows">
+            {% for row in rows %}
+              <tr class="{{ rowClass }}" data-testid="{{ list.itemId }}-row">
+                <td>
+                  <div class="flex flex-wrap items-center gap-2">
+                    <a href="{{ row.href }}" class="{{ rowLink }}" data-testid="{{ list.itemId }}-link">{{ row.ref }}<span class="sr-only">, {{ row.code }}</span></a>
+                    {% if row.replaced %}<span class="badge badge-ghost badge-sm" data-testid="{{ list.itemId }}-replaced">replaced</span>{% endif %}
+                  </div>
+                </td>
+                <td><div class="truncate font-mono text-sm" data-testid="{{ list.itemId }}-{{ codeKey }}">{{ row.code }}</div></td>
+                <td class="overflow-hidden" data-testid="{{ list.itemId }}-status">{{ status(row) }}</td>
+                {% if list.showClosed and row.closed %}
+                  {{ created(row.closed, list.itemId ~ "-closed") }}
+                {% elif list.showClosed %}
+                  <td class="text-right"><span class="relative ml-auto block w-fit font-mono text-sm text-base-content/70" data-testid="{{ list.itemId }}-closed-none">—</span></td>
+                {% endif %}
+                {{ created(row.created, list.itemId ~ "-created") }}
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      <ul class="list sm:hidden" id="{{ list.listId }}-list" data-testid="{{ list.listId }}-list">
+        {% for row in rows %}
+          <li class="list-row relative hover:bg-base-200 has-[:focus-visible]:bg-base-200" data-testid="{{ list.itemId }}-item">
+            <div class="list-col-grow flex min-w-0 flex-col gap-1">
+              <div class="flex flex-wrap items-baseline justify-between gap-x-3">
+                <a href="{{ row.href }}" class="{{ rowLink }}" data-testid="{{ list.itemId }}-link">{{ row.ref }}<span class="sr-only">, {{ row.code }}</span></a>
+                <span class="font-mono text-xs text-base-content/70">{{ row.code }}</span>
+              </div>
+              <div class="flex flex-wrap items-center justify-between gap-2">
+                <span class="flex items-center gap-2">{{ status(row) }}{% if row.replaced %}<span class="badge badge-ghost badge-sm">replaced</span>{% endif %}</span>
+                {{ createdAt({ text: row.created.text, instant: row.created.instant, precise: row.created.precise, testId: list.itemId ~ "-item-created" }) }}
+              </div>
+            </div>
+          </li>
+        {% endfor %}
+      </ul>
+
+      {{ loadMore({
+        id: list.listId,
+        nextHref: nextHref,
+        rows: list.listId ~ "-rows " ~ list.listId ~ "-list",
+        rowLink: '[data-testid="' ~ list.itemId ~ '-link"]',
+        outage: '[data-testid="' ~ list.listId ~ '-error"], [data-testid="' ~ list.listId ~ '-refused"]',
+        nounMany: list.noun.many,
+        nounOne: list.noun.one
+      }) }}
+    </div>
+  {% else %}
+    <div class="card card-border min-h-0 flex-1 bg-base-100" data-testid="{{ list.listId }}-card">
+      {% if refused %}
+        <div class="p-4">
+          <div role="alert" class="alert alert-warning alert-soft text-sm" data-testid="{{ list.listId }}-refused">
+            {{ icon({ name: 'exclamation-triangle', class: 'size-4 shrink-0' }) }}
+            <span>GAS refused this link's parameters. <a class="link" href="{{ list.path }}" data-testid="{{ list.listId }}-refused-clear">Start again</a>.</span>
+          </div>
+        </div>
+      {% elif unavailable %}
+        <div class="p-4">
+          <div role="alert" class="alert alert-error alert-soft text-sm" data-testid="{{ list.listId }}-error">
+            {{ icon({ name: 'exclamation-circle', class: 'size-4 shrink-0' }) }}
+            <span>{{ list.noun.many | capitalize }} could not be loaded from {{ list.source }}.</span>
+          </div>
+        </div>
+      {% elif q %}
+        <div class="px-4 py-10 text-center text-sm text-base-content/60" data-testid="{{ list.listId }}-empty">No {{ list.noun.many }} match "{{ q }}". {{ clearSearch(list, searchFields, "Clear search", list.listId ~ "-empty-clear") }}</div>
+      {% else %}
+        <p class="px-4 py-10 text-center text-sm text-base-content/60" data-testid="{{ list.listId }}-empty">No {{ list.noun.many }} found.</p>
+      {% endif %}
+    </div>
+  {% endif %}
+{% endblock %}

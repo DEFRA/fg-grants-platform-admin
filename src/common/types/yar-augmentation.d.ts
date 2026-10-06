@@ -16,5 +16,6 @@ declare module '@hapi/yar' {
 
   interface YarValues {
     applicationsSearch: StoredSearch
+    casesSearch: StoredSearch
   }
 }
