@@ -12,7 +12,8 @@ export type {
   EventDetail,
   EventKey,
   EventLastEdit,
-  EventLastPurge
+  EventLastPurge,
+  EventRecord
 } from '../repositories/events.repository.ts'
 
 export type EventOutcome = 'found' | 'not-found' | 'timed-out' | 'unavailable'
