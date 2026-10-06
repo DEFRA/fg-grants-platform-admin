@@ -15,8 +15,7 @@ import {
 import { isDeadLetterStatus } from '../view-models/event-state.ts'
 import { toPurgeFormError, toPurgeNote } from '../view-models/purge-form.ts'
 import { toActor } from '../view-models/actor.ts'
-
-const seeOther = 303
+import { seeOther } from '../view-models/see-other.ts'
 
 /** Longer than any query this app builds for itself, and still bounded. */
 const fromMax = 2048

@@ -11,7 +11,7 @@ import type {
   EventCounts,
   EventFacets,
   EventRow,
-  EventsPagination,
+  ListPagination,
   EventsResult,
   ServiceFilter,
   SourceError,
@@ -112,8 +112,8 @@ const services: ServiceFilter[] = [
 ]
 
 const pagination = (
-  overrides: Partial<EventsPagination> = {}
-): EventsPagination => ({
+  overrides: Partial<ListPagination> = {}
+): ListPagination => ({
   endCursor: null,
   hasNextPage: false,
   ...overrides
@@ -135,7 +135,7 @@ const facets = (overrides: Partial<EventCounts> = {}): EventFacets => ({
 
 const givenEvents = (
   events: EventRow[] = [event()],
-  overrides: Partial<EventsPagination> = {},
+  overrides: Partial<ListPagination> = {},
   sourceErrors: SourceError[] = []
 ) =>
   vi.mocked(getEventsUseCase).mockResolvedValue({
@@ -339,6 +339,16 @@ describe('viewEventsRoute', () => {
     })
 
     expect(statusCode).toBe(statusCodes.forbidden)
+  })
+
+  test('keeps the list out of shared caches but lets Back restore it', async () => {
+    const { headers } = await server.inject({
+      method: 'GET',
+      url: '/dev-ops/events',
+      auth: { strategy: 'session', credentials }
+    })
+
+    expect(headers['cache-control']).toBe('private, no-cache')
   })
 
   test('renders the page for the operations admin role', async () => {
@@ -1128,7 +1138,7 @@ describe('viewEventsRoute', () => {
   test('selects All statuses, services and times on a page opened with no filter', async () => {
     const { $ } = await viewPage()
 
-    const active = $('[aria-current="page"]')
+    const active = $('main [aria-current="page"]')
       .toArray()
       .map((option) => flatten($(option).text()))
 
@@ -2478,7 +2488,7 @@ describe('viewEventsRoute', () => {
     expect(navbar.hasClass(`${media}:z-30`)).toBe(true)
     expect(navbar.hasClass('sticky')).toBe(false)
     expect(classOf($('html'))).toBe(
-      `${media}:scroll-pt-[calc(var(--sticky-top,15rem)+3rem)]`
+      `[scrollbar-gutter:stable] [--root-bg:var(--color-base-200)] ${media}:scroll-pt-[calc(var(--sticky-top,15rem)+3rem)]`
     )
   })
 
@@ -2632,14 +2642,10 @@ describe('viewEventsRoute', () => {
     const { $ } = await viewPage()
 
     const brand = $('[data-testid="do-brand"]')
-    const suffix = $('[data-testid="do-brand-suffix"]')
 
-    expect(flatten(`${brand.text()} ${suffix.text()}`)).toBe(
-      'Grants Platform · Events'
-    )
+    expect(flatten(brand.text())).toBe('Grants Platform')
     expect(brand.attr('class')).toContain('font-bold')
     expect(brand.attr('href')).toBe('/dev-ops')
-    expect(suffix.attr('class')).toContain('text-base-content/70')
     expect(brand.closest('.navbar-start')).toHaveLength(1)
     expect($('header').attr('class')).toContain('navbar')
     expect(brand.text()).not.toContain('fg-grants-platform-admin')
@@ -2853,7 +2859,7 @@ describe('viewEventsRoute', () => {
     expect(badge.attr('class')).toContain('badge')
     expect(badge.attr('class')).not.toContain('badge-warning')
     expect(badge.attr('title')).toBe('This is the local environment')
-    expect(badge.prev().attr('data-testid')).toBe('do-brand-suffix')
+    expect(badge.prev().attr('data-testid')).toBe('do-brand')
     expect(badge.closest('.navbar-start')).toHaveLength(1)
   })
 
@@ -2881,6 +2887,22 @@ describe('viewEventsRoute', () => {
     }
   )
 
+  test('links the areas from the bar, Events marked as this one', async () => {
+    const { $ } = await viewPage()
+
+    const nav = $('header nav[data-testid="do-nav"]')
+
+    expect(nav.attr('aria-label')).toBe('Dev ops')
+    expect(
+      nav
+        .find('a')
+        .map((_, link) => `${$(link).text()} ${$(link).attr('href')}`)
+        .get()
+    ).toEqual(['Applications /dev-ops/applications', 'Events /dev-ops/events'])
+    expect(nav.find('[aria-current="page"]').text()).toBe('Events')
+    expect(nav.find('[aria-current="page"]').hasClass('tab-active')).toBe(true)
+  })
+
   test('offers no Sign out in the bar, only the theme toggle', async () => {
     const { $ } = await viewPage()
 
@@ -2894,9 +2916,6 @@ describe('viewEventsRoute', () => {
 
     expect($('header.navbar').hasClass('min-h-14')).toBe(true)
     expect($('[data-testid="do-brand"]').hasClass('text-lg')).toBe(true)
-    expect($('[data-testid="do-brand-suffix"]').hasClass('text-base')).toBe(
-      true
-    )
   })
 
   test('offers a From and a To box in the range panel', async () => {

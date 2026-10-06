@@ -1,4 +1,5 @@
 import {
+  isIsoInstant,
   fromZonedInput,
   toClock,
   toPreciseInstant,
@@ -94,6 +95,29 @@ describe('fromZonedInput', () => {
     expect(fromZonedInput('2026-10-25T02:00:00', 'latest').toISOString()).toBe(
       '2026-10-25T02:00:00.000Z'
     )
+  })
+})
+
+describe('isIsoInstant', () => {
+  test.each([
+    '2026-06-16T10:00:00Z',
+    '2026-06-16T10:00:00.123Z',
+    '2026-06-16T10:00Z',
+    '2026-06-16T11:00:00+01:00'
+  ])('reads %s as an instant', (value) => {
+    expect(isIsoInstant(value)).toBe(true)
+  })
+
+  test.each([
+    '',
+    '16/06/2026',
+    '2026-06-16 10:00',
+    '2026-06-16',
+    '2026-06-16T10:00:00',
+    '2026-02-30T10:00:00Z',
+    '2026-06-16T24:00:00Z'
+  ])('does not read %j as an instant', (value) => {
+    expect(isIsoInstant(value)).toBe(false)
   })
 })
 

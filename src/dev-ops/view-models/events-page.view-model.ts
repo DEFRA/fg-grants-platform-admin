@@ -21,7 +21,7 @@ import type {
   EventFacets,
   EventKey,
   EventRow as EventRowResponse,
-  EventsPagination,
+  ListPagination,
   EventsQuery,
   EventsResult,
   ServiceFilter,
@@ -33,7 +33,7 @@ export interface EventsPageQuery extends EventsQuery {
   range?: string
 }
 
-interface EventRow {
+export interface EventRow {
   eventHref: string
   eventId: string
   status: string
@@ -140,8 +140,9 @@ const toEventPageHref = (event: EventKey, from: string): string => {
   return from === '' ? href : `${href}?from=${encodeURIComponent(from)}`
 }
 
-const toRow =
-  (now: Date, from: string, services: ServiceFilter[]) =>
+/** One events-list row; `from` is the list query the event page's Back returns to. */
+export const toEventRow =
+  (now: Date, from: string, services?: ServiceFilter[]) =>
   (event: EventRowResponse): EventRow => {
     const created = toTimestamp(event.createdAt, now)
 
@@ -291,7 +292,7 @@ const eventsList: TimeRangeList<EventsPageQuery> = {
 }
 
 const toNextHref = (
-  { hasNextPage, endCursor }: EventsPagination,
+  { hasNextPage, endCursor }: ListPagination,
   query: EventsPageQuery
 ): string | null => {
   if (!hasNextPage || !endCursor) {
@@ -396,7 +397,7 @@ export const toEventsPage = (
   const currentSearch = toCurrentSearch(query)
   const q = toSearch(query.q)
   const filters: EventsPageQuery = { ...query, q: q ?? undefined }
-  const rows = events.map(toRow(now, currentSearch, services))
+  const rows = events.map(toEventRow(now, currentSearch, services))
 
   return {
     rows,

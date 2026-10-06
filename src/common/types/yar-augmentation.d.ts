@@ -1,5 +1,6 @@
 import '@hapi/yar'
 
+import type { StoredSearch } from '../../dev-ops/view-models/stored-search.ts'
 import type {
   EventNotice,
   PurgeFormNotice
@@ -11,5 +12,9 @@ declare module '@hapi/yar' {
     /** Both event writes: `action` says which one this was. */
     redriveOutcome: EventNotice
     purgeForm: PurgeFormNotice
+  }
+
+  interface YarValues {
+    applicationsSearch: StoredSearch
   }
 }
