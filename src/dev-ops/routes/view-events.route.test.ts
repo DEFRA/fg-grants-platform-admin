@@ -2898,7 +2898,11 @@ describe('viewEventsRoute', () => {
         .find('a')
         .map((_, link) => `${$(link).text()} ${$(link).attr('href')}`)
         .get()
-    ).toEqual(['Applications /dev-ops/applications', 'Events /dev-ops/events'])
+    ).toEqual([
+      'Applications /dev-ops/applications',
+      'Cases /dev-ops/cases',
+      'Events /dev-ops/events'
+    ])
     expect(nav.find('[aria-current="page"]').text()).toBe('Events')
     expect(nav.find('[aria-current="page"]').hasClass('tab-active')).toBe(true)
   })

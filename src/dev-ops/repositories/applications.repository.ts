@@ -1,15 +1,19 @@
 import { getFromGas, postToGas } from '../../common/gas.ts'
+import type { SourceError } from './events.repository.ts'
 import type {
-  EventRow,
+  Counterpart,
   ListPagination,
-  SourceError
-} from './events.repository.ts'
+  ListTotal,
+  Position,
+  RecordEvents,
+  RecordSectionError,
+  RecordSeries,
+  RecordTab,
+  StoredDate
+} from './record-page.ts'
+import { toRepeatOptions } from './record-page.ts'
 
-export interface Position {
-  phase: string | null
-  stage: string | null
-  status: string | null
-}
+export type { ListPagination, ListTotal, Position } from './record-page.ts'
 
 export interface ApplicationRef {
   clientRef: string
@@ -19,13 +23,8 @@ export interface ApplicationRef {
 export interface ApplicationRow {
   ref: ApplicationRef
   position: Position
-  createdAt: string | null
+  createdAt: StoredDate
   replaced: boolean
-}
-
-export interface ListTotal {
-  count: number
-  capped: boolean
 }
 
 export interface ApplicationsPage {
@@ -47,22 +46,15 @@ export interface ApplicationsSearch {
   cursor?: string
 }
 
-/**
- * A POST, so a searched ref travels in the body and never in a logged URL.
- * `repeat` marks a Back or a refresh re-running a first page already shown.
- */
+/** A POST, so a searched ref travels in the body and never in a logged URL. */
 export const searchApplications = async (
   search: ApplicationsSearch,
   repeat: boolean
 ): Promise<ApplicationsPage> =>
   postToGas<ApplicationsPage>('/grant-admin/applications/search', {
     payload: search,
-    ...(repeat ? { headers: { 'x-search-repeat': '1' } } : {})
+    ...toRepeatOptions(repeat)
   })
-
-export const applicationTabs = ['overview', 'events', 'raw'] as const
-
-export type ApplicationTab = (typeof applicationTabs)[number]
 
 /** GAS's name for its check of the case, in `sourceErrors` when it could not be made. */
 export const caseCheckHop = 'CW-BE Cases'
@@ -71,18 +63,9 @@ export interface ApplicationHeader {
   clientRef: string
   code: string
   position: Position
-  /** Null while the case link is unknown. */
-  counterpart: { exists: boolean } | null
+  counterpart: Counterpart
   fetchedAt: string
 }
-
-export interface ApplicationSeries {
-  latestRef: string | null
-  refs: string[]
-}
-
-/** As stored: an ISO instant, or any other string GAS found there, empty included. */
-export type StoredDate = string | null
 
 export interface ApplicationOverview {
   code: string
@@ -96,25 +79,14 @@ export interface ApplicationOverview {
     frn: string | null
     crn: string | null
   }
-  series: ApplicationSeries | null
+  series: RecordSeries | null
   storedBytes: number | null
-}
-
-export interface ApplicationEvents {
-  rows: EventRow[]
-  /** More than one page matched: the rest are on the events search. */
-  more: boolean
-}
-
-export interface RecordSectionError {
-  section: string
-  message: string
 }
 
 export interface ApplicationPage {
   header: ApplicationHeader
   overview?: ApplicationOverview | null
-  events?: ApplicationEvents | null
+  events?: RecordEvents | null
   /** The stored document as stored: answers and metadata are never read here. */
   raw?: object | null
   storedBytes?: number | null
@@ -124,7 +96,7 @@ export interface ApplicationPage {
 
 export const findApplicationPage = async (
   { code, clientRef }: ApplicationRef,
-  tab: ApplicationTab
+  tab: RecordTab
 ): Promise<ApplicationPage> =>
   getFromGas<ApplicationPage>(
     `/grant-admin/grants/${encodeURIComponent(code)}/applications/${encodeURIComponent(clientRef)}/${tab}`
