@@ -308,12 +308,15 @@ describe('changeClaimableItemRoute', () => {
   })
 })
 
-const gasRefusal = (statusCode: number, message: string) =>
+const gasRefusal = (statusCode: number, message: string, errorCode?: string) =>
   Object.assign(new Error('Response Error'), {
     isBoom: true,
     output: { statusCode },
-    data: { payload: { statusCode, message } }
+    data: { payload: { statusCode, message, errorCode } }
   })
+
+const configurationChanged =
+  "Grant configuration for 'woodland' changed while updating the entitlement. Try again."
 
 describe('updateClaimableItemRoute', () => {
   beforeEach(() => {
@@ -412,7 +415,94 @@ describe('updateClaimableItemRoute', () => {
   })
 
   test('returns to the claims page when a claim lands before the save', async () => {
-    vi.mocked(updateEntitlement).mockRejectedValue(gasRefusal(409, claimed))
+    vi.mocked(updateEntitlement).mockRejectedValue(
+      gasRefusal(409, claimed, 'ENTITLEMENT_CLAIMED')
+    )
+
+    const { headers, statusCode } = await post({ totalHectares: '40.25' })
+
+    expect(statusCode).toBe(statusCodes.seeOther)
+    expect(headers.location).toBe(claimsUrl)
+
+    const $ = await followRedirect(headers)
+
+    expect($('[data-testid="entitlement-refused"]').text()).toContain(
+      `This item cannot be changed: ${claimed}`
+    )
+  })
+
+  test('keeps the form and the entered values when the configuration changed under the save', async () => {
+    vi.mocked(updateEntitlement).mockRejectedValue(
+      gasRefusal(409, configurationChanged, 'CONFIGURATION_CHANGED')
+    )
+
+    const { result, statusCode } = await post({ totalHectares: '40.25' })
+    const $ = load(result as unknown as string)
+
+    expect(statusCode).toBe(statusCodes.conflict)
+    expect($('#change-entitlement form[method="post"]')).toHaveLength(1)
+    expect($('#totalHectares').attr('value')).toBe('40.25')
+    expect(
+      $('[data-testid="claimable-error-summary"]').text().replace(/\s+/g, ' ')
+    ).toContain(`This item cannot be changed: ${configurationChanged}`)
+  })
+
+  test('shows the refreshed template when the configuration changed under the save', async () => {
+    vi.mocked(updateEntitlement).mockRejectedValue(
+      gasRefusal(409, configurationChanged, 'CONFIGURATION_CHANGED')
+    )
+    vi.mocked(findEntitlement)
+      .mockResolvedValueOnce({
+        banner,
+        availableEntitlements: [template()],
+        claimableEntitlements: [entitlement()],
+        claims: [submittedClaim],
+        claimableEntitlement: entitlement(),
+        entitlementTemplate: template()
+      })
+      .mockResolvedValueOnce({
+        banner,
+        availableEntitlements: [template()],
+        claimableEntitlements: [entitlement()],
+        claims: [submittedClaim],
+        claimableEntitlement: entitlement(),
+        entitlementTemplate: template({
+          fields: {
+            totalHectares: {
+              input: true,
+              label: 'Eligible woodland area',
+              unitType: 'decimal',
+              decimalPlaces: 4,
+              unit: 'HA'
+            }
+          }
+        })
+      })
+
+    const { result } = await post({ totalHectares: '40.25' })
+    const $ = load(result as unknown as string)
+
+    expect(findEntitlement).toHaveBeenCalledTimes(2)
+    expect($('label[for="totalHectares"]').text().trim()).toBe(
+      'Eligible woodland area'
+    )
+    expect($('#totalHectares').attr('value')).toBe('40.25')
+  })
+
+  test('returns to the claims page when the configuration changed and a claim has landed since', async () => {
+    vi.mocked(updateEntitlement).mockRejectedValue(
+      gasRefusal(409, configurationChanged, 'CONFIGURATION_CHANGED')
+    )
+    vi.mocked(findEntitlement)
+      .mockResolvedValueOnce({
+        banner,
+        availableEntitlements: [template()],
+        claimableEntitlements: [entitlement()],
+        claims: [],
+        claimableEntitlement: entitlement(),
+        entitlementTemplate: template()
+      })
+      .mockRejectedValueOnce(gasRefusal(409, claimed, 'ENTITLEMENT_CLAIMED'))
 
     const { headers, statusCode } = await post({ totalHectares: '40.25' })
 

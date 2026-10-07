@@ -3,7 +3,8 @@ import type {
   EntitlementTemplate
 } from '../repositories/claims.repository.ts'
 import { findClaim } from '../repositories/claims.repository.ts'
-import { conflict, toGasRefusal } from './gas-refusal.ts'
+import type { ConflictRefusal } from './gas-refusal.ts'
+import { toConflictRefusal } from './gas-refusal.ts'
 
 export interface NewClaimableItemResponse extends Omit<Claims, 'claims'> {
   claimableTemplate: EntitlementTemplate
@@ -11,17 +12,7 @@ export interface NewClaimableItemResponse extends Omit<Claims, 'claims'> {
 
 export type NewClaimableItem =
   | { kind: 'page'; claimableItem: NewClaimableItemResponse }
-  | { kind: 'refusal'; message: string }
-
-const asRefusal = (error: unknown): NewClaimableItem => {
-  const refusal = toGasRefusal(error)
-
-  if (refusal?.statusCode !== conflict) {
-    throw error
-  }
-
-  return { kind: 'refusal', message: refusal.message }
-}
+  | ConflictRefusal
 
 export const viewNewClaimableItemUseCase = async (
   code: string,
@@ -36,5 +27,5 @@ export const viewNewClaimableItemUseCase = async (
       kind: 'page',
       claimableItem: { ...claims, claimableTemplate }
     }),
-    asRefusal
+    toConflictRefusal
   )

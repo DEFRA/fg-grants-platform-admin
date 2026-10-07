@@ -2,6 +2,8 @@ import Boom from '@hapi/boom'
 import type { Request, ResponseToolkit, ServerRoute } from '@hapi/hapi'
 import Joi from 'joi'
 import type { ClaimableItem } from '../use-cases/view-change-claimable-item.use-case.ts'
+import type { GasRefusal } from '../use-cases/gas-refusal.ts'
+import { conflict, isConfigurationChange } from '../use-cases/gas-refusal.ts'
 import { updateClaimableItemUseCase } from '../use-cases/update-claimable-item.use-case.ts'
 import { viewChangeClaimableItemUseCase } from '../use-cases/view-change-claimable-item.use-case.ts'
 import type { FieldError } from '../view-models/claimable-item-form.view-model.ts'
@@ -23,8 +25,6 @@ interface ChangeClaimableItemParams {
   clientRef: string
   entitlementId: string
 }
-
-const conflict = 409
 
 const path =
   '/grant-ops/grants/{code}/applications/{clientRef}/claims/entitlements/{entitlementId}/change'
@@ -89,14 +89,77 @@ const failedChangePage = (
   formFields: toClaimableItemForm(page.claimableTemplate, form, errors)
 })
 
+const viewRefusedForm = (
+  h: ResponseToolkit,
+  page: ReturnType<typeof changePage>,
+  form: Record<string, string>,
+  refusal: GasRefusal
+) =>
+  h
+    .view('update-claimable-item', {
+      ...failedChangePage(page, form),
+      errorSummary: toSaveRefusalSummary(refusal, 'changed')
+    })
+    .code(refusal.statusCode)
+
+const retryOnRefreshedForm = async (
+  request: Request,
+  h: ResponseToolkit,
+  form: Record<string, string>,
+  refusal: GasRefusal
+) => {
+  const routeParams = request.params as unknown as ChangeClaimableItemParams
+  const { code, clientRef, entitlementId } = routeParams
+
+  const changeView = await viewChangeClaimableItemUseCase(
+    code,
+    clientRef,
+    entitlementId
+  )
+
+  if (changeView.kind === 'refusal') {
+    return redirectWithRefusal(request, h, routeParams, changeView.message)
+  }
+
+  return viewRefusedForm(
+    h,
+    changePage(routeParams, changeView.claimableItem),
+    form,
+    refusal
+  )
+}
+
+const respondToRefusal = (
+  request: Request,
+  h: ResponseToolkit,
+  page: ReturnType<typeof changePage>,
+  form: Record<string, string>,
+  refusal: GasRefusal
+) => {
+  if (isConfigurationChange(refusal)) {
+    return retryOnRefreshedForm(request, h, form, refusal)
+  }
+
+  if (refusal.statusCode === conflict) {
+    return redirectWithRefusal(
+      request,
+      h,
+      request.params as unknown as ChangeClaimableItemParams,
+      refusal.message
+    )
+  }
+
+  return viewRefusedForm(h, page, form, refusal)
+}
+
 const applyUpdate = async (
   request: Request,
   h: ResponseToolkit,
   page: ReturnType<typeof changePage>,
   form: Record<string, string>
 ) => {
-  const routeParams = request.params as unknown as ChangeClaimableItemParams
-  const { code, clientRef, entitlementId } = routeParams
+  const { code, clientRef, entitlementId } =
+    request.params as unknown as ChangeClaimableItemParams
 
   const refusal = await updateClaimableItemUseCase(
     code,
@@ -106,17 +169,8 @@ const applyUpdate = async (
     form
   )
 
-  if (refusal?.statusCode === conflict) {
-    return redirectWithRefusal(request, h, routeParams, refusal.message)
-  }
-
   if (refusal) {
-    return h
-      .view('update-claimable-item', {
-        ...failedChangePage(page, form),
-        errorSummary: toSaveRefusalSummary(refusal, 'changed')
-      })
-      .code(refusal.statusCode)
+    return respondToRefusal(request, h, page, form, refusal)
   }
 
   request.yar.flash(
