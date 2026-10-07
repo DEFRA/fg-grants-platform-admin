@@ -335,18 +335,26 @@ describe('updateClaimableItemRoute', () => {
       auth: { strategy: 'session', credentials }
     })
 
-  test('sends the scaled values to GAS, naming the person who changed them', async () => {
+  test('sends the scaled values to GAS', async () => {
     await post({ totalHectares: ' 45.5 ' })
 
-    expect(updateEntitlement).toHaveBeenCalledWith(
-      {
-        clientRef: 'WMP-1T9-RXN',
-        grantCode: 'woodland',
-        entitlementId: 'entitlement-1',
-        data: { totalHectares: { value: 455000 } }
-      },
-      'Ada Lovelace'
-    )
+    expect(updateEntitlement).toHaveBeenCalledWith({
+      clientRef: 'WMP-1T9-RXN',
+      grantCode: 'woodland',
+      entitlementId: 'entitlement-1',
+      data: { totalHectares: { value: 455000 } }
+    })
+  })
+
+  test('updates the entitlement as the signed in operator', async () => {
+    let actor = {}
+    vi.mocked(updateEntitlement).mockImplementation(async () => {
+      actor = currentGasActor()
+    })
+
+    await post({ totalHectares: '45.5' })
+
+    expect(actor).toMatchObject({ name: 'Ada Lovelace' })
   })
 
   test('returns to the claims page and says what changed', async () => {

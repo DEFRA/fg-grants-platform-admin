@@ -28,23 +28,19 @@ const update = () =>
     'wood-1001',
     'entitlement-1',
     template,
-    { totalHectares: ' 45.5 ', actionCode: 'PA4' },
-    'Ada Lovelace'
+    { totalHectares: ' 45.5 ', actionCode: 'PA4' }
   )
 
 describe('updateClaimableItemUseCase', () => {
-  test('sends only the scaled input fields, naming the person who asked', async () => {
+  test('sends only the scaled input fields', async () => {
     await expect(update()).resolves.toBeUndefined()
 
-    expect(updateEntitlement).toHaveBeenCalledWith(
-      {
-        clientRef: 'wood-1001',
-        grantCode: 'woodland',
-        entitlementId: 'entitlement-1',
-        data: { totalHectares: { value: 455000 } }
-      },
-      'Ada Lovelace'
-    )
+    expect(updateEntitlement).toHaveBeenCalledWith({
+      clientRef: 'wood-1001',
+      grantCode: 'woodland',
+      entitlementId: 'entitlement-1',
+      data: { totalHectares: { value: 455000 } }
+    })
   })
 
   test('reports a refusal so the page can explain it', async () => {

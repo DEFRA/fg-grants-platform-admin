@@ -103,15 +103,14 @@ export interface NewEntitlement {
 }
 
 export const createEntitlement = async (
-  entitlement: NewEntitlement,
-  actor?: string
+  entitlement: NewEntitlement
 ): Promise<void> =>
   postToGas(
     `/grant-admin/grants/${encodeURIComponent(entitlement.grantCode)}/applications/${encodeURIComponent(entitlement.clientRef)}/claims/entitlements`,
     // The entitlement is the request body. `postToGas` takes its options
     // rather than a bare payload, because not every write to fg-gas-backend
     // has a body to send — a redrive is identified entirely by its path.
-    { payload: entitlement, actor }
+    { payload: entitlement }
   )
 
 export interface EntitlementUpdate {
@@ -121,13 +120,15 @@ export interface EntitlementUpdate {
   data: Record<string, EntitlementFieldValue>
 }
 
-export const updateEntitlement = async (
-  { clientRef, grantCode, entitlementId, data }: EntitlementUpdate,
-  actor?: string
-): Promise<void> =>
+export const updateEntitlement = async ({
+  clientRef,
+  grantCode,
+  entitlementId,
+  data
+}: EntitlementUpdate): Promise<void> =>
   putToGas(
     `/grant-admin/grants/${encodeURIComponent(grantCode)}/applications/${encodeURIComponent(clientRef)}/claims/entitlements/${encodeURIComponent(entitlementId)}`,
-    { payload: { data }, actor }
+    { payload: { data } }
   )
 
 export const findClaims = async (

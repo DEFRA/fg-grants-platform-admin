@@ -1,6 +1,5 @@
 import Boom from '@hapi/boom'
 import type { Request, ResponseToolkit, ServerRoute } from '@hapi/hapi'
-import { toActor } from '../../common/view-models/actor.ts'
 import { createClaimableItemUseCase } from '../use-cases/create-claimable-item.use-case.ts'
 import { viewNewClaimableItemUseCase } from '../use-cases/view-new-claimable-item.use-case.ts'
 import { getClaimsUseCase } from '../use-cases/get-claims.use-case.ts'
@@ -150,8 +149,7 @@ export const createClaimableItemRoute: ServerRoute = {
       code,
       clientRef,
       claimableTemplate,
-      form,
-      toActor(request)
+      form
     )
 
     if (refusal) {

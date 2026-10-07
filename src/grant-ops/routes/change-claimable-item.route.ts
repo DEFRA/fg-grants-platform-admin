@@ -1,7 +1,6 @@
 import Boom from '@hapi/boom'
 import type { Request, ResponseToolkit, ServerRoute } from '@hapi/hapi'
 import Joi from 'joi'
-import { toActor } from '../../common/view-models/actor.ts'
 import type { ClaimableItem } from '../use-cases/view-change-claimable-item.use-case.ts'
 import { updateClaimableItemUseCase } from '../use-cases/update-claimable-item.use-case.ts'
 import { viewChangeClaimableItemUseCase } from '../use-cases/view-change-claimable-item.use-case.ts'
@@ -104,8 +103,7 @@ const applyUpdate = async (
     clientRef,
     entitlementId,
     page.claimableTemplate,
-    form,
-    toActor(request)
+    form
   )
 
   if (refusal?.statusCode === conflict) {

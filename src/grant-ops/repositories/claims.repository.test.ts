@@ -86,15 +86,6 @@ describe('createEntitlement', () => {
     )
   })
 
-  test('names the person who asked', async () => {
-    await createEntitlement(entitlement, 'Ada Lovelace')
-
-    expect(postToGas).toHaveBeenCalledWith(expect.any(String), {
-      payload: entitlement,
-      actor: 'Ada Lovelace'
-    })
-  })
-
   test('escapes path segments', async () => {
     await createEntitlement({
       ...entitlement,
@@ -117,12 +108,12 @@ describe('updateEntitlement', () => {
     data: { totalHectares: { value: 455000 } }
   }
 
-  test('puts the data to the entitlement, naming the person who asked', async () => {
-    await updateEntitlement(update, 'Ada Lovelace')
+  test('puts the data to the entitlement, escaping every path segment', async () => {
+    await updateEntitlement(update)
 
     expect(putToGas).toHaveBeenCalledWith(
       '/grant-admin/grants/woodland/applications/wood%201001/claims/entitlements/entitlement%2F1',
-      { payload: { data: update.data }, actor: 'Ada Lovelace' }
+      { payload: { data: update.data } }
     )
   })
 })

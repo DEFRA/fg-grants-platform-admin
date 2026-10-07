@@ -2,6 +2,7 @@ import { load } from 'cheerio'
 import Boom from '@hapi/boom'
 import type { Server } from '@hapi/hapi'
 
+import { currentGasActor } from '../../common/gas-actor.ts'
 import { createServer } from '../../server/index.ts'
 import { statusCodes } from '../../common/status-codes.ts'
 import { grantOps } from '../index.ts'
@@ -331,20 +332,28 @@ describe('createClaimableItemRoute', () => {
     givenClaims([bounded()])
   })
 
-  test('creates the entitlement, naming who asked, and returns to the claims page', async () => {
+  test('creates the entitlement and returns to the claims page', async () => {
     const { statusCode, headers } = await post({ totalHectares: '40.25' })
 
-    expect(createEntitlement).toHaveBeenCalledWith(
-      {
-        clientRef: 'WMP-1T9-RXN',
-        grantCode: 'woodland',
-        claimCode: 'ENT_CS_CAPITAL_PA3',
-        data: { totalHectares: { value: 402500 } }
-      },
-      'Ada Lovelace'
-    )
+    expect(createEntitlement).toHaveBeenCalledWith({
+      clientRef: 'WMP-1T9-RXN',
+      grantCode: 'woodland',
+      claimCode: 'ENT_CS_CAPITAL_PA3',
+      data: { totalHectares: { value: 402500 } }
+    })
     expect(statusCode).toBe(statusCodes.seeOther)
     expect(headers.location).toBe(claimsUrl)
+  })
+
+  test('creates the entitlement as the signed in operator', async () => {
+    let actor = {}
+    vi.mocked(createEntitlement).mockImplementation(async () => {
+      actor = currentGasActor()
+    })
+
+    await post({ totalHectares: '40.25' })
+
+    expect(actor).toMatchObject({ name: 'Ada Lovelace' })
   })
 
   test('posts the payload the persistence service expects', async () => {

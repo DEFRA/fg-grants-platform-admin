@@ -9,19 +9,15 @@ export const updateClaimableItemUseCase = async (
   clientRef: string,
   entitlementId: string,
   template: EntitlementTemplate,
-  form: Record<string, string>,
-  actor?: string
+  form: Record<string, string>
 ): Promise<GasRefusal | undefined> => {
   try {
-    await updateEntitlement(
-      {
-        clientRef,
-        grantCode: code,
-        entitlementId,
-        data: toEntitlementData(template, form)
-      },
-      actor
-    )
+    await updateEntitlement({
+      clientRef,
+      grantCode: code,
+      entitlementId,
+      data: toEntitlementData(template, form)
+    })
 
     return undefined
   } catch (error) {

@@ -8,19 +8,15 @@ export const createClaimableItemUseCase = async (
   code: string,
   clientRef: string,
   template: EntitlementTemplate,
-  form: Record<string, string>,
-  actor?: string
+  form: Record<string, string>
 ): Promise<GasRefusal | undefined> => {
   try {
-    await createEntitlement(
-      {
-        clientRef,
-        grantCode: code,
-        claimCode: template.claimCode,
-        data: toEntitlementData(template, form)
-      },
-      actor
-    )
+    await createEntitlement({
+      clientRef,
+      grantCode: code,
+      claimCode: template.claimCode,
+      data: toEntitlementData(template, form)
+    })
 
     return undefined
   } catch (error) {
