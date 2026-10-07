@@ -1,10 +1,10 @@
 import { config } from './config.ts'
 import { asGasActor } from './gas-actor.ts'
-import { getFromGas, postToGas, toHeaderActor } from './gas.ts'
+import { getFromGas, postToGas, putToGas, toHeaderActor } from './gas.ts'
 import { wreck } from './wreck.ts'
 
 vi.mock(import('./wreck.ts'), () => ({
-  wreck: { get: vi.fn(), post: vi.fn() } as never
+  wreck: { get: vi.fn(), post: vi.fn(), put: vi.fn() } as never
 }))
 
 describe('getFromGas', () => {
@@ -268,5 +268,44 @@ describe('the operator on every call', () => {
     expect(headersOf(vi.mocked(wreck.get))).toEqual({
       authorization: `Bearer ${config.get('gas.serviceToken')}`
     })
+  })
+})
+
+describe('putToGas', () => {
+  beforeEach(() => {
+    vi.mocked(wreck.put).mockResolvedValue({
+      payload: { id: 'entitlement-1' }
+    } as never)
+  })
+
+  test('puts the json body to the given path with the service token', async () => {
+    await expect(
+      putToGas('/grant-admin/entitlements/1', { payload: { data: {} } })
+    ).resolves.toEqual({ id: 'entitlement-1' })
+
+    expect(wreck.put).toHaveBeenCalledWith(
+      `${config.get('gas.apiUrl')}/grant-admin/entitlements/1`,
+      expect.objectContaining({
+        json: true,
+        payload: { data: {} },
+        headers: {
+          authorization: `Bearer ${config.get('gas.serviceToken')}`
+        }
+      })
+    )
+  })
+
+  test('names the person who asked', async () => {
+    await putToGas('/grant-admin/entitlements/1', {
+      payload: { data: {} },
+      actor: 'Ada Lovelace'
+    })
+
+    expect(wreck.put).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({
+        headers: expect.objectContaining({ 'x-actor': 'Ada Lovelace' })
+      })
+    )
   })
 })

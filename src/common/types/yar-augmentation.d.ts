@@ -9,6 +9,8 @@ import type {
 declare module '@hapi/yar' {
   interface YarFlashes {
     claimableItemCreated: string
+    claimableItemUpdated: string
+    claimableItemRefused: { text: string }
     /** Both event writes: `action` says which one this was. */
     redriveOutcome: EventNotice
     purgeForm: PurgeFormNotice

@@ -1,7 +1,7 @@
 import type { Server } from '@hapi/hapi'
 
 import { scopedTo } from '../server/plugins/auth/scoped-to.ts'
-import { asOperator } from './as-operator.ts'
+import { asOperator } from '../common/as-operator.ts'
 import { purgeEventRoute } from './routes/purge-event.route.ts'
 import {
   searchApplicationsRoute,

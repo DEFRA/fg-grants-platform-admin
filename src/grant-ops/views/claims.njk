@@ -44,6 +44,19 @@
         }) }}
       {% endif %}
 
+      {% if updatedNotice %}
+        {% set updatedHtml %}
+          <h3 class="govuk-notification-banner__heading">Claimable item changed</h3>
+          <p class="govuk-body">{{ updatedNotice }}</p>
+        {% endset %}
+
+        {{ govukNotificationBanner({
+          type: "success",
+          html: updatedHtml,
+          attributes: { "data-testid": "entitlement-updated" }
+        }) }}
+      {% endif %}
+
       {{ appAvailableEntitlements({ entitlements: entitlements }) }}
       {{ appAwaitingClaims({ awaitingClaims: awaitingClaims }) }}
       {{ appClaimedClaims({ claimed: claimed }) }}

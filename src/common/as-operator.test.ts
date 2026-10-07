@@ -1,10 +1,10 @@
 import type { Server } from '@hapi/hapi'
 
-import { currentGasActor } from '../common/gas-actor.ts'
+import { currentGasActor } from './gas-actor.ts'
 import { createServer } from '../server/index.ts'
 import { asOperator } from './as-operator.ts'
 
-vi.mock(import('../common/config.ts'))
+vi.mock(import('./config.ts'))
 
 describe('asOperator', () => {
   let server: Server

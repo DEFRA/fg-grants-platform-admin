@@ -1,5 +1,5 @@
 import type { Request } from '@hapi/hapi'
-import type { GasActor } from '../../common/gas-actor.ts'
+import type { GasActor } from '../gas-actor.ts'
 
 /**
  * Defensive about the field as well as the value: the type says both are
