@@ -2,8 +2,15 @@ import Boom from '@hapi/boom'
 import type { Request, ResponseToolkit, ServerRoute } from '@hapi/hapi'
 import Joi from 'joi'
 
-import { createdNoticeKey } from '../view-models/claimable-item-form.view-model.ts'
-import { toClaimsPage } from '../view-models/claims-page.view-model.ts'
+import {
+  createdNoticeKey,
+  refusedNoticeKey,
+  updatedNoticeKey
+} from '../view-models/claimable-item-form.view-model.ts'
+import {
+  toClaimsPage,
+  toClaimsPageTitle
+} from '../view-models/claims-page.view-model.ts'
 import { getClaimsUseCase } from '../use-cases/get-claims.use-case.ts'
 
 interface ClaimsParams {
@@ -34,10 +41,13 @@ export const viewClaimsRoute: ServerRoute = {
     }
 
     const [createdNotice] = request.yar.flash(createdNoticeKey)
+    const [updatedNotice] = request.yar.flash(updatedNoticeKey)
+    const refusals = request.yar.flash(refusedNoticeKey)
 
     return h.view('claims', {
-      pageTitle: 'Claims',
+      ...toClaimsPageTitle(refusals),
       createdNotice,
+      updatedNotice,
       ...toClaimsPage(code, clientRef, { ...claims, banner })
     })
   }

@@ -1,4 +1,4 @@
-import { getFromGas, postToGas } from '../../common/gas.ts'
+import { getFromGas, postToGas, putToGas } from '../../common/gas.ts'
 
 export interface EntitlementTemplateField {
   input: boolean
@@ -79,9 +79,15 @@ export interface ClaimableEntitlement {
   entitlementId: string
   instanceNumber: number
   claim: Record<string, unknown>
+  canEdit: boolean
 }
 
 export interface Claim extends Omit<Claims, 'claims'> {
+  entitlementTemplate: EntitlementTemplate
+}
+
+export interface ClaimableItem extends Claims {
+  claimableEntitlement: ClaimableEntitlement
   entitlementTemplate: EntitlementTemplate
 }
 
@@ -107,6 +113,24 @@ export const createEntitlement = async (
     { payload: entitlement }
   )
 
+export interface EntitlementUpdate {
+  clientRef: string
+  grantCode: string
+  entitlementId: string
+  data: Record<string, EntitlementFieldValue>
+}
+
+export const updateEntitlement = async ({
+  clientRef,
+  grantCode,
+  entitlementId,
+  data
+}: EntitlementUpdate): Promise<void> =>
+  putToGas(
+    `/grant-admin/grants/${encodeURIComponent(grantCode)}/applications/${encodeURIComponent(clientRef)}/claims/entitlements/${encodeURIComponent(entitlementId)}`,
+    { payload: { data } }
+  )
+
 export const findClaims = async (
   code: string,
   clientRef: string
@@ -122,4 +146,13 @@ export const findClaim = async (
 ): Promise<Claim> =>
   getFromGas<Claim>(
     `/grant-admin/grants/${encodeURIComponent(code)}/applications/${encodeURIComponent(clientRef)}/claims/${encodeURIComponent(claimCode)}`
+  )
+
+export const findEntitlement = async (
+  code: string,
+  clientRef: string,
+  entitlementId: string
+): Promise<ClaimableItem> =>
+  getFromGas<ClaimableItem>(
+    `/grant-admin/grants/${encodeURIComponent(code)}/applications/${encodeURIComponent(clientRef)}/claims/entitlements/${encodeURIComponent(entitlementId)}`
   )

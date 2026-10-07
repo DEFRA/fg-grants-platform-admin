@@ -5,7 +5,7 @@ import type {
   ServerRoute
 } from '@hapi/hapi'
 
-import { asGasActor } from '../common/gas-actor.ts'
+import { asGasActor } from './gas-actor.ts'
 import { toGasActor } from './view-models/actor.ts'
 
 /**

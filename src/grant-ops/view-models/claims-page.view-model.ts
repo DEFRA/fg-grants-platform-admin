@@ -37,9 +37,11 @@ export interface EntitlementRow {
 }
 
 export interface AwaitingClaimRow {
+  entitlementId: string
   claimCode: string
   description: string
   amount: string
+  changeHref?: string
 }
 
 export interface ClaimedRow {
@@ -147,18 +149,23 @@ const formattedAmount = (
 }
 
 const toAwaitingClaimRow = (
+  base: string,
   claimableEntitlement: ClaimableEntitlement,
   templates: EntitlementTemplate[]
 ): AwaitingClaimRow => {
   const template = templateFor(claimableEntitlement.claimCode, templates)
 
   return {
+    entitlementId: claimableEntitlement.entitlementId,
     claimCode: claimableEntitlement.claimCode,
     description: claimableEntitlement.description,
     amount: formattedAmount(
       amountFieldFor(claimableEntitlement.data, template),
       template
-    )
+    ),
+    changeHref: claimableEntitlement.canEdit
+      ? `${base}/claims/entitlements/${encodeURIComponent(claimableEntitlement.entitlementId)}/change#change-entitlement`
+      : undefined
   }
 }
 
@@ -253,8 +260,24 @@ export const toClaimsPage = (
       toEntitlementRow(base, template)
     ),
     awaitingClaims: claimableEntitlements.map((claimableEntitlement) =>
-      toAwaitingClaimRow(claimableEntitlement, availableEntitlements)
+      toAwaitingClaimRow(base, claimableEntitlement, availableEntitlements)
     ),
     claimed: claims.map(toClaimedRow)
   }
 }
+
+export const toClaimsRefusalPage = (
+  code: string,
+  clientRef: string,
+  claims: Parameters<typeof toClaimsPage>[2],
+  errorSummary: { text: string }[]
+) => ({
+  pageTitle: 'Error: Claims',
+  errorSummary,
+  ...toClaimsPage(code, clientRef, claims)
+})
+
+export const toClaimsPageTitle = (errorSummary: { text: string }[] = []) =>
+  errorSummary.length
+    ? { pageTitle: 'Error: Claims', errorSummary }
+    : { pageTitle: 'Claims' }

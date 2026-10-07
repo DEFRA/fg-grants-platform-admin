@@ -1,12 +1,17 @@
 import type {
+  ClaimableEntitlement,
   EntitlementTemplate,
   EntitlementTemplateField
 } from '../repositories/claims.repository.ts'
 import {
   toClaimableItemForm,
   toCreatedNotice,
+  toEntitlementForm,
   toErrorSummary,
+  toFinalRefusalSummary,
   toRefusalSummary,
+  toSaveRefusalSummary,
+  toUpdatedNotice,
   validateClaimableItem,
   notANumber
 } from './claimable-item-form.view-model.ts'
@@ -297,7 +302,52 @@ describe('toCreatedNotice', () => {
   })
 })
 
+describe('toUpdatedNotice', () => {
+  test('names what was changed and its new amount', () => {
+    expect(toUpdatedNotice(hectares(), { totalHectares: ' 45.5 ' })).toBe(
+      'PA3 entitlement changed to 45.5 ha.'
+    )
+  })
+
+  test('names the entitlement alone when no field carries a unit', () => {
+    const reference = templateOf({
+      reference: { input: true, label: 'Reference', unitType: 'string' }
+    })
+
+    expect(toUpdatedNotice(reference, { reference: 'WMP-1' })).toBe(
+      'PA3 entitlement changed.'
+    )
+  })
+
+  test('leaves the amount out when the measured field was not posted', () => {
+    expect(toUpdatedNotice(hectares(), {})).toBe(
+      'PA3 entitlement changed to  ha.'
+    )
+  })
+})
+
+describe('toEntitlementForm', () => {
+  test('gives each stored value as the text an input shows', () => {
+    expect(
+      toEntitlementForm({
+        data: {
+          totalHectares: { value: 12.5 },
+          actionCode: { value: 'PA3' }
+        }
+      } as unknown as ClaimableEntitlement)
+    ).toEqual({ totalHectares: '12.5', actionCode: 'PA3' })
+  })
+})
+
 describe('toRefusalSummary', () => {
+  test('says the item cannot be changed when a change was refused', () => {
+    const [{ text }] = toRefusalSummary('It has a claim against it', 'changed')
+
+    expect(text).toBe(
+      'This item cannot be changed: It has a claim against it. Please try again.'
+    )
+  })
+
   test('reads the backend reason back as one sentence', () => {
     expect(
       toRefusalSummary('Maximum instance limit of 3 has been reached.')
@@ -313,6 +363,44 @@ describe('toRefusalSummary', () => {
 
     expect(text).toBe(
       'This item cannot be added: Something went wrong. Please try again.'
+    )
+  })
+})
+
+describe('toFinalRefusalSummary', () => {
+  test('gives the reason without asking for another try', () => {
+    const [{ text }] = toFinalRefusalSummary(
+      'It has a claim against it',
+      'changed'
+    )
+
+    expect(text).toBe('This item cannot be changed: It has a claim against it.')
+  })
+})
+
+describe('toSaveRefusalSummary', () => {
+  test('does not ask for another try when the item conflicts', () => {
+    const [{ text }] = toSaveRefusalSummary({
+      statusCode: 409,
+      message: 'Maximum instance limit of 1 has been reached.'
+    })
+
+    expect(text).toBe(
+      'This item cannot be added: Maximum instance limit of 1 has been reached.'
+    )
+  })
+
+  test('asks for another try for any other refusal', () => {
+    const [{ text }] = toSaveRefusalSummary(
+      {
+        statusCode: 422,
+        message: "Field 'totalHectares' has an invalid value"
+      },
+      'changed'
+    )
+
+    expect(text).toBe(
+      "This item cannot be changed: Field 'totalHectares' has an invalid value. Please try again."
     )
   })
 })

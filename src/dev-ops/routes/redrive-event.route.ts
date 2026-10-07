@@ -9,7 +9,7 @@ import {
   redriveNoticeKey,
   toSafeFrom
 } from '../view-models/event-page.view-model.ts'
-import { toActor } from '../view-models/actor.ts'
+import { toActor } from '../../common/view-models/actor.ts'
 import { seeOther } from '../view-models/see-other.ts'
 
 /**

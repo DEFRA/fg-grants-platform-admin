@@ -54,6 +54,7 @@ const awaitingClaim = (
   entitlementId: 'entitlement-1',
   instanceNumber: 1,
   claim: {},
+  canEdit: true,
   ...overrides
 })
 
@@ -199,11 +200,22 @@ describe('toClaimsPage', () => {
       page([template()], banner, [awaitingClaim()]).awaitingClaims
     ).toEqual([
       {
+        entitlementId: 'entitlement-1',
         claimCode: 'ENT_CS_CAPITAL_PA3',
         description: 'Entitlement for Woodland Management Plan (PA3).',
-        amount: '455,000 ha'
+        amount: '455,000 ha',
+        changeHref:
+          '/grant-ops/grants/woodland/applications/WMP-1T9-RXN/claims/entitlements/entitlement-1/change#change-entitlement'
       }
     ])
+  })
+
+  test('offers no change link for an item with a claim against it', () => {
+    const [row] = page([template()], banner, [
+      awaitingClaim({ canEdit: false })
+    ]).awaitingClaims
+
+    expect(row.changeHref).toBeUndefined()
   })
 
   test('uses the data field that has a unit', () => {

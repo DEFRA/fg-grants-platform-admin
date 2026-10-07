@@ -14,7 +14,7 @@ import {
 } from '../view-models/event-page.view-model.ts'
 import { isDeadLetterStatus } from '../view-models/event-state.ts'
 import { toPurgeFormError, toPurgeNote } from '../view-models/purge-form.ts'
-import { toActor } from '../view-models/actor.ts'
+import { toActor } from '../../common/view-models/actor.ts'
 import { seeOther } from '../view-models/see-other.ts'
 
 /** Longer than any query this app builds for itself, and still bounded. */

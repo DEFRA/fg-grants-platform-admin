@@ -9,7 +9,7 @@ import type { PayloadSubmission } from '../use-cases/edit-payload-step.ts'
 import { editPayloadUseCase } from '../use-cases/edit-payload.use-case.ts'
 import type { EventKey } from '../use-cases/get-event.use-case.ts'
 import { getEventUseCase } from '../use-cases/get-event.use-case.ts'
-import { toActor } from '../view-models/actor.ts'
+import { toActor } from '../../common/view-models/actor.ts'
 import { eventAddress } from '../view-models/event-address.ts'
 import { toEventHref } from '../view-models/event-formats.ts'
 import {

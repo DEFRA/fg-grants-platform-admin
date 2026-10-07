@@ -2,6 +2,7 @@ import { load } from 'cheerio'
 import Boom from '@hapi/boom'
 import type { Server } from '@hapi/hapi'
 
+import { currentGasActor } from '../../common/gas-actor.ts'
 import { createServer } from '../../server/index.ts'
 import { statusCodes } from '../../common/status-codes.ts'
 import { grantOps } from '../index.ts'
@@ -257,16 +258,21 @@ describe('newClaimableItemRoute', () => {
     expect($cancel.closest('form')).toHaveLength(1)
   })
 
-  test('refuses a claim code that has reached its maximum', async () => {
+  test('refuses a claim code that has reached its maximum on the claims page', async () => {
     givenClaims([template({ createdCount: 1, maxEntitlements: 1 })])
 
-    const { statusCode } = await server.inject({
+    const { result, statusCode } = await server.inject({
       method: 'GET',
       url,
       auth: { strategy: 'session', credentials }
     })
+    const $ = load(result as unknown as string)
 
     expect(statusCode).toBe(409)
+    expect($('[data-testid="entitlement-refused"]').text()).toContain(
+      'This item cannot be added: limit reached.'
+    )
+    expect($('#new-entitlement')).toHaveLength(0)
   })
 
   test('refuses a grant with no claims page configured', async () => {
@@ -337,6 +343,17 @@ describe('createClaimableItemRoute', () => {
     })
     expect(statusCode).toBe(statusCodes.seeOther)
     expect(headers.location).toBe(claimsUrl)
+  })
+
+  test('creates the entitlement as the signed in operator', async () => {
+    let actor = {}
+    vi.mocked(createEntitlement).mockImplementation(async () => {
+      actor = currentGasActor()
+    })
+
+    await post({ totalHectares: '40.25' })
+
+    expect(actor).toMatchObject({ name: 'Ada Lovelace' })
   })
 
   test('posts the payload the persistence service expects', async () => {
@@ -491,7 +508,7 @@ describe('createClaimableItemRoute', () => {
         .replace(/\s+/g, ' ')
         .trim()
     ).toContain(
-      "This item cannot be added: Cannot create entitlement 'ENT_CS_CAPITAL_PA3'. Maximum instance limit of 3 has been reached. Please try again."
+      "This item cannot be added: Cannot create entitlement 'ENT_CS_CAPITAL_PA3'. Maximum instance limit of 3 has been reached."
     )
     expect($('#totalHectares').attr('value')).toBe('40.25')
     expect($('.govuk-error-message')).toHaveLength(0)
@@ -506,7 +523,7 @@ describe('createClaimableItemRoute', () => {
     expect(statusCode).toBe(409)
     expect(createEntitlement).not.toHaveBeenCalled()
     expect($('[data-testid="entitlement-refused"]').text()).toContain(
-      'This item cannot be added: limit reached. Please try again.'
+      'This item cannot be added: limit reached.'
     )
     expect(
       $('[data-testid="entitlement-refused"]').hasClass('govuk-error-summary')
