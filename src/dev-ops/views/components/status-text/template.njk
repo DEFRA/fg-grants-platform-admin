@@ -1,0 +1,6 @@
+{# Not lifted over a row's stretched link, so a click on it still opens the row; the whole position is spoken, the label is not. #}
+{%- if params.statusLabel -%}
+<span class="inline-flex"><span class="whitespace-nowrap text-base-content/80" aria-hidden="true" data-testid="{{ params.testId }}">{{ params.statusLabel }}</span><span class="sr-only">{{ params.positionLabel }}</span></span>
+{%- else -%}
+<span class="text-base-content/70" data-testid="{{ params.testId }}-none">—</span>
+{%- endif -%}

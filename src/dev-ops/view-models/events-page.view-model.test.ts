@@ -244,13 +244,20 @@ describe('toEventsPage', () => {
     expect(row.createdAtPrecise).toBe('16 Jan 2026 10:00:00.000')
   })
 
-  test('shows a dash rather than throwing on an unparseable timestamp', () => {
-    const row = rowFor({ createdAt: 'nope' })
+  test.each([
+    ['unparseable', 'nope'],
+    ['only a lenient parser reads', '2026-06-16 10:00']
+  ])(
+    'shows a timestamp that is %s as stored, rather than throwing or reading it',
+    (_, createdAt) => {
+      const row = rowFor({ createdAt })
 
-    expect(row.createdAt).toBe('-')
-    expect(row.createdAtInstant).toBe('')
-    expect(row.createdAtPrecise).toBe('')
-  })
+      expect(row.createdAt).toBe(createdAt)
+      expect(row.createdAtInstant).toBe('')
+      expect(row.createdAtPrecise).toBe('')
+      expect(row.createdAtClock).toBe('')
+    }
+  )
 
   test('draws a status in the words the endpoint sent, raw value and all', () => {
     expect(rowFor(deadLetter)).toMatchObject({

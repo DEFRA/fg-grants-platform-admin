@@ -1,4 +1,5 @@
-import { load, type CheerioAPI } from 'cheerio'
+import { load, type Cheerio, type CheerioAPI } from 'cheerio'
+import type { Element } from 'domhandler'
 import type { Server } from '@hapi/hapi'
 
 import { statusCodes } from '../../common/status-codes.ts'
@@ -75,6 +76,19 @@ const givenFailure = (failure: 'unavailable' | 'refused') => {
 }
 
 const flatten = (text: string) => text.replace(/\s+/g, ' ').trim()
+
+/** Anything after the row's link that is positioned or stacked sits over its stretched overlay and swallows the click. */
+const liftedOver = ($: CheerioAPI, row: Cheerio<Element>) =>
+  row
+    .find('td *, li *')
+    .toArray()
+    .filter((node) => !$(node).is('a'))
+    .filter((node) =>
+      ($(node).attr('class') ?? '')
+        .split(/\s+/)
+        .some((name) => /^(relative|absolute|sticky|fixed|z-)/.test(name))
+    )
+    .map((node) => $(node).attr('data-testid') ?? node.tagName)
 
 let server: Server
 
@@ -200,9 +214,9 @@ describe('the applications list', () => {
     expect(
       flatten(first.find('[data-testid="application-grant"]').text())
     ).toBe('frps-private-beta')
-    expect(flatten(first.find('[data-testid="do-status-label"]').text())).toBe(
-      'Application received'
-    )
+    expect(
+      flatten(first.find('[data-testid="application-status-label"]').text())
+    ).toBe('Application received')
     expect(
       flatten(first.find('[data-testid="application-created-at"]').text())
     ).toContain('7m ago')
@@ -211,19 +225,33 @@ describe('the applications list', () => {
     )
   })
 
-  test('titles the status with the whole position, and speaks it in full', async () => {
+  test('speaks the status as the whole position', async () => {
     givenPage({ rows: [row('f02-7d8-a61')] })
 
     const { $ } = await viewPage()
     const status = part($, 'application-status').first()
 
-    expect(status.find('[data-testid="do-status-badge"]').attr('title')).toBe(
-      'Pre award › Assessment › Application received'
-    )
     expect(status.find('.sr-only').text()).toBe(
       'Pre award › Assessment › Application received'
     )
-    expect(status.children().first().hasClass('relative')).toBe(true)
+  })
+
+  test('lifts nothing in a row over its link, so a click anywhere opens it', async () => {
+    givenPage({
+      rows: [
+        row('f02-7d8-a61', { replaced: true }),
+        row('9d3-5b1-e08', { createdAt: 'yesterday-ish' })
+      ]
+    })
+
+    const { $ } = await viewPage()
+
+    for (const item of [
+      ...part($, 'application-row').toArray(),
+      ...part($, 'application-item').toArray()
+    ]) {
+      expect(liftedOver($, $(item))).toEqual([])
+    }
   })
 
   test('badges an application a later one in its series replaced', async () => {
@@ -240,6 +268,73 @@ describe('the applications list', () => {
     expect(
       flatten(rows.eq(1).find('[data-testid="application-replaced"]').text())
     ).toBe('replaced')
+  })
+
+  test.each([
+    ['only a lenient parser reads', '2026-06-16 10:00', '2026-06-16 10:00'],
+    ['not a date at all', 'yesterday-ish', 'yesterday-ish'],
+    ['empty', '', '""']
+  ])(
+    'shows a created date that is %s as stored, with no time to read and no clock',
+    async (_, createdAt, shown) => {
+      givenPage({ rows: [row('f02-7d8-a61', { createdAt })] })
+
+      const { $ } = await viewPage()
+      const first = part($, 'application-row').first()
+      const at = first.find('[data-testid="application-created-at"]')
+
+      expect(flatten(at.text())).toBe(shown)
+      expect(at.is('time')).toBe(false)
+      expect(
+        first.find('[data-testid="application-created-clock"]')
+      ).toHaveLength(0)
+      expect(
+        flatten($('[data-testid="application-item-created-at"]').text())
+      ).toBe(shown)
+    }
+  )
+
+  test('draws a dash for a created date that is not stored', async () => {
+    givenPage({ rows: [row('f02-7d8-a61', { createdAt: null })] })
+
+    const { $ } = await viewPage()
+
+    expect(
+      part($, 'application-row')
+        .find('[data-testid="application-created-none"]')
+        .text()
+    ).toBe('—')
+    expect(part($, 'application-item-created-none').text()).toBe('—')
+  })
+
+  test('speaks replaced as part of the row link, not twice', async () => {
+    givenPage({ rows: [row('9d3-5b1-e08', { replaced: true })] })
+
+    const { $ } = await viewPage()
+
+    expect(
+      $('[data-testid="application-link"]')
+        .toArray()
+        .map((link) => flatten($(link).text()))
+    ).toEqual([
+      '9d3-5b1-e08, frps-private-beta, replaced',
+      '9d3-5b1-e08, frps-private-beta, replaced'
+    ])
+    expect(part($, 'application-replaced').attr('aria-hidden')).toBe('true')
+    expect(
+      $('#applications-list .badge')
+        .toArray()
+        .map((badge) => $(badge).attr('aria-hidden'))
+    ).toEqual(['true'])
+  })
+
+  test('shows the status as text alone, with no dot', async () => {
+    givenPage({ rows: [row('f02-7d8-a61')] })
+
+    const { $ } = await viewPage()
+
+    expect($('[data-testid="do-status-dot"], .status')).toHaveLength(0)
+    expect($('[data-testid="do-status-badge"]')).toHaveLength(0)
   })
 
   test('draws the same rows as a list for a phone', async () => {
@@ -287,9 +382,9 @@ describe('the applications list', () => {
   test('marks Applications as the area in the header nav', async () => {
     const { $ } = await viewPage()
 
-    expect($('[data-testid="do-nav"] [aria-current="page"]').text()).toBe(
-      'Applications'
-    )
+    expect(
+      $('[data-testid="do-nav"] [aria-current="page"]').text().trim()
+    ).toBe('Applications')
   })
 })
 
@@ -727,6 +822,7 @@ describe('the cases list', () => {
     closed: false,
     closedAt: null,
     createdAt: '2026-09-30T15:10:31.000Z',
+    replaced: false,
     ...overrides
   })
 
@@ -803,6 +899,48 @@ describe('the cases list', () => {
     expect(rows.eq(1).find('[data-testid="case-workflow"]').text()).toBe(
       'woodland'
     )
+  })
+
+  test('badges a case a later one in its series replaced, as the applications list does', async () => {
+    givenCases({
+      rows: [caseRow('f02-7d8-a61'), caseRow('9d3-5b1-e08', { replaced: true })]
+    })
+
+    const { $ } = await viewPage('/dev-ops/cases')
+    const rows = part($, 'case-row')
+
+    expect(rows.eq(0).find('[data-testid="case-replaced"]')).toHaveLength(0)
+    expect(
+      flatten(rows.eq(1).find('[data-testid="case-replaced"]').text())
+    ).toBe('replaced')
+    expect(flatten(rows.eq(1).find('[data-testid="case-link"]').text())).toBe(
+      '9d3-5b1-e08, woodland, replaced'
+    )
+    expect($('#cases-list .badge')).toHaveLength(1)
+  })
+
+  test.each([
+    ['only a lenient parser reads', '2026-06-16 10:00'],
+    ['not a date at all', 'closed-ish']
+  ])('shows a closing date that is %s as stored', async (_, closedAt) => {
+    givenCases({ rows: [caseRow('f02-7d8-a61', { closedAt })] })
+
+    const { $ } = await viewPage('/dev-ops/cases')
+    const at = part($, 'case-row')
+      .first()
+      .find('[data-testid="case-closed-at"]')
+
+    expect(flatten(at.text())).toBe(closedAt)
+    expect(at.is('time')).toBe(false)
+    expect(part($, 'case-closed-clock')).toHaveLength(0)
+  })
+
+  test('lifts nothing in a row over its link, the Closed cell included', async () => {
+    const { $ } = await viewPage('/dev-ops/cases')
+
+    for (const item of part($, 'case-row').toArray()) {
+      expect(liftedOver($, $(item))).toEqual([])
+    }
   })
 
   test('shows the stored closing date of a case not marked closed', async () => {
@@ -901,8 +1039,8 @@ describe('the cases list', () => {
     const { headers, $ } = await viewPage('/dev-ops/cases')
 
     expect(headers['cache-control']).toBe('private, no-cache')
-    expect($('[data-testid="do-nav"] [aria-current="page"]').text()).toBe(
-      'Cases'
-    )
+    expect(
+      $('[data-testid="do-nav"] [aria-current="page"]').text().trim()
+    ).toBe('Cases')
   })
 })

@@ -22,9 +22,7 @@ export const caseType: RecordType = {
   codeName: 'Workflow',
   source: 'CW',
   showClosed: true,
-  linkLabel: 'View case',
-  counterpartLabel: 'View application',
-  counterpartCheck: null
+  linkLabel: 'View case'
 }
 
 export const toCaseHref = ({ workflowCode, caseRef }: CaseRef): string =>
@@ -36,7 +34,7 @@ const toEntry = (row: CaseRow): RecordListEntry => ({
   code: row.ref.workflowCode,
   position: row.position,
   createdAt: row.createdAt,
-  replaced: false,
+  replaced: row.replaced,
   closedAt: row.closedAt
 })
 

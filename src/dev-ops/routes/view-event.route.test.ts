@@ -954,9 +954,9 @@ describe('viewEventRoute', () => {
   test('marks Events as the area in the header nav, as every page does', async () => {
     const { $ } = await viewPage()
 
-    expect($('[data-testid="do-nav"] [aria-current="page"]').text()).toBe(
-      'Events'
-    )
+    expect(
+      $('[data-testid="do-nav"] [aria-current="page"]').text().trim()
+    ).toBe('Events')
   })
 
   test('shows no banner on a page nothing redirected to', async () => {
@@ -981,9 +981,9 @@ describe('viewEventRoute', () => {
 
     expect(statusCode).toBe(statusCodes.ok)
     expect($('[data-testid="event-not-found"]').text()).toBe('Event not found')
-    expect($('[data-testid="do-nav"] [aria-current="page"]').text()).toBe(
-      'Events'
-    )
+    expect(
+      $('[data-testid="do-nav"] [aria-current="page"]').text().trim()
+    ).toBe('Events')
     expect($('[data-testid="event-back"]').attr('href')).toBe('/dev-ops/events')
     expect($('[data-testid="event-payload-card"]')).toHaveLength(0)
   })
@@ -3178,8 +3178,7 @@ describe('the payload editor', () => {
 })
 
 describe('the record link', () => {
-  const relatedRecords = ($: CheerioAPI) =>
-    $('[data-testid="event-related-records"]')
+  const recordFact = ($: CheerioAPI) => $('[data-testid="event-fact-record"]')
 
   test('links a GAS event to its application when the application exists', async () => {
     givenEvent(
@@ -3196,11 +3195,37 @@ describe('the record link', () => {
     const { $ } = await viewPage()
     const link = $('[data-testid="event-record-link"]')
 
-    expect(relatedRecords($).attr('aria-label')).toBe('Related records')
-    expect(flatten(link.text())).toBe('View application')
+    expect(flatten(recordFact($).find('dt').text())).toBe('Application')
+    expect(flatten(link.text())).toBe('View application (opens in a new tab)')
     expect(link.attr('href')).toBe(
       '/dev-ops/applications/frps-private-beta/f02-7d8-a61'
     )
+    expect(link.attr('target')).toBe('_blank')
+    expect(link.attr('rel')).toBe('noopener noreferrer')
+    expect(link.find('.sr-only').text()).toBe(' (opens in a new tab)')
+    expect(link.next().attr('data-testid')).toBe('do-icon-external-link')
+  })
+
+  test('sits in the facts after the segregation ref, and nowhere in the header', async () => {
+    givenEvent(
+      detail({
+        record: { kind: 'application', code: 'woodland', ref: 'f02-7d8-a61' }
+      })
+    )
+
+    const { $ } = await viewPage()
+
+    expect(recordFact($).prev().attr('data-testid')).toBe(
+      'event-fact-segregation-ref'
+    )
+    expect(
+      recordFact($).closest('[data-testid="event-facts-box"]')
+    ).toHaveLength(1)
+    expect($('[data-testid="event-related-records"]')).toHaveLength(0)
+    expect(
+      $('[data-testid="event-header"] a, [data-testid="event-header"] nav')
+    ).toHaveLength(0)
+    expect($('[data-testid="event-header"]').attr('class')).toBe('mt-2 mb-5')
   })
 
   test('links a GAS-stored case status update to the application, as GAS names it', async () => {
@@ -3214,9 +3239,7 @@ describe('the record link', () => {
 
     const { $ } = await viewPage(inboxPath)
 
-    expect(flatten($('[data-testid="event-record-link"]').text())).toBe(
-      'View application'
-    )
+    expect(flatten(recordFact($).find('dt').text())).toBe('Application')
   })
 
   test('links a CW event to its case when the case exists', async () => {
@@ -3230,7 +3253,8 @@ describe('the record link', () => {
     const { $ } = await viewPage(`/dev-ops/events/caseworking/outbox/${id}`)
     const link = $('[data-testid="event-record-link"]')
 
-    expect(flatten(link.text())).toBe('View case')
+    expect(flatten(recordFact($).find('dt').text())).toBe('Case')
+    expect(flatten(link.text())).toBe('View case (opens in a new tab)')
     expect(link.attr('href')).toBe('/dev-ops/cases/woodland/f02-7d8-a61')
   })
 
@@ -3247,7 +3271,8 @@ describe('the record link', () => {
 
     const { $ } = await viewPage(`/dev-ops/events/caseworking/inbox/${id}`)
 
-    expect(relatedRecords($)).toHaveLength(0)
+    expect(recordFact($)).toHaveLength(0)
+    expect($('[data-testid="event-record-link"]')).toHaveLength(0)
     expect($('[data-testid="event-segregation-ref"]').attr('href')).toBe(
       '/dev-ops/events?q=f02-7d8-a61-woodland'
     )
@@ -3259,7 +3284,8 @@ describe('the record link', () => {
 
     const { $ } = await viewPage()
 
-    expect(relatedRecords($)).toHaveLength(0)
+    expect(recordFact($)).toHaveLength(0)
+    expect($('[data-testid="event-record-link"]')).toHaveLength(0)
   })
 
   test('shows no record link when an older GAS sends no record', async () => {
@@ -3267,6 +3293,7 @@ describe('the record link', () => {
 
     const { $ } = await viewPage()
 
-    expect(relatedRecords($)).toHaveLength(0)
+    expect(recordFact($)).toHaveLength(0)
+    expect($('[data-testid="event-record-link"]')).toHaveLength(0)
   })
 })

@@ -139,7 +139,7 @@
 
         {# Sticky and sideways scrolling cannot share a box: overflow here unpins the header. #}
         <div class="w-full overflow-x-auto [@media(min-width:64rem)_and_(min-height:40rem)]:overflow-visible" data-testid="events-scroller">
-          <table class="table table-pin-rows w-full min-w-[64rem] table-fixed [@media(min-width:64rem)_and_(min-height:40rem)]:min-w-0 [@media(min-width:64rem)_and_(min-height:40rem)]:[&_thead]:top-[var(--sticky-top,15rem)]" data-testid="events-table">
+          <table class="table table-pin-rows w-full min-w-[64rem] table-fixed [@media(min-width:64rem)_and_(min-height:40rem)]:min-w-0 [@media(min-width:64rem)_and_(min-height:40rem)]:[&_thead]:top-[var(--sticky-top,11.5rem)]" data-testid="events-table">
             {{ eventsHead({ testId: "events-head" }) }}
             <tbody id="events-rows">
               {% for row in rows %}{{ eventRow(row) }}{% endfor %}

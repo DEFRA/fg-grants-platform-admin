@@ -5,7 +5,8 @@ import type {
   StoredDate
 } from '../repositories/record-page.ts'
 import type { ListResult } from '../use-cases/record-reads.ts'
-import { toClock, toTimestamp, toValidDate } from './event-formats.ts'
+import { toStoredTimeCell } from './event-formats.ts'
+import type { TimeCell } from './event-formats.ts'
 import { toFields, toFilterHref } from './list-filters.ts'
 import type { FilterField, FilterKeys } from './list-filters.ts'
 import { toPositionLabel, toStatusLabel } from './position.ts'
@@ -40,13 +41,6 @@ export interface RecordListPage {
   codes?: string[]
 }
 
-interface TimeCell {
-  text: string
-  instant: string
-  precise: string
-  clock: string
-}
-
 interface RecordListRow {
   href: string
   ref: string
@@ -54,7 +48,8 @@ interface RecordListRow {
   replaced: boolean
   statusLabel: string | null
   positionLabel: string
-  created: TimeCell
+  /** Null where nothing is stored. */
+  created: TimeCell | null
   closed: TimeCell | null
 }
 
@@ -99,14 +94,6 @@ export const toTotalLabel = (
 ): string =>
   `${counted.format(count)}${capped ? '+' : ''} ${count === 1 && !capped ? one : many}`
 
-const toClockOf = (date: Date | null, now: Date): string =>
-  date === null ? '' : toClock(date, now)
-
-const toTimeCell = (value: StoredDate, now: Date): TimeCell => ({
-  ...toTimestamp(value, now),
-  clock: toClockOf(value === null ? null : toValidDate(value), now)
-})
-
 const toRow =
   (list: RecordType, now: Date) =>
   (entry: RecordListEntry): RecordListRow => ({
@@ -116,11 +103,8 @@ const toRow =
     replaced: entry.replaced,
     statusLabel: toStatusLabel(entry.position),
     positionLabel: toPositionLabel(entry.position),
-    created: toTimeCell(entry.createdAt, now),
-    closed:
-      list.showClosed && entry.closedAt !== null
-        ? toTimeCell(entry.closedAt, now)
-        : null
+    created: toStoredTimeCell(entry.createdAt, now),
+    closed: list.showClosed ? toStoredTimeCell(entry.closedAt, now) : null
   })
 
 /** In order, whichever service listed them; a later page carries no codes, so the chosen one is kept all the same. */

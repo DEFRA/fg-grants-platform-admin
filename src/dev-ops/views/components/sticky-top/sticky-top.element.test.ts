@@ -27,9 +27,7 @@ class FakeResizeObserver {
 const heights = new Map<string, number>()
 
 const measured = function (this: HTMLElement) {
-  const key = this.matches('header.navbar') ? 'navbar' : this.localName
-
-  return { height: heights.get(key) ?? 0 } as DOMRect
+  return { height: heights.get(this.localName) ?? 0 } as DOMRect
 }
 
 const mountPage = async () => {
@@ -54,7 +52,7 @@ describe('do-sticky-top', () => {
     vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(
       measured
     )
-    heights.set('navbar', 57).set('do-sticky-top', 184)
+    heights.set('header', 57).set('do-sticky-top', 184)
     document.documentElement.removeAttribute('style')
     document.body.innerHTML = ''
   })
@@ -70,26 +68,22 @@ describe('do-sticky-top', () => {
     expect(customElements.get('do-sticky-top')).toBe(StickyTop)
   })
 
-  test('measures the bar and the block onto the root', async () => {
+  test('measures the block alone onto the root, as no bar sits above it where it sticks', async () => {
     await mountPage()
 
-    expect(property('--nav-h')).toBe('57px')
-    expect(property('--sticky-top')).toBe('241px')
+    expect(property('--sticky-top')).toBe('184px')
   })
 
-  test('measures again when either box resizes', async () => {
+  test('measures again when the block resizes', async () => {
     const block = await mountPage()
     const [observer] = FakeResizeObserver.made
 
-    expect(observer.observed).toEqual([
-      block,
-      document.querySelector('header.navbar')
-    ])
+    expect(observer.observed).toEqual([block])
 
     heights.set('do-sticky-top', 232)
     observer.callback([], observer as unknown as ResizeObserver)
 
-    expect(property('--sticky-top')).toBe('289px')
+    expect(property('--sticky-top')).toBe('232px')
   })
 
   test('stops watching once it leaves the page', async () => {
@@ -106,6 +100,9 @@ describe('do-sticky-top', () => {
     expect(block.querySelector('h1')?.textContent).toBe('Events')
     expect(block.classList).toContain(
       '[@media(min-width:64rem)_and_(min-height:40rem)]:sticky'
+    )
+    expect(block.classList).toContain(
+      '[@media(min-width:64rem)_and_(min-height:40rem)]:top-0'
     )
     expect(block.classList).not.toContain('sticky')
     expect(block.classList).toContain('bg-base-200')

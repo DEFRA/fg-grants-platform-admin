@@ -12,21 +12,17 @@ import {
   none,
   toAbsolute,
   toPreciseInstant,
-  toSearchHref
+  toSearchHref,
+  toStoredTimeCell
 } from './event-formats.ts'
-import { toEventRow } from './events-page.view-model.ts'
+import type { TimeCell } from './event-formats.ts'
+import { toEventRow, toUnavailableSources } from './events-page.view-model.ts'
 import type { EventRow } from './events-page.view-model.ts'
 import { toJsonView } from './json-viewer.view-model.ts'
 import type { JsonView } from './json-viewer.view-model.ts'
-import { toPositionTrail } from './position.ts'
+import { toPositionLabel, toPositionTrail, toStatusLabel } from './position.ts'
 import type { PositionStep } from './position.ts'
 import type { RecordType } from './record-type.ts'
-
-interface SeriesLink {
-  ref: string
-  href: string | null
-  latest: boolean
-}
 
 interface FactBase {
   id: string
@@ -38,8 +34,35 @@ export type Fact = FactBase &
     | { kind: 'mono'; text: string; from: string | null }
     | { kind: 'date'; text: string; instant: string | null }
     | { kind: 'text'; text: string }
-    | { kind: 'series'; items: SeriesLink[] }
+    | { kind: 'link'; text: string; href: string }
   )
+
+/** One member of the record's series. */
+export interface SeriesMember {
+  ref: string
+  position: Position
+  createdAt: StoredDate
+  closedAt: StoredDate
+}
+
+interface SeriesData {
+  latestRef: string | null
+  members: (SeriesMember & { href: string })[]
+  /** GAS sent the members' facts, not only their refs. */
+  detailed: boolean
+}
+
+interface SeriesRow {
+  ref: string
+  /** Null on the page's own record. */
+  href: string | null
+  replaced: boolean
+  statusLabel: string | null
+  positionLabel: string
+  /** Null where nothing is stored. */
+  created: TimeCell | null
+  closed: TimeCell | null
+}
 
 interface SectionTab {
   id: RecordTab
@@ -63,8 +86,8 @@ export interface RecordPageData {
   ref: string
   href: string
   position: Position
-  counterpartHref: string | null
   facts: Fact[][] | null
+  series?: SeriesData | null
   events?: RecordEvents | null
   raw?: object | null
   sourceErrors: SourceError[]
@@ -75,11 +98,12 @@ export interface RecordPageModel {
   record: RecordType
   ref: string
   trail: PositionStep[]
-  counterpartHref: string | null
-  counterpartUnknown: boolean
   tabs: SectionTab[]
   tab: RecordTab
   facts: Fact[][] | null
+  /** Two or more members, or none at all. */
+  series: SeriesRow[] | null
+  seriesDetailed: boolean
   events: EventsTab | null
   raw: RawTab | null
   sectionError: string | null
@@ -159,21 +183,75 @@ export const toVersionedFact = (
       : null
 })
 
-/** The series is one code's, so each ref links under that same code; the page's own ref is not a link. */
-export const toSeriesFact = (
-  series: RecordSeries | null,
-  ref: string,
+/** The other record as a fact named for its type; no row at all when there is no link to follow. */
+export const toCounterpartFacts = (
+  { itemId, title, linkLabel }: RecordType,
+  href: string | null
+): Fact[] =>
+  href
+    ? [{ id: itemId, label: title, kind: 'link', text: linkLabel, href }]
+    : []
+
+const noFacts = {
+  position: { phase: null, stage: null, status: null },
+  createdAt: null,
+  closedAt: null
+}
+
+/** Every ref in the series is a row, oldest first, with whatever GAS sent of its member. */
+export const toSeriesData = <Member>(
+  series: RecordSeries<Member> | null,
+  toMember: (member: Member) => SeriesMember,
   hrefOf: (ref: string) => string
-): Fact => ({
-  id: 'series',
-  label: 'Series',
-  kind: 'series',
-  items: (series?.refs ?? []).map((item) => ({
-    ref: item,
-    href: item === ref ? null : hrefOf(item),
-    latest: item === series?.latestRef
-  }))
-})
+): SeriesData | null => {
+  if (series === null) {
+    return null
+  }
+
+  const byRef = new Map(
+    (series.members ?? []).map((member) => {
+      const known = toMember(member)
+
+      return [known.ref, known]
+    })
+  )
+
+  return {
+    latestRef: series.latestRef,
+    members: series.refs.map((ref) => ({
+      ...noFacts,
+      ...byRef.get(ref),
+      ref,
+      href: hrefOf(ref)
+    })),
+    detailed: series.members !== undefined
+  }
+}
+
+const toSeriesRow =
+  (ref: string, latestRef: string | null, now: Date) =>
+  (member: SeriesData['members'][number]): SeriesRow => ({
+    ref: member.ref,
+    href: member.ref === ref ? null : member.href,
+    replaced: latestRef !== null && member.ref !== latestRef,
+    statusLabel: toStatusLabel(member.position),
+    positionLabel: toPositionLabel(member.position),
+    created: toStoredTimeCell(member.createdAt, now),
+    closed: toStoredTimeCell(member.closedAt, now)
+  })
+
+const minSeriesLength = 2
+
+const toSeries = (
+  { ref, series }: RecordPageData,
+  now: Date
+): SeriesRow[] | null =>
+  series && series.members.length >= minSeriesLength
+    ? series.members.map(toSeriesRow(ref, series.latestRef, now))
+    : null
+
+const isDetailed = ({ series }: RecordPageData): boolean =>
+  series?.detailed ?? false
 
 /** No list query: the event page's Back returns to the whole events list. */
 const noListQuery = ''
@@ -208,24 +286,6 @@ const toSectionError = (
   sectionErrors.find((error) => error.section === tab && !isTooLarge(error))
     ?.message ?? null
 
-/** Unknown, not absent: the other record could not be checked, so neither is a link. An event source failing says nothing about it. */
-const isCounterpartUnknown = (
-  { counterpartCheck }: RecordType,
-  { sourceErrors }: RecordPageData
-): boolean =>
-  counterpartCheck !== null &&
-  sourceErrors.some(({ hop }) => hop === counterpartCheck.hop)
-
-/** Event sources only: the check of the other record has its own warning. */
-const toUnavailableSources = (
-  { counterpartCheck }: RecordType,
-  sourceErrors: SourceError[]
-): string =>
-  sourceErrors
-    .map(({ hop }) => hop)
-    .filter((hop) => hop !== counterpartCheck?.hop)
-    .join(', ')
-
 export const toRecordPage = (
   record: RecordType,
   data: RecordPageData,
@@ -235,13 +295,13 @@ export const toRecordPage = (
   record,
   ref: data.ref,
   trail: toPositionTrail(data.position),
-  counterpartHref: data.counterpartHref,
-  counterpartUnknown: isCounterpartUnknown(record, data),
   tabs: toTabs(data.href, tab),
   tab,
   facts: data.facts,
+  series: toSeries(data, now),
+  seriesDetailed: isDetailed(data),
   events: toEvents(data.events, data.ref, now),
   raw: tab === 'raw' ? toRaw(data) : null,
   sectionError: toSectionError(data, tab),
-  unavailableSources: toUnavailableSources(record, data.sourceErrors)
+  unavailableSources: toUnavailableSources(data.sourceErrors)
 })

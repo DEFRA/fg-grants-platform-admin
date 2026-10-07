@@ -56,15 +56,18 @@ export const searchApplications = async (
     ...toRepeatOptions(repeat)
   })
 
-/** GAS's name for its check of the case, in `sourceErrors` when it could not be made. */
-export const caseCheckHop = 'CW-BE Cases'
-
 export interface ApplicationHeader {
   clientRef: string
   code: string
   position: Position
   counterpart: Counterpart
   fetchedAt: string
+}
+
+export interface ApplicationSeriesMember {
+  clientRef: string
+  position: Position
+  createdAt: StoredDate
 }
 
 export interface ApplicationOverview {
@@ -79,7 +82,7 @@ export interface ApplicationOverview {
     frn: string | null
     crn: string | null
   }
-  series: RecordSeries | null
+  series: RecordSeries<ApplicationSeriesMember> | null
   storedBytes: number | null
 }
 

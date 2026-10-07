@@ -1,6 +1,7 @@
 import { getFromGas, postToGas } from '../../common/gas.ts'
 import type { SourceError } from './events.repository.ts'
 import type {
+  Counterpart,
   ListPagination,
   ListTotal,
   Position,
@@ -23,6 +24,7 @@ export interface CaseRow {
   closed: boolean | null
   closedAt: StoredDate
   createdAt: StoredDate
+  replaced: boolean
 }
 
 export interface CasesPage {
@@ -60,9 +62,16 @@ export interface CaseHeader {
   position: Position
   closed: boolean | null
   closedAt: StoredDate
-  /** GAS checks its own store, so it always knows. */
-  counterpart: { exists: boolean }
+  counterpart: Counterpart
   fetchedAt: string
+}
+
+/** CW's names, passed through by GAS. */
+export interface CaseSeriesMember {
+  caseRef: string
+  position: Position
+  createdAt: StoredDate
+  closedAt: StoredDate
 }
 
 export interface CaseOverview {
@@ -72,7 +81,7 @@ export interface CaseOverview {
   createdAt: StoredDate
   closed: boolean | null
   closedAt: StoredDate
-  series: RecordSeries | null
+  series: RecordSeries<CaseSeriesMember> | null
   storedBytes: number | null
 }
 

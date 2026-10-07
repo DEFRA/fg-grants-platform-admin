@@ -1,15 +1,23 @@
 import type { Request } from '@hapi/hapi'
 import type { GasActor } from '../gas-actor.ts'
 
-/**
- * Defensive about the field as well as the value: the type says both are
- * strings, and the type is a promise about a token this app does not issue.
- */
-const toTrimmed = (value: unknown): string =>
+/** What the session may say of its user: a token this app does not issue, so every field is checked where it is read. */
+export interface SessionUser {
+  id?: unknown
+  name?: unknown
+  email?: unknown
+}
+
+/** The session's user, or an empty one when it carries none. */
+export const toSessionUser = (user: unknown): SessionUser =>
+  typeof user === 'object' && user !== null ? (user as SessionUser) : {}
+
+/** A string, trimmed; anything else is nothing. */
+export const toTrimmed = (value: unknown): string =>
   typeof value === 'string' ? value.trim() : ''
 
 /** The name, or the email, or nothing at all. */
-const toIdentifier = (user: { name?: string; email?: string }): string =>
+export const toIdentifier = (user: SessionUser): string =>
   toTrimmed(user.name) || toTrimmed(user.email)
 
 /**
@@ -23,20 +31,12 @@ const toIdentifier = (user: { name?: string; email?: string }): string =>
  * asked. The write still happens — an operator is not turned away from a
  * queue because their token was issued without a name on it.
  */
-export const toActor = (request: Request): string | undefined => {
-  const user = request.auth.credentials.user as
-    | { name?: string; email?: string }
-    | undefined
-
-  return user === undefined ? undefined : toIdentifier(user) || undefined
-}
+export const toActor = (request: Request): string | undefined =>
+  toIdentifier(toSessionUser(request.auth.credentials.user)) || undefined
 
 /** The Entra object id GAS records as the audit `user`; `undefined` sends no header. */
-export const toActorId = (request: Request): string | undefined => {
-  const user = request.auth.credentials?.user as { id?: string } | undefined
-
-  return toTrimmed(user?.id) || undefined
-}
+export const toActorId = (request: Request): string | undefined =>
+  toTrimmed(toSessionUser(request.auth.credentials?.user).id) || undefined
 
 export const toGasActor = (request: Request): GasActor => ({
   name: toActor(request),
