@@ -18,9 +18,11 @@ export interface ListTotal {
 /** As stored: an ISO instant, or any other string GAS found there, empty included. */
 export type StoredDate = string | null
 
-export interface RecordSeries {
+/** Refs and members oldest first; a series of fewer than two has no members to show. */
+export interface RecordSeries<Member> {
   latestRef: string | null
   refs: string[]
+  members?: Member[]
 }
 
 export interface RecordEvents {

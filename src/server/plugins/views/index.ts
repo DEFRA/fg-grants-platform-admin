@@ -22,6 +22,7 @@ import { config } from '../../../common/config.ts'
 export type ViewContextRequest = {
   path?: string
   state?: Record<string, unknown>
+  auth?: { credentials?: { user?: unknown } | null }
 }
 
 export const buildViewOptions = (

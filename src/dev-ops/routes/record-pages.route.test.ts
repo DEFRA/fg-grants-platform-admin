@@ -1,11 +1,11 @@
-import { load, type CheerioAPI } from 'cheerio'
+import { load, type Cheerio, type CheerioAPI } from 'cheerio'
+import type { Element } from 'domhandler'
 import type { Server } from '@hapi/hapi'
 
 import { statusCodes } from '../../common/status-codes.ts'
 import { createServer } from '../../server/index.ts'
 import { devOps } from '../index.ts'
 import type { ApplicationPage } from '../use-cases/get-application-page.use-case.ts'
-import { caseCheckHop } from '../repositories/applications.repository.ts'
 import { getApplicationPageUseCase } from '../use-cases/get-application-page.use-case.ts'
 import type { CasePage } from '../use-cases/get-case-page.use-case.ts'
 import { getCasePageUseCase } from '../use-cases/get-case-page.use-case.ts'
@@ -53,7 +53,31 @@ const overview: NonNullable<ApplicationPage['overview']> = {
   createdAt: '2026-09-22T09:14:37.000Z',
   updatedAt: '2026-09-29T15:02:44.000Z',
   identifiers: { sbi: '999100482', frn: '9990004873', crn: '9990001593' },
-  series: { latestRef: 'a7c-2f1-9e4', refs: ['9d3-5b1-e08', 'a7c-2f1-9e4'] },
+  series: {
+    latestRef: 'c41-8e2-7d0',
+    refs: ['9d3-5b1-e08', 'a7c-2f1-9e4', 'c41-8e2-7d0'],
+    members: [
+      {
+        clientRef: '9d3-5b1-e08',
+        position: {
+          phase: 'PHASE_PRE_AWARD',
+          stage: 'STAGE_ASSESSMENT',
+          status: 'STATUS_WITHDRAWN'
+        },
+        createdAt: '2026-09-20T08:01:02.000Z'
+      },
+      {
+        clientRef: 'a7c-2f1-9e4',
+        position: header.position,
+        createdAt: '2026-09-22T09:14:37.000Z'
+      },
+      {
+        clientRef: 'c41-8e2-7d0',
+        position: { phase: null, stage: null, status: null },
+        createdAt: '29/09/2026'
+      }
+    ]
+  },
   storedBytes: 2458
 }
 
@@ -92,7 +116,24 @@ const caseOverview: NonNullable<CasePage['overview']> = {
   createdAt: '2026-08-27T12:31:16.000Z',
   closed: false,
   closedAt: null,
-  series: { latestRef: 'f02-7d8-a61', refs: ['9d3-5b1-e08', 'f02-7d8-a61'] },
+  series: {
+    latestRef: 'f02-7d8-a61',
+    refs: ['9d3-5b1-e08', 'f02-7d8-a61'],
+    members: [
+      {
+        caseRef: '9d3-5b1-e08',
+        position: { phase: null, stage: null, status: 'STATUS_CLOSED' },
+        createdAt: '2026-08-20T10:00:00.000Z',
+        closedAt: '2026-08-27T12:00:00.000Z'
+      },
+      {
+        caseRef: 'f02-7d8-a61',
+        position: caseHeader.position,
+        createdAt: '2026-08-27T12:31:16.000Z',
+        closedAt: null
+      }
+    ]
+  },
   storedBytes: 4096
 }
 
@@ -125,6 +166,19 @@ const recordTypes = [
 ]
 
 const flatten = (text: string) => text.replace(/\s+/g, ' ').trim()
+
+/** Anything after the row's link that is positioned or stacked sits over its stretched overlay and swallows the click. */
+const liftedOver = ($: CheerioAPI, row: Cheerio<Element>) =>
+  row
+    .find('td *, li *')
+    .toArray()
+    .filter((node) => !$(node).is('a'))
+    .filter((node) =>
+      ($(node).attr('class') ?? '')
+        .split(/\s+/)
+        .some((name) => /^(relative|absolute|sticky|fixed|z-)/.test(name))
+    )
+    .map((node) => $(node).attr('data-testid') ?? node.tagName)
 
 let server: Server
 
@@ -217,56 +271,31 @@ describe('the application page', () => {
     const { $ } = await viewPage()
 
     expect($('html').attr('class')).toBe(
-      '[scrollbar-gutter:stable] [--root-bg:var(--color-base-200)]'
+      '[scrollbar-gutter:stable] [--root-bg:var(--color-base-200)] scroll-pt-14 lg:scroll-pt-0'
     )
   })
 
-  test('shows no related records while the case link is unknown to GAS', async () => {
-    const { $ } = await viewPage()
-
-    expect(part($, 'application-related')).toHaveLength(0)
-    expect(part($, 'application-counterpart-unknown')).toHaveLength(0)
-  })
-
-  test('links to the case when it exists', async () => {
+  test('heads the page with the title and the trail alone', async () => {
     givenPage({ header: { ...header, counterpart: { exists: true } } })
 
     const { $ } = await viewPage()
+    const pageHeader = part($, 'application-header')
 
-    expect(part($, 'application-related').attr('aria-label')).toBe(
-      'Related records'
-    )
-    expect(textOf($, 'application-counterpart')).toBe('View case')
-    expect(part($, 'application-counterpart').attr('href')).toBe(
-      '/dev-ops/cases/frps-private-beta/a7c-2f1-9e4'
-    )
+    expect(pageHeader.find('nav')).toHaveLength(0)
+    expect(
+      pageHeader
+        .children()
+        .toArray()
+        .map((child) => $(child).attr('data-testid'))
+    ).toEqual(['application-title', 'application-position'])
+    expect(pageHeader.find('a, nav')).toHaveLength(0)
   })
 
-  test('shows no related records when the case does not exist', async () => {
-    givenPage({ header: { ...header, counterpart: { exists: false } } })
-
+  test('shows no warning while GAS cannot say whether the case exists', async () => {
     const { $ } = await viewPage()
 
-    expect(part($, 'application-related')).toHaveLength(0)
-  })
-
-  test('warns that the case link is unknown when the check failed', async () => {
-    givenPage({ sourceErrors: [{ hop: caseCheckHop }] })
-
-    const { $ } = await viewPage()
-
-    expect(textOf($, 'application-counterpart-unknown')).toBe(
-      'CW unavailable. Case link unknown.'
-    )
-    expect(part($, 'application-related')).toHaveLength(0)
-  })
-
-  test('says nothing of the case when only an event source failed', async () => {
-    givenPage({ sourceErrors: [{ hop: 'CW-BE Inbox' }] })
-
-    const { $ } = await viewPage()
-
-    expect(part($, 'application-counterpart-unknown')).toHaveLength(0)
+    expect($('[role="alert"]')).toHaveLength(0)
+    expect(part($, 'application-fact-case')).toHaveLength(0)
   })
 
   test('offers Overview, Events and Raw, marking the open one', async () => {
@@ -337,20 +366,54 @@ describe('the Overview tab', () => {
       .toArray()
       .map((label) => flatten($(label).text()))
 
-  test('lists Grant, Submitted, Created, Updated, SBI, FRN, CRN, Series and Size', async () => {
+  test('lists Grant, Case, Submitted, Created, Updated, SBI, FRN, CRN and Size', async () => {
+    givenPage({ header: { ...header, counterpart: { exists: true } } })
+
     const { $ } = await viewPage()
 
     expect(factsOf($)).toEqual([
       'Grant',
+      'Case',
       'Submitted',
       'Created',
       'Updated',
       'SBI',
       'FRN',
       'CRN',
-      'Series',
       'Size'
     ])
+  })
+
+  test('links to the case as the second fact when it exists', async () => {
+    givenPage({ header: { ...header, counterpart: { exists: true } } })
+
+    const { $ } = await viewPage()
+    const link = part($, 'application-case')
+
+    expect(textOf($, 'application-fact-case')).toBe(
+      'Case View case (opens in a new tab)'
+    )
+    expect(link.is('a')).toBe(true)
+    expect(link.attr('href')).toBe(
+      '/dev-ops/cases/frps-private-beta/a7c-2f1-9e4'
+    )
+    expect(link.attr('class')).toContain('link')
+    expect(link.attr('target')).toBe('_blank')
+    expect(link.attr('rel')).toBe('noopener noreferrer')
+    expect(link.find('.sr-only').text()).toBe(' (opens in a new tab)')
+    expect(link.next().attr('data-testid')).toBe('do-icon-external-link')
+  })
+
+  test.each([
+    ['does not exist', { exists: false }],
+    ['is unknown', null]
+  ])('leaves the Case fact out when the case %s', async (_, counterpart) => {
+    givenPage({ header: { ...header, counterpart } })
+
+    const { $ } = await viewPage()
+
+    expect(part($, 'application-fact-case')).toHaveLength(0)
+    expect(factsOf($)[1]).toBe('Submitted')
   })
 
   test('gives the grant its version, and where it started when that differs', async () => {
@@ -428,38 +491,262 @@ describe('the Overview tab', () => {
 
     expect(textOf($, 'application-sbi')).toBe('—')
   })
+})
 
-  test('links the rest of the series under the same grant, marking the latest', async () => {
+describe('the Series card', () => {
+  /** Each row's cells as seen, the spoken-only text left out and a time's two lines apart. */
+  const seriesRows = ($: CheerioAPI, itemId = 'application') =>
+    part($, `${itemId}-series-row`)
+      .toArray()
+      .map((row) =>
+        $(row)
+          .find('td')
+          .toArray()
+          .map((cell) => {
+            const seen = $(cell).clone()
+
+            seen.find('.sr-only').remove()
+            seen.find('time').after(' ')
+
+            return flatten(seen.text())
+          })
+          .join(' | ')
+      )
+
+  test('lists the whole series under the facts, oldest first, marking each replaced one', async () => {
     const { $ } = await viewPage()
-    const refs = part($, 'application-series-ref')
 
-    expect(refs.eq(0).attr('href')).toBe(
-      '/dev-ops/applications/frps-private-beta/9d3-5b1-e08'
+    expect(flatten($('#application-series-title').text())).toBe('Series')
+    expect(part($, 'application-overview').next().attr('data-testid')).toBe(
+      'application-series'
     )
-    expect(refs.eq(1).is('a')).toBe(false)
-    expect(textOf($, 'application-series')).toBe(
-      '9d3-5b1-e08 a7c-2f1-9e4 latest'
+    expect(seriesRows($)).toEqual([
+      '9d3-5b1-e08 replaced | Withdrawn | 10d ago 20 Sep 09:01',
+      'a7c-2f1-9e4 replaced | In review | 8d ago 22 Sep 10:14',
+      'c41-8e2-7d0 | — | 29/09/2026'
+    ])
+  })
+
+  test('labels the card by its heading and heads its columns Reference, Status and Created', async () => {
+    const { $ } = await viewPage()
+    const card = part($, 'application-series')
+
+    expect(card.is('section')).toBe(true)
+    expect(card.attr('aria-labelledby')).toBe('application-series-title')
+    expect($('#application-series-title').is('h2')).toBe(true)
+    expect(card.children('.card-body').attr('class')).toBe(
+      'card-body gap-3 p-5'
+    )
+    expect(part($, 'application-series-heading').attr('class')).toBe(
+      'card-title text-base'
+    )
+    expect(
+      part($, 'application-series-heading').parent().is('.card-body')
+    ).toBe(true)
+    expect(card.find('.border-b')).toHaveLength(0)
+    expect(
+      card
+        .find('th')
+        .toArray()
+        .map((cell) => `${flatten($(cell).text())} ${$(cell).attr('scope')}`)
+    ).toEqual(['Reference col', 'Status col', 'Created col'])
+  })
+
+  test('makes each other member a whole-row link under the same grant, as the lists do', async () => {
+    const { $ } = await viewPage()
+    const rows = $(
+      '[data-testid="application-series-table"] [data-testid="application-series-row"]'
+    )
+    const links = rows.find('[data-testid="application-series-link"]')
+
+    expect(links.toArray().map((link) => $(link).attr('href'))).toEqual([
+      '/dev-ops/applications/frps-private-beta/9d3-5b1-e08',
+      '/dev-ops/applications/frps-private-beta/c41-8e2-7d0'
+    ])
+    expect(links.first().hasClass('after:absolute')).toBe(true)
+    expect(links.first().hasClass('after:inset-0')).toBe(true)
+    expect(rows.eq(0).hasClass('cursor-pointer')).toBe(true)
+    expect(rows.eq(0).hasClass('hover:bg-base-200')).toBe(true)
+    expect(rows.eq(2).hasClass('hover:bg-base-200')).toBe(true)
+  })
+
+  test('marks this record as the page, with no link and no hover on its row', async () => {
+    const { $ } = await viewPage()
+    const row = $(
+      '[data-testid="application-series-table"] [data-testid="application-series-row"]'
+    ).eq(1)
+    const current = row.find('[data-testid="application-series-current"]')
+
+    expect(row.attr('class')).toBeUndefined()
+    expect(row.find('a')).toHaveLength(0)
+    expect(current.attr('aria-current')).toBe('page')
+    expect(current.hasClass('font-semibold')).toBe(true)
+    expect(flatten(current.text())).toBe('a7c-2f1-9e4, replaced')
+  })
+
+  test('speaks replaced in the link, and hides the badge, as the lists do', async () => {
+    const { $ } = await viewPage()
+    const first = $(
+      '[data-testid="application-series-table"] [data-testid="application-series-row"]'
+    ).first()
+
+    expect(
+      flatten(first.find('[data-testid="application-series-link"]').text())
+    ).toBe('9d3-5b1-e08, replaced')
+    expect(
+      first
+        .find('[data-testid="application-series-replaced"]')
+        .attr('aria-hidden')
+    ).toBe('true')
+  })
+
+  test('draws the same rows as a list for a phone, as the lists do', async () => {
+    const { $ } = await viewPage()
+    const items = part($, 'application-series-list').find(
+      '[data-testid="application-series-item"]'
+    )
+
+    expect(part($, 'application-series-list').hasClass('sm:hidden')).toBe(true)
+    expect(
+      part($, 'application-series-table').parent().hasClass('hidden')
+    ).toBe(true)
+    expect(
+      part($, 'application-series-table').parent().hasClass('sm:block')
+    ).toBe(true)
+    expect(items).toHaveLength(3)
+    expect(items.eq(0).hasClass('hover:bg-base-200')).toBe(true)
+    expect(items.eq(1).attr('class')).toBe('list-row')
+    expect(items.eq(1).find('[aria-current="page"]')).toHaveLength(1)
+  })
+
+  test('shows each status as text alone, speaking the whole position', async () => {
+    const { $ } = await viewPage()
+    const status = part($, 'application-series-status').first()
+
+    expect(part($, 'application-series').find('.status')).toHaveLength(0)
+    expect(status.find('[aria-hidden="true"]').text()).toBe('Withdrawn')
+    expect(status.find('.sr-only').text()).toBe(
+      'Pre award › Assessment › Withdrawn'
     )
   })
 
-  test('draws the arrow between the refs as an icon screen readers skip', async () => {
-    const { $ } = await viewPage()
-    const arrow = part($, 'application-series').find(
-      '[data-testid="do-icon-arrow-right"]'
-    )
+  test('lifts nothing in a row over its link, so a click anywhere opens it', async () => {
+    givenCase()
 
-    expect(arrow).toHaveLength(1)
-    expect(arrow.attr('aria-hidden')).toBe('true')
-    expect(arrow.attr('class')).toBe('size-3.5 shrink-0 text-base-content/50')
-    expect(arrow.prev().attr('data-testid')).toBe('application-series-ref')
+    const { $ } = await viewPage(casePath)
+
+    for (const item of [
+      ...part($, 'case-series-row').toArray(),
+      ...part($, 'case-series-item').toArray()
+    ]) {
+      expect(liftedOver($, $(item))).toEqual([])
+    }
   })
 
-  test('draws a dash for an application with no series', async () => {
-    givenPage({ overview: { ...overview, series: null } })
+  test("draws each time with the lists' own cell, and one that is not an instant as stored", async () => {
+    const { $ } = await viewPage()
+    const created = part($, 'application-series-created-at')
+
+    expect(created.eq(0).is('time')).toBe(true)
+    expect(created.eq(0).attr('datetime')).toBe('2026-09-20T08:01:02Z')
+    expect(created.eq(0).attr('title')).toBe('20 Sep 2026 09:01:02.000')
+    expect(
+      part($, 'application-series-created-clock').eq(0).attr('aria-hidden')
+    ).toBe('true')
+    expect(created.eq(2).is('time')).toBe(false)
+    expect(flatten(created.eq(2).text())).toBe('29/09/2026')
+    expect(part($, 'application-series-created-clock')).toHaveLength(2)
+    expect(
+      part($, 'application-series')
+        .find('[data-testid$="-created-at"]')
+        .closest('td')
+        .attr('class')
+    ).toBe('text-right')
+  })
+
+  test.each([
+    ['no series', null],
+    [
+      'a series of one',
+      { latestRef: 'a7c-2f1-9e4', refs: ['a7c-2f1-9e4'], members: [] }
+    ]
+  ])('draws no card for %s', async (_, series) => {
+    givenPage({ overview: { ...overview, series } })
 
     const { $ } = await viewPage()
 
-    expect(textOf($, 'application-series-none')).toBe('—')
+    expect(part($, 'application-series')).toHaveLength(0)
+    expect(part($, 'application-overview')).toHaveLength(1)
+  })
+
+  test('lists the refs and replaced markers alone when GAS sent no members', async () => {
+    givenPage({
+      overview: {
+        ...overview,
+        series: {
+          latestRef: 'a7c-2f1-9e4',
+          refs: ['9d3-5b1-e08', 'a7c-2f1-9e4']
+        }
+      }
+    })
+
+    const { $ } = await viewPage()
+
+    expect(
+      part($, 'application-series')
+        .find('th')
+        .toArray()
+        .map((cell) => flatten($(cell).text()))
+    ).toEqual(['Reference'])
+    expect(seriesRows($)).toEqual(['9d3-5b1-e08 replaced', 'a7c-2f1-9e4'])
+  })
+
+  test('keeps the row of a member GAS sent nothing for, with nothing known of it', async () => {
+    givenPage({
+      overview: {
+        ...overview,
+        series: {
+          ...overview.series!,
+          members: overview.series!.members!.slice(1)
+        }
+      }
+    })
+
+    const { $ } = await viewPage()
+
+    expect(seriesRows($)).toEqual([
+      '9d3-5b1-e08 replaced | — | —',
+      'a7c-2f1-9e4 replaced | In review | 8d ago 22 Sep 10:14',
+      'c41-8e2-7d0 | — | 29/09/2026'
+    ])
+  })
+
+  test('is on the Overview tab alone', async () => {
+    givenPage({ events: { rows: [], more: false } })
+
+    const { $ } = await viewPage(`${path}?section=events`)
+
+    expect(part($, 'application-series')).toHaveLength(0)
+  })
+
+  test("gives a case's members a Closed column", async () => {
+    givenCase()
+
+    const { $ } = await viewPage(casePath)
+
+    expect(
+      part($, 'case-series')
+        .find('th')
+        .toArray()
+        .map((cell) => flatten($(cell).text()))
+    ).toEqual(['Reference', 'Status', 'Closed', 'Created'])
+    expect(seriesRows($, 'case')).toEqual([
+      '9d3-5b1-e08 replaced | Closed | 34d ago 27 Aug 13:00 | 41d ago 20 Aug 11:00',
+      'f02-7d8-a61 | Active | — | 34d ago 27 Aug 13:31'
+    ])
+    expect(part($, 'case-series-link').first().attr('href')).toBe(
+      '/dev-ops/cases/woodland/9d3-5b1-e08'
+    )
   })
 })
 
@@ -531,33 +818,6 @@ describe('the Events tab', () => {
     expect(textOf($, 'application-events-partial')).toBe(
       'Some event sources are unavailable: CW Inbox. Showing the rest.'
     )
-  })
-
-  test('leaves the case check out of the missed event sources', async () => {
-    givenPage({
-      overview: undefined,
-      events: { rows: [event], more: false },
-      sourceErrors: [{ hop: caseCheckHop }, { hop: 'CW-BE Inbox' }]
-    })
-
-    const { $ } = await viewPage(`${path}?section=events`)
-
-    expect(textOf($, 'application-events-partial')).toBe(
-      'Some event sources are unavailable: CW-BE Inbox. Showing the rest.'
-    )
-  })
-
-  test('says no event source was missed when only the case check failed', async () => {
-    givenPage({
-      overview: undefined,
-      events: { rows: [event], more: false },
-      sourceErrors: [{ hop: caseCheckHop }]
-    })
-
-    const { $ } = await viewPage(`${path}?section=events`)
-
-    expect(part($, 'application-events-partial')).toHaveLength(0)
-    expect(part($, 'application-counterpart-unknown')).toHaveLength(1)
   })
 
   test('says when there are no events', async () => {
@@ -688,29 +948,41 @@ describe('the case page', () => {
     )
     expect(textOf($, 'case-back')).toBe('Back to cases')
     expect(part($, 'case-back').attr('href')).toBe('/dev-ops/cases')
-    expect($('[data-testid="do-nav"] [aria-current="page"]').text()).toBe(
-      'Cases'
-    )
+    expect(
+      $('[data-testid="do-nav"] [aria-current="page"]').text().trim()
+    ).toBe('Cases')
   })
 
-  test('links to the application when it exists', async () => {
+  test('links to the application as the second fact when it exists', async () => {
     const { $ } = await viewPage(casePath)
 
-    expect(textOf($, 'case-counterpart')).toBe('View application')
-    expect(part($, 'case-counterpart').attr('href')).toBe(
+    expect(textOf($, 'case-fact-application')).toBe(
+      'Application View application (opens in a new tab)'
+    )
+    expect(part($, 'case-application').attr('href')).toBe(
       '/dev-ops/applications/woodland/f02-7d8-a61'
     )
+    expect(part($, 'case-header').find('a, nav')).toHaveLength(0)
   })
 
-  test('shows no application link when the application does not exist', async () => {
+  test('shows no warning and no Application fact while GAS cannot say whether the application exists', async () => {
+    givenCase({ header: { ...caseHeader, counterpart: null } })
+
+    const { $ } = await viewPage(casePath)
+
+    expect($('[role="alert"]')).toHaveLength(0)
+    expect(part($, 'case-fact-application')).toHaveLength(0)
+  })
+
+  test('leaves the Application fact out when the application does not exist', async () => {
     givenCase({ header: { ...caseHeader, counterpart: { exists: false } } })
 
     const { $ } = await viewPage(casePath)
 
-    expect(part($, 'case-related')).toHaveLength(0)
+    expect(part($, 'case-fact-application')).toHaveLength(0)
   })
 
-  test('names every missed source, with no warning about the application link', async () => {
+  test('names every missed source', async () => {
     givenCase({
       overview: undefined,
       events: { rows: [], more: false },
@@ -722,10 +994,9 @@ describe('the case page', () => {
     expect(textOf($, 'case-events-partial')).toBe(
       'Some event sources are unavailable: GAS Applications, GAS Inbox. Showing the rest.'
     )
-    expect(part($, 'case-counterpart-unknown')).toHaveLength(0)
   })
 
-  test('lists Workflow, Created, Closed at, Series and Size', async () => {
+  test('lists Workflow, Application, Created, Closed at and Size', async () => {
     const { $ } = await viewPage(casePath)
 
     expect(
@@ -733,15 +1004,12 @@ describe('the case page', () => {
         .find('dt')
         .toArray()
         .map((label) => flatten($(label).text()))
-    ).toEqual(['Workflow', 'Created', 'Closed at', 'Series', 'Size'])
+    ).toEqual(['Workflow', 'Application', 'Created', 'Closed at', 'Size'])
     expect(textOf($, 'case-fact-workflow')).toBe(
       'Workflow woodland@1.4.2 from 1.3.5'
     )
     expect(textOf($, 'case-closed-at')).toBe('—')
     expect(textOf($, 'case-size')).toBe('4 KiB')
-    expect(part($, 'case-series-ref').first().attr('href')).toBe(
-      '/dev-ops/cases/woodland/9d3-5b1-e08'
-    )
   })
 
   test('shows the stored closing date of a case not marked closed', async () => {

@@ -3,13 +3,7 @@ import { toBoxLabel, toServiceLabel } from './event-labels.ts'
 import { toEventName } from './event-names.ts'
 import type { EventName } from './event-names.ts'
 import { isDeadLetterStatus } from './event-state.ts'
-import {
-  none,
-  toClock,
-  toEventHref,
-  toTimestamp,
-  toValidDate
-} from './event-formats.ts'
+import { none, toEventHref, toTimeCell, toTimestamp } from './event-formats.ts'
 import { toTimeRange } from './time-range.view-model.ts'
 import type { TimeRange, TimeRangeList } from './time-range.view-model.ts'
 import { toFields, toFilterHref } from './list-filters.ts'
@@ -144,7 +138,7 @@ const toEventPageHref = (event: EventKey, from: string): string => {
 export const toEventRow =
   (now: Date, from: string, services?: ServiceFilter[]) =>
   (event: EventRowResponse): EventRow => {
-    const created = toTimestamp(event.createdAt, now)
+    const created = toTimeCell(event.createdAt, now)
 
     return {
       eventHref: toEventPageHref(event, from),
@@ -158,7 +152,7 @@ export const toEventRow =
       createdAt: created.text,
       createdAtInstant: created.instant,
       createdAtPrecise: created.precise,
-      createdAtClock: toClockOf(event.createdAt, now),
+      createdAtClock: created.clock,
       eventName: toEventName(event.type),
       serviceLabel: toServiceLabel(event.service, services),
       boxLabel: toBoxLabel(event.box),
@@ -166,16 +160,11 @@ export const toEventRow =
     }
   }
 
-const toClockOf = (value: string, now: Date): string => {
-  const date = toValidDate(value)
-
-  return date === null ? '' : toClock(date, now)
-}
-
 const counted = new Intl.NumberFormat('en-GB')
 
-const toUnavailableSources = (sourceErrors: SourceError[] = []): string =>
-  sourceErrors.map((source) => source.hop).join(', ')
+export const toUnavailableSources = (
+  sourceErrors: SourceError[] = []
+): string => sourceErrors.map((source) => source.hop).join(', ')
 
 const filterKeys = [
   'status',

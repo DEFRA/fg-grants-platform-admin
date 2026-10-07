@@ -3,7 +3,6 @@ import type {
   ApplicationRow,
   ApplicationsResult
 } from '../use-cases/search-applications.use-case.ts'
-import { caseCheckHop } from '../repositories/applications.repository.ts'
 import { toRecordList } from './record-list.view-model.ts'
 import type {
   RecordListEntry,
@@ -23,12 +22,7 @@ export const applicationType: RecordType = {
   codeName: 'Grant',
   source: 'GAS',
   showClosed: false,
-  linkLabel: 'View application',
-  counterpartLabel: 'View case',
-  counterpartCheck: {
-    hop: caseCheckHop,
-    unknown: 'CW unavailable. Case link unknown.'
-  }
+  linkLabel: 'View application'
 }
 
 export const toApplicationHref = ({

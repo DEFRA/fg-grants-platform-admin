@@ -1,16 +1,12 @@
 {% extends 'layouts/list-page.njk' %}
 {% set navActive = list.listId %}
 
-{% from "event-row/macro.njk" import createdAt, createdCell, rowClass %}
 {% from "filter-menu/macro.njk" import filterMenu %}
 {% from "icon/macro.njk" import icon %}
 {% from "load-more/macro.njk" import loadMore %}
-{% from "status-badge/macro.njk" import statusBadge %}
+{% from "record-row/macro.njk" import recordItem, recordRow %}
 {% from "sticky-top/macro.njk" import stickyTop %}
 {% from "time-range-menu/macro.njk" import timeRangeMenu %}
-
-{# Tailwind only sees class names written literally in this file. #}
-{% set rowLink = "block w-fit break-all font-mono text-sm font-semibold no-underline after:absolute after:inset-0 focus-visible:outline-none" %}
 
 {% macro searchFilters(list, fields) %}
   {% for field in fields %}
@@ -25,19 +21,6 @@
     <input type="hidden" name="q" value="">
     <button class="link text-base-content/70" type="submit" data-testid="{{ testId }}">{{ label }}</button>
   </form>
-{% endmacro %}
-
-{% macro status(row) %}
-  {%- if row.statusLabel -%}
-    {# Lifted over the row's stretched link, so its title is reachable by mouse; the whole position is spoken, the badge is not. #}
-    <span class="relative inline-flex"><span aria-hidden="true">{{ statusBadge({ status: row.positionLabel, label: row.statusLabel, role: "neutral" }) }}</span><span class="sr-only">{{ row.positionLabel }}</span></span>
-  {%- else -%}
-    <span class="text-base-content/70">—</span>
-  {%- endif -%}
-{% endmacro %}
-
-{% macro created(cell, testId) %}
-  {{- createdCell({ text: cell.text, instant: cell.instant, precise: cell.precise, clock: cell.clock, testId: testId }) -}}
 {% endmacro %}
 
 {% block content %}
@@ -98,7 +81,7 @@
 
       {# Sticky and sideways scrolling cannot share a box: overflow here unpins the header. #}
       <div class="hidden w-full overflow-x-auto sm:block [@media(min-width:64rem)_and_(min-height:40rem)]:overflow-visible" data-testid="{{ list.listId }}-scroller">
-        <table class="table table-pin-rows w-full table-fixed [@media(min-width:64rem)_and_(min-height:40rem)]:[&_thead]:top-[var(--sticky-top,15rem)]" data-testid="{{ list.listId }}-table">
+        <table class="table table-pin-rows w-full table-fixed [@media(min-width:64rem)_and_(min-height:40rem)]:[&_thead]:top-[var(--sticky-top,11.5rem)]" data-testid="{{ list.listId }}-table">
           <thead>
             <tr data-testid="{{ list.listId }}-head">
               <th scope="col">Reference</th>
@@ -112,22 +95,7 @@
           </thead>
           <tbody id="{{ list.listId }}-rows">
             {% for row in rows %}
-              <tr class="{{ rowClass }}" data-testid="{{ list.itemId }}-row">
-                <td>
-                  <div class="flex flex-wrap items-center gap-2">
-                    <a href="{{ row.href }}" class="{{ rowLink }}" data-testid="{{ list.itemId }}-link">{{ row.ref }}<span class="sr-only">, {{ row.code }}</span></a>
-                    {% if row.replaced %}<span class="badge badge-ghost badge-sm" data-testid="{{ list.itemId }}-replaced">replaced</span>{% endif %}
-                  </div>
-                </td>
-                <td><div class="truncate font-mono text-sm" data-testid="{{ list.itemId }}-{{ codeKey }}">{{ row.code }}</div></td>
-                <td class="overflow-hidden" data-testid="{{ list.itemId }}-status">{{ status(row) }}</td>
-                {% if list.showClosed and row.closed %}
-                  {{ created(row.closed, list.itemId ~ "-closed") }}
-                {% elif list.showClosed %}
-                  <td class="text-right"><span class="relative ml-auto block w-fit font-mono text-sm text-base-content/70" data-testid="{{ list.itemId }}-closed-none">—</span></td>
-                {% endif %}
-                {{ created(row.created, list.itemId ~ "-created") }}
-              </tr>
+              {{ recordRow({ row: row, prefix: list.itemId, codeKey: codeKey, showClosed: list.showClosed }) }}
             {% endfor %}
           </tbody>
         </table>
@@ -135,18 +103,7 @@
 
       <ul class="list sm:hidden" id="{{ list.listId }}-list" data-testid="{{ list.listId }}-list">
         {% for row in rows %}
-          <li class="list-row relative hover:bg-base-200 has-[:focus-visible]:bg-base-200" data-testid="{{ list.itemId }}-item">
-            <div class="list-col-grow flex min-w-0 flex-col gap-1">
-              <div class="flex flex-wrap items-baseline justify-between gap-x-3">
-                <a href="{{ row.href }}" class="{{ rowLink }}" data-testid="{{ list.itemId }}-link">{{ row.ref }}<span class="sr-only">, {{ row.code }}</span></a>
-                <span class="font-mono text-xs text-base-content/70">{{ row.code }}</span>
-              </div>
-              <div class="flex flex-wrap items-center justify-between gap-2">
-                <span class="flex items-center gap-2">{{ status(row) }}{% if row.replaced %}<span class="badge badge-ghost badge-sm">replaced</span>{% endif %}</span>
-                {{ createdAt({ text: row.created.text, instant: row.created.instant, precise: row.created.precise, testId: list.itemId ~ "-item-created" }) }}
-              </div>
-            </div>
-          </li>
+          {{ recordItem({ row: row, prefix: list.itemId, codeKey: codeKey }) }}
         {% endfor %}
       </ul>
 

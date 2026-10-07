@@ -3,36 +3,39 @@ import type {
   CasePage
 } from '../repositories/cases.repository.ts'
 import type { RecordTab } from '../repositories/record-page.ts'
-import { toApplicationHref } from './applications-page.view-model.ts'
+import {
+  applicationType,
+  toApplicationHref
+} from './applications-page.view-model.ts'
 import { caseType, toCaseHref } from './cases-page.view-model.ts'
 import {
   toDateFact,
+  toCounterpartFacts,
   toRecordPage,
-  toSeriesFact,
+  toSeriesData,
   toSizeFact,
   toVersionedFact
 } from './record-page.view-model.ts'
 import type { Fact, RecordPageModel } from './record-page.view-model.ts'
 
-const toFacts = (overview: CaseOverview, caseRef: string): Fact[][] => [
+const toFacts = (
+  overview: CaseOverview,
+  applicationHref: string | null
+): Fact[][] => [
   [
     toVersionedFact('workflow', 'Workflow', {
       ...overview,
       code: overview.workflowCode
     }),
+    ...toCounterpartFacts(applicationType, applicationHref),
     toDateFact('created', 'Created', overview.createdAt),
     toDateFact('closed-at', 'Closed at', overview.closedAt)
   ],
-  [
-    toSeriesFact(overview.series, caseRef, (ref) =>
-      toCaseHref({ workflowCode: overview.workflowCode, caseRef: ref })
-    ),
-    toSizeFact(overview.storedBytes)
-  ]
+  [toSizeFact(overview.storedBytes)]
 ]
 
 const toCounterpartHref = ({ header }: CasePage): string | null =>
-  header.counterpart.exists
+  header.counterpart?.exists
     ? toApplicationHref({
         code: header.workflowCode,
         clientRef: header.caseRef
@@ -50,8 +53,17 @@ export const toCasePage = (
       ref: page.header.caseRef,
       href: toCaseHref(page.header),
       position: page.header.position,
-      counterpartHref: toCounterpartHref(page),
-      facts: page.overview ? toFacts(page.overview, page.header.caseRef) : null,
+      facts: page.overview
+        ? toFacts(page.overview, toCounterpartHref(page))
+        : null,
+      series: page.overview
+        ? toSeriesData(
+            page.overview.series,
+            ({ caseRef, ...facts }) => ({ ref: caseRef, ...facts }),
+            (caseRef) =>
+              toCaseHref({ workflowCode: page.header.workflowCode, caseRef })
+          )
+        : null,
       events: page.events,
       raw: page.raw,
       sourceErrors: page.sourceErrors,
