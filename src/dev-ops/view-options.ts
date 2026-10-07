@@ -2,7 +2,9 @@ import path from 'node:path'
 import nunjucks from 'nunjucks'
 
 import { config } from '../common/config.ts'
+import { logoutPath } from '../server/plugins/auth/paths.ts'
 import { assets } from '../server/plugins/views/assets.ts'
+import { toSignedInUser } from './view-models/signed-in-user.ts'
 import {
   buildViewOptions,
   type ViewContextRequest
@@ -58,6 +60,8 @@ const context = async (request?: ViewContextRequest) => {
     devOpsTheme: selectedTheme(request),
     environmentLabel,
     environmentIsProduction: environmentLabel === productionLabel,
+    signedInUser: toSignedInUser(request?.auth?.credentials?.user),
+    logoutPath,
     ...(await assets())
   }
 }

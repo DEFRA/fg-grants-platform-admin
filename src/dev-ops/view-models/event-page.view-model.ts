@@ -537,6 +537,8 @@ const toSegregationRef = (event: EventDetail) => {
 
 interface RecordLink {
   href: string
+  /** The fact's own label: Application or Case. */
+  title: string
   label: string
 }
 
@@ -549,12 +551,13 @@ export class UnknownRecordKindError extends Error {
 
 const recordLinks = new Map<
   string,
-  { toHref: (record: EventRecord) => string; label: string }
+  { toHref: (record: EventRecord) => string; title: string; label: string }
 >([
   [
     'application',
     {
       toHref: ({ code, ref }) => toApplicationHref({ code, clientRef: ref }),
+      title: applicationType.title,
       label: applicationType.linkLabel
     }
   ],
@@ -563,6 +566,7 @@ const recordLinks = new Map<
     {
       toHref: ({ code, ref }) =>
         toCaseHref({ workflowCode: code, caseRef: ref }),
+      title: caseType.title,
       label: caseType.linkLabel
     }
   ]
@@ -582,7 +586,7 @@ const toRecordLink = (
     throw new UnknownRecordKindError(record.kind)
   }
 
-  return { href: link.toHref(record), label: link.label }
+  return { href: link.toHref(record), title: link.title, label: link.label }
 }
 
 const lastKnownAt = (attempts: EventDetail['attemptHistory']): string | null =>

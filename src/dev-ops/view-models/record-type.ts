@@ -12,7 +12,4 @@ export interface RecordType {
   source: string
   showClosed: boolean
   linkLabel: string
-  counterpartLabel: string
-  /** GAS's name for its check of the other record, and what to say when it failed; null where GAS checks its own store. */
-  counterpartCheck: { hop: string; unknown: string } | null
 }

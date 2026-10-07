@@ -4,6 +4,7 @@ import type { Server } from '@hapi/hapi'
 
 import { config } from '../../common/config.ts'
 import { createServer } from '../../server/index.ts'
+import { logoutPath } from '../../server/plugins/auth/paths.ts'
 import { statusCodes } from '../../common/status-codes.ts'
 import { devOps } from '../index.ts'
 import type {
@@ -249,6 +250,19 @@ const deadLetterRowClass =
   'relative cursor-pointer bg-error/5 hover:bg-error/10 has-[:focus-visible]:bg-error/10 has-[:focus-visible]:outline-2 has-[:focus-visible]:-outline-offset-2 has-[:focus-visible]:outline-base-content'
 
 const flatten = (text: string) => text.replace(/\s+/g, ' ').trim()
+
+/** Anything after the row's link that is positioned or stacked sits over its stretched overlay and swallows the click. */
+const liftedOver = ($: CheerioAPI, row: Cheerio<Element>) =>
+  row
+    .find('td *, li *')
+    .toArray()
+    .filter((node) => !$(node).is('a'))
+    .filter((node) =>
+      ($(node).attr('class') ?? '')
+        .split(/\s+/)
+        .some((name) => /^(relative|absolute|sticky|fixed|z-)/.test(name))
+    )
+    .map((node) => $(node).attr('data-testid') ?? node.tagName)
 
 const classOf = (cell: Cheerio<Element>) => cell.attr('class') ?? ''
 
@@ -2001,7 +2015,7 @@ describe('viewEventsRoute', () => {
     const { $ } = await viewPage()
 
     expect($('[data-testid="events-table"]').attr('class')).toBe(
-      'table table-pin-rows w-full min-w-[64rem] table-fixed [@media(min-width:64rem)_and_(min-height:40rem)]:min-w-0 [@media(min-width:64rem)_and_(min-height:40rem)]:[&_thead]:top-[var(--sticky-top,15rem)]'
+      'table table-pin-rows w-full min-w-[64rem] table-fixed [@media(min-width:64rem)_and_(min-height:40rem)]:min-w-0 [@media(min-width:64rem)_and_(min-height:40rem)]:[&_thead]:top-[var(--sticky-top,11.5rem)]'
     )
   })
 
@@ -2459,7 +2473,7 @@ describe('viewEventsRoute', () => {
     expect($('main').html()).not.toContain('overflow-y-auto overscroll-contain')
   })
 
-  test('sticks the top of the page, and the bar above it, where there is room', async () => {
+  test('sticks the top of the page to the top of the window, where the sidebar has replaced the bar', async () => {
     const { $ } = await viewPage()
 
     const sticky = $('[data-testid="events-sticky"]')
@@ -2474,7 +2488,7 @@ describe('viewEventsRoute', () => {
     ).toEqual(['events-title', 'events-status-tiles', 'events-toolbar'])
     for (const name of [
       `${media}:sticky`,
-      `${media}:top-[var(--nav-h,57px)]`,
+      `${media}:top-0`,
       `${media}:z-20`,
       'bg-base-200'
     ]) {
@@ -2484,11 +2498,10 @@ describe('viewEventsRoute', () => {
 
     const navbar = $('header.navbar')
 
-    expect(navbar.hasClass(`${media}:sticky`)).toBe(true)
-    expect(navbar.hasClass(`${media}:z-30`)).toBe(true)
-    expect(navbar.hasClass('sticky')).toBe(false)
+    expect(navbar.hasClass('lg:hidden')).toBe(true)
+    expect($('[data-testid="do-drawer"]').hasClass('lg:drawer-open')).toBe(true)
     expect(classOf($('html'))).toBe(
-      `[scrollbar-gutter:stable] [--root-bg:var(--color-base-200)] ${media}:scroll-pt-[calc(var(--sticky-top,15rem)+3rem)]`
+      `[scrollbar-gutter:stable] [--root-bg:var(--color-base-200)] scroll-pt-14 lg:scroll-pt-0 ${media}:scroll-pt-[calc(var(--sticky-top,11.5rem)+3rem)]`
     )
   })
 
@@ -2646,8 +2659,10 @@ describe('viewEventsRoute', () => {
     expect(flatten(brand.text())).toBe('Grants Platform')
     expect(brand.attr('class')).toContain('font-bold')
     expect(brand.attr('href')).toBe('/dev-ops')
-    expect(brand.closest('.navbar-start')).toHaveLength(1)
-    expect($('header').attr('class')).toContain('navbar')
+    expect(brand.closest('[data-testid="do-sidebar"]')).toHaveLength(1)
+    expect(
+      flatten($('header.navbar [data-testid="do-bar-brand"]').text())
+    ).toBe('Grants Platform')
     expect(brand.text()).not.toContain('fg-grants-platform-admin')
   })
 
@@ -2730,8 +2745,15 @@ describe('viewEventsRoute', () => {
     expect(row.hasClass('cursor-pointer')).toBe(true)
     expect(link.hasClass('after:absolute')).toBe(true)
     expect(link.hasClass('after:inset-0')).toBe(true)
-    expect(id.hasClass('relative')).toBe(true)
     expect(id.hasClass('w-fit')).toBe(true)
+  })
+
+  test('lifts nothing in a row over its link, so a click on the id, status or time opens it', async () => {
+    const { $ } = await viewPage()
+
+    for (const item of $('[data-testid="event-row"]').toArray()) {
+      expect(liftedOver($, $(item))).toEqual([])
+    }
   })
 
   test('outlines a keyboard-focused row, and not its link', async () => {
@@ -2860,7 +2882,10 @@ describe('viewEventsRoute', () => {
     expect(badge.attr('class')).not.toContain('badge-warning')
     expect(badge.attr('title')).toBe('This is the local environment')
     expect(badge.prev().attr('data-testid')).toBe('do-brand')
-    expect(badge.closest('.navbar-start')).toHaveLength(1)
+    expect(badge.closest('[data-testid="do-sidebar"]')).toHaveLength(1)
+    expect(
+      $('[data-testid="do-bar-environment"]').prev().attr('data-testid')
+    ).toBe('do-bar-brand')
   })
 
   test('warns in amber when the environment is prod', async () => {
@@ -2872,6 +2897,9 @@ describe('viewEventsRoute', () => {
 
     expect(badge.text().trim()).toBe('prod')
     expect(badge.attr('class')).toContain('badge-warning')
+    expect($('[data-testid="do-bar-environment"]').attr('class')).toContain(
+      'badge-warning'
+    )
   })
 
   test.each(['dev', 'test', 'perf-test', 'local'] as const)(
@@ -2887,32 +2915,132 @@ describe('viewEventsRoute', () => {
     }
   )
 
-  test('links the areas from the bar, Events marked as this one', async () => {
+  test('links the areas from the sidebar, grouped, Events marked as this one', async () => {
     const { $ } = await viewPage()
 
-    const nav = $('header nav[data-testid="do-nav"]')
+    const nav = $('[data-testid="do-sidebar"] nav[data-testid="do-nav"]')
 
     expect(nav.attr('aria-label')).toBe('Dev ops')
     expect(
       nav
-        .find('a')
-        .map((_, link) => `${$(link).text()} ${$(link).attr('href')}`)
+        .find('li')
+        .map((_, item) =>
+          $(item).hasClass('menu-title')
+            ? `# ${flatten($(item).text())}`
+            : `${flatten($(item).text())} ${$(item).find('a').attr('href')}`
+        )
         .get()
     ).toEqual([
+      '# Operations',
+      'Events /dev-ops/events',
+      '# Records',
       'Applications /dev-ops/applications',
-      'Cases /dev-ops/cases',
-      'Events /dev-ops/events'
+      'Cases /dev-ops/cases'
     ])
-    expect(nav.find('[aria-current="page"]').text()).toBe('Events')
-    expect(nav.find('[aria-current="page"]').hasClass('tab-active')).toBe(true)
+    expect(nav.find('[aria-current="page"]').attr('data-testid')).toBe(
+      'do-nav-events'
+    )
+    expect(nav.find('[aria-current="page"]').hasClass('menu-active')).toBe(true)
+    expect(nav.find('.menu-active')).toHaveLength(1)
   })
 
-  test('offers no Sign out in the bar, only the theme toggle', async () => {
+  test('puts the sidebar ahead of the page in the source, after the skip link', async () => {
     const { $ } = await viewPage()
 
-    expect($('header a[href="/auth/logout"]')).toHaveLength(0)
-    expect($('header').text()).not.toContain('Sign out')
-    expect($('header do-theme-toggle')).toHaveLength(1)
+    expect($('body > a').first().attr('href')).toBe('#main-content')
+    expect(
+      $('[data-testid="do-drawer"]')
+        .children()
+        .toArray()
+        .map((child) => $(child).attr('class'))
+    ).toEqual([
+      'drawer-toggle',
+      'drawer-side z-40',
+      'drawer-content flex min-h-dvh flex-col'
+    ])
+  })
+
+  test('opens the sidebar below lg from a named hamburger, and closes it from a named overlay', async () => {
+    const { $ } = await viewPage()
+
+    const toggle = $('[data-testid="do-drawer-toggle"]')
+    const open = $('header.navbar [data-testid="do-drawer-open"]')
+    const close = $('[data-testid="do-drawer-close"]')
+
+    expect(toggle.attr('type')).toBe('checkbox')
+    expect(toggle.attr('aria-label')).toBe('Show navigation')
+    expect(open.is('label')).toBe(true)
+    expect(open.attr('for')).toBe(toggle.attr('id'))
+    expect(open.attr('aria-label')).toBe('Open navigation')
+    expect(open.hasClass('drawer-button')).toBe(true)
+    expect(open.find('[data-testid="do-icon-menu"]')).toHaveLength(1)
+    expect(close.attr('for')).toBe(toggle.attr('id'))
+    expect(close.attr('aria-label')).toBe('Close navigation')
+    expect($('header.navbar').hasClass('lg:hidden')).toBe(true)
+  })
+
+  test('names the signed in operator in an account menu at the foot of the sidebar', async () => {
+    const { $ } = await viewPage()
+
+    const button = $(
+      '[data-testid="do-sidebar"] [data-testid="do-user-button"]'
+    )
+    const panel = $('[data-testid="do-user-panel"]')
+
+    expect(button.attr('popovertarget')).toBe(panel.attr('id'))
+    expect(button.attr('aria-label')).toBe('Account: Ada Lovelace')
+    expect(panel.is('[popover]')).toBe(true)
+    expect(flatten($('[data-testid="do-user-name"]').text())).toBe(
+      'Ada Lovelace'
+    )
+    expect($('details')).toHaveLength(0)
+    expect($('[data-testid="do-sidebar-foot"] do-theme-toggle')).toHaveLength(1)
+  })
+
+  test('signs out from the account menu', async () => {
+    const { $ } = await viewPage()
+
+    const signOut = $('[data-testid="do-sign-out"]')
+
+    expect(signOut.attr('href')).toBe(logoutPath)
+    expect(flatten(signOut.text())).toBe('Sign out')
+    expect(signOut.closest('[data-testid="do-user-panel"]')).toHaveLength(1)
+    expect($(`a[href="${logoutPath}"]`)).toHaveLength(1)
+  })
+
+  test('shows the email under the name, and the email alone when there is no name', async () => {
+    const signedInAs = async (user: object) => {
+      const { result } = await server.inject({
+        method: 'GET',
+        url: '/dev-ops/events',
+        auth: {
+          strategy: 'session',
+          credentials: { user, scope: ['FCP.GrantOperationsAdmin'] }
+        }
+      })
+
+      return load(result as unknown as string)
+    }
+
+    const both = await signedInAs({
+      name: 'Ada Lovelace',
+      email: 'ada@example.gov.uk'
+    })
+    const emailOnly = await signedInAs({ email: 'ada@example.gov.uk' })
+    const neither = await signedInAs({ id: 'c5afd049' })
+
+    expect(both('[data-testid="do-user-email"]').text()).toBe(
+      'ada@example.gov.uk'
+    )
+    expect(both('[data-testid="do-user-button"]').text()).toContain('AL')
+    expect(emailOnly('[data-testid="do-user-name"]').text()).toBe(
+      'ada@example.gov.uk'
+    )
+    expect(emailOnly('[data-testid="do-user-email"]')).toHaveLength(0)
+    expect(neither('[data-testid="do-user"]')).toHaveLength(0)
+    expect(
+      neither('[data-testid="do-sidebar-foot"] do-theme-toggle')
+    ).toHaveLength(1)
   })
 
   test("draws the bar at md, under the page's own heading in size", async () => {

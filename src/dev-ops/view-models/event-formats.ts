@@ -256,6 +256,23 @@ export const toTimestamp = (value: string | null, now: Date): Timestamp => {
   }
 }
 
+/** A time as every list draws it: relative, with the clock under it. */
+export interface TimeCell extends Timestamp {
+  clock: string
+}
+
+/** Only an ISO instant is read as a time; anything else is shown as stored, so a malformed date is never read as another. */
+export const toTimeCell = (value: string, now: Date): TimeCell =>
+  isIsoInstant(value)
+    ? { ...toTimestamp(value, now), clock: toClock(new Date(value), now) }
+    : { text: value || '""', instant: '', precise: '', clock: '' }
+
+/** Null when nothing is stored, which a list draws as a dash. */
+export const toStoredTimeCell = (
+  value: string | null,
+  now: Date
+): TimeCell | null => (value === null ? null : toTimeCell(value, now))
+
 /** No other filter, so a Dead letter page does not hide the rest; audit rows only find audit rows when included. */
 export const toSearchHref = (value: string, includeAudit = false): string =>
   `/dev-ops/events?q=${encodeURIComponent(value)}${includeAudit ? '&audit=include' : ''}`

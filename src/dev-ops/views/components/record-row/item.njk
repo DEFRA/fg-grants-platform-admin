@@ -1,0 +1,22 @@
+{% from "event-row/macro.njk" import createdAt %}
+{% from "status-text/macro.njk" import statusText %}
+{% from "./shared.njk" import ref, replaced, itemClass %}
+
+{%- set row = params.row -%}
+{%- set prefix = params.prefix -%}
+<li class="{{ itemClass if row.href else 'list-row' }}" data-testid="{{ prefix }}-item">
+  <div class="list-col-grow flex min-w-0 flex-col gap-1">
+    <div class="flex flex-wrap items-baseline justify-between gap-x-3">
+      {{ ref(row, prefix, params.codeKey) }}
+      {% if params.codeKey %}<span class="font-mono text-xs text-base-content/70">{{ row.code }}</span>{% endif %}
+    </div>
+    <div class="flex flex-wrap items-center justify-between gap-2">
+      <span class="flex items-center gap-2">{% if params.detailed !== false %}{{ statusText({ statusLabel: row.statusLabel, positionLabel: row.positionLabel, testId: prefix ~ "-status-label" }) }}{% endif %}{{ replaced(row) }}</span>
+      {% if params.detailed !== false and row.created %}
+        {{ createdAt({ text: row.created.text, instant: row.created.instant, precise: row.created.precise, testId: prefix ~ "-item-created" }) }}
+      {% elif params.detailed !== false %}
+        <span class="font-mono text-sm text-base-content/70" data-testid="{{ prefix }}-item-created-none">—</span>
+      {% endif %}
+    </div>
+  </div>
+</li>

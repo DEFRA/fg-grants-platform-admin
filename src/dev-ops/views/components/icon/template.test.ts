@@ -54,6 +54,22 @@ describe('icon component', () => {
     expect($icon('[data-testid="do-icon-sun"]').attr('class')).toBeUndefined()
   })
 
+  test.each([
+    ['menu', 3],
+    ['file-text', 5],
+    ['folder', 1],
+    ['activity', 1],
+    ['log-out', 3]
+  ])('renders the shell icon %s as a stroked lucide svg', (name, paths) => {
+    const svg = render('icon', { name, class: 'size-4' })(
+      `[data-testid="do-icon-${name}"]`
+    )
+
+    expect(svg.attr('stroke')).toBe('currentColor')
+    expect(svg.attr('aria-hidden')).toBe('true')
+    expect(svg.find('path')).toHaveLength(paths)
+  })
+
   test('throws for a name the set does not hold', () => {
     expect(() => render('icon', { name: 'unicorn' })).toThrow(
       'template not found'

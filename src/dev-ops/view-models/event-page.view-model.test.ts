@@ -2479,13 +2479,18 @@ describe('the message an edit leaves behind', () => {
 
 describe('the record link', () => {
   test.each([
-    ['application', 'View application', '/dev-ops/applications/woodland/f02'],
-    ['case', 'View case', '/dev-ops/cases/woodland/f02']
-  ] as const)('links an %s with its own label', (kind, label, href) => {
+    [
+      'application',
+      'Application',
+      'View application',
+      '/dev-ops/applications/woodland/f02'
+    ],
+    ['case', 'Case', 'View case', '/dev-ops/cases/woodland/f02']
+  ] as const)('links an %s with its own label', (kind, title, label, href) => {
     expect(
       model(found(detail({ record: { kind, code: 'woodland', ref: 'f02' } })))
         .recordLink
-    ).toEqual({ href, label })
+    ).toEqual({ href, title, label })
   })
 
   test('throws, naming the kind, on a record kind it does not know', () => {
