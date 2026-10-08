@@ -90,6 +90,11 @@ interface ConfigSchema {
     serviceToken: string
     timeoutMs: number
   }
+  cw: {
+    apiUrl: string
+    serviceToken: string
+    timeoutMs: number
+  }
   logs: {
     explorerBaseUrl: string
   }
@@ -375,6 +380,27 @@ export const config = convict<ConfigSchema>({
       format: 'nat',
       default: 7000,
       env: 'GAS_API_TIMEOUT_MS'
+    }
+  },
+  cw: {
+    apiUrl: {
+      doc: 'Base url of fg-cw-backend, used to fetch caseworking user roles',
+      format: String,
+      default: 'http://localhost:3101',
+      env: 'CW_API_URL'
+    },
+    serviceToken: {
+      doc: 'Bearer token presented to fg-cw-backend',
+      format: String,
+      default: '',
+      sensitive: true,
+      env: 'CW_SERVICE_TOKEN'
+    },
+    timeoutMs: {
+      doc: 'How long to wait for fg-cw-backend before giving up, in milliseconds',
+      format: 'nat',
+      default: 5000,
+      env: 'CW_API_TIMEOUT_MS'
     }
   },
   logs: {

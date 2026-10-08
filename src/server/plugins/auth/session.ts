@@ -22,6 +22,7 @@ type EntraClaims = {
 export type Credentials = Request['auth']['credentials']
 
 const sessionKey = 'auth'
+const cwRolesKey = 'cwRoles'
 
 export const setAuthSession = (request: Request, session: OidcToken) => {
   const { accessToken, refreshToken, idToken, claims } = session
@@ -31,8 +32,18 @@ export const setAuthSession = (request: Request, session: OidcToken) => {
 export const getAuthSession = (request: Request): OidcToken | undefined =>
   request.yar.get(sessionKey) ?? undefined
 
+export const setCwRolesSession = (request: Request, roles: string[] | null) => {
+  request.yar.set(cwRolesKey, roles)
+}
+
+export const getCwRolesSession = (request: Request): string[] | null => {
+  const stored = request.yar.get(cwRolesKey)
+  return stored === undefined ? null : (stored as string[] | null)
+}
+
 export const clearAuthSession = (request: Request) => {
   request.yar.clear(sessionKey)
+  request.yar.clear(cwRolesKey)
 }
 
 // The claims come back from Redis as untyped JSON, so this asserts rather than
@@ -42,18 +53,23 @@ const claimsOf = (session: OidcToken) =>
 
 // Exposing the Entra ID `roles` claim as the credentials scope lets hapi
 // enforce the role requirements a route declares with `options.auth.scope`.
-export const toCredentials = (session: OidcToken): Credentials => {
-  const { oid, email = '', name = '', roles } = claimsOf(session)
+// CW roles are not merged into scope: they are per-grant and checked dynamically.
+const toRoles = (roles: unknown): string[] =>
+  Array.isArray(roles) ? roles : []
+
+export const toCredentials = (
+  session: OidcToken,
+  cwRoles: string[] | null = null
+): Credentials => {
+  const claims = claimsOf(session)
 
   const user = new User({
-    id: oid,
-    email,
-    name,
-    roles: Array.isArray(roles) ? roles : []
+    id: claims.oid,
+    email: claims.email ?? '',
+    name: claims.name ?? '',
+    roles: toRoles(claims.roles),
+    cwRoles
   })
 
-  return {
-    user,
-    scope: user.roles
-  }
+  return { user, scope: user.roles }
 }

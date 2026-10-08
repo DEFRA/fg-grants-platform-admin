@@ -7,6 +7,7 @@ import type {
   EntitlementTemplateField,
   SubmittedClaim
 } from '../use-cases/get-claims.use-case.ts'
+import type { ClaimsAccessTier } from './claims-access.ts'
 
 // Unit codes a grant definition may carry on a decimal field. Anything not
 // named here is shown as the definition spells it, which is more use to a case
@@ -89,15 +90,23 @@ export const toTypeLabel = (
   return unit ? (unitLabels[unit] ?? unit) : undefined
 }
 
+const createHrefFor = (base: string, claimCode: string): string =>
+  `${base}/claims/new-entitlement/${encodeURIComponent(claimCode)}#new-entitlement`
+
+const entitlementCount = (template: EntitlementTemplate): number =>
+  template.createdCount ?? 0
+
+const unavailableReasonFor = (capacityAvailable: boolean) =>
+  capacityAvailable ? undefined : 'Maximum created'
+
 const toEntitlementRow = (
   base: string,
-  template: EntitlementTemplate
+  template: EntitlementTemplate,
+  access: ClaimsAccessTier = 'full'
 ): EntitlementRow => {
-  // fg-gas-backend answers with the templates that are still under their
-  // maximum and does not yet report how many exist, so the count reads zero
-  // until it does.
-  const createdCount = template.createdCount ?? 0
-  const canCreate = createdCount < template.maxEntitlements
+  const createdCount = entitlementCount(template)
+  const capacityAvailable = createdCount < template.maxEntitlements
+  const canCreate = access === 'full' && capacityAvailable
 
   return {
     claimCode: template.claimCode,
@@ -106,10 +115,8 @@ const toEntitlementRow = (
     createdCount,
     maxEntitlements: template.maxEntitlements,
     canCreate,
-    createHref: canCreate
-      ? `${base}/claims/new-entitlement/${encodeURIComponent(template.claimCode)}#new-entitlement`
-      : undefined,
-    unavailableReason: canCreate ? undefined : 'Maximum created'
+    createHref: canCreate ? createHrefFor(base, template.claimCode) : undefined,
+    unavailableReason: unavailableReasonFor(capacityAvailable)
   }
 }
 
@@ -245,7 +252,8 @@ export const toClaimsPage = (
     availableEntitlements,
     claimableEntitlements,
     claims = []
-  }: Omit<Claims, 'claims'> & { banner: Banner; claims?: SubmittedClaim[] }
+  }: Omit<Claims, 'claims'> & { banner: Banner; claims?: SubmittedClaim[] },
+  access: ClaimsAccessTier = 'full'
 ): ClaimsPage => {
   const base = toBase(code, clientRef)
   const claimsHref = `${base}/claims`
@@ -257,7 +265,7 @@ export const toClaimsPage = (
     header: toHeader(banner),
     tabs: toTabs(claimsHref),
     entitlements: availableEntitlements.map((template) =>
-      toEntitlementRow(base, template)
+      toEntitlementRow(base, template, access)
     ),
     awaitingClaims: claimableEntitlements.map((claimableEntitlement) =>
       toAwaitingClaimRow(base, claimableEntitlement, availableEntitlements)

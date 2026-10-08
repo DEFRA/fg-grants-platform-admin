@@ -95,7 +95,8 @@ describe('toCredentials', () => {
       id: 'user-id',
       email: 'ada@example.com',
       name: 'Ada Lovelace',
-      roles: ['FCP.GrantOperationsAdmin']
+      roles: ['FCP.GrantOperationsAdmin'],
+      cwRoles: null
     })
   })
 
@@ -120,7 +121,8 @@ describe('toCredentials', () => {
       id: 'user-id',
       email: '',
       name: '',
-      roles: []
+      roles: [],
+      cwRoles: null
     })
   })
 
@@ -142,7 +144,13 @@ describe('toCredentials', () => {
   test('survives a token carrying no claims', () => {
     const { user, scope } = toCredentials(tokens as unknown as OidcToken)
 
-    expect(user).toEqual({ id: undefined, email: '', name: '', roles: [] })
+    expect(user).toEqual({
+      id: undefined,
+      email: '',
+      name: '',
+      roles: [],
+      cwRoles: null
+    })
     expect(scope).toEqual([])
   })
 })
