@@ -2,7 +2,7 @@ import type {
   ClaimableEntitlement,
   EntitlementTemplate,
   EntitlementTemplateField
-} from '../repositories/claims.repository.ts'
+} from '../use-cases/get-claims.use-case.ts'
 
 export const createdNoticeKey = 'claimableItemCreated'
 
