@@ -1,5 +1,5 @@
 import { config } from './config.ts'
-import { currentGasActor } from './gas-actor.ts'
+import { currentGasActor, toHeaderActor } from './gas-actor.ts'
 import { wreck } from './wreck.ts'
 
 /** No actor sends no `x-actor`: a blank one would claim nobody asked. */
@@ -9,26 +9,27 @@ export interface GasWriteOptions {
   headers?: Record<string, string>
 }
 
-/** Node refuses header values outside U+0020–U+00FF. */
-const HEADER_SAFE = /^[\u0020-\u00ff]*$/
-
-/** RFC 8187-encoded only when a name like `Łukasz` would not fit a header; GAS decodes the prefix. */
-export const toHeaderActor = (actor: string): string =>
-  HEADER_SAFE.test(actor) ? actor : `UTF-8''${encodeURIComponent(actor)}`
+export { toHeaderActor }
 
 /**
  * The service token, and the operator the call is made for: GAS audits every
  * read and write under their Entra object id. A name passed in wins over the
  * request's, as a write names the person it was made by.
  */
+const rolesHeader = (cwRoles?: string[] | null): Record<string, string> =>
+  Array.isArray(cwRoles) && cwRoles.length > 0
+    ? { 'x-user-roles': cwRoles.join(',') }
+    : {}
+
 const toHeaders = (actor?: string): Record<string, string> => {
-  const { name, id } = currentGasActor()
+  const { name, id, cwRoles } = currentGasActor()
   const shown = actor ?? name
 
   return {
     authorization: `Bearer ${config.get('gas.serviceToken')}`,
     ...(shown ? { 'x-actor': toHeaderActor(shown) } : {}),
-    ...(id ? { 'x-actor-id': id } : {})
+    ...(id ? { 'x-actor-id': id } : {}),
+    ...rolesHeader(cwRoles)
   }
 }
 

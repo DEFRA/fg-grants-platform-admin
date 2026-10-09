@@ -5,8 +5,7 @@ import type {
   ServerRoute
 } from '@hapi/hapi'
 
-import { asGasActor } from './gas-actor.ts'
-import { toGasActor } from './view-models/actor.ts'
+import { asGasActor, toGasActor } from './gas-actor.ts'
 
 /**
  * Runs each handler as the signed in operator, so every GAS call it makes

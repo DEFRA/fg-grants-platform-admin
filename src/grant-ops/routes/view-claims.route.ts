@@ -2,6 +2,7 @@ import Boom from '@hapi/boom'
 import type { Request, ResponseToolkit, ServerRoute } from '@hapi/hapi'
 import Joi from 'joi'
 
+import { resolveClaimsAccess } from '../view-models/claims-access.ts'
 import {
   createdNoticeKey,
   refusedNoticeKey,
@@ -18,6 +19,30 @@ interface ClaimsParams {
   clientRef: string
 }
 
+const cwRolesOf = (request: Request): string[] | null | undefined =>
+  (request.auth.credentials.user as { cwRoles?: string[] | null })?.cwRoles
+
+const resolveVisibleAccess = (
+  request: Request,
+  claimsRequiredRoles: Parameters<typeof resolveClaimsAccess>[1]
+) => {
+  if (cwRolesOf(request) === null && claimsRequiredRoles) {
+    throw Boom.serverUnavailable(
+      'Caseworking roles could not be determined — try signing out and back in'
+    )
+  }
+
+  const access = resolveClaimsAccess(cwRolesOf(request), claimsRequiredRoles)
+
+  if (access === 'hidden') {
+    throw Boom.forbidden(
+      'You do not have the required roles to view claims for this grant'
+    )
+  }
+
+  return access
+}
+
 export const viewClaimsRoute: ServerRoute = {
   method: 'GET',
   path: '/grant-ops/grants/{code}/applications/{clientRef}/claims',
@@ -32,13 +57,16 @@ export const viewClaimsRoute: ServerRoute = {
   async handler(request: Request, h: ResponseToolkit) {
     const { code, clientRef } = request.params as unknown as ClaimsParams
 
-    const { banner, ...claims } = await getClaimsUseCase(code, clientRef)
+    const { banner, claimsRequiredRoles, ...claims } = await getClaimsUseCase(
+      code,
+      clientRef
+    )
 
-    // backend answers 404 for grant with no page configuration, and this guards the case of an older backend
-    // that has no page config
     if (!banner) {
       throw Boom.notFound(`No claims page is configured for grant "${code}"`)
     }
+
+    const access = resolveVisibleAccess(request, claimsRequiredRoles)
 
     const [createdNotice] = request.yar.flash(createdNoticeKey)
     const [updatedNotice] = request.yar.flash(updatedNoticeKey)
@@ -48,7 +76,7 @@ export const viewClaimsRoute: ServerRoute = {
       ...toClaimsPageTitle(refusals),
       createdNotice,
       updatedNotice,
-      ...toClaimsPage(code, clientRef, { ...claims, banner })
+      ...toClaimsPage(code, clientRef, { ...claims, banner }, access)
     })
   }
 }
