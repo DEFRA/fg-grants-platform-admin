@@ -22,6 +22,27 @@ interface ClaimsParams {
 const cwRolesOf = (request: Request): string[] | null | undefined =>
   (request.auth.credentials.user as { cwRoles?: string[] | null })?.cwRoles
 
+const resolveVisibleAccess = (
+  request: Request,
+  claimsRequiredRoles: Parameters<typeof resolveClaimsAccess>[1]
+) => {
+  if (cwRolesOf(request) === null && claimsRequiredRoles) {
+    throw Boom.serverUnavailable(
+      'Caseworking roles could not be determined — try signing out and back in'
+    )
+  }
+
+  const access = resolveClaimsAccess(cwRolesOf(request), claimsRequiredRoles)
+
+  if (access === 'hidden') {
+    throw Boom.forbidden(
+      'You do not have the required roles to view claims for this grant'
+    )
+  }
+
+  return access
+}
+
 export const viewClaimsRoute: ServerRoute = {
   method: 'GET',
   path: '/grant-ops/grants/{code}/applications/{clientRef}/claims',
@@ -45,19 +66,7 @@ export const viewClaimsRoute: ServerRoute = {
       throw Boom.notFound(`No claims page is configured for grant "${code}"`)
     }
 
-    if (cwRolesOf(request) === null && claimsRequiredRoles) {
-      throw Boom.serverUnavailable(
-        'Caseworking roles could not be determined — try signing out and back in'
-      )
-    }
-
-    const access = resolveClaimsAccess(cwRolesOf(request), claimsRequiredRoles)
-
-    if (access === 'hidden') {
-      throw Boom.forbidden(
-        'You do not have the required roles to view claims for this grant'
-      )
-    }
+    const access = resolveVisibleAccess(request, claimsRequiredRoles)
 
     const [createdNotice] = request.yar.flash(createdNoticeKey)
     const [updatedNotice] = request.yar.flash(updatedNoticeKey)
