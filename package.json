@@ -1,7 +1,7 @@
 {
   "name": "fg-grants-platform-admin",
   "version": "0.0.0",
-  "description": "CDP Frontend Template",
+  "description": "FG Grants Platform Admin",
   "sideEffects": [
     "./src/dev-ops/client/focus-on-arrival.ts"
   ],
@@ -20,7 +20,6 @@
     "docker:dev": "npm run dev",
     "format": "prettier --write \"src/**/*.ts\" \"**/*.{ts,cjs,md,json,config.ts,test.ts}\"",
     "format:check": "prettier --check \"src/**/*.ts\" \"**/*.{ts,cjs,md,json,config.ts,test.ts}\"",
-    "git:pre-commit-hook": "npm run security-audit && npm run format:check && npm run typecheck && npm run lint && npm test",
     "typecheck": "tsc --noEmit",
     "lint": "run-s lint:js lint:scss",
     "lint:js": "eslint .",
@@ -33,7 +32,17 @@
     "server:debug": "nodemon --exec node --inspect-brk=0.0.0.0 --ext ts,json --legacy-watch --watch ./src --env-file-if-exists=.env ./src/main.ts",
     "prestart": "npm run build:frontend",
     "start": "NODE_ENV=production node .",
-    "setup:husky": "node -e \"try { (await import('husky')).default() } catch (e) { if (e.code !== 'ERR_MODULE_NOT_FOUND') throw e }\" --input-type module"
+    "setup:husky": "node -e \"try { (await import('husky')).default() } catch (e) { if (e.code !== 'ERR_MODULE_NOT_FOUND') throw e }\" --input-type module",
+    "prepare": "npm run setup:husky"
+  },
+  "lint-staged": {
+    "*.ts": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.js": "eslint --fix",
+    "*.scss": "stylelint --fix",
+    "*.{cjs,md,json}": "prettier --write"
   },
   "overrides": {
     "ts-api-utils": "3.0.0-rc.1"
@@ -91,6 +100,7 @@
     "eslint-plugin-import-x": "4.17.1",
     "happy-dom": "20.11.6",
     "husky": "9.1.7",
+    "lint-staged": "17.6.0",
     "neostandard": "0.13.0",
     "nodemon": "3.1.14",
     "npm-run-all": "4.1.5",

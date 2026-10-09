@@ -1,1 +1,4 @@
-npm run git:pre-commit-hook
+npx lint-staged
+npm run security-audit
+npm run typecheck
+npm test

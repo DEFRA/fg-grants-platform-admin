@@ -4,7 +4,10 @@
 [![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=DEFRA_fg-grants-platform-admin&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=DEFRA_fg-grants-platform-admin)
 [![Coverage](https://sonarcloud.io/api/project_badges/measure?project=DEFRA_fg-grants-platform-admin&metric=coverage)](https://sonarcloud.io/summary/new_code?id=DEFRA_fg-grants-platform-admin)
 
-Core delivery platform Node.js Frontend Template. Deploy
+Admin frontend for the Farming Grants platform. It has two areas:
+
+- **Grant ops**: view an application's claims, and add or change its claimable items until a claim is made against them.
+- **Dev ops**: browse platform events, applications and cases.
 
 - [Requirements](#requirements)
   - [Node.js](#nodejs)
@@ -93,11 +96,10 @@ npm install
 
 ### Git hooks
 
-Install git hooks (optional)
+`npm install` sets up the git hooks via husky. On each commit the pre-commit hook:
 
-```bash
-npm run git:hooks
-```
+- runs eslint, prettier and stylelint on staged files only (via lint-staged), fixing what it can
+- runs `npm run security-audit`, `npm run typecheck` and `npm test`
 
 ### Development
 
