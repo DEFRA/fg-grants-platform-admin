@@ -99,16 +99,27 @@ const logOutcome = (key: EventKey, { outcome }: EditResult) => {
   )
 }
 
+const saveEdit = async (
+  key: EventKey,
+  edit: PayloadEdit,
+  actor: string
+): Promise<EditResult> => {
+  try {
+    await editPayload(key, edit, actor)
+  } catch (error) {
+    return toOutcome(error)
+  }
+
+  return { outcome: 'saved', status: null, reason: null }
+}
+
 /** `actor` goes to the backend on `x-actor`, so `lastEdit` names a person. */
 export const editPayloadUseCase = async (
   key: EventKey,
   edit: PayloadEdit,
   actor: string
 ): Promise<EditResult> => {
-  const result = await editPayload(key, edit, actor).then(
-    (): EditResult => ({ outcome: 'saved', status: null, reason: null }),
-    toOutcome
-  )
+  const result = await saveEdit(key, edit, actor)
 
   logOutcome(key, result)
 
