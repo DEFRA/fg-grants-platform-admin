@@ -93,11 +93,10 @@ npm install
 
 ### Git hooks
 
-Install git hooks (optional)
+`npm install` sets up the git hooks via husky. On each commit the pre-commit hook:
 
-```bash
-npm run git:hooks
-```
+- runs eslint, prettier and stylelint on staged files only (via lint-staged), fixing what it can
+- runs `npm run security-audit`, `npm run typecheck` and `npm test`
 
 ### Development
 
