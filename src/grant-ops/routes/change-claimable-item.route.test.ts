@@ -129,6 +129,12 @@ afterAll(async () => {
 describe('changeClaimableItemRoute', () => {
   beforeEach(() => {
     givenEntitlement()
+    vi.mocked(findClaims).mockResolvedValue({
+      banner,
+      availableEntitlements: [template()],
+      claimableEntitlements: [entitlement()],
+      claims: [submittedClaim]
+    })
   })
 
   test('redirects an anonymous user to login', async () => {

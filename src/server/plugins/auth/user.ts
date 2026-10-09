@@ -17,10 +17,15 @@ export class User {
   // registration.
   roles: string[]
 
-  constructor({ id, email, name, roles }: User) {
+  // CW app roles fetched at login. `null` means the CW call failed (outage)
+  // and claims access is indeterminate; routes answer 503 in that case.
+  cwRoles: string[] | null
+
+  constructor({ id, email, name, roles, cwRoles = null }: User) {
     this.id = id
     this.email = email
     this.name = name
     this.roles = roles
+    this.cwRoles = cwRoles
   }
 }

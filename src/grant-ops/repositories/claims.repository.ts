@@ -62,12 +62,18 @@ export interface SubmittedClaim {
   submittedAt: string
 }
 
+export interface RequiredRoles {
+  allOf: string[]
+  anyOf: string[]
+}
+
 export interface Claims {
   // Absent until a grant configures a claims page.
   banner?: Banner
   availableEntitlements: EntitlementTemplate[]
   claimableEntitlements: ClaimableEntitlement[]
   claims: SubmittedClaim[]
+  claimsRequiredRoles?: RequiredRoles | null
 }
 
 export interface ClaimableEntitlement {
@@ -84,6 +90,7 @@ export interface ClaimableEntitlement {
 
 export interface Claim extends Omit<Claims, 'claims'> {
   entitlementTemplate: EntitlementTemplate
+  claimsRequiredRoles?: RequiredRoles | null
 }
 
 export interface ClaimableItem extends Claims {

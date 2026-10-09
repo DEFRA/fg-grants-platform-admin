@@ -1,5 +1,6 @@
 import type { Request, ResponseToolkit, Server, ServerRoute } from '@hapi/hapi'
 
+import { getCwRoles } from '../../../common/cw.ts'
 import { oidc } from './oidc.ts'
 import { sessionScheme } from './session-scheme.ts'
 import {
@@ -7,7 +8,11 @@ import {
   redirectCookieOptions,
   takeRedirectTo
 } from './redirect-cookie.ts'
-import { clearAuthSession, setAuthSession } from './session.ts'
+import {
+  clearAuthSession,
+  setAuthSession,
+  setCwRolesSession
+} from './session.ts'
 import { continuePage } from './continue-page.ts'
 import { signedOutPage } from './signed-out-page.ts'
 import {
@@ -48,6 +53,12 @@ const loginCallbackRoute: ServerRoute = {
     const credentials = await request.callback(h)
 
     setAuthSession(request, credentials)
+
+    const oid = (credentials.claims as Record<string, unknown>)?.oid
+    if (typeof oid === 'string') {
+      const cwRoles = await getCwRoles(oid)
+      setCwRolesSession(request, cwRoles)
+    }
 
     // The content type is left to hapi: blankie adds no content security
     // policy to a response whose type the handler set itself.
