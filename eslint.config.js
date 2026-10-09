@@ -13,8 +13,15 @@ export default [
   }),
   {
     files: ['**/*.ts'],
+    languageOptions: {
+      parserOptions: {
+        projectService: true,
+        tsconfigRootDir: import.meta.dirname
+      }
+    },
     rules: {
-      '@typescript-eslint/no-explicit-any': 'error'
+      '@typescript-eslint/no-explicit-any': 'error',
+      '@typescript-eslint/require-await': 'error'
     }
   },
   {
@@ -115,7 +122,10 @@ export default [
       'vitest/prefer-equality-matcher': 'error',
       'vitest/prefer-to-be': 'error',
       'vitest/prefer-to-contain': 'error',
-      'vitest/prefer-to-have-length': 'error'
+      'vitest/prefer-to-have-length': 'error',
+
+      // Stubs are async only to match the signature they stand in for.
+      '@typescript-eslint/require-await': 'off'
     }
   },
   {
