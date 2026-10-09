@@ -158,9 +158,11 @@ const formattedAmount = (
 const toAwaitingClaimRow = (
   base: string,
   claimableEntitlement: ClaimableEntitlement,
-  templates: EntitlementTemplate[]
+  templates: EntitlementTemplate[],
+  access: ClaimsAccessTier = 'full'
 ): AwaitingClaimRow => {
   const template = templateFor(claimableEntitlement.claimCode, templates)
+  const canChange = access === 'full' && claimableEntitlement.canEdit
 
   return {
     entitlementId: claimableEntitlement.entitlementId,
@@ -170,7 +172,7 @@ const toAwaitingClaimRow = (
       amountFieldFor(claimableEntitlement.data, template),
       template
     ),
-    changeHref: claimableEntitlement.canEdit
+    changeHref: canChange
       ? `${base}/claims/entitlements/${encodeURIComponent(claimableEntitlement.entitlementId)}/change#change-entitlement`
       : undefined
   }
@@ -268,7 +270,12 @@ export const toClaimsPage = (
       toEntitlementRow(base, template, access)
     ),
     awaitingClaims: claimableEntitlements.map((claimableEntitlement) =>
-      toAwaitingClaimRow(base, claimableEntitlement, availableEntitlements)
+      toAwaitingClaimRow(
+        base,
+        claimableEntitlement,
+        availableEntitlements,
+        access
+      )
     ),
     claimed: claims.map(toClaimedRow)
   }

@@ -22,14 +22,6 @@ interface ClaimsParams {
 const cwRolesOf = (request: Request): string[] | null | undefined =>
   (request.auth.credentials.user as { cwRoles?: string[] | null })?.cwRoles
 
-const assertCwRolesKnown = (request: Request) => {
-  if (cwRolesOf(request) === null) {
-    throw Boom.serverUnavailable(
-      'Caseworking roles could not be determined — try signing out and back in'
-    )
-  }
-}
-
 export const viewClaimsRoute: ServerRoute = {
   method: 'GET',
   path: '/grant-ops/grants/{code}/applications/{clientRef}/claims',
@@ -42,8 +34,6 @@ export const viewClaimsRoute: ServerRoute = {
     }
   },
   async handler(request: Request, h: ResponseToolkit) {
-    assertCwRolesKnown(request)
-
     const { code, clientRef } = request.params as unknown as ClaimsParams
 
     const { banner, claimsRequiredRoles, ...claims } = await getClaimsUseCase(
@@ -53,6 +43,12 @@ export const viewClaimsRoute: ServerRoute = {
 
     if (!banner) {
       throw Boom.notFound(`No claims page is configured for grant "${code}"`)
+    }
+
+    if (cwRolesOf(request) === null && claimsRequiredRoles) {
+      throw Boom.serverUnavailable(
+        'Caseworking roles could not be determined — try signing out and back in'
+      )
     }
 
     const access = resolveClaimsAccess(cwRolesOf(request), claimsRequiredRoles)

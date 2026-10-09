@@ -43,17 +43,17 @@ const assertFullClaimsAccess = async (
   code: string,
   clientRef: string
 ) => {
-  if (cwRolesOf(request) === null) {
-    throw Boom.serverUnavailable(
-      'Caseworking roles could not be determined — try signing out and back in'
-    )
-  }
-
   const overview = await getClaimsUseCase(code, clientRef)
   const access = resolveClaimsAccess(
     cwRolesOf(request),
     overview.claimsRequiredRoles
   )
+
+  if (cwRolesOf(request) === null && overview.claimsRequiredRoles) {
+    throw Boom.serverUnavailable(
+      'Caseworking roles could not be determined — try signing out and back in'
+    )
+  }
 
   if (access !== 'full') {
     throw Boom.forbidden(
