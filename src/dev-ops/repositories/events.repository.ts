@@ -1,5 +1,7 @@
 import { getFromGas, postToGas } from '../../common/gas.ts'
-import type { BadgeRole } from '../view-models/event-formats.ts'
+
+/** Named by meaning; the classes live in status-badge/template.njk, where Tailwind can see them. */
+export type BadgeRole = 'neutral' | 'info' | 'warning' | 'success' | 'error'
 
 export type EventService = 'gas' | 'caseworking'
 export type EventBox = 'inbox' | 'outbox'
