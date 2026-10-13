@@ -148,7 +148,7 @@ const toField = (
 })
 
 export const toAllowListForm = (
-  allowList: GrantAllowList,
+  allowList: Pick<GrantAllowList, 'grantCode' | 'global'>,
   submitted?: AllowListFormSubmission,
   errors: AllowListFieldError[] = []
 ): AllowListForm => {

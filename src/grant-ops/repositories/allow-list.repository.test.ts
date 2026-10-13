@@ -7,6 +7,7 @@ import {
 vi.mock(import('../../common/gas.ts'))
 
 const allowList = {
+  adminRole: 'ROLE_WOODLAND_ADMIN',
   grantCode: 'woodland',
   global: {
     sbi: ['106000033'],

@@ -47,7 +47,7 @@ const emptyAllowList = (grantCode: string) => ({
 interface PageOptions {
   activeTab: 'grant-setup' | 'who-can-apply'
   code: string
-  allowList: GrantAllowList
+  allowList: Pick<GrantAllowList, 'grantCode' | 'global'>
   submitted: AllowListFormSubmission | undefined
   errors: AllowListFieldError[]
   errorSummary: { text: string; href?: string }[]
@@ -73,13 +73,30 @@ const page = ({
   saved
 })
 
+const authorisedAllowList = async (request: Request, code: string) => {
+  const allowList = await getAllowListUseCase(code)
+  const { cwRoles } = request.auth.credentials.user as {
+    cwRoles?: string[] | null
+  }
+  if (
+    !allowList.adminRole ||
+    !Array.isArray(cwRoles) ||
+    !cwRoles.includes(allowList.adminRole)
+  ) {
+    throw Boom.forbidden(
+      'You do not have access to administration for this grant'
+    )
+  }
+  return allowList
+}
+
 export const viewAllowListRoute: ServerRoute = {
   method: 'GET',
   path: '/grant-ops/grants/{code}/admin',
   options: { validate: { params } },
   async handler(request: Request, h: ResponseToolkit) {
     const { code } = request.params as unknown as AllowListParams
-    const allowList = await getAllowListUseCase(code)
+    const allowList = await authorisedAllowList(request, code)
     const [saved] = request.yar.flash(allowListSavedKey)
     const [activeTab] = request.yar.flash(allowListActiveTabKey)
 
@@ -194,9 +211,7 @@ export const replaceAllowListRoute: ServerRoute = {
   options: { validate: { params, payload } },
   async handler(request: Request, h: ResponseToolkit) {
     const { code } = request.params as unknown as AllowListParams
-    // Permission is enforced by the real write below, not by a discarded
-    // read here: that pre-check doubled the GAS call on every save and
-    // recorded a VIEW_ALLOW_LIST audit for data nobody viewed.
+    await authorisedAllowList(request, code)
     const form = request.payload as AllowListFormSubmission
     const validated = validateAllowListForm(form)
 

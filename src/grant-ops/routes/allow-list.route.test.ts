@@ -16,10 +16,15 @@ vi.mock(import('../repositories/allow-list.repository.ts'))
 const url = '/grant-ops/grants/woodland/admin'
 const resetUrl = `${url}/reset`
 const credentials = {
-  user: { name: 'Ada Lovelace', id: 'operator-1' },
+  user: {
+    name: 'Ada Lovelace',
+    id: 'operator-1',
+    cwRoles: ['ROLE_WOODLAND_ADMIN']
+  },
   scope: ['FCP.GrantApplicationsAdmin']
 }
 const allowList = {
+  adminRole: 'ROLE_WOODLAND_ADMIN',
   grantCode: 'woodland',
   global: {
     sbi: ['106000033', '106000044'],
@@ -245,18 +250,48 @@ describe('replaceAllowListRoute', () => {
     vi.mocked(replaceGrantAllowList).mockResolvedValue(allowList)
   })
 
-  test('saves without first calling GAS to view the list', async () => {
+  test('loads the protected role before saving, like claims', async () => {
     await post({ sbi: '106000033', crn: '' })
 
-    expect(getGrantAllowList).not.toHaveBeenCalled()
+    expect(getGrantAllowList).toHaveBeenCalledWith('woodland')
   })
 
-  test('rejects an invalid payload locally without contacting GAS', async () => {
+  test('denies an invalid submission before rendering the form', async () => {
     vi.mocked(getGrantAllowList).mockRejectedValue(Boom.forbidden())
     const response = await post({ sbi: 'bad', crn: '' })
 
-    expect(response.statusCode).toBe(statusCodes.badRequest)
+    expect(response.statusCode).toBe(statusCodes.forbidden)
     expect(replaceGrantAllowList).not.toHaveBeenCalled()
+  })
+
+  test.each([[null], [undefined], [[]], [['OTHER']]])(
+    'denies a save without the configured Caseworking role: %j',
+    async (cwRoles) => {
+      const response = await server.inject({
+        method: 'POST',
+        url,
+        payload: { sbi: 'bad', crn: '' },
+        auth: {
+          strategy: 'session',
+          credentials: {
+            ...credentials,
+            user: { ...credentials.user, cwRoles }
+          }
+        }
+      })
+      expect(response.statusCode).toBe(403)
+      expect(replaceGrantAllowList).not.toHaveBeenCalled()
+    }
+  )
+
+  test('denies entry when the protected response has no admin role', async () => {
+    vi.mocked(getGrantAllowList).mockResolvedValue({
+      ...allowList,
+      adminRole: ''
+    })
+    const response = await viewPage()
+    expect(response.statusCode).toBe(403)
+    expect(response.$('textarea')).toHaveLength(0)
   })
 
   test('returns forbidden when GAS denies the write after the access check', async () => {

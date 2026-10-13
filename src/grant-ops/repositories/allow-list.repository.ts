@@ -6,6 +6,7 @@ export interface AllowListGlobal {
 }
 
 export interface GrantAllowList {
+  adminRole: string
   grantCode: string
   global: AllowListGlobal
 }

@@ -6,6 +6,7 @@ import {
 } from './allow-list-form.view-model.ts'
 
 const persisted: GrantAllowList = {
+  adminRole: 'ROLE_WOODLAND_ADMIN',
   grantCode: 'woodland',
   global: {
     sbi: ['106000033'],

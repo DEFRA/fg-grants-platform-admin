@@ -6,6 +6,7 @@ vi.mock(import('../repositories/allow-list.repository.ts'))
 describe('getAllowListUseCase', () => {
   test('returns the grant allow list from its repository', async () => {
     const allowList = {
+      adminRole: 'ROLE_WOODLAND_ADMIN',
       grantCode: 'woodland',
       global: { sbi: ['106000033'], crn: ['1042000000'] }
     }
