@@ -3,17 +3,11 @@ import type {
   Event,
   EventWithAttempts,
   EventDetail,
-  EventKey,
-  EventRow,
-  EventsPage,
-  EventsPageResponse,
-  ServiceFilter,
-  StatusFilter
+  EventKey
 } from './events.repository.ts'
 import {
   editPayload,
   findEvent,
-  findEventsPage,
   purgeEvent,
   redriveEvent,
   toEventKeyPath
@@ -45,214 +39,9 @@ const withAttempts: EventWithAttempts = {
   }
 }
 
-const row: EventRow = {
-  ...base,
-  latency: null,
-  latencyTitle: 'Queued to delivered to SNS'
-}
-
-const page: EventsPage = {
-  events: [row],
-  pagination: {
-    endCursor: 'END',
-    hasNextPage: true
-  },
-  sourceErrors: []
-}
-
-const statuses: StatusFilter[] = [
-  {
-    value: 'PUBLISHED',
-    label: 'Queued',
-    explainer: 'Queued, not yet claimed'
-  },
-  { value: 'PROCESSING', label: 'Processing', explainer: 'Claimed, in flight' },
-  { value: 'FAILED', label: 'Failed', explainer: 'Awaiting automatic retry' },
-  {
-    value: 'RESUBMITTED',
-    label: 'Resubmitted',
-    explainer: 'Queued for another retry cycle'
-  },
-  {
-    value: 'COMPLETED',
-    label: 'Completed',
-    explainer: 'Processed successfully'
-  },
-  {
-    value: 'DEAD_LETTER',
-    label: 'Dead letter',
-    explainer: 'Failed all retry attempts; needs a redrive'
-  }
-]
-
-const services: ServiceFilter[] = [
-  { value: 'gas', label: 'GAS' },
-  { value: 'caseworking', label: 'CW-BE' }
-]
-
-const composed: EventsPageResponse = {
-  ...page,
-  statuses,
-  services,
-  counts: {
-    PUBLISHED: 12,
-    PROCESSING: 3,
-    FAILED: 1,
-    RESUBMITTED: 0,
-    COMPLETED: 236196,
-    DEAD_LETTER: 7064
-  },
-  breakdown: { groups: [] },
-  sectionErrors: []
-}
-
-describe('findEventsPage query building', () => {
-  beforeEach(() => {
-    vi.mocked(getFromGas).mockResolvedValue(composed)
-  })
-
-  test('reads the composed page from fg-gas-backend', async () => {
-    await findEventsPage({ cursor: 'eyJ2IjoxfQ' })
-
-    expect(getFromGas).toHaveBeenCalledTimes(1)
-    expect(getFromGas).toHaveBeenCalledWith(
-      '/grant-admin/events/page?cursor=eyJ2IjoxfQ'
-    )
-  })
-
-  test('asks for the unfiltered page when given no parameters', async () => {
-    await findEventsPage({})
-
-    expect(getFromGas).toHaveBeenCalledWith('/grant-admin/events/page')
-  })
-
-  test('forwards the cursor, status and service', async () => {
-    await findEventsPage({
-      cursor: 'eyJ2IjoxfQ',
-      status: 'DEAD_LETTER',
-      service: 'gas'
-    })
-
-    expect(getFromGas).toHaveBeenCalledWith(
-      '/grant-admin/events/page?cursor=eyJ2IjoxfQ&status=DEAD_LETTER&service=gas'
-    )
-  })
-
-  test('leaves out a parameter that was not given', async () => {
-    await findEventsPage({ cursor: undefined, status: 'FAILED' })
-
-    expect(getFromGas).toHaveBeenCalledWith(
-      '/grant-admin/events/page?status=FAILED'
-    )
-  })
-
-  test('forwards a status the endpoint may reject', async () => {
-    await findEventsPage({ status: 'BOGUS' })
-
-    expect(getFromGas).toHaveBeenCalledWith(
-      '/grant-admin/events/page?status=BOGUS'
-    )
-  })
-
-  test('escapes a cursor containing url characters', async () => {
-    await findEventsPage({ cursor: 'a+b/c=' })
-
-    expect(getFromGas).toHaveBeenCalledWith(
-      '/grant-admin/events/page?cursor=a%2Bb%2Fc%3D'
-    )
-  })
-
-  test('escapes a status containing url characters', async () => {
-    await findEventsPage({ status: 'a&b=c' })
-
-    expect(getFromGas).toHaveBeenCalledWith(
-      '/grant-admin/events/page?status=a%26b%3Dc'
-    )
-  })
-
-  test('forwards both ends of the range as the endpoint takes them', async () => {
-    await findEventsPage({
-      from: '2026-06-16T09:00:00.000Z',
-      to: '2026-06-16T10:00:00.000Z'
-    })
-
-    expect(getFromGas).toHaveBeenCalledWith(
-      '/grant-admin/events/page?from=2026-06-16T09%3A00%3A00.000Z&to=2026-06-16T10%3A00%3A00.000Z'
-    )
-  })
-
-  test('forwards one end of the range without inventing the other', async () => {
-    await findEventsPage({ from: '2026-06-16T09:00:00.000Z' })
-
-    expect(getFromGas).toHaveBeenCalledWith(
-      '/grant-admin/events/page?from=2026-06-16T09%3A00%3A00.000Z'
-    )
-  })
-
-  test('returns the rows the backend answers with', async () => {
-    const { events, pagination } = await findEventsPage({})
-
-    expect({ events, pagination }).toEqual({
-      events: page.events,
-      pagination: page.pagination
-    })
-  })
-})
-
-describe('findEventsPage', () => {
-  beforeEach(() => {
-    vi.mocked(getFromGas).mockResolvedValue(composed)
-  })
-
-  test('forwards every filter the page is holding', async () => {
-    await findEventsPage({
-      cursor: 'eyJ2IjoxfQ',
-      status: 'DEAD_LETTER',
-      service: 'gas',
-      q: 'gld-9b2',
-      error: 'boom',
-      from: '2026-06-16T09:00:00.000Z',
-      to: '2026-06-16T10:00:00.000Z'
-    })
-
-    const [url] = vi.mocked(getFromGas).mock.calls[0]
-
-    expect(url).toContain('/grant-admin/events/page?')
-    for (const part of [
-      'cursor=eyJ2IjoxfQ',
-      'status=DEAD_LETTER',
-      'service=gas',
-      'q=gld-9b2',
-      'error=boom',
-      'from=2026-06-16T09%3A00%3A00.000Z',
-      'to=2026-06-16T10%3A00%3A00.000Z'
-    ]) {
-      expect(url).toContain(part)
-    }
-  })
-
-  test('returns every section the backend composed', async () => {
-    await expect(findEventsPage({})).resolves.toEqual(composed)
-  })
-
-  test('carries a null section and the reason it is null', async () => {
-    vi.mocked(getFromGas).mockResolvedValue({
-      ...composed,
-      counts: null,
-      sectionErrors: [{ section: 'counts', message: 'Bad Gateway' }]
-    })
-
-    const { counts, sectionErrors } = await findEventsPage({})
-
-    expect(counts).toBeNull()
-    expect(sectionErrors).toEqual([
-      { section: 'counts', message: 'Bad Gateway' }
-    ])
-  })
-})
-
 const detail: EventDetail = {
   ...withAttempts,
+  eventType: 'CaseStatusUpdated',
   attemptHistory: [
     {
       at: '2026-06-16T10:16:05.000Z',
@@ -454,31 +243,6 @@ describe('editPayload', () => {
     expect(postToGas).toHaveBeenCalledWith(
       '/grant-admin/events/a%2Fb/c%20d/e%3Ff/payload',
       expect.any(Object)
-    )
-  })
-})
-
-describe('findEventsPage with a failure filter', () => {
-  beforeEach(() => {
-    vi.mocked(getFromGas).mockResolvedValue(composed)
-  })
-
-  test('forwards the whole error message', async () => {
-    await findEventsPage({
-      status: 'DEAD_LETTER',
-      error: 'E11000 duplicate key error collection: gas.events index: id_1'
-    })
-
-    expect(getFromGas).toHaveBeenCalledWith(
-      '/grant-admin/events/page?status=DEAD_LETTER&error=E11000+duplicate+key+error+collection%3A+gas.events+index%3A+id_1'
-    )
-  })
-
-  test('escapes a message containing url characters', async () => {
-    await findEventsPage({ error: 'a&b=c' })
-
-    expect(getFromGas).toHaveBeenCalledWith(
-      '/grant-admin/events/page?error=a%26b%3Dc'
     )
   })
 })

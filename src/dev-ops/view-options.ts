@@ -4,6 +4,8 @@ import nunjucks from 'nunjucks'
 import { config } from '../common/config.ts'
 import { logoutPath } from '../server/plugins/auth/paths.ts'
 import { assets } from '../server/plugins/views/assets.ts'
+import { getCatalogueUseCase } from './use-cases/get-catalogue.use-case.ts'
+import { toHomeHref, toNavSections } from './view-models/bucket-nav.ts'
 import { toSignedInUser } from './view-models/signed-in-user.ts'
 import {
   buildViewOptions,
@@ -61,6 +63,8 @@ const context = async (request?: ViewContextRequest) => {
     environmentLabel,
     environmentIsProduction: environmentLabel === productionLabel,
     signedInUser: toSignedInUser(request?.auth?.credentials?.user),
+    navSections: toNavSections(await getCatalogueUseCase()),
+    homeHref: toHomeHref(await getCatalogueUseCase()),
     logoutPath,
     ...(await assets())
   }

@@ -1,7 +1,7 @@
 import { config } from '../../common/config.ts'
 import { logger } from '../../common/logger.ts'
-import { toEventKeyPath } from '../repositories/events.repository.ts'
 import type { EventKey } from '../use-cases/get-event.use-case.ts'
+import { toUrlService } from './event-address.ts'
 
 /**
  * `Europe/London` rather than a fixed offset, so the display follows the
@@ -270,13 +270,6 @@ export const toStoredTimeCell = (
   now: Date
 ): TimeCell | null => (value === null ? null : toTimeCell(value, now))
 
-/** No other filter, so a Dead letter page does not hide the rest; audit rows only find audit rows when included. */
-export const toSearchHref = (value: string, includeAudit = false): string =>
-  `/dev-ops/events?q=${encodeURIComponent(value)}${includeAudit ? '&audit=include' : ''}`
-
-export const toSearchTitle = (value: string, noun: string): string =>
-  `${value}\nShow every event with this ${noun}`
-
 /** The shared CDP logs pattern, so one link shows the trace across every service. */
 const indexPattern = 'e55f3890-5d4a-11ee-8f40-670c9b0b8093'
 
@@ -385,4 +378,4 @@ export const toGap = (from: string, to: string): string | null => {
 }
 
 export const toEventHref = (key: EventKey): string =>
-  `/dev-ops/events/${toEventKeyPath(key)}`
+  `/dev-ops/events/${toUrlService(key.service)}/${encodeURIComponent(key.box)}/${encodeURIComponent(key.id)}`

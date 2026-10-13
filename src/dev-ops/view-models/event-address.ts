@@ -1,8 +1,34 @@
 import Joi from 'joi'
 
+import type {
+  EventBox,
+  EventKey,
+  EventService
+} from '../use-cases/get-event.use-case.ts'
+
+const urlServices: Record<EventService, string> = {
+  gas: 'gas',
+  caseworking: 'cw'
+}
+
+/** A service as an event's URL spells it: CW's events are under `cw`, as its lists are. */
+export const toUrlService = (service: EventService): string =>
+  urlServices[service]
+
+/** The event an address checked by `eventAddress` names, with the service as fg-gas-backend spells it. */
+export const toEventKey = ({
+  service,
+  box,
+  id
+}: Record<string, string>): EventKey => ({
+  service: service === urlServices.caseworking ? 'caseworking' : 'gas',
+  box: box as EventBox,
+  id
+})
+
 /**
- * The address of one event, exactly as fg-gas-backend spells it, and the only
- * thing the two routes on that address share.
+ * The address of one event as its URL spells it, and the only thing the
+ * routes on that address share.
  *
  * Unlike the list's query, these *are* validated. A path is not a filter: a
  * service or a box outside the two each admits is not a query the endpoint
@@ -15,7 +41,9 @@ import Joi from 'joi'
  * validation contract that will one day disagree with itself.
  */
 export const eventAddress = {
-  service: Joi.string().valid('gas', 'caseworking').required(),
+  service: Joi.string()
+    .valid(...Object.values(urlServices))
+    .required(),
   box: Joi.string().valid('inbox', 'outbox').required(),
   id: Joi.string()
     .pattern(/^[0-9a-f]{24}$/)

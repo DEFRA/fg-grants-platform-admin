@@ -17,7 +17,7 @@ const isSamePage = (referrer: string, href: string): boolean => {
 }
 
 /**
- * The rendered `href` (see `toBackHref` in event-page.view-model.ts) already
+ * The rendered `href` (see `toSafeFrom` in event-page.view-model.ts) already
  * returns the operator to the list with its filters. What it cannot restore is
  * where they were *in* it: the scroll position, and any extra pages pulled in
  * by Load more. `history.back()` restores both, by serving the previous page

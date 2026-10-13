@@ -3,7 +3,7 @@ import Joi from 'joi'
 
 import type { EventKey } from '../use-cases/get-event.use-case.ts'
 import { redriveEventUseCase } from '../use-cases/redrive-event.use-case.ts'
-import { eventAddress } from '../view-models/event-address.ts'
+import { eventAddress, toEventKey } from '../view-models/event-address.ts'
 import { toEventHref } from '../view-models/event-formats.ts'
 import {
   redriveNoticeKey,
@@ -20,7 +20,7 @@ import { seeOther } from '../view-models/see-other.ts'
 const toRedirect = (key: EventKey, from: string): string => {
   const href = toEventHref(key)
 
-  return from === '' ? href : `${href}?from=${encodeURIComponent(from)}`
+  return from === '' ? href : `${href}?back=${encodeURIComponent(from)}`
 }
 
 /**
@@ -59,17 +59,17 @@ export const redriveEventRoute: ServerRoute = {
       // `.empty(null)` earns its place: hapi hands a body-less POST a payload
       // of `null`, and a Joi `default` only fires on `undefined` - so without
       // it, a POST with no body at all was a 400 rather than the "redrive and
-      // go back to the plain list" this claims to accept.
+      // go back to the first list" this claims to accept.
       payload: Joi.object({
-        from: Joi.string().allow('').max(fromMax).default('')
+        back: Joi.string().allow('').max(fromMax).default('')
       })
         .empty(null)
         .default({})
     }
   },
   async handler(request: Request, h: ResponseToolkit) {
-    const key = request.params as unknown as EventKey
-    const { from } = request.payload as { from?: string }
+    const key = toEventKey(request.params)
+    const { back: from } = request.payload as { back?: string }
     const result = await redriveEventUseCase(key, toActor(request))
 
     request.yar.flash(redriveNoticeKey, {

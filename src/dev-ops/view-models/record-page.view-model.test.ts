@@ -21,6 +21,7 @@ describe('toRecordPage', () => {
       applicationType,
       data({ sourceErrors: [{ hop: 'CW-BE Cases' }, { hop: 'CW-BE Inbox' }] }),
       'overview',
+      '',
       now
     )
 
@@ -53,6 +54,7 @@ describe('toRecordPage', () => {
         )
       }),
       'overview',
+      '',
       now
     )
 
@@ -80,6 +82,7 @@ describe('toRecordPage', () => {
         series: seriesOf(null, ['9d3-5b1-e08', 'f02-7d8-a61'], [])
       }),
       'overview',
+      '',
       now
     )
 
@@ -97,6 +100,7 @@ describe('toRecordPage', () => {
         )
       }),
       'overview',
+      '',
       now
     )
 
@@ -114,6 +118,7 @@ describe('toRecordPage', () => {
         )
       }),
       'overview',
+      '',
       now
     )
 
@@ -160,6 +165,7 @@ describe('toRecordPage', () => {
         )
       }),
       'overview',
+      '',
       now
     )
 
@@ -171,6 +177,7 @@ describe('toRecordPage', () => {
       caseType,
       data({ series: seriesOf('f02-7d8-a61', ['9d3-5b1-e08', 'f02-7d8-a61']) }),
       'overview',
+      '',
       now
     )
 
@@ -182,13 +189,13 @@ describe('toRecordPage', () => {
 
   test('links each tab off the record, marking the open one', () => {
     expect(
-      toRecordPage(caseType, data(), 'raw', now).tabs.map(
+      toRecordPage(caseType, data(), 'raw', '', now).tabs.map(
         ({ href, active }) => `${href} ${active}`
       )
     ).toEqual([
       '/dev-ops/cases/woodland/f02-7d8-a61 false',
-      '/dev-ops/cases/woodland/f02-7d8-a61?section=events false',
-      '/dev-ops/cases/woodland/f02-7d8-a61?section=raw true'
+      '/dev-ops/cases/woodland/f02-7d8-a61?tab=events false',
+      '/dev-ops/cases/woodland/f02-7d8-a61?tab=raw true'
     ])
   })
 
@@ -199,12 +206,14 @@ describe('toRecordPage', () => {
         sectionErrors: [{ section: 'raw', message: 'too large to show' }]
       }),
       'raw',
+      '',
       now
     )
     const failed = toRecordPage(
       caseType,
       data({ sectionErrors: [{ section: 'raw', message: 'Raw failed' }] }),
       'raw',
+      '',
       now
     )
 
@@ -220,19 +229,43 @@ describe('toRecordPage', () => {
 
   test('leaves Raw out on any other tab', () => {
     expect(
-      toRecordPage(caseType, data({ raw: { caseRef: 'x' } }), 'overview', now)
-        .raw
+      toRecordPage(
+        caseType,
+        data({ raw: { caseRef: 'x' } }),
+        'overview',
+        '',
+        now
+      ).raw
     ).toBeNull()
   })
 
-  test('links on to the events search when there are more events', () => {
+  test('says when there are more events than the tab shows', () => {
     expect(
       toRecordPage(
         caseType,
         data({ events: { rows: [], more: true } }),
         'events',
+        '',
         now
       ).events
-    ).toEqual({ rows: [], allHref: '/dev-ops/events?q=f02-7d8-a61' })
+    ).toEqual({ rows: [], more: true })
+  })
+
+  test('leaves the way back to the layout when opened from no list', () => {
+    expect(toRecordPage(caseType, data(), 'overview', '', now)).toMatchObject({
+      backHref: ''
+    })
+  })
+
+  test('goes back to the list it was opened from, and keeps it on every tab', () => {
+    const from = '/dev-ops/cases?workflow=woodland'
+    const page = toRecordPage(caseType, data(), 'overview', from, now)
+
+    expect(page.backHref).toBe(from)
+    expect(page.tabs.map(({ href }) => href)).toEqual([
+      '/dev-ops/cases/woodland/f02-7d8-a61?back=%2Fdev-ops%2Fcases%3Fworkflow%3Dwoodland',
+      '/dev-ops/cases/woodland/f02-7d8-a61?tab=events&back=%2Fdev-ops%2Fcases%3Fworkflow%3Dwoodland',
+      '/dev-ops/cases/woodland/f02-7d8-a61?tab=raw&back=%2Fdev-ops%2Fcases%3Fworkflow%3Dwoodland'
+    ])
   })
 })

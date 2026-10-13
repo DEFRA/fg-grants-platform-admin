@@ -47,6 +47,7 @@ const toCounterpartHref = ({ header }: ApplicationPage): string | null =>
 export const toApplicationPage = (
   page: ApplicationPage,
   tab: RecordTab,
+  from: string,
   now: Date = new Date()
 ): RecordPageModel =>
   toRecordPage(
@@ -77,5 +78,6 @@ export const toApplicationPage = (
       sectionErrors: page.sectionErrors
     },
     tab,
+    from,
     now
   )

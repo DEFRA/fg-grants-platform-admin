@@ -8,8 +8,11 @@ import { recordTabs } from '../use-cases/record-reads.ts'
 import type { RecordResult, RecordTab } from '../use-cases/record-reads.ts'
 import { toApplicationPage } from '../view-models/application-page.view-model.ts'
 import { applicationType } from '../view-models/applications-page.view-model.ts'
+import { getCatalogueUseCase } from '../use-cases/get-catalogue.use-case.ts'
+import { toBackBucket } from '../view-models/bucket-nav.ts'
 import { toCasePage } from '../view-models/case-page.view-model.ts'
 import { caseType } from '../view-models/cases-page.view-model.ts'
+import { toSafeFrom } from '../view-models/event-page.view-model.ts'
 import { recordPageCache } from '../view-models/list-filters.ts'
 import { slugFilterSchema } from '../view-models/record-filters.ts'
 import type { RecordPageModel } from '../view-models/record-page.view-model.ts'
@@ -20,8 +23,20 @@ interface RecordPageRoute<K, P> {
   /** The code and the ref, as the URL names them, e.g. `['code', 'clientRef']`. */
   params: [keyof K & string, keyof K & string]
   read: (key: K, tab: RecordTab) => Promise<RecordResult<P>>
-  toPage: (page: P, tab: RecordTab) => RecordPageModel
+  toPage: (page: P, tab: RecordTab, from: string) => RecordPageModel
 }
+
+interface RecordPageQuery {
+  tab: RecordTab
+  back?: string
+}
+
+/** The list a record's page sits under in the navigation: the one it goes back to. */
+const toNavActive = async (from: string): Promise<string | null> =>
+  toBackBucket(await getCatalogueUseCase(), from)?.id ?? null
+
+/** Longer than any list link this app builds for itself, and still bounded. */
+const fromMax = 2048
 
 /**
  * One tab of one record per render. A record GAS has not got is GPA's own 404
@@ -43,16 +58,20 @@ const recordPageRoute = <K, P>({
         [refParam]: slugFilterSchema.required()
       }),
       query: Joi.object({
-        section: Joi.string()
+        tab: Joi.string()
           .valid(...recordTabs)
-          .default('overview')
+          .default('overview'),
+        // Checked by `toSafeFrom`: a bad one falls back to the admin's root, not an error page.
+        back: Joi.string().allow('').max(fromMax)
       })
     }
   },
   async handler(request: Request, h: ResponseToolkit) {
     const key = request.params as unknown as K
-    const { section } = request.query as { section: RecordTab }
-    const { outcome, page } = await read(key, section)
+    const { tab, back } = request.query as unknown as RecordPageQuery
+    const from = toSafeFrom(back)
+    const { outcome, page } = await read(key, tab)
+    const navActive = await toNavActive(from)
 
     if (outcome === 'not-found') {
       throw Boom.notFound()
@@ -63,6 +82,8 @@ const recordPageRoute = <K, P>({
         pageTitle: record.title,
         record,
         ref: request.params[refParam],
+        backHref: from,
+        navActive,
         unavailable: true,
         timedOut: outcome === 'timed-out'
       })
@@ -70,7 +91,8 @@ const recordPageRoute = <K, P>({
 
     return h.view('record', {
       pageTitle: record.title,
-      ...toPage(page, section)
+      ...toPage(page, tab, from),
+      navActive
     })
   }
 })

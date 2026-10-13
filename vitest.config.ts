@@ -26,7 +26,8 @@ export default defineConfig({
         'babel.config.cjs',
         'src/types/**',
         'src/**/__mocks__/**',
-        'src/**/test-utils.ts'
+        'src/**/test-utils.ts',
+        'src/**/test-fixtures.ts'
       ]
     }
   }

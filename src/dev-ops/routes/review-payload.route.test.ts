@@ -8,6 +8,7 @@ import { devOps } from '../index.ts'
 import type { EventDetail } from '../use-cases/get-event.use-case.ts'
 import { getEventUseCase } from '../use-cases/get-event.use-case.ts'
 
+vi.mock(import('../use-cases/get-catalogue.use-case.ts'))
 vi.mock(import('../use-cases/get-event.use-case.ts'))
 
 const credentials = {
@@ -30,6 +31,7 @@ const event: EventDetail = {
   id,
   eventId: '3f2c1a0e-1111-2222-3333-444455556666',
   type: 'case.status.updated',
+  eventType: 'CaseStatusUpdated',
   targetTopic: 'gas__sns__update_case_status_fifo',
   status: 'DEAD_LETTER',
   statusLabel: 'Dead letter',
@@ -64,7 +66,7 @@ const review = async (fields: Record<string, string>, url = path) =>
     method: 'POST',
     url,
     payload: new URLSearchParams(
-      Object.entries({ revision: '3', from: '', ...fields }).map(
+      Object.entries({ revision: '3', back: '', ...fields }).map(
         ([name, value]) => [name, value.replace(/\n/g, '\r\n')]
       )
     ).toString(),
@@ -262,7 +264,7 @@ describe('reviewPayloadRoute', () => {
     expect(part($, 'event-edit-back').attr('formaction')).toBe(
       `${page}/payload/review#payload`
     )
-    expect(part($, 'event-edit-back').attr('name')).toBe('back')
+    expect(part($, 'event-edit-back').attr('name')).toBe('step')
     expect(part($, 'event-edit-back').attr('value')).toBe('edit')
   })
 
@@ -286,7 +288,7 @@ describe('reviewPayloadRoute', () => {
   test('goes back to the editor with the text as it was sent', async () => {
     const { $ } = await reviewPage({
       text: edited,
-      back: 'edit',
+      step: 'edit',
       note: 'half a note'
     })
 
@@ -393,7 +395,7 @@ describe('reviewPayloadRoute', () => {
   test('keeps the text when Back to editing finds the payload has changed', async () => {
     givenEvent({ payloadRevision: 4 })
 
-    const { $ } = await reviewPage({ text: edited, back: 'edit' })
+    const { $ } = await reviewPage({ text: edited, step: 'edit' })
 
     expect(part($, 'event-payload-editor-text').text()).toBe(edited)
     expect(valueOf($, 'event-payload-editor-alert')).toContain(
@@ -514,7 +516,7 @@ describe('reviewPayloadRoute', () => {
 
     const { $ } = await reviewPage({
       text: edited,
-      from: '?status=DEAD_LETTER'
+      back: '/dev-ops/events/gas/outbox?status=DEAD_LETTER'
     })
     const retry = part($, 'event-payload-held-retry')
 
@@ -526,7 +528,7 @@ describe('reviewPayloadRoute', () => {
     expect(part($, 'event-payload-held-form').attr('method')).toBe('post')
     expect(part($, 'event-payload-held-revision').attr('value')).toBe('3')
     expect(part($, 'event-payload-held-from').attr('value')).toBe(
-      '?status=DEAD_LETTER'
+      '/dev-ops/events/gas/outbox?status=DEAD_LETTER'
     )
   })
 
@@ -545,11 +547,13 @@ describe('reviewPayloadRoute', () => {
 
     const { $ } = await reviewPage({
       text: edited,
-      from: '?status=DEAD_LETTER'
+      back: '/dev-ops/events/gas/outbox?status=DEAD_LETTER'
     })
 
     expect($('h1').text()).toContain('Event not found')
-    expect($('a[href="/dev-ops/events?status=DEAD_LETTER"]')).toHaveLength(1)
+    expect(
+      $('a[href="/dev-ops/events/gas/outbox?status=DEAD_LETTER"]')
+    ).toHaveLength(1)
     expect(flatten(part($, 'event-payload-held-alert').text())).toBe(
       "Couldn't load the event. fg-gas-backend no longer has this event. Your changes haven't been saved. They're below, so you can copy them."
     )
@@ -638,19 +642,19 @@ describe('reviewPayloadRoute', () => {
   test('keeps the list query on the way back and through the form', async () => {
     const { $ } = await reviewPage({
       text: edited,
-      from: '?status=DEAD_LETTER'
+      back: '/dev-ops/events/gas/outbox?status=DEAD_LETTER'
     })
 
-    expect(part($, 'event-edit-from').attr('value')).toBe('?status=DEAD_LETTER')
-    expect(
-      $('[data-testid="do-back"] a, a[href^="/dev-ops/events?"]')
-        .first()
-        .attr('href')
-    ).toBe('/dev-ops/events?status=DEAD_LETTER')
+    expect(part($, 'event-edit-from').attr('value')).toBe(
+      '/dev-ops/events/gas/outbox?status=DEAD_LETTER'
+    )
+    expect(part($, 'event-back').attr('href')).toBe(
+      '/dev-ops/events/gas/outbox?status=DEAD_LETTER'
+    )
   })
 
   test.each([
-    ['in the editor', { text: edited, back: 'edit' }],
+    ['in the editor', { text: edited, step: 'edit' }],
     ['on the review', { text: edited }]
   ])(
     'warns %s when the stored payload is not plain JSON',
@@ -697,7 +701,7 @@ describe('reviewPayloadRoute', () => {
       2
     )
     const reviewed = await reviewPage({ text: hostile })
-    const back = await reviewPage({ text: hostile, back: 'edit' })
+    const back = await reviewPage({ text: hostile, step: 'edit' })
 
     expect(reviewed.$('main script')).toHaveLength(0)
     expect(back.$('main script')).toHaveLength(0)

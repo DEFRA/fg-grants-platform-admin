@@ -8,6 +8,7 @@ import { devOps } from '../index.ts'
 import type { EventDetail } from '../use-cases/get-event.use-case.ts'
 import { getEventUseCase } from '../use-cases/get-event.use-case.ts'
 
+vi.mock(import('../use-cases/get-catalogue.use-case.ts'))
 vi.mock(import('../use-cases/get-event.use-case.ts'))
 vi.mock(import('../../common/config.ts'))
 
@@ -26,6 +27,9 @@ const credentials = {
 const id = '665f1c2e9a1b2c3d4e5f6a7b'
 const path = `/dev-ops/events/gas/outbox/${id}`
 const inboxPath = `/dev-ops/events/gas/inbox/${id}`
+const listPath = '/dev-ops/events/gas/outbox'
+/** Opened from a list that filters by status and error name. */
+const listedPath = `${path}?back=${encodeURIComponent(listPath)}`
 
 const detail = (overrides: Partial<EventDetail> = {}): EventDetail => ({
   service: 'gas',
@@ -33,6 +37,7 @@ const detail = (overrides: Partial<EventDetail> = {}): EventDetail => ({
   id,
   eventId: '3f2c1a0e-1111-2222-3333-444455556666',
   type: 'case.status.updated',
+  eventType: 'CaseStatusUpdated',
   targetTopic: 'gas__sns__update_case_status_fifo',
   status: 'DEAD_LETTER',
   statusLabel: 'Dead letter',
@@ -189,6 +194,7 @@ describe('viewEventRoute', () => {
 
   test.each([
     ['a service it does not know', `/dev-ops/events/other/outbox/${id}`],
+    ['CW named as GAS names it', `/dev-ops/events/caseworking/inbox/${id}`],
     ['a box it does not know', `/dev-ops/events/gas/sideways/${id}`],
     ['an id that is not an object id', '/dev-ops/events/gas/outbox/nope'],
     ['an id of the wrong length', `/dev-ops/events/gas/outbox/${id}00`],
@@ -204,10 +210,8 @@ describe('viewEventRoute', () => {
     expect(getEventUseCase).not.toHaveBeenCalled()
   })
 
-  test('accepts a caseworking inbox address', async () => {
-    const { statusCode } = await viewPage(
-      `/dev-ops/events/caseworking/inbox/${id}`
-    )
+  test('reads a CW inbox address as the caseworking inbox', async () => {
+    const { statusCode } = await viewPage(`/dev-ops/events/cw/inbox/${id}`)
 
     expect(statusCode).toBe(statusCodes.ok)
     expect(getEventUseCase).toHaveBeenCalledWith({
@@ -252,8 +256,10 @@ describe('viewEventRoute', () => {
     expect(title.next().attr('data-testid')).toBe('event-header-status')
   })
 
-  test('heads an ApplicationCreated event with the type then the id on one line', async () => {
-    givenEvent(detail({ type: 'application.created' }))
+  test('heads an ApplicationCreated event with its stamped name then the id on one line', async () => {
+    givenEvent(
+      detail({ type: 'application.created', eventType: 'ApplicationCreated' })
+    )
 
     const { $ } = await viewPage()
     const title = $('[data-testid="event-title"]')
@@ -293,12 +299,12 @@ describe('viewEventRoute', () => {
     )
   })
 
-  test('heads an audit record with its name, and keeps its id', async () => {
-    givenEvent(detail({ type: 'audit' }))
+  test('heads an audit record with its stamped name, and keeps its id', async () => {
+    givenEvent(detail({ type: 'audit', eventType: 'Audit' }))
 
     const { $ } = await viewPage()
 
-    expect($('[data-testid="event-type-name"]').text()).toBe('AuditRecord')
+    expect($('[data-testid="event-type-name"]').text()).toBe('Audit')
     expect($('[data-testid="event-title"]').attr('title')).toBe('audit')
     expect($('[data-testid="event-id"]').text()).toBe(
       '3f2c1a0e-1111-2222-3333-444455556666'
@@ -306,8 +312,8 @@ describe('viewEventRoute', () => {
     expect($('[data-testid="event-header"]').text()).not.toContain('n/a')
   })
 
-  test('heads an event with no type at all by its id', async () => {
-    givenEvent(detail({ type: '' }))
+  test('heads an event that carries no stamp by its id, whatever its envelope says', async () => {
+    givenEvent(detail({ type: 'case.create', eventType: null }))
 
     const { $ } = await viewPage()
 
@@ -316,13 +322,24 @@ describe('viewEventRoute', () => {
     )
   })
 
-  test('names the unknown label like any other type', async () => {
-    givenEvent(detail({ type: 'unknown' }))
+  test('names a row no declaration covers as its list does, and never from the envelope', async () => {
+    givenEvent(detail({ type: 'unknown', eventType: 'Unrecognised' }))
 
     const { $ } = await viewPage()
 
-    expect($('[data-testid="event-type-name"]').text()).toBe('NoTypeRecorded')
+    expect($('[data-testid="event-type-name"]').text()).toBe('Unrecognised')
+    expect($('[data-testid="event-type-spoken"]').text()).toBe('Unrecognised')
     expect($('[data-testid="event-title"]').attr('title')).toBe('unknown')
+    expect($('title').text()).toContain('Unrecognised')
+  })
+
+  test('shows the stamp, not a name worked out from the envelope type, when the two differ', async () => {
+    givenEvent(detail({ type: 'case.create', eventType: 'UpdateCaseStatus' }))
+
+    const { $ } = await viewPage()
+
+    expect($('[data-testid="event-type-name"]').text()).toBe('UpdateCaseStatus')
+    expect($('[data-testid="event-title"]').attr('title')).toBe('case.create')
   })
 
   test('says the status as a solid badge in the header, never a soft one', async () => {
@@ -404,15 +421,14 @@ describe('viewEventRoute', () => {
     expect($('[data-testid="event-fact-transport"]')).toHaveLength(0)
   })
 
-  test('links the segregation ref at every event about the same thing', async () => {
+  test('shows the segregation ref as text: a search for it would be a post, never a link', async () => {
     givenEvent(inboxDetail())
 
     const { $ } = await viewPage(inboxPath)
 
     const ref = $('[data-testid="event-segregation-ref"]')
 
-    expect(ref.is('a')).toBe(true)
-    expect(ref.attr('href')).toBe('/dev-ops/events?q=GLD-9B2-BWS-grasslands')
+    expect(ref.is('span')).toBe(true)
     expect(ref.text()).toBe('GLD-9B2-BWS-grasslands')
   })
 
@@ -533,18 +549,15 @@ describe('viewEventRoute', () => {
     expect($('[data-testid="event-payload"]')).toHaveLength(1)
   })
 
-  test('links an outbox segregation ref at every event that shares it', async () => {
+  test('shows an outbox segregation ref as text too', async () => {
     givenEvent(detail({ segregationRef: 'GLD-9B2-BWS-grasslands' }))
 
     const { $ } = await viewPage()
 
     const ref = $('[data-testid="event-segregation-ref"]')
 
-    expect(ref.is('a')).toBe(true)
-    expect(ref.attr('href')).toBe('/dev-ops/events?q=GLD-9B2-BWS-grasslands')
-    expect(ref.attr('title')).toBe(
-      'GLD-9B2-BWS-grasslands\nShow every event with this segregation ref'
-    )
+    expect(ref.is('span')).toBe(true)
+    expect(ref.text()).toBe('GLD-9B2-BWS-grasslands')
   })
 
   test('draws a dash for an outbox row with no segregation ref', async () => {
@@ -779,12 +792,12 @@ describe('viewEventRoute', () => {
     )
   })
 
-  test('links back to the plain list when the page was opened cold', async () => {
+  test('links back to the first list when the page was opened cold', async () => {
     const { $ } = await viewPage()
 
     const back = $('[data-testid="event-back"]')
 
-    expect(back.attr('href')).toBe('/dev-ops/events')
+    expect(back.attr('href')).toBe('/dev-ops/events/gas/outbox')
     expect(back.text().trim()).toBe('Back to events')
 
     const nav = $('[data-testid="event-back-nav"]')
@@ -797,27 +810,33 @@ describe('viewEventRoute', () => {
 
   test('puts the operator back on the list they left', async () => {
     const { $ } = await viewPage(
-      `${path}?from=${encodeURIComponent('?status=DEAD_LETTER&cursor=END')}`
+      `${path}?back=${encodeURIComponent('/dev-ops/events/gas/outbox?status=DEAD_LETTER&cursor=END')}`
     )
 
     expect($('[data-testid="event-back"]').attr('href')).toBe(
-      '/dev-ops/events?status=DEAD_LETTER&cursor=END'
+      '/dev-ops/events/gas/outbox?status=DEAD_LETTER&cursor=END'
     )
   })
 
   test.each([
     ['an absolute url', 'https://example.com/phish'],
     ['a protocol-relative url', '//example.com/phish'],
-    ['a path that is not a query', '/dev-ops/events?status=FAILED'],
-    ['a query hiding a protocol-relative url', '?a=b//example.com'],
+    ['a path outside the admin', '/grant-ops?status=FAILED'],
+    ['a query with no list', '?status=FAILED'],
+    [
+      'a list hiding a protocol-relative url',
+      '/dev-ops/events/gas/outbox?a=b//example.com'
+    ],
     ['an empty value', '']
   ])('drops %s from the back link', async (_name, from) => {
     const { statusCode, $ } = await viewPage(
-      `${path}?from=${encodeURIComponent(from)}`
+      `${path}?back=${encodeURIComponent(from)}`
     )
 
     expect(statusCode).toBe(statusCodes.ok)
-    expect($('[data-testid="event-back"]').attr('href')).toBe('/dev-ops/events')
+    expect($('[data-testid="event-back"]').attr('href')).toBe(
+      '/dev-ops/events/gas/outbox'
+    )
   })
 
   test('offers a redrive on the payload card of a dead-lettered event', async () => {
@@ -923,15 +942,17 @@ describe('viewEventRoute', () => {
 
   test('carries the list query through the confirmation', async () => {
     const { $ } = await viewPage(
-      `${path}?from=${encodeURIComponent('?status=DEAD_LETTER')}&confirm=redrive`
+      `${path}?back=${encodeURIComponent('/dev-ops/events/gas/outbox?status=DEAD_LETTER')}&confirm=redrive`
     )
 
     const hidden = $('[data-testid="event-redrive-from"]')
 
-    expect(hidden.attr('name')).toBe('from')
-    expect(hidden.attr('value')).toBe('?status=DEAD_LETTER')
+    expect(hidden.attr('name')).toBe('back')
+    expect(hidden.attr('value')).toBe(
+      '/dev-ops/events/gas/outbox?status=DEAD_LETTER'
+    )
     expect($('[data-testid="event-redrive-cancel"]').attr('href')).toBe(
-      `${path}?from=%3Fstatus%3DDEAD_LETTER#redrive`
+      `${path}?back=%2Fdev-ops%2Fevents%2Fgas%2Foutbox%3Fstatus%3DDEAD_LETTER#redrive`
     )
   })
 
@@ -945,18 +966,24 @@ describe('viewEventRoute', () => {
 
   test('carries a hostile from no further than the form', async () => {
     const { $ } = await viewPage(
-      `${path}?from=${encodeURIComponent('//example.com')}&confirm=redrive`
+      `${path}?back=${encodeURIComponent('//example.com')}&confirm=redrive`
     )
 
     expect($('[data-testid="event-redrive-from"]').attr('value')).toBe('')
   })
 
-  test('marks Events as the area in the header nav, as every page does', async () => {
-    const { $ } = await viewPage()
+  test('marks the list the event was opened from in the navigation', async () => {
+    const { $ } = await viewPage(listedPath)
 
     expect(
       $('[data-testid="do-nav"] [aria-current="page"]').text().trim()
-    ).toBe('Events')
+    ).toBe('Outbox')
+  })
+
+  test('marks no list in the navigation for an event opened cold', async () => {
+    const { $ } = await viewPage()
+
+    expect($('[data-testid="do-nav"] [aria-current="page"]')).toHaveLength(0)
   })
 
   test('shows no banner on a page nothing redirected to', async () => {
@@ -977,14 +1004,14 @@ describe('viewEventRoute', () => {
   test('renders a small page for an event that does not exist', async () => {
     givenOutcome('not-found')
 
-    const { statusCode, $ } = await viewPage()
+    const { statusCode, $ } = await viewPage(listedPath)
 
     expect(statusCode).toBe(statusCodes.ok)
     expect($('[data-testid="event-not-found"]').text()).toBe('Event not found')
     expect(
       $('[data-testid="do-nav"] [aria-current="page"]').text().trim()
-    ).toBe('Events')
-    expect($('[data-testid="event-back"]').attr('href')).toBe('/dev-ops/events')
+    ).toBe('Outbox')
+    expect($('[data-testid="event-back"]').attr('href')).toBe(listPath)
     expect($('[data-testid="event-payload-card"]')).toHaveLength(0)
   })
 
@@ -992,11 +1019,11 @@ describe('viewEventRoute', () => {
     givenOutcome('not-found')
 
     const { $ } = await viewPage(
-      `${path}?from=${encodeURIComponent('?status=FAILED')}`
+      `${path}?back=${encodeURIComponent(`${listPath}?status=FAILED`)}`
     )
 
     expect($('[data-testid="event-back"]').attr('href')).toBe(
-      '/dev-ops/events?status=FAILED'
+      `${listPath}?status=FAILED`
     )
   })
 
@@ -1004,10 +1031,12 @@ describe('viewEventRoute', () => {
     givenOutcome('not-found')
 
     const { $ } = await viewPage(
-      `${path}?from=${encodeURIComponent('https://example.com')}`
+      `${path}?back=${encodeURIComponent('https://example.com')}`
     )
 
-    expect($('[data-testid="event-back"]').attr('href')).toBe('/dev-ops/events')
+    expect($('[data-testid="event-back"]').attr('href')).toBe(
+      '/dev-ops/events/gas/outbox'
+    )
   })
 
   test('shows an error alert when the event could not be read', async () => {
@@ -1051,7 +1080,7 @@ describe('viewEventRoute', () => {
   })
 
   test.each([
-    ['a type', { type: xss }],
+    ['a stamped event type', { eventType: xss }],
     ['a trace id', { traceId: xss }],
     ['a segregation ref', { segregationRef: xss }],
     ['a status label', { statusLabel: xss }],
@@ -1345,7 +1374,7 @@ describe('viewEventRoute', () => {
     ).toContain('size-4 text-error [&>path:first-child]:fill-current')
   })
 
-  test('shows the whole failure the link searches for, and on its title', async () => {
+  test('shows the whole failure the link is for, and on its title', async () => {
     const whole = `E11000 duplicate key ${'x'.repeat(600)}`
 
     givenEvent(
@@ -1366,21 +1395,17 @@ describe('viewEventRoute', () => {
       })
     )
 
-    const { $ } = await viewPage()
+    const { $ } = await viewPage(listedPath)
 
     const attempt = $('[data-testid="event-attempt-error"]')
-    const searched = new URL(
-      $('[data-testid="event-error-search"]').attr('href') ?? '',
-      'http://dev-ops'
-    ).searchParams.get('error')
 
     expect(flatten(attempt.text())).toContain(whole)
     expect(attempt.attr('title')).toBe(`MongoServerError: ${whole}`)
-    expect(searched).toBe(whole)
+    expect($('[data-testid="event-error-search"]')).toHaveLength(1)
   })
 
   test('offers the shared failure link under the most recent attempt', async () => {
-    const { $ } = await viewPage()
+    const { $ } = await viewPage(listedPath)
 
     const link = $('[data-testid="event-error-search"]')
     const attempts = $('[data-testid="event-attempt"]')
@@ -1404,11 +1429,10 @@ describe('viewEventRoute', () => {
     expect(link.parent().attr('class')).toBe('mt-1')
   })
 
-  // `?error=` matches the whole message exactly: no truncating, ever.
   test('offers the link once, however many attempts failed the same way', async () => {
     givenEvent(detail({ attemptHistory: identicalAttempts }))
 
-    const { $ } = await viewPage()
+    const { $ } = await viewPage(listedPath)
 
     expect($('[data-testid="event-attempt"]')).toHaveLength(2)
     expect($('[data-testid="event-error-search"]')).toHaveLength(1)
@@ -1432,7 +1456,7 @@ describe('viewEventRoute', () => {
   test('offers the link under the no-history entry too', async () => {
     givenEvent(detail({ attemptHistory: [] }))
 
-    const { $ } = await viewPage()
+    const { $ } = await viewPage(listedPath)
 
     const link = $('[data-testid="event-error-search"]')
 
@@ -1891,7 +1915,7 @@ describe('viewEventRoute', () => {
   test('says an old dead letter predates the history, then its last error', async () => {
     givenEvent(detail({ attemptHistory: [] }))
 
-    const { $ } = await viewPage()
+    const { $ } = await viewPage(listedPath)
 
     expect($('[data-testid="event-attempt-list"]')).toHaveLength(0)
     expect(valueOf($, 'event-attempts-empty')).toBe(
@@ -2220,8 +2244,8 @@ describe('viewEventRoute', () => {
     expect($('[data-testid="event-fact-deletion-date"]')).toHaveLength(0)
   })
 
-  test('offers every other dead letter with this error', async () => {
-    const { $ } = await viewPage()
+  test('offers every dead letter with this error name, in the list the event came from', async () => {
+    const { $ } = await viewPage(listedPath)
     const link = $('[data-testid="event-error-search"]')
 
     expect(flatten(link.text())).toBe('Show all events with this error')
@@ -2230,29 +2254,43 @@ describe('viewEventRoute', () => {
       link.find('[data-testid="do-icon-arrow-right"]').attr('aria-hidden')
     ).toBe('true')
     expect(link.attr('href')).toBe(
-      '/dev-ops/events?error=E11000+duplicate+key+error+collection%3A+gas.events+index%3A+id_1'
+      `${listPath}?status=DEAD_LETTER&error=MongoServerError`
     )
   })
 
-  test('escapes a hostile message into the shared failure href rather than out of it', async () => {
+  test('offers no shared failure link on an event opened from no list', async () => {
+    const { $ } = await viewPage()
+
+    expect($('[data-testid="event-error-search"]')).toHaveLength(0)
+  })
+
+  test('offers no shared failure link from a list that does not filter by error name', async () => {
+    const { $ } = await viewPage(
+      `${path}?back=${encodeURIComponent('/dev-ops/applications')}`
+    )
+
+    expect($('[data-testid="event-error-search"]')).toHaveLength(0)
+  })
+
+  test('escapes a hostile error name into the shared failure href rather than out of it', async () => {
     givenEvent(
       detail({
         attemptHistory: [
           {
             at: '2026-06-16T10:16:05.000Z',
-            name: 'Error',
-            message: xss,
+            name: xss,
+            message: 'boom',
             stack: null
           }
         ],
-        lastError: { name: 'Error', message: xss, at: null }
+        lastError: { name: xss, message: 'boom', at: null }
       })
     )
 
-    const { $ } = await viewPage()
+    const { $ } = await viewPage(listedPath)
 
     expect($('[data-testid="event-error-search"]').attr('href')).toBe(
-      `/dev-ops/events?${new URLSearchParams({ error: xss })}`
+      `${listPath}?${new URLSearchParams({ status: 'DEAD_LETTER', error: xss })}`
     )
   })
 
@@ -2505,15 +2543,17 @@ describe('the purge confirmation', () => {
 
   test('carries the list query through the confirmation', async () => {
     const { $ } = await viewPage(
-      `${path}?from=${encodeURIComponent('?status=DEAD_LETTER')}&confirm=purge`
+      `${path}?back=${encodeURIComponent('/dev-ops/events/gas/outbox?status=DEAD_LETTER')}&confirm=purge`
     )
 
     const hidden = $('[data-testid="event-purge-from"]')
 
-    expect(hidden.attr('name')).toBe('from')
-    expect(hidden.attr('value')).toBe('?status=DEAD_LETTER')
+    expect(hidden.attr('name')).toBe('back')
+    expect(hidden.attr('value')).toBe(
+      '/dev-ops/events/gas/outbox?status=DEAD_LETTER'
+    )
     expect($('[data-testid="event-purge-cancel"]').attr('href')).toBe(
-      `${path}?from=%3Fstatus%3DDEAD_LETTER#purge`
+      `${path}?back=%2Fdev-ops%2Fevents%2Fgas%2Foutbox%3Fstatus%3DDEAD_LETTER#purge`
     )
   })
 
@@ -2527,7 +2567,7 @@ describe('the purge confirmation', () => {
 
   test('carries a hostile from no further than the form', async () => {
     const { $ } = await viewPage(
-      `${path}?from=${encodeURIComponent('//example.com')}&confirm=purge`
+      `${path}?back=${encodeURIComponent('//example.com')}&confirm=purge`
     )
 
     expect($('[data-testid="event-purge-from"]').attr('value')).toBe('')
@@ -2866,7 +2906,7 @@ describe('the edit button', () => {
     )
 
     const { $ } = await viewPage(
-      `${path}?from=${encodeURIComponent('?status=DEAD_LETTER')}`
+      `${path}?back=${encodeURIComponent('/dev-ops/events/gas/outbox?status=DEAD_LETTER')}`
     )
 
     const actions = $('[data-testid="event-payload-actions"] a')
@@ -2889,7 +2929,7 @@ describe('the edit button', () => {
       'btn btn-outline scroll-mt-4'
     )
     expect($('[data-testid="event-edit"]').attr('href')).toBe(
-      `${path}?from=%3Fstatus%3DDEAD_LETTER&edit=payload#payload`
+      `${path}?back=%2Fdev-ops%2Fevents%2Fgas%2Foutbox%3Fstatus%3DDEAD_LETTER&edit=payload#payload`
     )
   })
 
@@ -3036,7 +3076,7 @@ describe('the payload editor', () => {
       .inject({
         method: 'POST',
         url: `${path}/payload/review`,
-        payload: 'text=%7B&revision=2&from=',
+        payload: 'text=%7B&revision=2&back=',
         headers: { 'content-type': 'application/x-www-form-urlencoded' },
         auth: { strategy: 'session', credentials }
       })
@@ -3070,7 +3110,7 @@ describe('the payload editor', () => {
 
   test('posts the text, the revision and the list query to the review', async () => {
     const { $ } = await viewPage(
-      `${path}?edit=payload&from=${encodeURIComponent('?status=DEAD_LETTER')}`
+      `${path}?edit=payload&back=${encodeURIComponent('/dev-ops/events/gas/outbox?status=DEAD_LETTER')}`
     )
 
     const form = $('[data-testid="event-payload-editor-form"]')
@@ -3082,7 +3122,7 @@ describe('the payload editor', () => {
       $('[data-testid="event-payload-editor-revision"]').attr('value')
     ).toBe('2')
     expect($('[data-testid="event-payload-editor-from"]').attr('value')).toBe(
-      '?status=DEAD_LETTER'
+      '/dev-ops/events/gas/outbox?status=DEAD_LETTER'
     )
   })
 
@@ -3250,7 +3290,7 @@ describe('the record link', () => {
       })
     )
 
-    const { $ } = await viewPage(`/dev-ops/events/caseworking/outbox/${id}`)
+    const { $ } = await viewPage(`/dev-ops/events/cw/outbox/${id}`)
     const link = $('[data-testid="event-record-link"]')
 
     expect(flatten(recordFact($).find('dt').text())).toBe('Case')
@@ -3258,7 +3298,7 @@ describe('the record link', () => {
     expect(link.attr('href')).toBe('/dev-ops/cases/woodland/f02-7d8-a61')
   })
 
-  test('shows no record link for an event with no record, leaving the segregation ref to search with', async () => {
+  test('shows no record link for an event with no record, leaving the segregation ref to read', async () => {
     givenEvent(
       detail({
         service: 'caseworking',
@@ -3269,12 +3309,12 @@ describe('the record link', () => {
       })
     )
 
-    const { $ } = await viewPage(`/dev-ops/events/caseworking/inbox/${id}`)
+    const { $ } = await viewPage(`/dev-ops/events/cw/inbox/${id}`)
 
     expect(recordFact($)).toHaveLength(0)
     expect($('[data-testid="event-record-link"]')).toHaveLength(0)
-    expect($('[data-testid="event-segregation-ref"]').attr('href')).toBe(
-      '/dev-ops/events?q=f02-7d8-a61-woodland'
+    expect($('[data-testid="event-segregation-ref"]').text()).toBe(
+      'f02-7d8-a61-woodland'
     )
     expect($('main').text()).not.toContain('Related')
   })
