@@ -8,8 +8,10 @@ import {
   Tabs
 } from 'govuk-frontend'
 import { initAllowListCounts } from '../../grant-ops/client/allow-list-count.ts'
+import { selectDefaultAllowListTab } from '../../grant-ops/client/allow-list-tabs.ts'
 
 vi.mock(import('../../grant-ops/client/allow-list-count.ts'))
+vi.mock(import('../../grant-ops/client/allow-list-tabs.ts'))
 
 vi.mock(import('govuk-frontend'), () => ({
   createAll: vi.fn(),
@@ -32,6 +34,7 @@ describe('application', () => {
     expect(createAll).toHaveBeenCalledWith(SkipLink)
     expect(createAll).toHaveBeenCalledWith(Tabs)
     expect(createAll).toHaveBeenCalledTimes(6)
+    expect(selectDefaultAllowListTab).toHaveBeenCalledTimes(1)
     expect(initAllowListCounts).toHaveBeenCalledTimes(1)
   })
 })
