@@ -39,9 +39,10 @@ describe('parseAllowListForm', () => {
   })
 
   test('never refuses input itself - GAS is the sole judge of validity', () => {
-    expect(parseAllowListForm({ sbi: 'bad', crn: 'also bad' }).global).toEqual(
-      { sbi: ['bad'], crn: ['also bad'] }
-    )
+    expect(parseAllowListForm({ sbi: 'bad', crn: 'also bad' }).global).toEqual({
+      sbi: ['bad'],
+      crn: ['also bad']
+    })
   })
 })
 
