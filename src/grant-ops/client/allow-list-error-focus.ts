@@ -17,6 +17,25 @@ const startOfLine = (value: string, line: number): number => {
   return value.length
 }
 
+const rangeOfLine = (value: string, line: number): [number, number] => {
+  const start = startOfLine(value, line)
+  const nextLineEnding = value.slice(start).search(/\r\n|\r|\n/)
+  const end = nextLineEnding === -1 ? value.length : start + nextLineEnding
+
+  return [start, end]
+}
+
+const scrollToLine = (input: HTMLTextAreaElement, line: number) => {
+  const lineHeight = Number.parseFloat(getComputedStyle(input).lineHeight)
+
+  if (Number.isNaN(lineHeight)) {
+    return
+  }
+
+  const lineTop = (line - 1) * lineHeight
+  input.scrollTop = Math.max(0, lineTop - (input.clientHeight - lineHeight) / 2)
+}
+
 export const initAllowListErrorFocus = (root: ParentNode = document): void => {
   root
     .querySelectorAll<HTMLAnchorElement>('a[data-error-line][href^="#"]')
@@ -34,8 +53,9 @@ export const initAllowListErrorFocus = (root: ParentNode = document): void => {
 
         event.preventDefault()
         input.focus()
-        const position = startOfLine(input.value, line)
-        input.setSelectionRange(position, position)
+        const [start, end] = rangeOfLine(input.value, line)
+        input.setSelectionRange(start, end)
+        scrollToLine(input, line)
       })
     })
 }
