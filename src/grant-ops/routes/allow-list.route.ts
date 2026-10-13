@@ -102,9 +102,10 @@ export const resetAllowListRoute: ServerRoute = {
   method: 'GET',
   path: '/grant-ops/grants/{code}/admin/reset',
   options: { validate: { params } },
-  handler(request: Request, h: ResponseToolkit) {
+  async handler(request: Request, h: ResponseToolkit) {
     const { code } = request.params as unknown as AllowListParams
 
+    await getAllowListUseCase(code)
     request.yar.flash(allowListActiveTabKey, 'who-can-apply')
     return h.redirect(adminHrefFor(code)).code(303)
   }
@@ -176,6 +177,12 @@ const saveValid = async (
     throw Boom.notFound()
   }
 
+  if (refusal.statusCode === 403) {
+    throw Boom.forbidden(
+      'You do not have access to administration for this grant'
+    )
+  }
+
   return renderRefusal(h, code, form)
 }
 
@@ -185,6 +192,7 @@ export const replaceAllowListRoute: ServerRoute = {
   options: { validate: { params, payload } },
   async handler(request: Request, h: ResponseToolkit) {
     const { code } = request.params as unknown as AllowListParams
+    await getAllowListUseCase(code)
     const form = request.payload as AllowListFormSubmission
     const validated = validateAllowListForm(form)
 

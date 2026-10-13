@@ -179,7 +179,19 @@ describe('viewAllowListRoute', () => {
 })
 
 describe('resetAllowListRoute', () => {
+  test('denies reset when GAS denies grant administration', async () => {
+    vi.mocked(getGrantAllowList).mockRejectedValue(Boom.forbidden())
+    const response = await server.inject({
+      method: 'GET',
+      url: resetUrl,
+      auth: authenticated
+    })
+    expect(response.statusCode).toBe(403)
+    expect(response.headers.location).toBeUndefined()
+  })
+
   test('redirects to a fresh view of the persisted allow list', async () => {
+    vi.mocked(getGrantAllowList).mockResolvedValue(allowList)
     const response = await server.inject({
       method: 'GET',
       url: resetUrl,
@@ -210,6 +222,19 @@ describe('replaceAllowListRoute', () => {
   beforeEach(() => {
     vi.mocked(getGrantAllowList).mockResolvedValue(allowList)
     vi.mocked(replaceGrantAllowList).mockResolvedValue(allowList)
+  })
+
+  test('denies a save before validation if GAS denies grant administration', async () => {
+    vi.mocked(getGrantAllowList).mockRejectedValue(Boom.forbidden())
+    const response = await post({ sbi: 'bad', crn: '' })
+    expect(response.statusCode).toBe(403)
+    expect(replaceGrantAllowList).not.toHaveBeenCalled()
+  })
+
+  test('returns forbidden when GAS denies the write after the access check', async () => {
+    vi.mocked(replaceGrantAllowList).mockRejectedValue(Boom.forbidden())
+    const response = await post({ sbi: '106000033', crn: '' })
+    expect(response.statusCode).toBe(403)
   })
 
   test('submits both normalized identifier arrays', async () => {
