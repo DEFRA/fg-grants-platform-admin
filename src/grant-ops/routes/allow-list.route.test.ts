@@ -14,7 +14,6 @@ import {
 vi.mock(import('../repositories/allow-list.repository.ts'))
 
 const url = '/grant-ops/grants/woodland/admin'
-const anchoredUrl = `${url}#who-can-apply`
 const resetUrl = `${url}/reset`
 const credentials = {
   user: { name: 'Ada Lovelace', id: 'operator-1' },
@@ -188,7 +187,22 @@ describe('resetAllowListRoute', () => {
     })
 
     expect(response.statusCode).toBe(statusCodes.seeOther)
-    expect(response.headers.location).toBe(anchoredUrl)
+    expect(response.headers.location).toBe(url)
+
+    vi.mocked(getGrantAllowList).mockResolvedValue(allowList)
+    const cookie = (response.headers['set-cookie'] as string[]).join('; ')
+    const fresh = await server.inject({
+      method: 'GET',
+      url,
+      headers: { cookie },
+      auth: authenticated
+    })
+    const $ = load(fresh.result as unknown as string)
+
+    expect($('.govuk-tabs').attr('data-active-tab')).toBe('who-can-apply')
+    expect($('#sbi').text()).toBe('106000033\n106000044')
+    expect($('#crn').text()).toBe('1042000000')
+    expect($('[data-testid="allow-list-saved"]')).toHaveLength(0)
   })
 })
 

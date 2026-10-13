@@ -37,8 +37,6 @@ const payload = Joi.object({
 const adminHrefFor = (code: string): string =>
   `/grant-ops/grants/${encodeURIComponent(code)}/admin`
 
-const hrefFor = (code: string): string => `${adminHrefFor(code)}#who-can-apply`
-
 const resetHrefFor = (code: string): string => `${adminHrefFor(code)}/reset`
 
 const emptyAllowList = (grantCode: string) => ({
@@ -107,7 +105,8 @@ export const resetAllowListRoute: ServerRoute = {
   handler(request: Request, h: ResponseToolkit) {
     const { code } = request.params as unknown as AllowListParams
 
-    return h.redirect(hrefFor(code)).code(303)
+    request.yar.flash(allowListActiveTabKey, 'who-can-apply')
+    return h.redirect(adminHrefFor(code)).code(303)
   }
 }
 
