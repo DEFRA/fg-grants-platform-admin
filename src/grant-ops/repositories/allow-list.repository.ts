@@ -1,14 +1,31 @@
 import { getFromGas, putToGas } from '../../common/gas.ts'
 
-export interface AllowListGlobal {
-  sbi: string[]
-  crn: string[]
+export type AllowListFieldKey = 'sbi' | 'crn'
+
+export interface AllowListFormField {
+  key: AllowListFieldKey
+  label: string
+  value: string
+  hint: string
+  error?: string
 }
 
-export interface GrantAllowList {
-  adminRole: string
-  grantCode: string
-  global: AllowListGlobal
+export interface AllowListErrorSummaryItem {
+  text: string
+  href: string
+  attributes: { 'data-error-line': number }
+}
+
+/** The allow-list screen's view, as GAS's grant-admin BFF builds it - GPA renders this directly. */
+export interface AllowListView {
+  sbi: AllowListFormField
+  crn: AllowListFormField
+  errorSummary: AllowListErrorSummaryItem[]
+}
+
+export interface AllowListFormSubmission {
+  sbi: string
+  crn: string
 }
 
 const allowListPath = (grantCode: string): string =>
@@ -16,13 +33,11 @@ const allowListPath = (grantCode: string): string =>
 
 export const getGrantAllowList = async (
   grantCode: string
-): Promise<GrantAllowList> =>
-  getFromGas<GrantAllowList>(allowListPath(grantCode))
+): Promise<AllowListView> => getFromGas<AllowListView>(allowListPath(grantCode))
 
+/** A non-2xx rejects with wreck's Boom unchanged: callers read the status and body from it. */
 export const replaceGrantAllowList = async (
   grantCode: string,
-  global: AllowListGlobal
-): Promise<GrantAllowList> =>
-  putToGas<GrantAllowList>(allowListPath(grantCode), {
-    payload: { global }
-  })
+  form: AllowListFormSubmission
+): Promise<AllowListView> =>
+  putToGas<AllowListView>(allowListPath(grantCode), { payload: form })

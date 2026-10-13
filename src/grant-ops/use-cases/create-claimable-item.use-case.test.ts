@@ -143,7 +143,12 @@ describe('when fg-gas-backend refuses the request', () => {
       createClaimableItemUseCase('woodland', 'wood-1001', template(), {
         totalHectares: '40.25'
       })
-    ).resolves.toEqual({ statusCode, message })
+    ).resolves.toEqual({
+      statusCode,
+      message,
+      errorCode: undefined,
+      body: { statusCode, message }
+    })
   })
 
   test('explains a refusal that arrives without a reason', async () => {
@@ -155,7 +160,9 @@ describe('when fg-gas-backend refuses the request', () => {
       })
     ).resolves.toEqual({
       statusCode: 409,
-      message: 'The backend refused the request.'
+      message: 'The backend refused the request.',
+      errorCode: undefined,
+      body: {}
     })
   })
 

@@ -23,13 +23,21 @@ const credentials = {
   },
   scope: ['FCP.GrantApplicationsAdmin']
 }
-const allowList = {
-  adminRole: 'ROLE_WOODLAND_ADMIN',
-  grantCode: 'woodland',
-  global: {
-    sbi: ['106000033', '106000044'],
-    crn: ['1042000000']
-  }
+
+const view = {
+  sbi: {
+    key: 'sbi' as const,
+    label: 'Single Business Identifiers (SBIs)',
+    value: '106000033\n106000044',
+    hint: 'One per line. 2 listed.'
+  },
+  crn: {
+    key: 'crn' as const,
+    label: 'Customer Reference Numbers (CRNs)',
+    value: '1042000000',
+    hint: 'One per line. 1 listed.'
+  },
+  errorSummary: []
 }
 
 const authenticated = {
@@ -50,6 +58,13 @@ const viewPage = async () => {
 const post = (payload: { sbi: string; crn: string }) =>
   server.inject({ method: 'POST', url, payload, auth: authenticated })
 
+/** A wreck-thrown non-2xx, matching what @hapi/wreck attaches to the error. */
+const gasError = (statusCode: number, payload?: object) =>
+  Object.assign(new Error('Response Error'), {
+    output: { statusCode },
+    data: { payload }
+  })
+
 let server: Server
 
 beforeAll(async () => {
@@ -64,7 +79,7 @@ afterAll(async () => {
 
 describe('viewAllowListRoute', () => {
   beforeEach(() => {
-    vi.mocked(getGrantAllowList).mockResolvedValue(allowList)
+    vi.mocked(getGrantAllowList).mockResolvedValue(view)
   })
 
   test('redirects an anonymous user to login', async () => {
@@ -94,7 +109,7 @@ describe('viewAllowListRoute', () => {
     let actor = {}
     vi.mocked(getGrantAllowList).mockImplementation(async () => {
       actor = currentGasActor()
-      return allowList
+      return view
     })
 
     await viewPage()
@@ -161,7 +176,7 @@ describe('viewAllowListRoute', () => {
     expect($('#who-can-apply h2').text().trim()).toBe('Who can apply')
   })
 
-  test('renders SBI before CRN with persisted values and counts', async () => {
+  test('renders SBI before CRN with the view GAS built', async () => {
     const { $ } = await viewPage()
     const fields = $('#who-can-apply textarea')
 
@@ -229,7 +244,7 @@ describe('resetAllowListRoute', () => {
   })
 
   test('redirects to a fresh view of the persisted allow list', async () => {
-    vi.mocked(getGrantAllowList).mockResolvedValue(allowList)
+    vi.mocked(getGrantAllowList).mockResolvedValue(view)
     const response = await server.inject({
       method: 'GET',
       url: resetUrl,
@@ -239,7 +254,7 @@ describe('resetAllowListRoute', () => {
     expect(response.statusCode).toBe(statusCodes.seeOther)
     expect(response.headers.location).toBe(url)
 
-    vi.mocked(getGrantAllowList).mockResolvedValue(allowList)
+    vi.mocked(getGrantAllowList).mockResolvedValue(view)
     const cookie = (response.headers['set-cookie'] as string[]).join('; ')
     const fresh = await server.inject({
       method: 'GET',
@@ -258,8 +273,8 @@ describe('resetAllowListRoute', () => {
 
 describe('replaceAllowListRoute', () => {
   beforeEach(() => {
-    vi.mocked(getGrantAllowList).mockResolvedValue(allowList)
-    vi.mocked(replaceGrantAllowList).mockResolvedValue(allowList)
+    vi.mocked(getGrantAllowList).mockResolvedValue(view)
+    vi.mocked(replaceGrantAllowList).mockResolvedValue(view)
   })
 
   test('saves without first calling GAS to check access', async () => {
@@ -274,82 +289,81 @@ describe('replaceAllowListRoute', () => {
     expect(response.statusCode).toBe(403)
   })
 
-  test('submits both normalized identifier arrays', async () => {
-    await post({
-      sbi: ' 106000033\r\n\r106000044 ',
-      crn: '1042000000\n'
-    })
+  test('submits the raw text fields as-is, unparsed', async () => {
+    const submitted = { sbi: ' 106000033\r\n\r106000044 ', crn: '1042000000\n' }
+    await post(submitted)
 
-    expect(replaceGrantAllowList).toHaveBeenCalledWith('woodland', {
-      sbi: ['106000033', '106000044'],
-      crn: ['1042000000']
-    })
+    expect(replaceGrantAllowList).toHaveBeenCalledWith('woodland', submitted)
   })
 
-  test('submits two empty arrays to clear the allow list', async () => {
-    const response = await post({ sbi: '', crn: ' \r\n ' })
+  test('redirects to the admin page on success', async () => {
+    const response = await post({ sbi: '', crn: '' })
 
-    expect(replaceGrantAllowList).toHaveBeenCalledWith('woodland', {
-      sbi: [],
-      crn: []
-    })
     expect(response.headers.location).toBe(url)
   })
 
-  test('shows validation errors without writing and preserves exact input', async () => {
-    const submitted = {
-      sbi: 'bad\r\n bad ',
-      crn: '1042000000\n1042000000'
+  test('shows the view GAS shaped for a validation failure, without writing again', async () => {
+    const submitted = { sbi: 'bad', crn: '1042000000\n1042000000' }
+    const invalidView = {
+      sbi: {
+        key: 'sbi' as const,
+        label: 'Single Business Identifiers (SBIs)',
+        value: 'bad',
+        hint: 'One per line. 1 listed.',
+        error: 'SBI "bad" on line 1 must be exactly 9 digits'
+      },
+      crn: {
+        key: 'crn' as const,
+        label: 'Customer Reference Numbers (CRNs)',
+        value: '1042000000\n1042000000',
+        hint: 'One per line. 2 listed.',
+        error: 'CRN "1042000000" on line 2 is a duplicate of line 1'
+      },
+      errorSummary: [
+        {
+          text: 'SBI "bad" on line 1 must be exactly 9 digits',
+          href: '#sbi',
+          attributes: { 'data-error-line': 1 }
+        },
+        {
+          text: 'CRN "1042000000" on line 2 is a duplicate of line 1',
+          href: '#crn',
+          attributes: { 'data-error-line': 2 }
+        }
+      ]
     }
     vi.mocked(replaceGrantAllowList).mockRejectedValue(
-      Object.assign(new Error('Response Error'), {
-        output: { statusCode: 400 },
-        data: {
-          payload: {
-            errorCode: 'ALLOW_LIST_VALIDATION_FAILED',
-            details: {
-              sbi: { invalid: ['bad'], duplicate: ['bad'] },
-              crn: { invalid: [], duplicate: ['1042000000'] }
-            }
-          }
-        }
-      })
+      gasError(400, invalidView)
     )
 
     const response = await post(submitted)
     const $ = load(response.result as unknown as string)
 
     expect(response.statusCode).toBe(statusCodes.badRequest)
-    expect(replaceGrantAllowList).toHaveBeenCalledWith('woodland', {
-      sbi: ['bad', 'bad'],
-      crn: ['1042000000', '1042000000']
-    })
+    expect(replaceGrantAllowList).toHaveBeenCalledWith('woodland', submitted)
     expect($('.govuk-error-summary')).toHaveLength(1)
     expect($('.govuk-tabs').attr('data-active-tab')).toBe('who-can-apply')
     expect(
       $('.govuk-error-summary a')
         .map((_, link) => $(link).attr('href'))
         .get()
-    ).toEqual(['#sbi', '#sbi', '#sbi', '#crn'])
+    ).toEqual(['#sbi', '#crn'])
     expect(
       $('.govuk-error-summary a')
         .map((_, link) => $(link).attr('data-error-line'))
         .get()
-    ).toEqual(['1', '2', '2', '2'])
+    ).toEqual(['1', '2'])
     expect($('#sbi-error').text()).toContain(
       'SBI "bad" on line 1 must be exactly 9 digits'
     )
     expect($('#crn-error').text()).toContain(
       'CRN "1042000000" on line 2 is a duplicate of line 1'
     )
-    expect($('.govuk-error-summary').text()).toContain(
-      'SBI "bad" on line 2 is a duplicate of line 1'
-    )
     expect($('#sbi').hasClass('app-allow-list-input')).toBe(true)
     expect($('#crn').hasClass('app-allow-list-input')).toBe(true)
-    expect(response.result).toEqual(expect.stringContaining(submitted.sbi))
+    expect($('#sbi').text()).toBe(submitted.sbi)
     expect($('#crn').text()).toBe(submitted.crn)
-    expect($('#sbi-hint').text().trim()).toBe('One per line. 2 listed.')
+    expect($('#sbi-hint').text().trim()).toBe('One per line. 1 listed.')
     expect($('#crn-hint').text().trim()).toBe('One per line. 2 listed.')
   })
 
@@ -396,25 +410,24 @@ describe('replaceAllowListRoute', () => {
     ).toHaveLength(0)
   })
 
-  test('shows a safe message when GAS rejects the submitted entries', async () => {
+  test('shows a safe generic message and re-fetches the saved state for an unshaped refusal', async () => {
     vi.mocked(replaceGrantAllowList).mockRejectedValue(
-      Object.assign(new Error('Response Error'), {
-        output: { statusCode: 400 },
-        data: { payload: { message: 'Unsafe backend detail' } }
-      })
+      gasError(400, { message: 'Unsafe backend detail' })
     )
-    const submitted = { sbi: '106000033', crn: '1042000000' }
+    const submitted = { sbi: 'anything', crn: 'anything' }
 
     const response = await post(submitted)
     const $ = load(response.result as unknown as string)
 
     expect(response.statusCode).toBe(statusCodes.badRequest)
+    expect(getGrantAllowList).toHaveBeenCalledWith('woodland')
     expect($('.govuk-error-summary').text()).toContain(
       'The allow list could not be saved. Check the entries and try again.'
     )
     expect($('body').text()).not.toContain('Unsafe backend detail')
-    expect($('#sbi').text()).toBe(submitted.sbi)
-    expect($('#crn').text()).toBe(submitted.crn)
+    // The re-fetched saved state is shown, not the unsaved submission.
+    expect($('#sbi').text()).toBe('106000033\n106000044')
+    expect($('#crn').text()).toBe('1042000000')
   })
 
   test('uses the standard not-found response when GAS returns 404', async () => {

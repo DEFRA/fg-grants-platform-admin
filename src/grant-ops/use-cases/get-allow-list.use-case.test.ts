@@ -1,18 +1,29 @@
+import type { AllowListView } from '../repositories/allow-list.repository.ts'
 import { getGrantAllowList } from '../repositories/allow-list.repository.ts'
 import { getAllowListUseCase } from './get-allow-list.use-case.ts'
 
 vi.mock(import('../repositories/allow-list.repository.ts'))
 
 describe('getAllowListUseCase', () => {
-  test('returns the grant allow list from its repository', async () => {
-    const allowList = {
-      adminRole: 'ROLE_WOODLAND_ADMIN',
-      grantCode: 'woodland',
-      global: { sbi: ['106000033'], crn: ['1042000000'] }
+  test('returns the allow-list view from its repository', async () => {
+    const view: AllowListView = {
+      sbi: {
+        key: 'sbi',
+        label: 'Single Business Identifiers (SBIs)',
+        value: '106000033',
+        hint: 'One per line. 1 listed.'
+      },
+      crn: {
+        key: 'crn',
+        label: 'Customer Reference Numbers (CRNs)',
+        value: '1042000000',
+        hint: 'One per line. 1 listed.'
+      },
+      errorSummary: []
     }
-    vi.mocked(getGrantAllowList).mockResolvedValue(allowList)
+    vi.mocked(getGrantAllowList).mockResolvedValue(view)
 
-    await expect(getAllowListUseCase('woodland')).resolves.toEqual(allowList)
+    await expect(getAllowListUseCase('woodland')).resolves.toEqual(view)
     expect(getGrantAllowList).toHaveBeenCalledWith('woodland')
   })
 })

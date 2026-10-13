@@ -6,22 +6,29 @@ import {
 
 vi.mock(import('../../common/gas.ts'))
 
-const allowList = {
-  adminRole: 'ROLE_WOODLAND_ADMIN',
-  grantCode: 'woodland',
-  global: {
-    sbi: ['106000033'],
-    crn: ['1042000000']
-  }
+const view = {
+  sbi: {
+    key: 'sbi',
+    label: 'Single Business Identifiers (SBIs)',
+    value: '106000033',
+    hint: 'One per line. 1 listed.'
+  },
+  crn: {
+    key: 'crn',
+    label: 'Customer Reference Numbers (CRNs)',
+    value: '1042000000',
+    hint: 'One per line. 1 listed.'
+  },
+  errorSummary: []
 }
 
 describe('getGrantAllowList', () => {
   beforeEach(() => {
-    vi.mocked(getFromGas).mockResolvedValue(allowList)
+    vi.mocked(getFromGas).mockResolvedValue(view)
   })
 
-  test('returns the allow list from GAS', async () => {
-    await expect(getGrantAllowList('woodland')).resolves.toEqual(allowList)
+  test('returns the allow-list view from GAS', async () => {
+    await expect(getGrantAllowList('woodland')).resolves.toEqual(view)
   })
 
   test('calls the allow-list endpoint', async () => {
@@ -42,27 +49,27 @@ describe('getGrantAllowList', () => {
 })
 
 describe('replaceGrantAllowList', () => {
+  const form = { sbi: '106000033', crn: '1042000000' }
+
   beforeEach(() => {
-    vi.mocked(putToGas).mockResolvedValue(allowList)
+    vi.mocked(putToGas).mockResolvedValue(view)
   })
 
-  test('returns the canonical allow list from GAS', async () => {
-    await expect(
-      replaceGrantAllowList('woodland', allowList.global)
-    ).resolves.toEqual(allowList)
+  test('returns the view GAS built from the saved allow list', async () => {
+    await expect(replaceGrantAllowList('woodland', form)).resolves.toEqual(view)
   })
 
-  test('replaces the global allow list', async () => {
-    await replaceGrantAllowList('woodland', allowList.global)
+  test('sends the submitted text as-is, unparsed', async () => {
+    await replaceGrantAllowList('woodland', form)
 
     expect(putToGas).toHaveBeenCalledWith(
       '/grant-admin/grants/woodland/allow-list',
-      { payload: { global: allowList.global } }
+      { payload: form }
     )
   })
 
   test('escapes the grant code as one path segment', async () => {
-    await replaceGrantAllowList('woodland/../admin', allowList.global)
+    await replaceGrantAllowList('woodland/../admin', form)
 
     expect(putToGas).toHaveBeenCalledWith(
       '/grant-admin/grants/woodland%2F..%2Fadmin/allow-list',
@@ -70,14 +77,14 @@ describe('replaceGrantAllowList', () => {
     )
   })
 
-  test('sends an empty replacement rather than omitting it', async () => {
-    const global = { sbi: [], crn: [] }
+  test('sends empty fields rather than omitting them', async () => {
+    const empty = { sbi: '', crn: '' }
 
-    await replaceGrantAllowList('woodland', global)
+    await replaceGrantAllowList('woodland', empty)
 
     expect(putToGas).toHaveBeenCalledWith(
       '/grant-admin/grants/woodland/allow-list',
-      { payload: { global } }
+      { payload: empty }
     )
   })
 })

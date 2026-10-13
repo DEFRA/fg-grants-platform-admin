@@ -2,24 +2,13 @@ import Boom from '@hapi/boom'
 import type { Request, ResponseToolkit, ServerRoute } from '@hapi/hapi'
 import Joi from 'joi'
 
-import {
-  getAllowListUseCase,
-  type GrantAllowList
-} from '../use-cases/get-allow-list.use-case.ts'
-import type { GasRefusal } from '../use-cases/gas-refusal.ts'
-import { isAllowListValidationFailure } from '../use-cases/gas-refusal.ts'
-import { replaceAllowListUseCase } from '../use-cases/replace-allow-list.use-case.ts'
+import type { AllowListView } from '../use-cases/get-allow-list.use-case.ts'
+import { getAllowListUseCase } from '../use-cases/get-allow-list.use-case.ts'
 import type {
-  AllowListFieldError,
   AllowListFormSubmission,
-  ParsedAllowListForm
-} from '../view-models/allow-list-form.view-model.ts'
-import {
-  parseAllowListForm,
-  toAllowListErrorSummary,
-  toAllowListFieldErrors,
-  toAllowListForm
-} from '../view-models/allow-list-form.view-model.ts'
+  ReplaceAllowListOutcome
+} from '../use-cases/replace-allow-list.use-case.ts'
+import { replaceAllowListUseCase } from '../use-cases/replace-allow-list.use-case.ts'
 
 interface AllowListParams {
   code: string
@@ -40,35 +29,26 @@ const adminHrefFor = (code: string): string =>
 
 const resetHrefFor = (code: string): string => `${adminHrefFor(code)}/reset`
 
-const emptyAllowList = (grantCode: string) => ({
-  grantCode,
-  global: { sbi: [], crn: [] }
-})
+interface ErrorSummaryItem {
+  text: string
+  href?: string
+  attributes?: { 'data-error-line': number }
+}
 
 interface PageOptions {
   activeTab: 'grant-setup' | 'who-can-apply'
   code: string
-  allowList: Pick<GrantAllowList, 'grantCode' | 'global'>
-  submitted: AllowListFormSubmission | undefined
-  errors: AllowListFieldError[]
-  errorSummary: { text: string; href?: string }[]
+  view: AllowListView
+  errorSummary: ErrorSummaryItem[]
   saved: string | undefined
 }
 
-const page = ({
-  activeTab,
-  code,
-  allowList,
-  submitted,
-  errors,
-  errorSummary,
-  saved
-}: PageOptions) => ({
+const page = ({ activeTab, code, view, errorSummary, saved }: PageOptions) => ({
   activeTab,
   code,
   pageTitle: errorSummary.length ? 'Error: Who can apply' : 'Who can apply',
   formAction: adminHrefFor(code),
-  form: toAllowListForm(allowList, submitted, errors),
+  form: view,
   errorSummary,
   resetHref: resetHrefFor(code),
   saved
@@ -80,7 +60,7 @@ export const viewAllowListRoute: ServerRoute = {
   options: { validate: { params } },
   async handler(request: Request, h: ResponseToolkit) {
     const { code } = request.params as unknown as AllowListParams
-    const allowList = await getAllowListUseCase(code)
+    const view = await getAllowListUseCase(code)
     const [saved] = request.yar.flash(allowListSavedKey)
     const [activeTab] = request.yar.flash(allowListActiveTabKey)
 
@@ -89,9 +69,7 @@ export const viewAllowListRoute: ServerRoute = {
       page({
         activeTab: activeTab === 'who-can-apply' ? activeTab : 'grant-setup',
         code,
-        allowList,
-        submitted: undefined,
-        errors: [],
+        view,
         errorSummary: [],
         saved
       })
@@ -114,60 +92,59 @@ export const resetAllowListRoute: ServerRoute = {
   }
 }
 
-const renderInvalid = (
-  h: ResponseToolkit,
-  code: string,
-  form: AllowListFormSubmission,
-  errors: AllowListFieldError[]
-) =>
-  h
-    .view(
-      'allow-list',
-      page({
-        activeTab: 'who-can-apply',
-        code,
-        allowList: emptyAllowList(code),
-        submitted: form,
-        errors,
-        errorSummary: toAllowListErrorSummary(errors),
-        saved: undefined
-      })
-    )
-    .code(400)
-
 const saveRefusalSummary = [
   {
     text: 'The allow list could not be saved. Check the entries and try again.'
   }
 ]
 
-const renderRefusal = (
-  h: ResponseToolkit,
-  code: string,
-  form: AllowListFormSubmission
-) =>
-  h
+/**
+ * There is no view-model left in GPA to rebuild field values from what the
+ * user typed, so this doesn't try: it re-fetches the current saved state and
+ * shows a generic banner. GAS's only documented allow-list refusal mode is
+ * the shaped 'invalid' outcome, handled separately below - this is a
+ * defensive fallback for anything else (an unshaped 400, or an unexpected
+ * refusal shape).
+ */
+const renderGenericRefusal = async (h: ResponseToolkit, code: string) => {
+  const view = await getAllowListUseCase(code)
+
+  return h
     .view(
       'allow-list',
       page({
         activeTab: 'who-can-apply',
         code,
-        allowList: emptyAllowList(code),
-        submitted: form,
-        errors: [],
+        view,
         errorSummary: saveRefusalSummary,
         saved: undefined
       })
     )
     .code(400)
+}
 
-const respondToRefusal = (
+const respondToOutcome = (
   h: ResponseToolkit,
   code: string,
-  form: AllowListFormSubmission,
-  parsed: ParsedAllowListForm,
-  refusal: GasRefusal
+  outcome: Exclude<ReplaceAllowListOutcome, { outcome: 'saved' }>
 ) => {
+  if (outcome.outcome === 'invalid') {
+    return h
+      .view(
+        'allow-list',
+        page({
+          activeTab: 'who-can-apply',
+          code,
+          view: outcome.view,
+          errorSummary: outcome.view.errorSummary,
+          saved: undefined
+        })
+      )
+      .code(400)
+  }
+
+  const { refusal } = outcome
+
   if (refusal.statusCode === 404) {
     throw Boom.notFound()
   }
@@ -178,34 +155,7 @@ const respondToRefusal = (
     )
   }
 
-  if (isAllowListValidationFailure(refusal)) {
-    return renderInvalid(
-      h,
-      code,
-      form,
-      toAllowListFieldErrors(parsed, refusal.details)
-    )
-  }
-
-  return renderRefusal(h, code, form)
-}
-
-const saveValid = async (
-  request: Request,
-  h: ResponseToolkit,
-  code: string,
-  form: AllowListFormSubmission,
-  parsed: ParsedAllowListForm
-) => {
-  const refusal = await replaceAllowListUseCase(code, parsed.global)
-
-  if (!refusal) {
-    request.yar.flash(allowListSavedKey, 'Allow list saved')
-    request.yar.flash(allowListActiveTabKey, 'who-can-apply')
-    return h.redirect(adminHrefFor(code)).code(303)
-  }
-
-  return respondToRefusal(h, code, form, parsed, refusal)
+  return renderGenericRefusal(h, code)
 }
 
 export const replaceAllowListRoute: ServerRoute = {
@@ -218,8 +168,15 @@ export const replaceAllowListRoute: ServerRoute = {
     // read here: GAS enforces access on every call, so a local pre-check
     // would only duplicate a decision GAS already makes for real.
     const form = request.payload as AllowListFormSubmission
-    const parsed = parseAllowListForm(form)
 
-    return saveValid(request, h, code, form, parsed)
+    const outcome = await replaceAllowListUseCase(code, form)
+
+    if (outcome.outcome === 'saved') {
+      request.yar.flash(allowListSavedKey, 'Allow list saved')
+      request.yar.flash(allowListActiveTabKey, 'who-can-apply')
+      return h.redirect(adminHrefFor(code)).code(303)
+    }
+
+    return respondToOutcome(h, code, outcome)
   }
 }

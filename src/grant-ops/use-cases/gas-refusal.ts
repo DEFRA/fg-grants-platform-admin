@@ -1,18 +1,9 @@
-export interface AllowListIdentifierProblems {
-  invalid: string[]
-  duplicate: string[]
-}
-
-export interface AllowListValidationDetails {
-  sbi: AllowListIdentifierProblems
-  crn: AllowListIdentifierProblems
-}
-
 export interface GasRefusal {
   statusCode: number
   message: string
   errorCode?: string
-  details?: AllowListValidationDetails
+  /** The full response body GAS answered with, for callers that need more than message/errorCode. */
+  body: unknown
 }
 
 export interface ConflictRefusal {
@@ -23,7 +14,7 @@ export interface ConflictRefusal {
 interface GasPayload {
   message?: string
   errorCode?: string
-  details?: AllowListValidationDetails
+  [key: string]: unknown
 }
 
 interface GasError {
@@ -35,8 +26,7 @@ export const conflict = 409
 
 export const gasErrorCodes = {
   CONFIGURATION_CHANGED: 'CONFIGURATION_CHANGED',
-  ENTITLEMENT_CLAIMED: 'ENTITLEMENT_CLAIMED',
-  ALLOW_LIST_VALIDATION_FAILED: 'ALLOW_LIST_VALIDATION_FAILED'
+  ENTITLEMENT_CLAIMED: 'ENTITLEMENT_CLAIMED'
 } as const
 
 const refusedMessage = 'The backend refused the request.'
@@ -59,8 +49,13 @@ const readMessage = (error: GasError) =>
 const readErrorCode = (error: GasError) =>
   readBodyPayload(error).errorCode ?? readBoomPayload(error).errorCode
 
-const readDetails = (error: GasError) =>
-  readBodyPayload(error).details ?? readBoomPayload(error).details
+/** The body payload if the transport carried one, falling back to Boom's own - whichever actually has content. */
+const readBody = (error: GasError): unknown => {
+  const bodyPayload = readBodyPayload(error)
+  return Object.keys(bodyPayload).length > 0
+    ? bodyPayload
+    : readBoomPayload(error)
+}
 
 /** A 4xx from fg-gas-backend, read off the error `@hapi/wreck` throws for it; anything else is not a refusal. */
 export const toGasRefusal = (error: unknown): GasRefusal | undefined => {
@@ -72,7 +67,7 @@ export const toGasRefusal = (error: unknown): GasRefusal | undefined => {
         statusCode,
         message: readMessage(gasError),
         errorCode: readErrorCode(gasError),
-        details: readDetails(gasError)
+        body: readBody(gasError)
       }
     : undefined
 }
@@ -91,10 +86,3 @@ export const toConflictRefusal = (error: unknown): ConflictRefusal => {
 /** The grant's configuration moved under the save: the same values may go through once the page has caught up. */
 export const isConfigurationChange = (refusal: GasRefusal) =>
   refusal.errorCode === gasErrorCodes.CONFIGURATION_CHANGED
-
-/** GAS refused specific SBI/CRN entries; `details` says which ones and why. */
-export const isAllowListValidationFailure = (
-  refusal: GasRefusal
-): refusal is GasRefusal & { details: AllowListValidationDetails } =>
-  refusal.errorCode === gasErrorCodes.ALLOW_LIST_VALIDATION_FAILED &&
-  refusal.details !== undefined

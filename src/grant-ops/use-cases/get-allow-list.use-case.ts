@@ -1,6 +1,6 @@
 import { getGrantAllowList } from '../repositories/allow-list.repository.ts'
 
-export type { GrantAllowList } from '../repositories/allow-list.repository.ts'
+export type { AllowListView } from '../repositories/allow-list.repository.ts'
 
 /**
  * The allow list for one grant. GAS enforces admin access on this call for
