@@ -4,8 +4,12 @@ import {
   Checkboxes,
   ErrorSummary,
   Radios,
-  SkipLink
+  SkipLink,
+  Tabs
 } from 'govuk-frontend'
+import { initAllowListCounts } from '../../grant-ops/client/allow-list-count.ts'
+
+vi.mock(import('../../grant-ops/client/allow-list-count.ts'))
 
 vi.mock(import('govuk-frontend'), () => ({
   createAll: vi.fn(),
@@ -13,7 +17,8 @@ vi.mock(import('govuk-frontend'), () => ({
   Checkboxes: class Checkboxes {},
   ErrorSummary: class ErrorSummary {},
   Radios: class Radios {},
-  SkipLink: class SkipLink {}
+  SkipLink: class SkipLink {},
+  Tabs: class Tabs {}
 }))
 
 describe('application', () => {
@@ -25,6 +30,8 @@ describe('application', () => {
     expect(createAll).toHaveBeenCalledWith(ErrorSummary)
     expect(createAll).toHaveBeenCalledWith(Radios)
     expect(createAll).toHaveBeenCalledWith(SkipLink)
-    expect(createAll).toHaveBeenCalledTimes(5)
+    expect(createAll).toHaveBeenCalledWith(Tabs)
+    expect(createAll).toHaveBeenCalledTimes(6)
+    expect(initAllowListCounts).toHaveBeenCalledTimes(1)
   })
 })
