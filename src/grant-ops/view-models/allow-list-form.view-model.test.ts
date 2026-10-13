@@ -1,8 +1,10 @@
+import type { AllowListValidationDetails } from '../use-cases/gas-refusal.ts'
 import type { GrantAllowList } from '../repositories/allow-list.repository.ts'
 import {
+  parseAllowListForm,
   toAllowListErrorSummary,
-  toAllowListForm,
-  validateAllowListForm
+  toAllowListFieldErrors,
+  toAllowListForm
 } from './allow-list-form.view-model.ts'
 
 const persisted: GrantAllowList = {
@@ -14,38 +16,36 @@ const persisted: GrantAllowList = {
   }
 }
 
-describe('validateAllowListForm', () => {
+const clean = { invalid: [], duplicate: [] }
+
+describe('parseAllowListForm', () => {
   test('normalises line endings, whitespace and blank lines', () => {
     expect(
-      validateAllowListForm({
+      parseAllowListForm({
         sbi: ' 106000033\r\n\r106000044 \n\n',
         crn: ' 1042000000\r1042000011\r\n '
-      })
+      }).global
     ).toEqual({
-      global: {
-        sbi: ['106000033', '106000044'],
-        crn: ['1042000000', '1042000011']
-      },
-      errors: []
+      sbi: ['106000033', '106000044'],
+      crn: ['1042000000', '1042000011']
     })
   })
 
   test('accepts empty fields as an unrestricted allow list', () => {
-    expect(validateAllowListForm({ sbi: '', crn: ' \n\r\n ' })).toEqual({
-      global: { sbi: [], crn: [] },
-      errors: []
+    expect(parseAllowListForm({ sbi: '', crn: ' \n\r\n ' }).global).toEqual({
+      sbi: [],
+      crn: []
     })
   })
 
-  test('accepts identifiers with the exact required lengths', () => {
-    expect(
-      validateAllowListForm({ sbi: '106000033', crn: '1042000000' })
-    ).toEqual({
-      global: { sbi: ['106000033'], crn: ['1042000000'] },
-      errors: []
-    })
+  test('never refuses input itself - GAS is the sole judge of validity', () => {
+    expect(parseAllowListForm({ sbi: 'bad', crn: 'also bad' }).global).toEqual(
+      { sbi: ['bad'], crn: ['also bad'] }
+    )
   })
+})
 
+describe('toAllowListFieldErrors', () => {
   test.each([
     ['sbi', '10600003', 'SBI "10600003" on line 1 must be exactly 9 digits'],
     ['sbi', '10600003x', 'SBI "10600003x" on line 1 must be exactly 9 digits'],
@@ -55,92 +55,112 @@ describe('validateAllowListForm', () => {
       '104200000x',
       'CRN "104200000x" on line 1 must be exactly 10 digits'
     ]
-  ] as const)('rejects an invalid %s', (key, value, message) => {
+  ] as const)('reports a %s GAS flagged as invalid', (key, value, message) => {
     const submission = { sbi: '', crn: '', [key]: value }
+    const details: AllowListValidationDetails = {
+      sbi: clean,
+      crn: clean,
+      [key]: { invalid: [value], duplicate: [] }
+    }
 
-    expect(validateAllowListForm(submission)).toEqual({
-      errors: [{ key, line: 1, message }]
-    })
+    expect(
+      toAllowListFieldErrors(parseAllowListForm(submission), details)
+    ).toEqual([{ key, line: 1, message }])
   })
 
   test.each([
     [
       'sbi',
       '106000033\n 106000033 ',
+      '106000033',
       'SBI "106000033" on line 2 is a duplicate of line 1'
     ],
     [
       'crn',
       '1042000000\r\n1042000000',
+      '1042000000',
       'CRN "1042000000" on line 2 is a duplicate of line 1'
     ]
   ] as const)(
-    'rejects duplicate %s values after trimming',
-    (key, value, message) => {
+    'reports a %s GAS flagged as a duplicate after trimming',
+    (key, value, trimmedValue, message) => {
       const submission = { sbi: '', crn: '', [key]: value }
+      const details: AllowListValidationDetails = {
+        sbi: clean,
+        crn: clean,
+        [key]: { invalid: [], duplicate: [trimmedValue] }
+      }
 
-      expect(validateAllowListForm(submission)).toEqual({
-        errors: [{ key, line: 2, message }]
-      })
+      expect(
+        toAllowListFieldErrors(parseAllowListForm(submission), details)
+      ).toEqual([{ key, line: 2, message }])
     }
   )
 
   test('reports each invalid and duplicate line separately', () => {
-    expect(validateAllowListForm({ sbi: 'invalid\ninvalid', crn: '' })).toEqual(
+    const parsed = parseAllowListForm({ sbi: 'invalid\ninvalid', crn: '' })
+    const details: AllowListValidationDetails = {
+      sbi: { invalid: ['invalid'], duplicate: ['invalid'] },
+      crn: clean
+    }
+
+    expect(toAllowListFieldErrors(parsed, details)).toEqual([
       {
-        errors: [
-          {
-            key: 'sbi',
-            line: 1,
-            message: 'SBI "invalid" on line 1 must be exactly 9 digits'
-          },
-          {
-            key: 'sbi',
-            line: 2,
-            message: 'SBI "invalid" on line 2 must be exactly 9 digits'
-          },
-          {
-            key: 'sbi',
-            line: 2,
-            message: 'SBI "invalid" on line 2 is a duplicate of line 1'
-          }
-        ]
+        key: 'sbi',
+        line: 1,
+        message: 'SBI "invalid" on line 1 must be exactly 9 digits'
+      },
+      {
+        key: 'sbi',
+        line: 2,
+        message: 'SBI "invalid" on line 2 must be exactly 9 digits'
+      },
+      {
+        key: 'sbi',
+        line: 2,
+        message: 'SBI "invalid" on line 2 is a duplicate of line 1'
       }
-    )
+    ])
   })
 
   test('uses visible line numbers including blank lines', () => {
-    expect(
-      validateAllowListForm({
-        sbi: '\n  106000033  \r\n\r106000033',
-        crn: ''
-      })
-    ).toEqual({
-      errors: [
-        {
-          key: 'sbi',
-          line: 4,
-          message: 'SBI "106000033" on line 4 is a duplicate of line 2'
-        }
-      ]
+    const parsed = parseAllowListForm({
+      sbi: '\n  106000033  \r\n\r106000033',
+      crn: ''
     })
+    const details: AllowListValidationDetails = {
+      sbi: { invalid: [], duplicate: ['106000033'] },
+      crn: clean
+    }
+
+    expect(toAllowListFieldErrors(parsed, details)).toEqual([
+      {
+        key: 'sbi',
+        line: 4,
+        message: 'SBI "106000033" on line 4 is a duplicate of line 2'
+      }
+    ])
   })
 
-  test('reports both fields in SBI then CRN order without a payload', () => {
-    expect(validateAllowListForm({ sbi: 'bad', crn: 'also bad' })).toEqual({
-      errors: [
-        {
-          key: 'sbi',
-          line: 1,
-          message: 'SBI "bad" on line 1 must be exactly 9 digits'
-        },
-        {
-          key: 'crn',
-          line: 1,
-          message: 'CRN "also bad" on line 1 must be exactly 10 digits'
-        }
-      ]
-    })
+  test('reports both fields in SBI then CRN order', () => {
+    const parsed = parseAllowListForm({ sbi: 'bad', crn: 'also bad' })
+    const details: AllowListValidationDetails = {
+      sbi: { invalid: ['bad'], duplicate: [] },
+      crn: { invalid: ['also bad'], duplicate: [] }
+    }
+
+    expect(toAllowListFieldErrors(parsed, details)).toEqual([
+      {
+        key: 'sbi',
+        line: 1,
+        message: 'SBI "bad" on line 1 must be exactly 9 digits'
+      },
+      {
+        key: 'crn',
+        line: 1,
+        message: 'CRN "also bad" on line 1 must be exactly 10 digits'
+      }
+    ])
   })
 })
 

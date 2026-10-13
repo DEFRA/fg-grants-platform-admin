@@ -6,18 +6,19 @@ import {
   getAllowListUseCase,
   type GrantAllowList
 } from '../use-cases/get-allow-list.use-case.ts'
-import {
-  replaceAllowListUseCase,
-  type AllowListGlobal
-} from '../use-cases/replace-allow-list.use-case.ts'
+import type { GasRefusal } from '../use-cases/gas-refusal.ts'
+import { isAllowListValidationFailure } from '../use-cases/gas-refusal.ts'
+import { replaceAllowListUseCase } from '../use-cases/replace-allow-list.use-case.ts'
 import type {
   AllowListFieldError,
-  AllowListFormSubmission
+  AllowListFormSubmission,
+  ParsedAllowListForm
 } from '../view-models/allow-list-form.view-model.ts'
 import {
+  parseAllowListForm,
   toAllowListErrorSummary,
-  toAllowListForm,
-  validateAllowListForm
+  toAllowListFieldErrors,
+  toAllowListForm
 } from '../view-models/allow-list-form.view-model.ts'
 
 interface AllowListParams {
@@ -177,21 +178,13 @@ const renderRefusal = (
     )
     .code(400)
 
-const saveValid = async (
-  request: Request,
+const respondToRefusal = (
   h: ResponseToolkit,
   code: string,
   form: AllowListFormSubmission,
-  global: AllowListGlobal
+  parsed: ParsedAllowListForm,
+  refusal: GasRefusal
 ) => {
-  const refusal = await replaceAllowListUseCase(code, global)
-
-  if (!refusal) {
-    request.yar.flash(allowListSavedKey, 'Allow list saved')
-    request.yar.flash(allowListActiveTabKey, 'who-can-apply')
-    return h.redirect(adminHrefFor(code)).code(303)
-  }
-
   if (refusal.statusCode === 404) {
     throw Boom.notFound()
   }
@@ -202,7 +195,34 @@ const saveValid = async (
     )
   }
 
+  if (isAllowListValidationFailure(refusal)) {
+    return renderInvalid(
+      h,
+      code,
+      form,
+      toAllowListFieldErrors(parsed, refusal.details)
+    )
+  }
+
   return renderRefusal(h, code, form)
+}
+
+const saveValid = async (
+  request: Request,
+  h: ResponseToolkit,
+  code: string,
+  form: AllowListFormSubmission,
+  parsed: ParsedAllowListForm
+) => {
+  const refusal = await replaceAllowListUseCase(code, parsed.global)
+
+  if (!refusal) {
+    request.yar.flash(allowListSavedKey, 'Allow list saved')
+    request.yar.flash(allowListActiveTabKey, 'who-can-apply')
+    return h.redirect(adminHrefFor(code)).code(303)
+  }
+
+  return respondToRefusal(h, code, form, parsed, refusal)
 }
 
 export const replaceAllowListRoute: ServerRoute = {
@@ -213,12 +233,8 @@ export const replaceAllowListRoute: ServerRoute = {
     const { code } = request.params as unknown as AllowListParams
     await authorisedAllowList(request, code)
     const form = request.payload as AllowListFormSubmission
-    const validated = validateAllowListForm(form)
+    const parsed = parseAllowListForm(form)
 
-    if (!validated.global) {
-      return renderInvalid(h, code, form, validated.errors)
-    }
-
-    return saveValid(request, h, code, form, validated.global)
+    return saveValid(request, h, code, form, parsed)
   }
 }

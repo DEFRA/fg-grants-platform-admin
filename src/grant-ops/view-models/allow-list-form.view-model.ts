@@ -1,3 +1,4 @@
+import type { AllowListValidationDetails } from '../use-cases/gas-refusal.ts'
 import type {
   AllowListGlobal,
   GrantAllowList
@@ -29,21 +30,17 @@ export interface AllowListForm {
   crn: AllowListFormField
 }
 
-export type AllowListValidation =
-  | { global: AllowListGlobal; errors: [] }
-  | { global?: never; errors: AllowListFieldError[] }
-
+// Display copy only. GAS is the sole judge of validity; this is just the
+// number quoted in the message for whichever value GAS flagged as invalid.
 const fieldDetails = {
   sbi: {
     name: 'SBI',
     label: 'Single Business Identifiers (SBIs)',
-    pattern: /^\d{9}$/,
     length: 9
   },
   crn: {
     name: 'CRN',
     label: 'Customer Reference Numbers (CRNs)',
-    pattern: /^\d{10}$/,
     length: 10
   }
 } as const
@@ -64,43 +61,58 @@ const parsedLinesIn = (value: string): AllowListLine[] =>
 const linesIn = (value: string): string[] =>
   parsedLinesIn(value).map(({ value: line }) => line)
 
-const formatFailure = (
-  key: AllowListFieldKey,
-  line: AllowListLine
-): AllowListFieldError | undefined => {
-  const { name, pattern, length } = fieldDetails[key]
-
-  return pattern.test(line.value)
-    ? undefined
-    : {
-        key,
-        line: line.number,
-        message: `${name} "${line.value}" on line ${line.number} must be exactly ${length} digits`
-      }
+export interface ParsedAllowListForm {
+  global: AllowListGlobal
+  lines: Record<AllowListFieldKey, AllowListLine[]>
 }
 
-const errorFor = (
+/** Splitting the submitted text into lines is presentation, not validation - it always succeeds. */
+export const parseAllowListForm = (
+  form: AllowListFormSubmission
+): ParsedAllowListForm => {
+  const lines = {
+    sbi: parsedLinesIn(form.sbi),
+    crn: parsedLinesIn(form.crn)
+  }
+
+  return {
+    global: {
+      sbi: lines.sbi.map(({ value }) => value),
+      crn: lines.crn.map(({ value }) => value)
+    },
+    lines
+  }
+}
+
+const errorsFor = (
   key: AllowListFieldKey,
-  lines: AllowListLine[]
+  lines: AllowListLine[],
+  problems: AllowListValidationDetails[AllowListFieldKey]
 ): AllowListFieldError[] => {
+  const { name, length } = fieldDetails[key]
+  const invalid = new Set(problems.invalid)
+  const duplicate = new Set(problems.duplicate)
   const firstLineFor = new Map<string, number>()
 
   return lines.flatMap((line) => {
     const errors: AllowListFieldError[] = []
-    const formatError = formatFailure(key, line)
 
-    if (formatError) {
-      errors.push(formatError)
+    if (invalid.has(line.value)) {
+      errors.push({
+        key,
+        line: line.number,
+        message: `${name} "${line.value}" on line ${line.number} must be exactly ${length} digits`
+      })
     }
 
     const firstLine = firstLineFor.get(line.value)
     if (firstLine === undefined) {
       firstLineFor.set(line.value, line.number)
-    } else {
+    } else if (duplicate.has(line.value)) {
       errors.push({
         key,
         line: line.number,
-        message: `${fieldDetails[key].name} "${line.value}" on line ${line.number} is a duplicate of line ${firstLine}`
+        message: `${name} "${line.value}" on line ${line.number} is a duplicate of line ${firstLine}`
       })
     }
 
@@ -108,22 +120,12 @@ const errorFor = (
   })
 }
 
-export const validateAllowListForm = (
-  form: AllowListFormSubmission
-): AllowListValidation => {
-  const lines = {
-    sbi: parsedLinesIn(form.sbi),
-    crn: parsedLinesIn(form.crn)
-  }
-  const errors = fieldKeys.flatMap((key) => errorFor(key, lines[key]))
-
-  const global = {
-    sbi: lines.sbi.map(({ value }) => value),
-    crn: lines.crn.map(({ value }) => value)
-  }
-
-  return errors.length ? { errors } : { global, errors: [] }
-}
+/** Maps GAS's validation decision back onto the submitted lines; GPA decides nothing about validity itself. */
+export const toAllowListFieldErrors = (
+  { lines }: ParsedAllowListForm,
+  details: AllowListValidationDetails
+): AllowListFieldError[] =>
+  fieldKeys.flatMap((key) => errorsFor(key, lines[key], details[key]))
 
 const countHint = (value: string): string => {
   const count = linesIn(value).length

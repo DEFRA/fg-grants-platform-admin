@@ -327,12 +327,29 @@ describe('replaceAllowListRoute', () => {
       sbi: 'bad\r\n bad ',
       crn: '1042000000\n1042000000'
     }
+    vi.mocked(replaceGrantAllowList).mockRejectedValue(
+      Object.assign(new Error('Response Error'), {
+        output: { statusCode: 400 },
+        data: {
+          payload: {
+            errorCode: 'ALLOW_LIST_VALIDATION_FAILED',
+            details: {
+              sbi: { invalid: ['bad'], duplicate: ['bad'] },
+              crn: { invalid: [], duplicate: ['1042000000'] }
+            }
+          }
+        }
+      })
+    )
 
     const response = await post(submitted)
     const $ = load(response.result as unknown as string)
 
     expect(response.statusCode).toBe(statusCodes.badRequest)
-    expect(replaceGrantAllowList).not.toHaveBeenCalled()
+    expect(replaceGrantAllowList).toHaveBeenCalledWith('woodland', {
+      sbi: ['bad', 'bad'],
+      crn: ['1042000000', '1042000000']
+    })
     expect($('.govuk-error-summary')).toHaveLength(1)
     expect($('.govuk-tabs').attr('data-active-tab')).toBe('who-can-apply')
     expect(

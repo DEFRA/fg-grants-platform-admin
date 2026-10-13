@@ -56,6 +56,23 @@ describe('the error code fg-gas-backend answered with', () => {
     ).toMatchObject({ errorCode: 'ENTITLEMENT_CLAIMED' })
   })
 
+  test('keeps structured validation detail alongside the error code', () => {
+    const details = {
+      sbi: { invalid: ['bad'], duplicate: [] },
+      crn: { invalid: [], duplicate: ['1042000000'] }
+    }
+
+    expect(
+      toGasRefusal(
+        wreckError(400, {
+          message: 'The allow list contains invalid entries',
+          errorCode: 'ALLOW_LIST_VALIDATION_FAILED',
+          details
+        })
+      )
+    ).toMatchObject({ errorCode: 'ALLOW_LIST_VALIDATION_FAILED', details })
+  })
+
   test('marks a configuration change as one to try again', () => {
     expect(
       isConfigurationChange({
