@@ -210,12 +210,13 @@ describe('replaceAllowListRoute', () => {
   })
 
   test('submits two empty arrays to clear the allow list', async () => {
-    await post({ sbi: '', crn: ' \r\n ' })
+    const response = await post({ sbi: '', crn: ' \r\n ' })
 
     expect(replaceGrantAllowList).toHaveBeenCalledWith('woodland', {
       sbi: [],
       crn: []
     })
+    expect(response.headers.location).toBe(url)
   })
 
   test('shows validation errors without writing and preserves exact input', async () => {
@@ -261,7 +262,7 @@ describe('replaceAllowListRoute', () => {
     const saved = await post({ sbi: '106000033', crn: '1042000000' })
 
     expect(saved.statusCode).toBe(statusCodes.seeOther)
-    expect(saved.headers.location).toBe(anchoredUrl)
+    expect(saved.headers.location).toBe(url)
 
     const cookie = (saved.headers['set-cookie'] as string[]).join('; ')
     const visit = () =>

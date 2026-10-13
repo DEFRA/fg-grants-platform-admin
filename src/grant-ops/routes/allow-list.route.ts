@@ -161,7 +161,7 @@ const saveValid = async (
 
   if (!refusal) {
     request.yar.flash(allowListSavedKey, 'Allow list saved')
-    return h.redirect(hrefFor(code)).code(303)
+    return h.redirect(adminHrefFor(code)).code(303)
   }
 
   if (refusal.statusCode === 404) {
