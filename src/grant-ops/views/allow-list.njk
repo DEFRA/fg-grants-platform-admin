@@ -42,7 +42,7 @@
           <h2 class="govuk-heading-l">Who can apply</h2>
           <p class="govuk-body" data-testid="allow-list-explanation">Leave both boxes empty and anyone can apply. Otherwise, only applicants with an SBI or CRN listed here can apply.</p>
 
-          <form method="post" novalidate>
+          <form method="post" action="{{ formAction }}" novalidate>
             {% for field in [form.sbi, form.crn] %}
               {{ govukTextarea({
                 id: field.key,

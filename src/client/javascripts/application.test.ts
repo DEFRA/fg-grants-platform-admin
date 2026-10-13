@@ -36,7 +36,10 @@ describe('application', () => {
     expect(createAll).toHaveBeenCalledWith(SkipLink)
     expect(createAll).toHaveBeenCalledWith(Tabs)
     expect(createAll).toHaveBeenCalledTimes(6)
-    expect(selectDefaultAllowListTab).toHaveBeenCalledTimes(1)
+    expect(
+      vi.mocked(createAll).mock.calls.map(([Component]) => Component)
+    ).toEqual([Button, Checkboxes, Radios, SkipLink, Tabs, ErrorSummary])
+    expect(selectDefaultAllowListTab).toHaveBeenCalledTimes(2)
     expect(initAllowListCounts).toHaveBeenCalledTimes(1)
     expect(initAllowListErrorFocus).toHaveBeenCalledTimes(1)
   })

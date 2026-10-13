@@ -33,11 +33,12 @@ const payload = Joi.object({
   crn: Joi.string().allow('').required()
 }).unknown(false)
 
-const hrefFor = (code: string): string =>
-  `/grant-ops/grants/${encodeURIComponent(code)}/admin#who-can-apply`
+const adminHrefFor = (code: string): string =>
+  `/grant-ops/grants/${encodeURIComponent(code)}/admin`
 
-const resetHrefFor = (code: string): string =>
-  `/grant-ops/grants/${encodeURIComponent(code)}/admin/reset`
+const hrefFor = (code: string): string => `${adminHrefFor(code)}#who-can-apply`
+
+const resetHrefFor = (code: string): string => `${adminHrefFor(code)}/reset`
 
 const emptyAllowList = (grantCode: string) => ({
   grantCode,
@@ -63,6 +64,7 @@ const page = ({
 }: PageOptions) => ({
   code,
   pageTitle: errorSummary.length ? 'Error: Who can apply' : 'Who can apply',
+  formAction: adminHrefFor(code),
   form: toAllowListForm(allowList, submitted, errors),
   errorSummary,
   resetHref: resetHrefFor(code),

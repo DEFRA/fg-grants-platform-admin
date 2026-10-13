@@ -19,7 +19,9 @@ const tabsMarkup = `
 
 const initialiseRealTabs = () => {
   selectDefaultAllowListTab()
-  return createAll(Tabs)
+  const tabs = createAll(Tabs)
+  selectDefaultAllowListTab()
+  return tabs
 }
 
 describe('selectDefaultAllowListTab', () => {
@@ -75,6 +77,22 @@ describe('selectDefaultAllowListTab', () => {
     expect(
       document
         .querySelector('a[href="#grant-setup"]')
+        ?.getAttribute('aria-selected')
+    ).toBe('true')
+  })
+
+  test('removes the default fragment after selecting the error tab', () => {
+    document.body.insertAdjacentHTML(
+      'afterbegin',
+      '<div class="govuk-error-summary"></div>'
+    )
+
+    initialiseRealTabs()
+
+    expect(window.location.hash).toBe('')
+    expect(
+      document
+        .querySelector('a[href="#who-can-apply"]')
         ?.getAttribute('aria-selected')
     ).toBe('true')
   })

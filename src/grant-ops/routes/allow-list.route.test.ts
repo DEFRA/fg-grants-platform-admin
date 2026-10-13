@@ -170,6 +170,7 @@ describe('viewAllowListRoute', () => {
     const { $ } = await viewPage()
     const reset = $('[data-testid="allow-list-reset"]')
 
+    expect($('#who-can-apply form').attr('action')).toBe(url)
     expect($('button[type="submit"]').text().trim()).toBe('Save allow list')
     expect(reset.text().trim()).toBe('Reset changes')
     expect(reset.attr('href')).toBe(resetUrl)
