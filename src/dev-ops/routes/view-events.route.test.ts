@@ -3316,7 +3316,7 @@ describe('viewEventsRoute', () => {
       '/dev-ops/events?live=30&status=FAILED'
     )
 
-    expect(statusCode).toBe(400)
+    expect(statusCode).toBe(statusCodes.badRequest)
     expect(getEventsUseCase).not.toHaveBeenCalled()
   })
 

@@ -268,7 +268,7 @@ describe('newClaimableItemRoute', () => {
     })
     const $ = load(result as unknown as string)
 
-    expect(statusCode).toBe(409)
+    expect(statusCode).toBe(statusCodes.conflict)
     expect($('[data-testid="entitlement-refused"]').text()).toContain(
       'This item cannot be added: limit reached.'
     )
@@ -501,7 +501,7 @@ describe('createClaimableItemRoute', () => {
     const { result, statusCode } = await post({ totalHectares: '40.25' })
     const $ = load(result as unknown as string)
 
-    expect(statusCode).toBe(409)
+    expect(statusCode).toBe(statusCodes.conflict)
     expect(
       $('[data-testid="claimable-error-summary"]')
         .text()
@@ -520,7 +520,7 @@ describe('createClaimableItemRoute', () => {
     const { result, statusCode } = await post({ totalHectares: '40.25' })
     const $ = load(result as unknown as string)
 
-    expect(statusCode).toBe(409)
+    expect(statusCode).toBe(statusCodes.conflict)
     expect(createEntitlement).not.toHaveBeenCalled()
     expect($('[data-testid="entitlement-refused"]').text()).toContain(
       'This item cannot be added: limit reached.'

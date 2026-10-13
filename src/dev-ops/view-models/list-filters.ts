@@ -6,8 +6,10 @@ export interface FilterField {
 /** The keys a list's links can carry, read off its own query type. */
 export type FilterKeys<Q> = readonly (keyof Q & string)[]
 
-export const present = (name: string, value: string | undefined) =>
-  value ? { [name]: value } : {}
+export const present = (
+  name: string,
+  value: string | undefined
+): Record<string, string> => (value ? { [name]: value } : {})
 
 export const toFields = <Q extends object>(
   query: Q,
