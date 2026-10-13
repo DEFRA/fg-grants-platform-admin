@@ -179,15 +179,36 @@ describe('viewAllowListRoute', () => {
 })
 
 describe('resetAllowListRoute', () => {
-  test('denies reset when GAS denies grant administration', async () => {
-    vi.mocked(getGrantAllowList).mockRejectedValue(Boom.forbidden())
+  test('redirects without calling GAS, deferring the access check to the view', async () => {
     const response = await server.inject({
       method: 'GET',
       url: resetUrl,
       auth: authenticated
     })
-    expect(response.statusCode).toBe(403)
-    expect(response.headers.location).toBeUndefined()
+
+    expect(response.statusCode).toBe(statusCodes.seeOther)
+    expect(getGrantAllowList).not.toHaveBeenCalled()
+  })
+
+  test('denies the redirected view when GAS denies grant administration', async () => {
+    vi.mocked(getGrantAllowList).mockRejectedValue(Boom.forbidden())
+    const reset = await server.inject({
+      method: 'GET',
+      url: resetUrl,
+      auth: authenticated
+    })
+
+    expect(reset.statusCode).toBe(statusCodes.seeOther)
+
+    const cookie = (reset.headers['set-cookie'] as string[]).join('; ')
+    const followed = await server.inject({
+      method: 'GET',
+      url,
+      headers: { cookie },
+      auth: authenticated
+    })
+
+    expect(followed.statusCode).toBe(403)
   })
 
   test('redirects to a fresh view of the persisted allow list', async () => {
@@ -224,10 +245,17 @@ describe('replaceAllowListRoute', () => {
     vi.mocked(replaceGrantAllowList).mockResolvedValue(allowList)
   })
 
-  test('denies a save before validation if GAS denies grant administration', async () => {
+  test('saves without first calling GAS to view the list', async () => {
+    await post({ sbi: '106000033', crn: '' })
+
+    expect(getGrantAllowList).not.toHaveBeenCalled()
+  })
+
+  test('rejects an invalid payload locally without contacting GAS', async () => {
     vi.mocked(getGrantAllowList).mockRejectedValue(Boom.forbidden())
     const response = await post({ sbi: 'bad', crn: '' })
-    expect(response.statusCode).toBe(403)
+
+    expect(response.statusCode).toBe(statusCodes.badRequest)
     expect(replaceGrantAllowList).not.toHaveBeenCalled()
   })
 

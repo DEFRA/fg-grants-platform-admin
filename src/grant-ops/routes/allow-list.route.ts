@@ -105,7 +105,9 @@ export const resetAllowListRoute: ServerRoute = {
   async handler(request: Request, h: ResponseToolkit) {
     const { code } = request.params as unknown as AllowListParams
 
-    await getAllowListUseCase(code)
+    // Permission is enforced by the view this redirects to, which makes its
+    // own real GAS call. Checking here too would be a second audited read of
+    // the whole list for a request that never shows or uses that data.
     request.yar.flash(allowListActiveTabKey, 'who-can-apply')
     return h.redirect(adminHrefFor(code)).code(303)
   }
@@ -192,7 +194,9 @@ export const replaceAllowListRoute: ServerRoute = {
   options: { validate: { params, payload } },
   async handler(request: Request, h: ResponseToolkit) {
     const { code } = request.params as unknown as AllowListParams
-    await getAllowListUseCase(code)
+    // Permission is enforced by the real write below, not by a discarded
+    // read here: that pre-check doubled the GAS call on every save and
+    // recorded a VIEW_ALLOW_LIST audit for data nobody viewed.
     const form = request.payload as AllowListFormSubmission
     const validated = validateAllowListForm(form)
 
