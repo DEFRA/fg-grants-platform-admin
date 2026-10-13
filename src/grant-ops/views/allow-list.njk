@@ -1,0 +1,74 @@
+{% extends 'layouts/page.njk' %}
+
+{% from "govuk/components/button/macro.njk" import govukButton %}
+{% from "govuk/components/error-summary/macro.njk" import govukErrorSummary %}
+{% from "govuk/components/notification-banner/macro.njk" import govukNotificationBanner %}
+{% from "govuk/components/textarea/macro.njk" import govukTextarea %}
+
+{% block content %}
+  <div class="govuk-grid-row">
+    <div class="govuk-grid-column-two-thirds">
+      <h1 class="govuk-heading-l">Who can apply</h1>
+
+      {% if saved %}
+        {{ govukNotificationBanner({
+          type: "success",
+          text: saved,
+          attributes: { "data-testid": "allow-list-saved" }
+        }) }}
+      {% endif %}
+
+      {% if errorSummary | length %}
+        {{ govukErrorSummary({
+          titleText: "There is a problem",
+          errorList: errorSummary
+        }) }}
+      {% endif %}
+
+      <div class="govuk-tabs" data-module="govuk-tabs">
+        <h2 class="govuk-tabs__title">Contents</h2>
+        <ul class="govuk-tabs__list">
+          <li class="govuk-tabs__list-item">
+            <a class="govuk-tabs__tab" href="#grant-setup">Grant setup</a>
+          </li>
+          <li class="govuk-tabs__list-item govuk-tabs__list-item--selected">
+            <a class="govuk-tabs__tab" href="#who-can-apply">Who can apply</a>
+          </li>
+        </ul>
+
+        <div class="govuk-tabs__panel" id="grant-setup">
+          <h2 class="govuk-heading-l">Grant setup</h2>
+          <p class="govuk-body">Grant setup details.</p>
+        </div>
+
+        <div class="govuk-tabs__panel" id="who-can-apply">
+          <h2 class="govuk-heading-l">Who can apply</h2>
+          <p class="govuk-body" data-testid="allow-list-explanation">Leave both boxes empty and anyone can apply. Otherwise, only applicants with an SBI or CRN listed here can apply.</p>
+
+          <form method="post" novalidate>
+            {% for field in [form.sbi, form.crn] %}
+              {{ govukTextarea({
+                id: field.key,
+                name: field.key,
+                value: field.value,
+                rows: 10,
+                label: { text: field.label, classes: "govuk-label--s" },
+                hint: { text: field.hint },
+                errorMessage: { text: field.error } if field.error else none,
+                attributes: {
+                  "data-allow-list-input": "",
+                  "data-count-target": field.key + "-hint"
+                }
+              }) }}
+            {% endfor %}
+
+            <div class="govuk-button-group">
+              {{ govukButton({ text: "Save allow list" }) }}
+              <a class="govuk-link" href="{{ resetHref }}" data-testid="allow-list-reset">Reset changes</a>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+{% endblock %}
