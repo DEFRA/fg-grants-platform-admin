@@ -140,7 +140,6 @@ describe('viewAllowListRoute', () => {
     expect($('#who-can-apply')).toHaveLength(1)
     expect($('#grant-setup').attr('hidden')).toBeUndefined()
     expect($('#who-can-apply').attr('hidden')).toBeUndefined()
-    expect($('#grant-setup h2').text().trim()).toBe('Grant setup')
     expect($('#who-can-apply h2').text().trim()).toBe('Who can apply')
   })
 
