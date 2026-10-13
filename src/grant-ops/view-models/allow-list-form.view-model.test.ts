@@ -46,10 +46,14 @@ describe('validateAllowListForm', () => {
   })
 
   test.each([
-    ['sbi', '10600003', 'Each SBI must be exactly 9 digits'],
-    ['sbi', '10600003x', 'Each SBI must be exactly 9 digits'],
-    ['crn', '104200000', 'Each CRN must be exactly 10 digits'],
-    ['crn', '104200000x', 'Each CRN must be exactly 10 digits']
+    ['sbi', '10600003', 'SBI "10600003" on line 1 must be exactly 9 digits'],
+    ['sbi', '10600003x', 'SBI "10600003x" on line 1 must be exactly 9 digits'],
+    ['crn', '104200000', 'CRN "104200000" on line 1 must be exactly 10 digits'],
+    [
+      'crn',
+      '104200000x',
+      'CRN "104200000x" on line 1 must be exactly 10 digits'
+    ]
   ] as const)('rejects an invalid %s', (key, value, message) => {
     const submission = { sbi: '', crn: '', [key]: value }
 
@@ -59,8 +63,16 @@ describe('validateAllowListForm', () => {
   })
 
   test.each([
-    ['sbi', '106000033\n 106000033 ', 'Each SBI must be listed only once'],
-    ['crn', '1042000000\r\n1042000000', 'Each CRN must be listed only once']
+    [
+      'sbi',
+      '106000033\n 106000033 ',
+      'SBI "106000033" on line 2 is a duplicate of line 1'
+    ],
+    [
+      'crn',
+      '1042000000\r\n1042000000',
+      'CRN "1042000000" on line 2 is a duplicate of line 1'
+    ]
   ] as const)(
     'rejects duplicate %s values after trimming',
     (key, value, message) => {
@@ -72,25 +84,54 @@ describe('validateAllowListForm', () => {
     }
   )
 
-  test('joins format and duplicate failures for one field', () => {
+  test('reports each invalid and duplicate line separately', () => {
     expect(validateAllowListForm({ sbi: 'invalid\ninvalid', crn: '' })).toEqual(
       {
         errors: [
           {
             key: 'sbi',
-            message:
-              'Each SBI must be exactly 9 digits and Each SBI must be listed only once'
+            message: 'SBI "invalid" on line 1 must be exactly 9 digits'
+          },
+          {
+            key: 'sbi',
+            message: 'SBI "invalid" on line 2 must be exactly 9 digits'
+          },
+          {
+            key: 'sbi',
+            message: 'SBI "invalid" on line 2 is a duplicate of line 1'
           }
         ]
       }
     )
   })
 
+  test('uses visible line numbers including blank lines', () => {
+    expect(
+      validateAllowListForm({
+        sbi: '\n  106000033  \r\n\r106000033',
+        crn: ''
+      })
+    ).toEqual({
+      errors: [
+        {
+          key: 'sbi',
+          message: 'SBI "106000033" on line 4 is a duplicate of line 2'
+        }
+      ]
+    })
+  })
+
   test('reports both fields in SBI then CRN order without a payload', () => {
     expect(validateAllowListForm({ sbi: 'bad', crn: 'also bad' })).toEqual({
       errors: [
-        { key: 'sbi', message: 'Each SBI must be exactly 9 digits' },
-        { key: 'crn', message: 'Each CRN must be exactly 10 digits' }
+        {
+          key: 'sbi',
+          message: 'SBI "bad" on line 1 must be exactly 9 digits'
+        },
+        {
+          key: 'crn',
+          message: 'CRN "also bad" on line 1 must be exactly 10 digits'
+        }
       ]
     })
   })

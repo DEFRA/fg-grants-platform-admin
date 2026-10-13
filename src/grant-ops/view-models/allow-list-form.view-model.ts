@@ -49,51 +49,75 @@ const fieldDetails = {
 
 const fieldKeys: AllowListFieldKey[] = ['sbi', 'crn']
 
-const linesIn = (value: string): string[] =>
+interface AllowListLine {
+  value: string
+  number: number
+}
+
+const parsedLinesIn = (value: string): AllowListLine[] =>
   value
     .split(/\r\n|\r|\n/)
-    .map((line) => line.trim())
-    .filter(Boolean)
+    .map((line, index) => ({ value: line.trim(), number: index + 1 }))
+    .filter(({ value: line }) => Boolean(line))
+
+const linesIn = (value: string): string[] =>
+  parsedLinesIn(value).map(({ value: line }) => line)
 
 const formatFailure = (
   key: AllowListFieldKey,
-  values: string[]
-): string | undefined => {
+  line: AllowListLine
+): AllowListFieldError | undefined => {
   const { name, pattern, length } = fieldDetails[key]
 
-  return values.some((value) => !pattern.test(value))
-    ? `Each ${name} must be exactly ${length} digits`
-    : undefined
-}
-
-const duplicateFailure = (
-  key: AllowListFieldKey,
-  values: string[]
-): string | undefined =>
-  new Set(values).size === values.length
+  return pattern.test(line.value)
     ? undefined
-    : `Each ${fieldDetails[key].name} must be listed only once`
+    : {
+        key,
+        message: `${name} "${line.value}" on line ${line.number} must be exactly ${length} digits`
+      }
+}
 
 const errorFor = (
   key: AllowListFieldKey,
-  values: string[]
+  lines: AllowListLine[]
 ): AllowListFieldError[] => {
-  const failures = [
-    formatFailure(key, values),
-    duplicateFailure(key, values)
-  ].filter((message): message is string => Boolean(message))
+  const firstLineFor = new Map<string, number>()
 
-  return failures.length ? [{ key, message: failures.join(' and ') }] : []
+  return lines.flatMap((line) => {
+    const errors: AllowListFieldError[] = []
+    const formatError = formatFailure(key, line)
+
+    if (formatError) {
+      errors.push(formatError)
+    }
+
+    const firstLine = firstLineFor.get(line.value)
+    if (firstLine === undefined) {
+      firstLineFor.set(line.value, line.number)
+    } else {
+      errors.push({
+        key,
+        message: `${fieldDetails[key].name} "${line.value}" on line ${line.number} is a duplicate of line ${firstLine}`
+      })
+    }
+
+    return errors
+  })
 }
 
 export const validateAllowListForm = (
   form: AllowListFormSubmission
 ): AllowListValidation => {
-  const global = {
-    sbi: linesIn(form.sbi),
-    crn: linesIn(form.crn)
+  const lines = {
+    sbi: parsedLinesIn(form.sbi),
+    crn: parsedLinesIn(form.crn)
   }
-  const errors = fieldKeys.flatMap((key) => errorFor(key, global[key]))
+  const errors = fieldKeys.flatMap((key) => errorFor(key, lines[key]))
+
+  const global = {
+    sbi: lines.sbi.map(({ value }) => value),
+    crn: lines.crn.map(({ value }) => value)
+  }
 
   return errors.length ? { errors } : { global, errors: [] }
 }

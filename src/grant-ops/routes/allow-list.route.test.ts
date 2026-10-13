@@ -219,13 +219,18 @@ describe('replaceAllowListRoute', () => {
       $('.govuk-error-summary a')
         .map((_, link) => $(link).attr('href'))
         .get()
-    ).toEqual(['#sbi', '#crn'])
+    ).toEqual(['#sbi', '#sbi', '#sbi', '#crn'])
     expect($('#sbi-error').text()).toContain(
-      'Each SBI must be exactly 9 digits and Each SBI must be listed only once'
+      'SBI "bad" on line 1 must be exactly 9 digits'
     )
     expect($('#crn-error').text()).toContain(
-      'Each CRN must be listed only once'
+      'CRN "1042000000" on line 2 is a duplicate of line 1'
     )
+    expect($('.govuk-error-summary').text()).toContain(
+      'SBI "bad" on line 2 is a duplicate of line 1'
+    )
+    expect($('#sbi').hasClass('app-allow-list-input')).toBe(true)
+    expect($('#crn').hasClass('app-allow-list-input')).toBe(true)
     expect(response.result).toEqual(expect.stringContaining(submitted.sbi))
     expect($('#crn').text()).toBe(submitted.crn)
     expect($('#sbi-hint').text().trim()).toBe('One per line. 2 listed.')
