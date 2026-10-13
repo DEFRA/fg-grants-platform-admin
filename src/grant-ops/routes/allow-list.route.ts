@@ -74,16 +74,13 @@ const page = ({
   saved
 })
 
-const cwRolesOf = (request: Request): string[] | null | undefined =>
-  (request.auth.credentials.user as { cwRoles?: string[] | null })?.cwRoles
-
 export const viewAllowListRoute: ServerRoute = {
   method: 'GET',
   path: '/grant-ops/grants/{code}/admin',
   options: { validate: { params } },
   async handler(request: Request, h: ResponseToolkit) {
     const { code } = request.params as unknown as AllowListParams
-    const allowList = await getAllowListUseCase(code, cwRolesOf(request))
+    const allowList = await getAllowListUseCase(code)
     const [saved] = request.yar.flash(allowListSavedKey)
     const [activeTab] = request.yar.flash(allowListActiveTabKey)
 
@@ -217,7 +214,9 @@ export const replaceAllowListRoute: ServerRoute = {
   options: { validate: { params, payload } },
   async handler(request: Request, h: ResponseToolkit) {
     const { code } = request.params as unknown as AllowListParams
-    await getAllowListUseCase(code, cwRolesOf(request))
+    // Permission is enforced by the real write below, not by a discarded
+    // read here: GAS enforces access on every call, so a local pre-check
+    // would only duplicate a decision GAS already makes for real.
     const form = request.payload as AllowListFormSubmission
     const parsed = parseAllowListForm(form)
 
