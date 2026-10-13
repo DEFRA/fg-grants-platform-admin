@@ -12,6 +12,7 @@ export type AllowListFieldKey = keyof AllowListFormSubmission
 
 export interface AllowListFieldError {
   key: AllowListFieldKey
+  line: number
   message: string
 }
 
@@ -73,6 +74,7 @@ const formatFailure = (
     ? undefined
     : {
         key,
+        line: line.number,
         message: `${name} "${line.value}" on line ${line.number} must be exactly ${length} digits`
       }
 }
@@ -97,6 +99,7 @@ const errorFor = (
     } else {
       errors.push({
         key,
+        line: line.number,
         message: `${fieldDetails[key].name} "${line.value}" on line ${line.number} is a duplicate of line ${firstLine}`
       })
     }
@@ -161,4 +164,8 @@ export const toAllowListForm = (
 }
 
 export const toAllowListErrorSummary = (errors: AllowListFieldError[]) =>
-  errors.map(({ key, message }) => ({ text: message, href: `#${key}` }))
+  errors.map(({ key, line, message }) => ({
+    text: message,
+    href: `#${key}`,
+    attributes: { 'data-error-line': line }
+  }))

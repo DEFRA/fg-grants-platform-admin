@@ -8,7 +8,7 @@ import {
   Tabs
 } from 'govuk-frontend'
 import { initAllowListCounts } from '../../grant-ops/client/allow-list-count.ts'
-import { initAllowListCursorLines } from '../../grant-ops/client/allow-list-cursor-line.ts'
+import { initAllowListErrorFocus } from '../../grant-ops/client/allow-list-error-focus.ts'
 import { selectDefaultAllowListTab } from '../../grant-ops/client/allow-list-tabs.ts'
 
 createAll(Button)
@@ -19,4 +19,4 @@ createAll(SkipLink)
 selectDefaultAllowListTab()
 createAll(Tabs)
 initAllowListCounts()
-initAllowListCursorLines()
+initAllowListErrorFocus()

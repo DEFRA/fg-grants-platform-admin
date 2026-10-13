@@ -116,7 +116,7 @@ describe('viewAllowListRoute', () => {
 
     expect(statusCode).toBe(statusCodes.ok)
     expect($('title').text()).toContain('Who can apply')
-    expect($('h1').text().trim()).toBe('woodland')
+    expect($('h1').text().trim()).toBe('Grant code woodland')
     expect($('body').text()).not.toContain('Woodland Creation')
     expect($('[data-testid="allow-list-explanation"]').text().trim()).toBe(
       'Leave both boxes empty and anyone can apply. Otherwise, only applicants with an SBI or CRN listed here can apply.'
@@ -234,6 +234,11 @@ describe('replaceAllowListRoute', () => {
         .map((_, link) => $(link).attr('href'))
         .get()
     ).toEqual(['#sbi', '#sbi', '#sbi', '#crn'])
+    expect(
+      $('.govuk-error-summary a')
+        .map((_, link) => $(link).attr('data-error-line'))
+        .get()
+    ).toEqual(['1', '2', '2', '2'])
     expect($('#sbi-error').text()).toContain(
       'SBI "bad" on line 1 must be exactly 9 digits'
     )

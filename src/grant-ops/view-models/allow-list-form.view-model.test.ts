@@ -58,7 +58,7 @@ describe('validateAllowListForm', () => {
     const submission = { sbi: '', crn: '', [key]: value }
 
     expect(validateAllowListForm(submission)).toEqual({
-      errors: [{ key, message }]
+      errors: [{ key, line: 1, message }]
     })
   })
 
@@ -79,7 +79,7 @@ describe('validateAllowListForm', () => {
       const submission = { sbi: '', crn: '', [key]: value }
 
       expect(validateAllowListForm(submission)).toEqual({
-        errors: [{ key, message }]
+        errors: [{ key, line: 2, message }]
       })
     }
   )
@@ -90,14 +90,17 @@ describe('validateAllowListForm', () => {
         errors: [
           {
             key: 'sbi',
+            line: 1,
             message: 'SBI "invalid" on line 1 must be exactly 9 digits'
           },
           {
             key: 'sbi',
+            line: 2,
             message: 'SBI "invalid" on line 2 must be exactly 9 digits'
           },
           {
             key: 'sbi',
+            line: 2,
             message: 'SBI "invalid" on line 2 is a duplicate of line 1'
           }
         ]
@@ -115,6 +118,7 @@ describe('validateAllowListForm', () => {
       errors: [
         {
           key: 'sbi',
+          line: 4,
           message: 'SBI "106000033" on line 4 is a duplicate of line 2'
         }
       ]
@@ -126,10 +130,12 @@ describe('validateAllowListForm', () => {
       errors: [
         {
           key: 'sbi',
+          line: 1,
           message: 'SBI "bad" on line 1 must be exactly 9 digits'
         },
         {
           key: 'crn',
+          line: 1,
           message: 'CRN "also bad" on line 1 must be exactly 10 digits'
         }
       ]
@@ -173,8 +179,8 @@ describe('toAllowListForm', () => {
       crn: 'bad\rvalue\n'
     }
     const errors = [
-      { key: 'sbi' as const, message: 'Duplicate SBI' },
-      { key: 'crn' as const, message: 'Invalid CRN' }
+      { key: 'sbi' as const, line: 1, message: 'Duplicate SBI' },
+      { key: 'crn' as const, line: 1, message: 'Invalid CRN' }
     ]
 
     expect(toAllowListForm(persisted, submitted, errors)).toMatchObject({
@@ -196,12 +202,20 @@ describe('toAllowListErrorSummary', () => {
   test('links each error to its textarea', () => {
     expect(
       toAllowListErrorSummary([
-        { key: 'sbi', message: 'Invalid SBI' },
-        { key: 'crn', message: 'Invalid CRN' }
+        { key: 'sbi', line: 2, message: 'Invalid SBI' },
+        { key: 'crn', line: 5, message: 'Invalid CRN' }
       ])
     ).toEqual([
-      { text: 'Invalid SBI', href: '#sbi' },
-      { text: 'Invalid CRN', href: '#crn' }
+      {
+        text: 'Invalid SBI',
+        href: '#sbi',
+        attributes: { 'data-error-line': 2 }
+      },
+      {
+        text: 'Invalid CRN',
+        href: '#crn',
+        attributes: { 'data-error-line': 5 }
+      }
     ])
   })
 })
