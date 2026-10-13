@@ -74,22 +74,8 @@ const page = ({
   saved
 })
 
-const authorisedAllowList = async (request: Request, code: string) => {
-  const allowList = await getAllowListUseCase(code)
-  const { cwRoles } = request.auth.credentials.user as {
-    cwRoles?: string[] | null
-  }
-  if (
-    !allowList.adminRole ||
-    !Array.isArray(cwRoles) ||
-    !cwRoles.includes(allowList.adminRole)
-  ) {
-    throw Boom.forbidden(
-      'You do not have access to administration for this grant'
-    )
-  }
-  return allowList
-}
+const cwRolesOf = (request: Request): string[] | null | undefined =>
+  (request.auth.credentials.user as { cwRoles?: string[] | null })?.cwRoles
 
 export const viewAllowListRoute: ServerRoute = {
   method: 'GET',
@@ -97,7 +83,7 @@ export const viewAllowListRoute: ServerRoute = {
   options: { validate: { params } },
   async handler(request: Request, h: ResponseToolkit) {
     const { code } = request.params as unknown as AllowListParams
-    const allowList = await authorisedAllowList(request, code)
+    const allowList = await getAllowListUseCase(code, cwRolesOf(request))
     const [saved] = request.yar.flash(allowListSavedKey)
     const [activeTab] = request.yar.flash(allowListActiveTabKey)
 
@@ -231,7 +217,7 @@ export const replaceAllowListRoute: ServerRoute = {
   options: { validate: { params, payload } },
   async handler(request: Request, h: ResponseToolkit) {
     const { code } = request.params as unknown as AllowListParams
-    await authorisedAllowList(request, code)
+    await getAllowListUseCase(code, cwRolesOf(request))
     const form = request.payload as AllowListFormSubmission
     const parsed = parseAllowListForm(form)
 
