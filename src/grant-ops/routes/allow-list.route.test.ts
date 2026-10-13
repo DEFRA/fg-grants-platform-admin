@@ -15,6 +15,7 @@ vi.mock(import('../repositories/allow-list.repository.ts'))
 
 const url = '/grant-ops/grants/woodland/admin'
 const anchoredUrl = `${url}#who-can-apply`
+const resetUrl = `${url}/reset`
 const credentials = {
   user: { name: 'Ada Lovelace', id: 'operator-1' },
   scope: ['FCP.GrantApplicationsAdmin']
@@ -110,12 +111,12 @@ describe('viewAllowListRoute', () => {
     expect(response.statusCode).toBe(statusCodes.notFound)
   })
 
-  test('renders the agreed page without the screenshot grant header', async () => {
+  test('shows the current grant code without the screenshot grant header', async () => {
     const { $, statusCode } = await viewPage()
 
     expect(statusCode).toBe(statusCodes.ok)
     expect($('title').text()).toContain('Who can apply')
-    expect($('h1').text().trim()).toBe('Who can apply')
+    expect($('h1').text().trim()).toBe('woodland')
     expect($('body').text()).not.toContain('Woodland Creation')
     expect($('[data-testid="allow-list-explanation"]').text().trim()).toBe(
       'Leave both boxes empty and anyone can apply. Otherwise, only applicants with an SBI or CRN listed here can apply.'
@@ -167,12 +168,25 @@ describe('viewAllowListRoute', () => {
 
   test('renders save and reset controls that work without JavaScript', async () => {
     const { $ } = await viewPage()
+    const reset = $('[data-testid="allow-list-reset"]')
 
     expect($('button[type="submit"]').text().trim()).toBe('Save allow list')
-    expect($('[data-testid="allow-list-reset"]').text().trim()).toBe(
-      'Reset changes'
-    )
-    expect($('[data-testid="allow-list-reset"]').attr('href')).toBe(anchoredUrl)
+    expect(reset.text().trim()).toBe('Reset changes')
+    expect(reset.attr('href')).toBe(resetUrl)
+    expect(reset.hasClass('govuk-button--secondary')).toBe(true)
+  })
+})
+
+describe('resetAllowListRoute', () => {
+  test('redirects to a fresh view of the persisted allow list', async () => {
+    const response = await server.inject({
+      method: 'GET',
+      url: resetUrl,
+      auth: authenticated
+    })
+
+    expect(response.statusCode).toBe(statusCodes.seeOther)
+    expect(response.headers.location).toBe(anchoredUrl)
   })
 })
 

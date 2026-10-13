@@ -36,6 +36,9 @@ const payload = Joi.object({
 const hrefFor = (code: string): string =>
   `/grant-ops/grants/${encodeURIComponent(code)}/admin#who-can-apply`
 
+const resetHrefFor = (code: string): string =>
+  `/grant-ops/grants/${encodeURIComponent(code)}/admin/reset`
+
 const emptyAllowList = (grantCode: string) => ({
   grantCode,
   global: { sbi: [], crn: [] }
@@ -58,10 +61,11 @@ const page = ({
   errorSummary,
   saved
 }: PageOptions) => ({
+  code,
   pageTitle: errorSummary.length ? 'Error: Who can apply' : 'Who can apply',
   form: toAllowListForm(allowList, submitted, errors),
   errorSummary,
-  resetHref: hrefFor(code),
+  resetHref: resetHrefFor(code),
   saved
 })
 
@@ -85,6 +89,17 @@ export const viewAllowListRoute: ServerRoute = {
         saved
       })
     )
+  }
+}
+
+export const resetAllowListRoute: ServerRoute = {
+  method: 'GET',
+  path: '/grant-ops/grants/{code}/admin/reset',
+  options: { validate: { params } },
+  handler(request: Request, h: ResponseToolkit) {
+    const { code } = request.params as unknown as AllowListParams
+
+    return h.redirect(hrefFor(code)).code(303)
   }
 }
 

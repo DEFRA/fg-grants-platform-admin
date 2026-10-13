@@ -13,6 +13,7 @@ import {
 } from './routes/new-claimable-item.route.ts'
 import {
   replaceAllowListRoute,
+  resetAllowListRoute,
   viewAllowListRoute
 } from './routes/allow-list.route.ts'
 import { viewClaimsRoute } from './routes/view-claims.route.ts'
@@ -34,6 +35,7 @@ export const grantOps = {
           asOperator([
             viewGrantOpsRoute,
             viewAllowListRoute,
+            resetAllowListRoute,
             replaceAllowListRoute,
             viewClaimsRoute,
             newClaimableItemRoute,
