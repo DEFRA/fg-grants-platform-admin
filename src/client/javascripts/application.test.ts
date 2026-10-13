@@ -8,9 +8,11 @@ import {
   Tabs
 } from 'govuk-frontend'
 import { initAllowListCounts } from '../../grant-ops/client/allow-list-count.ts'
+import { initAllowListCursorLines } from '../../grant-ops/client/allow-list-cursor-line.ts'
 import { selectDefaultAllowListTab } from '../../grant-ops/client/allow-list-tabs.ts'
 
 vi.mock(import('../../grant-ops/client/allow-list-count.ts'))
+vi.mock(import('../../grant-ops/client/allow-list-cursor-line.ts'))
 vi.mock(import('../../grant-ops/client/allow-list-tabs.ts'))
 
 vi.mock(import('govuk-frontend'), () => ({
@@ -36,5 +38,6 @@ describe('application', () => {
     expect(createAll).toHaveBeenCalledTimes(6)
     expect(selectDefaultAllowListTab).toHaveBeenCalledTimes(1)
     expect(initAllowListCounts).toHaveBeenCalledTimes(1)
+    expect(initAllowListCursorLines).toHaveBeenCalledTimes(1)
   })
 })
