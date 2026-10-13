@@ -123,7 +123,7 @@ describe('viewAllowListRoute', () => {
     )
   })
 
-  test('renders setup then who-can-apply tabs with the latter selected', async () => {
+  test('renders setup then who-can-apply tabs with setup selected on normal entry', async () => {
     const { $ } = await viewPage()
     const tabs = $('.govuk-tabs__list-item')
 
@@ -131,7 +131,8 @@ describe('viewAllowListRoute', () => {
       'Grant setup',
       'Who can apply'
     ])
-    expect(tabs.eq(1).hasClass('govuk-tabs__list-item--selected')).toBe(true)
+    expect(tabs.eq(0).hasClass('govuk-tabs__list-item--selected')).toBe(true)
+    expect($('.govuk-tabs').attr('data-active-tab')).toBe('grant-setup')
   })
 
   test('keeps both tab panels as ordinary content without JavaScript', async () => {
@@ -231,6 +232,7 @@ describe('replaceAllowListRoute', () => {
     expect(response.statusCode).toBe(statusCodes.badRequest)
     expect(replaceGrantAllowList).not.toHaveBeenCalled()
     expect($('.govuk-error-summary')).toHaveLength(1)
+    expect($('.govuk-tabs').attr('data-active-tab')).toBe('who-can-apply')
     expect(
       $('.govuk-error-summary a')
         .map((_, link) => $(link).attr('href'))
@@ -275,6 +277,16 @@ describe('replaceAllowListRoute', () => {
 
     const first = await visit()
     const second = await visit()
+    expect(
+      load(first.result as unknown as string)('.govuk-tabs').attr(
+        'data-active-tab'
+      )
+    ).toBe('who-can-apply')
+    expect(
+      load(second.result as unknown as string)('.govuk-tabs').attr(
+        'data-active-tab'
+      )
+    ).toBe('grant-setup')
 
     expect(
       load(first.result as unknown as string)(

@@ -3,7 +3,7 @@ import { createAll, Tabs } from 'govuk-frontend'
 import { selectDefaultAllowListTab } from './allow-list-tabs.ts'
 
 const tabsMarkup = `
-  <div class="govuk-tabs" data-module="govuk-tabs" data-default-tab="#who-can-apply">
+  <div class="govuk-tabs" data-module="govuk-tabs" data-active-tab="grant-setup">
     <ul class="govuk-tabs__list">
       <li class="govuk-tabs__list-item">
         <a class="govuk-tabs__tab" href="#grant-setup">Grant setup</a>
@@ -43,10 +43,24 @@ describe('selectDefaultAllowListTab', () => {
     vi.unstubAllGlobals()
   })
 
-  test('keeps Who can apply selected when real GOV.UK Tabs initialises', () => {
+  test('opens Grant setup without adding a fragment on normal entry', () => {
     initialiseRealTabs()
 
-    expect(window.location.hash).toBe('#who-can-apply')
+    expect(window.location.hash).toBe('')
+    expect(
+      document
+        .querySelector('a[href="#grant-setup"]')
+        ?.getAttribute('aria-selected')
+    ).toBe('true')
+  })
+
+  test('keeps Who can apply selected without leaving a scrolling fragment after saving', () => {
+    document.querySelector<HTMLElement>(
+      '[data-active-tab]'
+    )!.dataset.activeTab = 'who-can-apply'
+    initialiseRealTabs()
+
+    expect(window.location.hash).toBe('')
     expect(
       document
         .querySelector('a[href="#who-can-apply"]')
@@ -82,6 +96,9 @@ describe('selectDefaultAllowListTab', () => {
   })
 
   test('removes the default fragment after selecting the error tab', () => {
+    document.querySelector<HTMLElement>(
+      '[data-active-tab]'
+    )!.dataset.activeTab = 'who-can-apply'
     document.body.insertAdjacentHTML(
       'afterbegin',
       '<div class="govuk-error-summary"></div>'

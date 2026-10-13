@@ -1,36 +1,32 @@
-const canSelectDefault = (defaultTab?: string): defaultTab is string =>
-  !window.location.hash && Boolean(defaultTab)
+const shouldSelectAllowList = (tabs: HTMLElement): boolean =>
+  !window.location.hash && tabs.dataset.activeTab === 'who-can-apply'
 
-const shouldClearErrorFragment = (
-  root: ParentNode,
-  tabs: HTMLElement | null,
-  defaultTab?: string
-): boolean =>
-  Boolean(tabs?.hasAttribute('data-govuk-tabs-init')) &&
-  Boolean(root.querySelector('.govuk-error-summary')) &&
-  window.location.hash === defaultTab
-
-const defaultTabFor = (tabs: HTMLElement | null): string | undefined =>
-  tabs?.dataset.defaultTab
-
-export const selectDefaultAllowListTab = (
-  root: ParentNode = document
-): void => {
-  const tabs = root.querySelector<HTMLElement>('[data-default-tab]')
-  const defaultTab = defaultTabFor(tabs)
-
-  if (shouldClearErrorFragment(root, tabs, defaultTab)) {
+const selectInitialTab = (tabs: HTMLElement): void => {
+  // GOV.UK Tabs reads the fragment during initialisation. Remove our temporary
+  // fragment immediately afterwards so it cannot trigger load-time scrolling.
+  if (tabs.dataset.initialTabFragment) {
     window.history.replaceState(
       null,
       '',
       `${window.location.pathname}${window.location.search}`
     )
+    delete tabs.dataset.initialTabFragment
     return
   }
 
-  if (!canSelectDefault(defaultTab)) {
+  if (!shouldSelectAllowList(tabs)) {
     return
   }
 
-  window.history.replaceState(null, '', defaultTab)
+  tabs.dataset.initialTabFragment = 'who-can-apply'
+  window.history.replaceState(null, '', '#who-can-apply')
+}
+
+export const selectDefaultAllowListTab = (
+  root: ParentNode = document
+): void => {
+  const tabs = root.querySelector<HTMLElement>('[data-active-tab]')
+  if (tabs) {
+    selectInitialTab(tabs)
+  }
 }

@@ -25,6 +25,7 @@ interface AllowListParams {
 }
 
 export const allowListSavedKey = 'allowListSaved'
+const allowListActiveTabKey = 'allowListActiveTab'
 
 const params = Joi.object({ code: Joi.string().required() })
 
@@ -46,6 +47,7 @@ const emptyAllowList = (grantCode: string) => ({
 })
 
 interface PageOptions {
+  activeTab: 'grant-setup' | 'who-can-apply'
   code: string
   allowList: GrantAllowList
   submitted: AllowListFormSubmission | undefined
@@ -55,6 +57,7 @@ interface PageOptions {
 }
 
 const page = ({
+  activeTab,
   code,
   allowList,
   submitted,
@@ -62,6 +65,7 @@ const page = ({
   errorSummary,
   saved
 }: PageOptions) => ({
+  activeTab,
   code,
   pageTitle: errorSummary.length ? 'Error: Who can apply' : 'Who can apply',
   formAction: adminHrefFor(code),
@@ -79,10 +83,12 @@ export const viewAllowListRoute: ServerRoute = {
     const { code } = request.params as unknown as AllowListParams
     const allowList = await getAllowListUseCase(code)
     const [saved] = request.yar.flash(allowListSavedKey)
+    const [activeTab] = request.yar.flash(allowListActiveTabKey)
 
     return h.view(
       'allow-list',
       page({
+        activeTab: activeTab === 'who-can-apply' ? activeTab : 'grant-setup',
         code,
         allowList,
         submitted: undefined,
@@ -115,6 +121,7 @@ const renderInvalid = (
     .view(
       'allow-list',
       page({
+        activeTab: 'who-can-apply',
         code,
         allowList: emptyAllowList(code),
         submitted: form,
@@ -140,6 +147,7 @@ const renderRefusal = (
     .view(
       'allow-list',
       page({
+        activeTab: 'who-can-apply',
         code,
         allowList: emptyAllowList(code),
         submitted: form,
@@ -161,6 +169,7 @@ const saveValid = async (
 
   if (!refusal) {
     request.yar.flash(allowListSavedKey, 'Allow list saved')
+    request.yar.flash(allowListActiveTabKey, 'who-can-apply')
     return h.redirect(adminHrefFor(code)).code(303)
   }
 

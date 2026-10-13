@@ -12,6 +12,7 @@ declare module '@hapi/yar' {
     claimableItemUpdated: string
     claimableItemRefused: { text: string }
     allowListSaved: string
+    allowListActiveTab: 'who-can-apply'
     /** Both event writes: `action` says which one this was. */
     redriveOutcome: EventNotice
     purgeForm: PurgeFormNotice

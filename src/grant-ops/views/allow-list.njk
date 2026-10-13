@@ -25,13 +25,13 @@
         }) }}
       {% endif %}
 
-      <div class="govuk-tabs" data-module="govuk-tabs" data-default-tab="#who-can-apply">
+      <div class="govuk-tabs" data-module="govuk-tabs" data-active-tab="{{ activeTab }}">
         <h2 class="govuk-tabs__title">Contents</h2>
         <ul class="govuk-tabs__list">
-          <li class="govuk-tabs__list-item">
+          <li class="govuk-tabs__list-item{% if activeTab == 'grant-setup' %} govuk-tabs__list-item--selected{% endif %}">
             <a class="govuk-tabs__tab" href="#grant-setup">Grant setup</a>
           </li>
-          <li class="govuk-tabs__list-item govuk-tabs__list-item--selected">
+          <li class="govuk-tabs__list-item{% if activeTab == 'who-can-apply' %} govuk-tabs__list-item--selected{% endif %}">
             <a class="govuk-tabs__tab" href="#who-can-apply">Who can apply</a>
           </li>
         </ul>
