@@ -131,4 +131,5 @@ declare module 'govuk-frontend' {
   export class ErrorSummary {}
   export class Radios {}
   export class SkipLink {}
+  export class Tabs {}
 }
