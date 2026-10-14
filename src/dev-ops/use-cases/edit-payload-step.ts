@@ -41,7 +41,7 @@ export interface PayloadSubmission {
 export const toStoredJson = (event: EventDetail): string =>
   event.payload === undefined ? '' : JSON.stringify(event.payload, null, 2)
 
-export const toCurrentRevision = (event: EventDetail): number =>
+const toCurrentRevision = (event: EventDetail): number =>
   event.payloadRevision ?? 0
 
 const toEditStep = (

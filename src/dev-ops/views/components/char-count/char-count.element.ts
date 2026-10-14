@@ -3,8 +3,7 @@ const fallbackMax = 500
 /** Silence until the end is in sight, so a live region does not read every keystroke. */
 const announceWithin = 50
 
-export const countMessage = (used: number, max: number): string =>
-  `${used} / ${max}`
+const countMessage = (used: number, max: number): string => `${used} / ${max}`
 
 const remainingMessage = (remaining: number): string => {
   const characters = Math.abs(remaining) === 1 ? 'character' : 'characters'

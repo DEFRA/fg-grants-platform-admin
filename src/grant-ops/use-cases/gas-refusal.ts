@@ -21,7 +21,7 @@ interface GasError {
 
 export const conflict = 409
 
-export const gasErrorCodes = {
+const gasErrorCodes = {
   CONFIGURATION_CHANGED: 'CONFIGURATION_CHANGED',
   ENTITLEMENT_CLAIMED: 'ENTITLEMENT_CLAIMED'
 } as const

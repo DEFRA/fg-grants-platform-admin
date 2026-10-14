@@ -1,4 +1,4 @@
-import type { SourceError } from '../repositories/events.repository.ts'
+import type { SourceError } from '../use-cases/get-events.use-case.ts'
 import type {
   Position,
   RecordEvents,
@@ -6,7 +6,7 @@ import type {
   RecordSeries,
   RecordTab,
   StoredDate
-} from '../repositories/record-page.ts'
+} from '../use-cases/record-reads.ts'
 import {
   isIsoInstant,
   none,

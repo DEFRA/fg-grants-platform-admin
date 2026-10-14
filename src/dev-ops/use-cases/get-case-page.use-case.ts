@@ -4,7 +4,11 @@ import type { RecordTab } from '../repositories/record-page.ts'
 import type { RecordResult } from './record-reads.ts'
 import { readRecord } from './record-reads.ts'
 
-export type { CasePage, CaseRef } from '../repositories/cases.repository.ts'
+export type {
+  CaseOverview,
+  CasePage,
+  CaseRef
+} from '../repositories/cases.repository.ts'
 
 export type CaseResult = RecordResult<CasePage>
 
