@@ -3,11 +3,11 @@ import type {
   BannerField,
   ClaimableEntitlement,
   Claims,
+  ClaimsAccess,
   EntitlementTemplate,
   EntitlementTemplateField,
   SubmittedClaim
 } from '../use-cases/get-claims.use-case.ts'
-import type { ClaimsAccessTier } from './claims-access.ts'
 
 // Unit codes a grant definition may carry on a decimal field. Anything not
 // named here is shown as the definition spells it, which is more use to a case
@@ -102,7 +102,7 @@ const unavailableReasonFor = (capacityAvailable: boolean) =>
 const toEntitlementRow = (
   base: string,
   template: EntitlementTemplate,
-  access: ClaimsAccessTier = 'full'
+  access: ClaimsAccess
 ): EntitlementRow => {
   const createdCount = entitlementCount(template)
   const capacityAvailable = createdCount < template.maxEntitlements
@@ -159,7 +159,7 @@ const toAwaitingClaimRow = (
   base: string,
   claimableEntitlement: ClaimableEntitlement,
   templates: EntitlementTemplate[],
-  access: ClaimsAccessTier = 'full'
+  access: ClaimsAccess
 ): AwaitingClaimRow => {
   const template = templateFor(claimableEntitlement.claimCode, templates)
   const canChange = access === 'full' && claimableEntitlement.canEdit
@@ -253,9 +253,12 @@ export const toClaimsPage = (
     banner,
     availableEntitlements,
     claimableEntitlements,
-    claims = []
-  }: Omit<Claims, 'claims'> & { banner: Banner; claims?: SubmittedClaim[] },
-  access: ClaimsAccessTier = 'full'
+    claims = [],
+    access
+  }: Omit<Claims, 'claims'> & {
+    banner: Banner
+    claims?: SubmittedClaim[]
+  }
 ): ClaimsPage => {
   const base = toBase(code, clientRef)
   const claimsHref = `${base}/claims`

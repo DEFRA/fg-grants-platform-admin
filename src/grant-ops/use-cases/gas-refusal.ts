@@ -23,8 +23,10 @@ interface GasError {
 }
 
 export const conflict = 409
+const serviceUnavailable = 503
 
 const gasErrorCodes = {
+  CASEWORKING_ROLES_UNAVAILABLE: 'CASEWORKING_ROLES_UNAVAILABLE',
   CONFIGURATION_CHANGED: 'CONFIGURATION_CHANGED',
   ENTITLEMENT_CLAIMED: 'ENTITLEMENT_CLAIMED'
 } as const
@@ -86,3 +88,13 @@ export const toConflictRefusal = (error: unknown): ConflictRefusal => {
 /** The grant's configuration moved under the save: the same values may go through once the page has caught up. */
 export const isConfigurationChange = (refusal: GasRefusal) =>
   refusal.errorCode === gasErrorCodes.CONFIGURATION_CHANGED
+
+/** GAS could not determine the operator's Caseworking roles: a 503 rather than a refusal, but one a page can explain. */
+export const isCaseworkingRolesUnavailable = (error: unknown) => {
+  const gasError = asGasError(error)
+
+  return (
+    gasError.output?.statusCode === serviceUnavailable &&
+    readErrorCode(gasError) === gasErrorCodes.CASEWORKING_ROLES_UNAVAILABLE
+  )
+}

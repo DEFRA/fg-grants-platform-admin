@@ -1,9 +1,9 @@
 import Boom from '@hapi/boom'
 import type { Request, ResponseToolkit, ServerRoute } from '@hapi/hapi'
-import { resolveClaimsAccess } from '../view-models/claims-access.ts'
 import { createClaimableItemUseCase } from '../use-cases/create-claimable-item.use-case.ts'
 import { viewNewClaimableItemUseCase } from '../use-cases/view-new-claimable-item.use-case.ts'
 import { getClaimsUseCase } from '../use-cases/get-claims.use-case.ts'
+import { requireFullClaimsAccessUseCase } from '../use-cases/require-full-claims-access.use-case.ts'
 import type { FieldError } from '../view-models/claimable-item-form.view-model.ts'
 import {
   createdNoticeKey,
@@ -35,30 +35,15 @@ const params = Joi.object({
 const noClaimsPage = (code: string) =>
   Boom.notFound(`No claims page is configured for grant "${code}"`)
 
-const cwRolesOf = (request: Request): string[] | null | undefined =>
-  (request.auth.credentials.user as { cwRoles?: string[] | null })?.cwRoles
-
-const assertFullClaimsAccess = async (
-  request: Request,
-  code: string,
-  clientRef: string
-) => {
-  const overview = await getClaimsUseCase(code, clientRef)
-  const access = resolveClaimsAccess(
-    cwRolesOf(request),
-    overview.claimsRequiredRoles
+const assertFullClaimsAccess = async (code: string, clientRef: string) => {
+  const refusal = await requireFullClaimsAccessUseCase(
+    code,
+    clientRef,
+    'create'
   )
 
-  if (cwRolesOf(request) === null && overview.claimsRequiredRoles) {
-    throw Boom.serverUnavailable(
-      'Caseworking roles could not be determined — try signing out and back in'
-    )
-  }
-
-  if (access !== 'full') {
-    throw Boom.forbidden(
-      'You do not have the required roles to create claimable items'
-    )
+  if (refusal) {
+    throw Boom.forbidden(refusal.message)
   }
 }
 
@@ -121,11 +106,7 @@ export const newClaimableItemRoute: ServerRoute = {
   },
   async handler(request: Request, h: ResponseToolkit) {
     const routeParams = request.params as unknown as ClaimableItemParams
-    await assertFullClaimsAccess(
-      request,
-      routeParams.code,
-      routeParams.clientRef
-    )
+    await assertFullClaimsAccess(routeParams.code, routeParams.clientRef)
 
     const resolved = await resolvePage(routeParams)
 
@@ -155,7 +136,7 @@ export const createClaimableItemRoute: ServerRoute = {
   async handler(request: Request, h: ResponseToolkit) {
     const { code, clientRef, claimCode } =
       request.params as unknown as ClaimableItemParams
-    await assertFullClaimsAccess(request, code, clientRef)
+    await assertFullClaimsAccess(code, clientRef)
 
     const form = request.payload as Record<string, string>
 

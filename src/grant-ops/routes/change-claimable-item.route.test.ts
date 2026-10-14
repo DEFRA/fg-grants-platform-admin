@@ -87,7 +87,8 @@ const givenEntitlement = (
     claimableEntitlements: [entitlement(overrides), ...others],
     claims: [submittedClaim],
     claimableEntitlement: entitlement(overrides),
-    entitlementTemplate: template()
+    entitlementTemplate: template(),
+    access: 'full'
   })
 
 const viewPage = async () => {
@@ -133,7 +134,8 @@ describe('changeClaimableItemRoute', () => {
       banner,
       availableEntitlements: [template()],
       claimableEntitlements: [entitlement()],
-      claims: [submittedClaim]
+      claims: [submittedClaim],
+      access: 'full'
     })
   })
 
@@ -158,6 +160,30 @@ describe('changeClaimableItemRoute', () => {
     })
 
     expect(statusCode).toBe(statusCodes.forbidden)
+  })
+
+  test('forbids a user the backend grants view-only access to the claims', async () => {
+    vi.mocked(findClaims).mockResolvedValue({
+      banner,
+      availableEntitlements: [template()],
+      claimableEntitlements: [entitlement()],
+      claims: [submittedClaim],
+      access: 'view-only'
+    })
+
+    const { statusCode } = await viewPage()
+
+    expect(statusCode).toBe(statusCodes.forbidden)
+    expect(findEntitlement).not.toHaveBeenCalled()
+  })
+
+  test('answers unavailable when the backend cannot determine access to the claims', async () => {
+    vi.mocked(findClaims).mockRejectedValue(Boom.serverUnavailable())
+
+    const { statusCode } = await viewPage()
+
+    expect(statusCode).toBe(statusCodes.serviceUnavailable)
+    expect(findEntitlement).not.toHaveBeenCalled()
   })
 
   test('heads the page with the application banner and the form', async () => {
@@ -271,7 +297,8 @@ describe('changeClaimableItemRoute', () => {
       banner,
       availableEntitlements: [],
       claimableEntitlements: [],
-      claims: [submittedClaim]
+      claims: [submittedClaim],
+      access: 'full'
     })
 
     const { headers, statusCode } = await server.inject({
@@ -297,7 +324,8 @@ describe('changeClaimableItemRoute', () => {
       claimableEntitlements: [],
       claims: [],
       claimableEntitlement: entitlement(),
-      entitlementTemplate: template()
+      entitlementTemplate: template(),
+      access: 'full'
     })
 
     const { statusCode } = await viewPage()
@@ -331,7 +359,8 @@ describe('updateClaimableItemRoute', () => {
       banner,
       availableEntitlements: [],
       claimableEntitlements: [],
-      claims: [submittedClaim]
+      claims: [submittedClaim],
+      access: 'full'
     })
     vi.mocked(updateEntitlement).mockResolvedValue()
   })
@@ -343,6 +372,30 @@ describe('updateClaimableItemRoute', () => {
       payload,
       auth: { strategy: 'session', credentials }
     })
+
+  test('does not change for a user the backend grants view-only access to the claims', async () => {
+    vi.mocked(findClaims).mockResolvedValue({
+      banner,
+      availableEntitlements: [],
+      claimableEntitlements: [],
+      claims: [submittedClaim],
+      access: 'view-only'
+    })
+
+    const { statusCode } = await post({ totalHectares: '45.5' })
+
+    expect(statusCode).toBe(statusCodes.forbidden)
+    expect(updateEntitlement).not.toHaveBeenCalled()
+  })
+
+  test('does not change when the backend cannot determine access to the claims', async () => {
+    vi.mocked(findClaims).mockRejectedValue(Boom.serverUnavailable())
+
+    const { statusCode } = await post({ totalHectares: '45.5' })
+
+    expect(statusCode).toBe(statusCodes.serviceUnavailable)
+    expect(updateEntitlement).not.toHaveBeenCalled()
+  })
 
   test('sends the scaled values to GAS', async () => {
     await post({ totalHectares: ' 45.5 ' })
@@ -464,7 +517,8 @@ describe('updateClaimableItemRoute', () => {
         claimableEntitlements: [entitlement()],
         claims: [submittedClaim],
         claimableEntitlement: entitlement(),
-        entitlementTemplate: template()
+        entitlementTemplate: template(),
+        access: 'full'
       })
       .mockResolvedValueOnce({
         banner,
@@ -482,7 +536,8 @@ describe('updateClaimableItemRoute', () => {
               unit: 'HA'
             }
           }
-        })
+        }),
+        access: 'full'
       })
 
     const { result } = await post({ totalHectares: '40.25' })
@@ -506,7 +561,8 @@ describe('updateClaimableItemRoute', () => {
         claimableEntitlements: [entitlement()],
         claims: [],
         claimableEntitlement: entitlement(),
-        entitlementTemplate: template()
+        entitlementTemplate: template(),
+        access: 'full'
       })
       .mockRejectedValueOnce(gasRefusal(409, claimed, 'ENTITLEMENT_CLAIMED'))
 
