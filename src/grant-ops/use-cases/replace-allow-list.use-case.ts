@@ -2,7 +2,10 @@ import type {
   AllowListFormSubmission,
   AllowListView
 } from '../repositories/allow-list.repository.ts'
-import { replaceGrantAllowList } from '../repositories/allow-list.repository.ts'
+import {
+  isAllowListView,
+  replaceGrantAllowList
+} from '../repositories/allow-list.repository.ts'
 import type { GasRefusal } from './gas-refusal.ts'
 import { toGasRefusal } from './gas-refusal.ts'
 
@@ -12,15 +15,6 @@ export type ReplaceAllowListOutcome =
   | { outcome: 'saved'; view: AllowListView }
   | { outcome: 'invalid'; view: AllowListView }
   | { outcome: 'refused'; refusal: GasRefusal }
-
-const isObject = (value: unknown): value is Record<string, unknown> =>
-  typeof value === 'object' && value !== null
-
-const viewKeys = ['sbi', 'crn', 'errorSummary'] as const
-
-/** Not in the repository: this is pure shape-checking on an already-read body, nothing to mock out. */
-export const isAllowListView = (body: unknown): body is AllowListView =>
-  isObject(body) && viewKeys.every((key) => key in body)
 
 /**
  * GAS's grant-admin BFF already shapes a refused save into the view itself

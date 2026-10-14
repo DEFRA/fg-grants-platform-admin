@@ -11,7 +11,14 @@ import {
   replaceGrantAllowList
 } from '../repositories/allow-list.repository.ts'
 
-vi.mock(import('../repositories/allow-list.repository.ts'))
+vi.mock(
+  import('../repositories/allow-list.repository.ts'),
+  async (importOriginal) => ({
+    ...(await importOriginal()),
+    getGrantAllowList: vi.fn(),
+    replaceGrantAllowList: vi.fn()
+  })
+)
 
 const url = '/grant-ops/grants/woodland/admin'
 const resetUrl = `${url}/reset`
