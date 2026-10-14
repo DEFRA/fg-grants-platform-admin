@@ -21,8 +21,8 @@ import {
 import { casesPath, toCasesPage } from '../view-models/cases-page.view-model.ts'
 import { listPageCache, present } from '../view-models/list-filters.ts'
 import {
-  slugFilter,
-  searchedRef,
+  slugFilterSchema,
+  searchedRefSchema,
   searchedRefError
 } from '../view-models/record-filters.ts'
 import { toListHref } from '../view-models/record-list.view-model.ts'
@@ -53,7 +53,7 @@ const badRequest = 400
 const cursorMax = 512
 
 const filtersSchema = {
-  code: slugFilter.allow(''),
+  code: slugFilterSchema.allow(''),
   ...timeRangeFilters
 }
 
@@ -147,7 +147,7 @@ const recordListRoutes = <R>({
         const { q: typed, ...filters } = request.payload as RecordListQuery & {
           q: string
         }
-        const { value: q, error } = searchedRef.validate(typed)
+        const { value: q, error } = searchedRefSchema.validate(typed)
         const query = toQuery(filters)
 
         if (error) {

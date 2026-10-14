@@ -11,7 +11,7 @@ import { applicationType } from '../view-models/applications-page.view-model.ts'
 import { toCasePage } from '../view-models/case-page.view-model.ts'
 import { caseType } from '../view-models/cases-page.view-model.ts'
 import { recordPageCache } from '../view-models/list-filters.ts'
-import { slugFilter } from '../view-models/record-filters.ts'
+import { slugFilterSchema } from '../view-models/record-filters.ts'
 import type { RecordPageModel } from '../view-models/record-page.view-model.ts'
 import type { RecordType } from '../view-models/record-type.ts'
 
@@ -39,8 +39,8 @@ const recordPageRoute = <K, P>({
     cache: recordPageCache,
     validate: {
       params: Joi.object({
-        [codeParam]: slugFilter.required(),
-        [refParam]: slugFilter.required()
+        [codeParam]: slugFilterSchema.required(),
+        [refParam]: slugFilterSchema.required()
       }),
       query: Joi.object({
         section: Joi.string()
