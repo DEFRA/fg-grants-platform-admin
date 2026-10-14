@@ -296,6 +296,27 @@ describe('replaceAllowListRoute', () => {
     expect(replaceGrantAllowList).toHaveBeenCalledWith('woodland', submitted)
   })
 
+  test('renders every error without JavaScript so no failures are inaccessible', async () => {
+    const errors = Array.from({ length: 11 }, (_, index) => ({
+      text: `SBI on line ${index + 1} must be exactly 9 digits`,
+      href: '#sbi',
+      attributes: { 'data-error-line': index + 1 }
+    }))
+    vi.mocked(replaceGrantAllowList).mockRejectedValue(
+      gasError(400, { ...view, errorSummary: errors })
+    )
+
+    const response = await post({ sbi: 'bad', crn: '' })
+    const $ = load(response.result as unknown as string)
+
+    expect(response.statusCode).toBe(statusCodes.badRequest)
+    expect(
+      $('[data-allow-list-errors] .govuk-error-summary__list li')
+    ).toHaveLength(11)
+    expect($('[data-allow-list-errors] [hidden]')).toHaveLength(0)
+    expect($('[data-allow-list-errors] button')).toHaveLength(0)
+  })
+
   test('redirects to the admin page on success', async () => {
     const response = await post({ sbi: '', crn: '' })
 

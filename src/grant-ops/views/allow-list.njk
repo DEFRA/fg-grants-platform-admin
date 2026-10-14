@@ -21,7 +21,8 @@
       {% if errorSummary | length %}
         {{ govukErrorSummary({
           titleText: "There is a problem",
-          errorList: errorSummary
+          errorList: errorSummary,
+          attributes: { "data-allow-list-errors": "" }
         }) }}
       {% endif %}
 

@@ -9,10 +9,12 @@ import {
 } from 'govuk-frontend'
 import { initAllowListCounts } from '../../grant-ops/client/allow-list-count.ts'
 import { initAllowListErrorFocus } from '../../grant-ops/client/allow-list-error-focus.ts'
+import { initAllowListErrorToggle } from '../../grant-ops/client/allow-list-error-toggle.ts'
 import { selectDefaultAllowListTab } from '../../grant-ops/client/allow-list-tabs.ts'
 
 vi.mock(import('../../grant-ops/client/allow-list-count.ts'))
 vi.mock(import('../../grant-ops/client/allow-list-error-focus.ts'))
+vi.mock(import('../../grant-ops/client/allow-list-error-toggle.ts'))
 vi.mock(import('../../grant-ops/client/allow-list-tabs.ts'))
 
 vi.mock(import('govuk-frontend'), () => ({
@@ -42,5 +44,9 @@ describe('application', () => {
     expect(selectDefaultAllowListTab).toHaveBeenCalledTimes(2)
     expect(initAllowListCounts).toHaveBeenCalledTimes(1)
     expect(initAllowListErrorFocus).toHaveBeenCalledTimes(1)
+    expect(initAllowListErrorToggle).toHaveBeenCalledTimes(1)
+    expect(
+      vi.mocked(initAllowListErrorToggle).mock.invocationCallOrder[0]
+    ).toBeLessThan(vi.mocked(createAll).mock.invocationCallOrder[5])
   })
 })
