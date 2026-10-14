@@ -411,7 +411,7 @@ describe('updateClaimableItemRoute', () => {
     const { result, statusCode } = await post({ totalHectares: '40.25' })
     const $ = load(result as unknown as string)
 
-    expect(statusCode).toBe(422)
+    expect(statusCode).toBe(statusCodes.unprocessableEntity)
     expect(
       $('[data-testid="claimable-error-summary"]').text().replace(/\s+/g, ' ')
     ).toContain(
