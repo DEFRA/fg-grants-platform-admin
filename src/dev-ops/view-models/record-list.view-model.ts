@@ -1,10 +1,10 @@
 import type {
   ListPagination,
+  ListResult,
   ListTotal,
   Position,
   StoredDate
-} from '../repositories/record-page.ts'
-import type { ListResult } from '../use-cases/record-reads.ts'
+} from '../use-cases/record-reads.ts'
 import { toStoredTimeCell } from './event-formats.ts'
 import type { TimeCell } from './event-formats.ts'
 import { toFields, toFilterHref } from './list-filters.ts'
@@ -88,7 +88,7 @@ export const toListHref = (path: string, query: RecordListQuery): string =>
 const counted = new Intl.NumberFormat('en-GB')
 
 /** "48 applications", or "10,000+ applications" past the count GAS stops at. */
-export const toTotalLabel = (
+const toTotalLabel = (
   { count, capped }: ListTotal,
   { one, many }: RecordType['noun']
 ): string =>

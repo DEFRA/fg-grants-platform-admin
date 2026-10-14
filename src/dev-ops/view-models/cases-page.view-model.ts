@@ -1,4 +1,4 @@
-import type { CaseRef } from '../repositories/cases.repository.ts'
+import type { CaseRef } from '../use-cases/get-case-page.use-case.ts'
 import type {
   CaseRow,
   CasesResult

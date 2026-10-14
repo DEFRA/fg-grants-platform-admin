@@ -16,7 +16,7 @@ export const toPurgeReasonLabel = (code: string): string =>
 
 export const noteMaxLength = 500
 
-export const otherReason: PurgeReasonCode = 'OTHER'
+const otherReason: PurgeReasonCode = 'OTHER'
 
 export interface PurgeSubmission {
   reasonCode: string

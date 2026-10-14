@@ -1,4 +1,5 @@
 import type {
+  BadgeRole,
   EventDetail,
   EventKey,
   EventLastPurge,
@@ -28,7 +29,6 @@ import { toEventName } from './event-names.ts'
 import type { EventName } from './event-names.ts'
 import { isPurgedStatus, toEventState } from './event-state.ts'
 import type { EventState } from './event-state.ts'
-import type { BadgeRole } from './event-formats.ts'
 import {
   isAfter,
   toAbsolute,

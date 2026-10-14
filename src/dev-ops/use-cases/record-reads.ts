@@ -4,7 +4,16 @@ import { statusCodes } from '../../common/status-codes.ts'
 import { noNextPage } from '../repositories/events.repository.ts'
 import { toGasErrorField, toGasStatusCode } from './gas-status.ts'
 
-export type { RecordTab } from '../repositories/record-page.ts'
+export type {
+  ListPagination,
+  ListTotal,
+  Position,
+  RecordEvents,
+  RecordSectionError,
+  RecordSeries,
+  RecordTab,
+  StoredDate
+} from '../repositories/record-page.ts'
 export { recordTabs } from '../repositories/record-page.ts'
 
 /** What GAS is asked for: the URL's filters less the preset key, and the stored ref. */
