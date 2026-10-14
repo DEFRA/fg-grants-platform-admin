@@ -1,4 +1,5 @@
 import { config } from './config.ts'
+import { describeError } from './describe-error.ts'
 import { logger } from './logger.ts'
 import { wreck } from './wreck.ts'
 
@@ -32,8 +33,7 @@ export const getCwRoles = async (entraId: string): Promise<string[] | null> => {
     return payload.appRoles.map((role) => role.roleName)
   } catch (error) {
     logger.warn(
-      error,
-      `Failed to fetch CW roles for user ${entraId} - claims access will be unavailable this session`
+      `Failed to fetch CW roles for user ${entraId} - claims access will be unavailable this session: ${describeError(error)}`
     )
 
     return null
