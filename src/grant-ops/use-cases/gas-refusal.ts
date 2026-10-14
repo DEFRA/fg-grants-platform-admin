@@ -2,6 +2,8 @@ export interface GasRefusal {
   statusCode: number
   message: string
   errorCode?: string
+  /** The full response body GAS answered with, for callers that need more than message/errorCode. */
+  body: unknown
 }
 
 export interface ConflictRefusal {
@@ -12,6 +14,7 @@ export interface ConflictRefusal {
 interface GasPayload {
   message?: string
   errorCode?: string
+  [key: string]: unknown
 }
 
 interface GasError {
@@ -46,6 +49,14 @@ const readMessage = (error: GasError) =>
 const readErrorCode = (error: GasError) =>
   readBodyPayload(error).errorCode ?? readBoomPayload(error).errorCode
 
+/** The body payload if the transport carried one, falling back to Boom's own - whichever actually has content. */
+const readBody = (error: GasError): unknown => {
+  const bodyPayload = readBodyPayload(error)
+  return Object.keys(bodyPayload).length > 0
+    ? bodyPayload
+    : readBoomPayload(error)
+}
+
 /** A 4xx from fg-gas-backend, read off the error `@hapi/wreck` throws for it; anything else is not a refusal. */
 export const toGasRefusal = (error: unknown): GasRefusal | undefined => {
   const gasError = asGasError(error)
@@ -55,7 +66,8 @@ export const toGasRefusal = (error: unknown): GasRefusal | undefined => {
     ? {
         statusCode,
         message: readMessage(gasError),
-        errorCode: readErrorCode(gasError)
+        errorCode: readErrorCode(gasError),
+        body: readBody(gasError)
       }
     : undefined
 }

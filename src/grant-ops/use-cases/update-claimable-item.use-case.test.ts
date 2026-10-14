@@ -54,7 +54,9 @@ describe('updateClaimableItemUseCase', () => {
 
     await expect(update()).resolves.toEqual({
       statusCode: 409,
-      message: 'It has a claim against it'
+      message: 'It has a claim against it',
+      errorCode: undefined,
+      body: { message: 'It has a claim against it' }
     })
   })
 

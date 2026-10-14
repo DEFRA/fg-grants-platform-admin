@@ -11,6 +11,11 @@ import {
   createClaimableItemRoute,
   newClaimableItemRoute
 } from './routes/new-claimable-item.route.ts'
+import {
+  replaceAllowListRoute,
+  resetAllowListRoute,
+  viewAllowListRoute
+} from './routes/allow-list.route.ts'
 import { viewClaimsRoute } from './routes/view-claims.route.ts'
 import { viewGrantOpsRoute } from './routes/view-grant-ops.route.ts'
 
@@ -29,6 +34,9 @@ export const grantOps = {
           'FCP.GrantApplicationsAdmin',
           asOperator([
             viewGrantOpsRoute,
+            viewAllowListRoute,
+            resetAllowListRoute,
+            replaceAllowListRoute,
             viewClaimsRoute,
             newClaimableItemRoute,
             createClaimableItemRoute,

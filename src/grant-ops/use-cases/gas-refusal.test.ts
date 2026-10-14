@@ -19,21 +19,28 @@ describe('toGasRefusal', () => {
     ).toEqual({
       statusCode: 409,
       message: 'Already claimed',
-      errorCode: undefined
+      errorCode: undefined,
+      body: { message: 'Already claimed' }
     })
   })
 
   test("falls back to the error's own message", () => {
     expect(toGasRefusal(Boom.notFound('No such entitlement'))).toEqual({
       statusCode: 404,
-      message: 'No such entitlement'
+      message: 'No such entitlement',
+      body: {
+        statusCode: 404,
+        error: 'Not Found',
+        message: 'No such entitlement'
+      }
     })
   })
 
   test('says the backend refused when there is no message at all', () => {
     expect(toGasRefusal(wreckError(422))).toEqual({
       statusCode: 422,
-      message: 'The backend refused the request.'
+      message: 'The backend refused the request.',
+      body: {}
     })
   })
 
@@ -56,19 +63,35 @@ describe('the error code fg-gas-backend answered with', () => {
     ).toMatchObject({ errorCode: 'ENTITLEMENT_CLAIMED' })
   })
 
+  test('keeps the full body alongside the error code, whatever shape it is', () => {
+    const sbi = { key: 'sbi', label: 'SBI', value: 'bad', hint: '' }
+
+    expect(
+      toGasRefusal(
+        wreckError(400, {
+          sbi,
+          crn: { key: 'crn', label: 'CRN', value: '', hint: '' },
+          errorSummary: []
+        })
+      )
+    ).toMatchObject({ body: { sbi } })
+  })
+
   test('marks a configuration change as one to try again', () => {
     expect(
       isConfigurationChange({
         statusCode: 409,
         message: 'changed',
-        errorCode: 'CONFIGURATION_CHANGED'
+        errorCode: 'CONFIGURATION_CHANGED',
+        body: {}
       })
     ).toBe(true)
     expect(
       isConfigurationChange({
         statusCode: 409,
         message: 'claimed',
-        errorCode: 'ENTITLEMENT_CLAIMED'
+        errorCode: 'ENTITLEMENT_CLAIMED',
+        body: {}
       })
     ).toBe(false)
   })
