@@ -2,6 +2,7 @@ import Boom from '@hapi/boom'
 import type { Request, ResponseToolkit, ServerRoute } from '@hapi/hapi'
 import Joi from 'joi'
 
+import { toGasRefusal } from '../use-cases/gas-refusal.ts'
 import type { AllowListView } from '../use-cases/get-allow-list.use-case.ts'
 import { getAllowListUseCase } from '../use-cases/get-allow-list.use-case.ts'
 import type {
@@ -54,26 +55,58 @@ const page = ({ activeTab, code, view, errorSummary, saved }: PageOptions) => ({
   saved
 })
 
+const activeTabFor = (activeTab: string | undefined) =>
+  activeTab === 'who-can-apply' ? activeTab : 'grant-setup'
+
+const respondToAdministrationRefusal = (
+  request: Request,
+  h: ResponseToolkit
+) => {
+  const { cwRoles } = request.auth.credentials.user
+
+  if (cwRoles === null) {
+    return h
+      .view('roles-unavailable', {
+        pageTitle: 'Caseworking roles could not be determined',
+        heading: 503,
+        message:
+          'Caseworking roles could not be determined — try signing out and back in'
+      })
+      .code(503)
+  }
+
+  throw Boom.forbidden(
+    'You do not have access to administration for this grant'
+  )
+}
+
 export const viewAllowListRoute: ServerRoute = {
   method: 'GET',
   path: '/grant-ops/grants/{code}/admin',
   options: { validate: { params } },
   async handler(request: Request, h: ResponseToolkit) {
     const { code } = request.params as unknown as AllowListParams
-    const view = await getAllowListUseCase(code)
-    const [saved] = request.yar.flash(allowListSavedKey)
-    const [activeTab] = request.yar.flash(allowListActiveTabKey)
+    try {
+      const view = await getAllowListUseCase(code)
+      const [saved] = request.yar.flash(allowListSavedKey)
+      const [activeTab] = request.yar.flash(allowListActiveTabKey)
 
-    return h.view(
-      'allow-list',
-      page({
-        activeTab: activeTab === 'who-can-apply' ? activeTab : 'grant-setup',
-        code,
-        view,
-        errorSummary: [],
-        saved
-      })
-    )
+      return h.view(
+        'allow-list',
+        page({
+          activeTab: activeTabFor(activeTab),
+          code,
+          view,
+          errorSummary: [],
+          saved
+        })
+      )
+    } catch (error) {
+      if (toGasRefusal(error)?.statusCode === 403) {
+        return respondToAdministrationRefusal(request, h)
+      }
+      throw error
+    }
   }
 }
 
@@ -124,6 +157,7 @@ const renderGenericRefusal = async (h: ResponseToolkit, code: string) => {
 }
 
 const respondToOutcome = (
+  request: Request,
   h: ResponseToolkit,
   code: string,
   outcome: Exclude<ReplaceAllowListOutcome, { outcome: 'saved' }>
@@ -150,9 +184,7 @@ const respondToOutcome = (
   }
 
   if (refusal.statusCode === 403) {
-    throw Boom.forbidden(
-      'You do not have access to administration for this grant'
-    )
+    return respondToAdministrationRefusal(request, h)
   }
 
   return renderGenericRefusal(h, code)
@@ -177,6 +209,6 @@ export const replaceAllowListRoute: ServerRoute = {
       return h.redirect(adminHrefFor(code)).code(303)
     }
 
-    return respondToOutcome(h, code, outcome)
+    return respondToOutcome(request, h, code, outcome)
   }
 }

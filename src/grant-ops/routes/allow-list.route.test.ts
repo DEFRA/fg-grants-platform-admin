@@ -474,3 +474,123 @@ describe('replaceAllowListRoute', () => {
     expect(response.statusCode).toBe(statusCodes.serviceUnavailable)
   })
 })
+
+describe('allow-list administration access refusals', () => {
+  beforeEach(() => {
+    vi.mocked(getGrantAllowList).mockResolvedValue(view)
+    vi.mocked(replaceGrantAllowList).mockResolvedValue(view)
+  })
+
+  test.each(['GET', 'POST'])(
+    '%s explains a failed roles lookup after GAS refuses access',
+    async (method) => {
+      vi.mocked(getGrantAllowList).mockRejectedValue(gasError(403))
+      vi.mocked(replaceGrantAllowList).mockRejectedValue(gasError(403))
+
+      const response = await server.inject({
+        method,
+        url,
+        payload: method === 'POST' ? { sbi: '', crn: '' } : undefined,
+        auth: {
+          strategy: 'session',
+          credentials: {
+            ...credentials,
+            user: { ...credentials.user, cwRoles: null }
+          }
+        }
+      })
+
+      expect(response.statusCode).toBe(statusCodes.serviceUnavailable)
+      expect(
+        load(response.result as unknown as string)('body').text()
+      ).toContain(
+        'Caseworking roles could not be determined — try signing out and back in'
+      )
+    }
+  )
+
+  test.each([
+    ['GET', []],
+    ['GET', ['ROLE_OTHER']],
+    ['GET', undefined],
+    ['POST', []],
+    ['POST', ['ROLE_OTHER']],
+    ['POST', undefined]
+  ] as const)(
+    '%s retains forbidden for resolved or absent roles %j',
+    async (method, cwRoles) => {
+      vi.mocked(getGrantAllowList).mockRejectedValue(gasError(403))
+      vi.mocked(replaceGrantAllowList).mockRejectedValue(gasError(403))
+
+      const response = await server.inject({
+        method,
+        url,
+        payload: method === 'POST' ? { sbi: '', crn: '' } : undefined,
+        auth: {
+          strategy: 'session',
+          credentials: {
+            ...credentials,
+            user: { ...credentials.user, cwRoles }
+          }
+        }
+      })
+
+      expect(response.statusCode).toBe(statusCodes.forbidden)
+    }
+  )
+
+  test.each([
+    ['GET', 200],
+    ['POST', 303]
+  ] as const)(
+    '%s respects GAS success even when roles lookup failed',
+    async (method, statusCode) => {
+      const response = await server.inject({
+        method,
+        url,
+        payload: method === 'POST' ? { sbi: '', crn: '' } : undefined,
+        auth: {
+          strategy: 'session',
+          credentials: {
+            ...credentials,
+            user: { ...credentials.user, cwRoles: null }
+          }
+        }
+      })
+
+      expect(response.statusCode).toBe(statusCode)
+    }
+  )
+
+  test.each([
+    ['GET', 404],
+    ['GET', 503],
+    ['POST', 404],
+    ['POST', 503]
+  ] as const)(
+    '%s preserves GAS %i when roles lookup failed',
+    async (method, statusCode) => {
+      const error = Boom.boomify(new Error('GAS failure'), { statusCode })
+      vi.mocked(getGrantAllowList).mockRejectedValue(error)
+      vi.mocked(replaceGrantAllowList).mockRejectedValue(error)
+
+      const response = await server.inject({
+        method,
+        url,
+        payload: method === 'POST' ? { sbi: '', crn: '' } : undefined,
+        auth: {
+          strategy: 'session',
+          credentials: {
+            ...credentials,
+            user: { ...credentials.user, cwRoles: null }
+          }
+        }
+      })
+
+      expect(response.statusCode).toBe(statusCode)
+      expect(
+        load(response.result as unknown as string)('body').text()
+      ).not.toContain('try signing out and back in')
+    }
+  )
+})
