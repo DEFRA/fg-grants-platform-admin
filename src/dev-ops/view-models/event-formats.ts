@@ -1,10 +1,7 @@
 import { config } from '../../common/config.ts'
 import { logger } from '../../common/logger.ts'
-import type { EventKey } from '../repositories/events.repository.ts'
 import { toEventKeyPath } from '../repositories/events.repository.ts'
-
-/** Named by meaning; the classes live in status-badge/template.njk, where Tailwind can see them. */
-export type BadgeRole = 'neutral' | 'info' | 'warning' | 'success' | 'error'
+import type { EventKey } from '../use-cases/get-event.use-case.ts'
 
 /**
  * `Europe/London` rather than a fixed offset, so the display follows the

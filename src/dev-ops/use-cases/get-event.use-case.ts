@@ -9,6 +9,7 @@ import { findEvent } from '../repositories/events.repository.ts'
 import { toGasStatusCode } from './gas-status.ts'
 
 export type {
+  BadgeRole,
   EventDetail,
   EventKey,
   EventLastEdit,

@@ -168,13 +168,15 @@ export const toEntitlementForm = ({
     Object.entries(data).map(([key, { value }]) => [key, String(value)])
   )
 
-export const toErrorSummary = (errors: FieldError[]) =>
+export const toErrorSummary = (
+  errors: FieldError[]
+): { text: string; href: string }[] =>
   errors.map((error) => ({ text: error.message, href: `#${error.key}` }))
 
 export const toCreatedNotice = (
   template: EntitlementTemplate,
   form: Record<string, string>
-) => {
+): string => {
   const measured = collectedFields(template).find(([, field]) => field.unit)
 
   if (!measured) {
@@ -190,7 +192,7 @@ export const toCreatedNotice = (
 export const toUpdatedNotice = (
   template: EntitlementTemplate,
   form: Record<string, string>
-) => {
+): string => {
   const measured = collectedFields(template).find(([, field]) => field.unit)
 
   if (!measured) {
@@ -214,14 +216,16 @@ const toRefusal = (message: string, refused: Refused) => {
 export const toRefusalSummary = (
   message: string,
   refused: Refused = 'added'
-) => [{ text: `${toRefusal(message, refused)} Please try again.` }]
+): { text: string }[] => [
+  { text: `${toRefusal(message, refused)} Please try again.` }
+]
 
 // For a refusal that trying again cannot get past, such as an item already at
 // its maximum or one with a claim against it.
 export const toFinalRefusalSummary = (
   message: string,
   refused: Refused = 'added'
-) => [{ text: toRefusal(message, refused) }]
+): { text: string }[] => [{ text: toRefusal(message, refused) }]
 
 const conflict = 409
 
@@ -230,7 +234,7 @@ const conflict = 409
 export const toSaveRefusalSummary = (
   { statusCode, message }: { statusCode: number; message: string },
   refused: Refused = 'added'
-) =>
+): { text: string }[] =>
   statusCode === conflict
     ? toFinalRefusalSummary(message, refused)
     : toRefusalSummary(message, refused)

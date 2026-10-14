@@ -1,4 +1,4 @@
-import type { Position } from '../repositories/applications.repository.ts'
+import type { Position } from '../use-cases/record-reads.ts'
 
 export interface PositionStep {
   label: string

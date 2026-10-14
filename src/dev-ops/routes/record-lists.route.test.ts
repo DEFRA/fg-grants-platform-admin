@@ -621,7 +621,7 @@ describe('a search by reference', () => {
       range: '24h'
     })
 
-    expect(statusCode).toBe(303)
+    expect(statusCode).toBe(statusCodes.seeOther)
     expect(location).toBe(
       '/dev-ops/applications?code=woodland&from=2026-09-29T15%3A17%3A31.000Z&range=24h'
     )

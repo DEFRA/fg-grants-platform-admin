@@ -8,6 +8,7 @@ import type { RecordResult } from './record-reads.ts'
 import { readRecord } from './record-reads.ts'
 
 export type {
+  ApplicationOverview,
   ApplicationPage,
   ApplicationRef
 } from '../repositories/applications.repository.ts'

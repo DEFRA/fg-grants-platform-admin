@@ -1,8 +1,8 @@
 import type {
   ApplicationOverview,
   ApplicationPage
-} from '../repositories/applications.repository.ts'
-import type { RecordTab } from '../repositories/record-page.ts'
+} from '../use-cases/get-application-page.use-case.ts'
+import type { RecordTab } from '../use-cases/record-reads.ts'
 import {
   applicationType,
   toApplicationHref

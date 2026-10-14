@@ -1,4 +1,4 @@
-import type { ApplicationRef } from '../repositories/applications.repository.ts'
+import type { ApplicationRef } from '../use-cases/get-application-page.use-case.ts'
 import type {
   ApplicationRow,
   ApplicationsResult
