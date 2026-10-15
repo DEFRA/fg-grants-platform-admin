@@ -1,5 +1,6 @@
 import Boom from '@hapi/boom'
 import {
+  isCaseworkingRolesUnavailable,
   isConfigurationChange,
   toConflictRefusal,
   toGasRefusal
@@ -108,5 +109,38 @@ describe('toConflictRefusal', () => {
     const notFound = wreckError(404, { message: 'missing' })
 
     expect(() => toConflictRefusal(notFound)).toThrow(notFound)
+  })
+})
+
+describe('isCaseworkingRolesUnavailable', () => {
+  test('is a 503 naming the roles lookup', () => {
+    expect(
+      isCaseworkingRolesUnavailable(
+        wreckError(503, { errorCode: 'CASEWORKING_ROLES_UNAVAILABLE' })
+      )
+    ).toBe(true)
+  })
+
+  test('is not any other 503', () => {
+    expect(isCaseworkingRolesUnavailable(wreckError(503))).toBe(false)
+    expect(
+      isCaseworkingRolesUnavailable(
+        wreckError(503, { errorCode: 'CONFIGURATION_UNAVAILABLE' })
+      )
+    ).toBe(false)
+  })
+
+  test('is not the roles error code on another status', () => {
+    expect(
+      isCaseworkingRolesUnavailable(
+        wreckError(403, { errorCode: 'CASEWORKING_ROLES_UNAVAILABLE' })
+      )
+    ).toBe(false)
+  })
+
+  test('is not an error without a status', () => {
+    expect(isCaseworkingRolesUnavailable(new Error('socket hang up'))).toBe(
+      false
+    )
   })
 })

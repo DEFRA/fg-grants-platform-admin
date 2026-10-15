@@ -12,7 +12,8 @@ const claims = {
   },
   availableEntitlements: [],
   claimableEntitlements: [],
-  claims: []
+  claims: [],
+  access: 'full' as const
 }
 
 describe('getClaimsUseCase', () => {

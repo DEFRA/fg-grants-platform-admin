@@ -1,13 +1,12 @@
 import Boom from '@hapi/boom'
 import type { Request, ResponseToolkit, ServerRoute } from '@hapi/hapi'
 import Joi from 'joi'
-import { getClaimsUseCase } from '../use-cases/get-claims.use-case.ts'
+import { requireFullClaimsAccessUseCase } from '../use-cases/require-full-claims-access.use-case.ts'
 import type { ClaimableItem } from '../use-cases/view-change-claimable-item.use-case.ts'
 import type { GasRefusal } from '../use-cases/gas-refusal.ts'
 import { conflict, isConfigurationChange } from '../use-cases/gas-refusal.ts'
 import { updateClaimableItemUseCase } from '../use-cases/update-claimable-item.use-case.ts'
 import { viewChangeClaimableItemUseCase } from '../use-cases/view-change-claimable-item.use-case.ts'
-import { resolveClaimsAccess } from '../view-models/claims-access.ts'
 import type { FieldError } from '../view-models/claimable-item-form.view-model.ts'
 import {
   toClaimableItemForm,
@@ -40,30 +39,15 @@ const params = Joi.object({
 const noClaimsPage = (code: string) =>
   Boom.notFound(`No claims page is configured for grant "${code}"`)
 
-const cwRolesOf = (request: Request): string[] | null | undefined =>
-  (request.auth.credentials.user as { cwRoles?: string[] | null })?.cwRoles
-
-const assertFullClaimsAccess = async (
-  request: Request,
-  code: string,
-  clientRef: string
-) => {
-  const overview = await getClaimsUseCase(code, clientRef)
-  const access = resolveClaimsAccess(
-    cwRolesOf(request),
-    overview.claimsRequiredRoles
+const assertFullClaimsAccess = async (code: string, clientRef: string) => {
+  const refusal = await requireFullClaimsAccessUseCase(
+    code,
+    clientRef,
+    'change'
   )
 
-  if (cwRolesOf(request) === null && overview.claimsRequiredRoles) {
-    throw Boom.serverUnavailable(
-      'Caseworking roles could not be determined — try signing out and back in'
-    )
-  }
-
-  if (access !== 'full') {
-    throw Boom.forbidden(
-      'You do not have the required roles to change claimable items'
-    )
+  if (refusal) {
+    throw Boom.forbidden(refusal.message)
   }
 }
 
@@ -219,7 +203,7 @@ export const changeClaimableItemRoute: ServerRoute = {
   async handler(request: Request, h: ResponseToolkit) {
     const routeParams = request.params as unknown as ChangeClaimableItemParams
     const { code, clientRef, entitlementId } = routeParams
-    await assertFullClaimsAccess(request, code, clientRef)
+    await assertFullClaimsAccess(code, clientRef)
 
     const changeView = await viewChangeClaimableItemUseCase(
       code,
@@ -250,7 +234,7 @@ export const updateClaimableItemRoute: ServerRoute = {
   async handler(request: Request, h: ResponseToolkit) {
     const routeParams = request.params as unknown as ChangeClaimableItemParams
     const { code, clientRef, entitlementId } = routeParams
-    await assertFullClaimsAccess(request, code, clientRef)
+    await assertFullClaimsAccess(code, clientRef)
 
     const form = request.payload as Record<string, string>
 

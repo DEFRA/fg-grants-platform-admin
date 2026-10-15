@@ -7,7 +7,10 @@ import { createServer } from '../../server/index.ts'
 import { statusCodes } from '../../common/status-codes.ts'
 import { grantOps } from '../index.ts'
 import { getClaimsUseCase } from '../use-cases/get-claims.use-case.ts'
-import type { EntitlementTemplate } from '../use-cases/get-claims.use-case.ts'
+import type {
+  ClaimsAccess,
+  EntitlementTemplate
+} from '../use-cases/get-claims.use-case.ts'
 import {
   createEntitlement,
   findClaim
@@ -51,12 +54,16 @@ const banner = {
   }
 }
 
-const givenClaims = (availableEntitlements: EntitlementTemplate[] = []) => {
+const givenClaims = (
+  availableEntitlements: EntitlementTemplate[] = [],
+  access: ClaimsAccess = 'full'
+) => {
   vi.mocked(getClaimsUseCase).mockResolvedValue({
     banner,
     availableEntitlements,
     claimableEntitlements: [],
-    claims: []
+    claims: [],
+    access
   })
 
   return vi
@@ -81,7 +88,8 @@ const givenClaims = (availableEntitlements: EntitlementTemplate[] = []) => {
         banner,
         availableEntitlements,
         claimableEntitlements: [],
-        entitlementTemplate
+        entitlementTemplate,
+        access: 'full'
       }
     })
 }
@@ -134,6 +142,32 @@ describe('newClaimableItemRoute', () => {
     })
 
     expect(statusCode).toBe(statusCodes.forbidden)
+  })
+
+  test('forbids a user the backend grants view-only access to the claims', async () => {
+    givenClaims([template()], 'view-only')
+
+    const { statusCode } = await viewPage()
+
+    expect(statusCode).toBe(statusCodes.forbidden)
+    expect(findClaim).not.toHaveBeenCalled()
+  })
+
+  test('forbids the page when the backend refuses the claims', async () => {
+    vi.mocked(getClaimsUseCase).mockRejectedValue(Boom.forbidden())
+
+    const { statusCode } = await viewPage()
+
+    expect(statusCode).toBe(statusCodes.forbidden)
+  })
+
+  test('answers unavailable when the backend cannot determine access to the claims', async () => {
+    vi.mocked(getClaimsUseCase).mockRejectedValue(Boom.serverUnavailable())
+
+    const { statusCode } = await viewPage()
+
+    expect(statusCode).toBe(statusCodes.serviceUnavailable)
+    expect(findClaim).not.toHaveBeenCalled()
   })
 
   test('heads the page with the application banner and tabs', async () => {
@@ -279,7 +313,8 @@ describe('newClaimableItemRoute', () => {
     vi.mocked(findClaim).mockResolvedValue({
       availableEntitlements: [template()],
       claimableEntitlements: [],
-      entitlementTemplate: template()
+      entitlementTemplate: template(),
+      access: 'full'
     })
 
     const { statusCode } = await server.inject({
@@ -330,6 +365,24 @@ describe('createClaimableItemRoute', () => {
 
   beforeEach(() => {
     givenClaims([bounded()])
+  })
+
+  test('does not create for a user the backend grants view-only access to the claims', async () => {
+    givenClaims([bounded()], 'view-only')
+
+    const { statusCode } = await post({ totalHectares: '40.25' })
+
+    expect(statusCode).toBe(statusCodes.forbidden)
+    expect(createEntitlement).not.toHaveBeenCalled()
+  })
+
+  test('does not create when the backend cannot determine access to the claims', async () => {
+    vi.mocked(getClaimsUseCase).mockRejectedValue(Boom.serverUnavailable())
+
+    const { statusCode } = await post({ totalHectares: '40.25' })
+
+    expect(statusCode).toBe(statusCodes.serviceUnavailable)
+    expect(createEntitlement).not.toHaveBeenCalled()
   })
 
   test('creates the entitlement and returns to the claims page', async () => {
@@ -540,7 +593,8 @@ describe('createClaimableItemRoute', () => {
     vi.mocked(getClaimsUseCase).mockResolvedValue({
       availableEntitlements: [bounded()],
       claimableEntitlements: [],
-      claims: []
+      claims: [],
+      access: 'full'
     })
 
     const { statusCode } = await post({ totalHectares: '40.25' })

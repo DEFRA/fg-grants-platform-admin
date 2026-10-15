@@ -8,7 +8,6 @@ import { redirectToWithMemory } from './redirect-cookie.ts'
 import {
   clearAuthSession,
   getAuthSession,
-  getCwRolesSession,
   setAuthSession,
   toCredentials
 } from './session.ts'
@@ -73,11 +72,8 @@ export const sessionScheme = () => ({
 
     try {
       const activeSession = await refreshIfNeeded(request, session)
-      const cwRoles = getCwRolesSession(request)
 
-      return h.authenticated({
-        credentials: toCredentials(activeSession, cwRoles)
-      })
+      return h.authenticated({ credentials: toCredentials(activeSession) })
     } catch (error) {
       return handleRefreshFailure(request, h, error)
     }

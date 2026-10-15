@@ -16,20 +16,14 @@ export { toHeaderActor }
  * read and write under their Entra object id. A name passed in wins over the
  * request's, as a write names the person it was made by.
  */
-const rolesHeader = (cwRoles?: string[] | null): Record<string, string> =>
-  Array.isArray(cwRoles) && cwRoles.length > 0
-    ? { 'x-user-roles': cwRoles.join(',') }
-    : {}
-
 const toHeaders = (actor?: string): Record<string, string> => {
-  const { name, id, cwRoles } = currentGasActor()
+  const { name, id } = currentGasActor()
   const shown = actor ?? name
 
   return {
     authorization: `Bearer ${config.get('gas.serviceToken')}`,
     ...(shown ? { 'x-actor': toHeaderActor(shown) } : {}),
-    ...(id ? { 'x-actor-id': id } : {}),
-    ...rolesHeader(cwRoles)
+    ...(id ? { 'x-actor-id': id } : {})
   }
 }
 
