@@ -95,8 +95,7 @@ describe('toCredentials', () => {
       id: 'user-id',
       email: 'ada@example.com',
       name: 'Ada Lovelace',
-      roles: ['FCP.GrantOperationsAdmin'],
-      cwRoles: null
+      roles: ['FCP.GrantOperationsAdmin']
     })
   })
 
@@ -121,8 +120,7 @@ describe('toCredentials', () => {
       id: 'user-id',
       email: '',
       name: '',
-      roles: [],
-      cwRoles: null
+      roles: []
     })
   })
 
@@ -148,8 +146,7 @@ describe('toCredentials', () => {
       id: undefined,
       email: '',
       name: '',
-      roles: [],
-      cwRoles: null
+      roles: []
     })
     expect(scope).toEqual([])
   })

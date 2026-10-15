@@ -25,8 +25,7 @@ const resetUrl = `${url}/reset`
 const credentials = {
   user: {
     name: 'Ada Lovelace',
-    id: 'operator-1',
-    cwRoles: ['ROLE_WOODLAND_ADMIN']
+    id: 'operator-1'
   },
   scope: ['FCP.GrantApplicationsAdmin']
 }
@@ -67,8 +66,7 @@ const post = (payload: { sbi: string; crn: string }) =>
 
 /** A wreck-thrown non-2xx, matching what @hapi/wreck attaches to the error. */
 const gasError = (statusCode: number, payload?: object) =>
-  Object.assign(new Error('Response Error'), {
-    output: { statusCode },
+  Object.assign(Boom.boomify(new Error('Response Error'), { statusCode }), {
     data: { payload }
   })
 
@@ -472,125 +470,109 @@ describe('replaceAllowListRoute', () => {
     const response = await post({ sbi: '', crn: '' })
 
     expect(response.statusCode).toBe(statusCodes.serviceUnavailable)
+    expect(load(response.result as unknown as string)('body').text()).toContain(
+      'Something went wrong'
+    )
   })
 })
 
 describe('allow-list administration access refusals', () => {
+  const unavailable =
+    'Caseworking roles could not be determined — try again later'
+
+  const request = (method: 'GET' | 'POST') =>
+    server.inject({
+      method,
+      url,
+      payload: method === 'POST' ? { sbi: '', crn: '' } : undefined,
+      auth: authenticated
+    })
+
   beforeEach(() => {
     vi.mocked(getGrantAllowList).mockResolvedValue(view)
     vi.mocked(replaceGrantAllowList).mockResolvedValue(view)
   })
 
-  test.each(['GET', 'POST'])(
-    '%s explains a failed roles lookup after GAS refuses access',
+  test.each(['GET', 'POST'] as const)(
+    '%s explains that GAS could not determine the roles',
     async (method) => {
-      vi.mocked(getGrantAllowList).mockRejectedValue(gasError(403))
-      vi.mocked(replaceGrantAllowList).mockRejectedValue(gasError(403))
-
-      const response = await server.inject({
-        method,
-        url,
-        payload: method === 'POST' ? { sbi: '', crn: '' } : undefined,
-        auth: {
-          strategy: 'session',
-          credentials: {
-            ...credentials,
-            user: { ...credentials.user, cwRoles: null }
-          }
-        }
+      const rolesUnavailable = gasError(503, {
+        errorCode: 'CASEWORKING_ROLES_UNAVAILABLE'
       })
+      vi.mocked(getGrantAllowList).mockRejectedValue(rolesUnavailable)
+      vi.mocked(replaceGrantAllowList).mockRejectedValue(rolesUnavailable)
+
+      const response = await request(method)
 
       expect(response.statusCode).toBe(statusCodes.serviceUnavailable)
       expect(
         load(response.result as unknown as string)('body').text()
-      ).toContain(
-        'Caseworking roles could not be determined — try signing out and back in'
-      )
+      ).toContain(unavailable)
     }
   )
 
-  test.each([
-    ['GET', []],
-    ['GET', ['ROLE_OTHER']],
-    ['GET', undefined],
-    ['POST', []],
-    ['POST', ['ROLE_OTHER']],
-    ['POST', undefined]
-  ] as const)(
-    '%s retains forbidden for resolved or absent roles %j',
-    async (method, cwRoles) => {
+  test.each(['GET', 'POST'] as const)(
+    '%s forbids administration when GAS refuses it',
+    async (method) => {
       vi.mocked(getGrantAllowList).mockRejectedValue(gasError(403))
       vi.mocked(replaceGrantAllowList).mockRejectedValue(gasError(403))
 
-      const response = await server.inject({
-        method,
-        url,
-        payload: method === 'POST' ? { sbi: '', crn: '' } : undefined,
-        auth: {
-          strategy: 'session',
-          credentials: {
-            ...credentials,
-            user: { ...credentials.user, cwRoles }
-          }
-        }
-      })
+      const response = await request(method)
 
       expect(response.statusCode).toBe(statusCodes.forbidden)
-    }
-  )
-
-  test.each([
-    ['GET', 200],
-    ['POST', 303]
-  ] as const)(
-    '%s respects GAS success even when roles lookup failed',
-    async (method, statusCode) => {
-      const response = await server.inject({
-        method,
-        url,
-        payload: method === 'POST' ? { sbi: '', crn: '' } : undefined,
-        auth: {
-          strategy: 'session',
-          credentials: {
-            ...credentials,
-            user: { ...credentials.user, cwRoles: null }
-          }
-        }
-      })
-
-      expect(response.statusCode).toBe(statusCode)
+      expect(
+        load(response.result as unknown as string)('body').text()
+      ).not.toContain(unavailable)
     }
   )
 
   test.each([
     ['GET', 404],
+    ['GET', 502],
     ['GET', 503],
     ['POST', 404],
+    ['POST', 502],
     ['POST', 503]
-  ] as const)(
-    '%s preserves GAS %i when roles lookup failed',
-    async (method, statusCode) => {
-      const error = Boom.boomify(new Error('GAS failure'), { statusCode })
+  ] as const)('%s preserves GAS %i', async (method, statusCode) => {
+    const error = Boom.boomify(new Error('GAS failure'), { statusCode })
+    vi.mocked(getGrantAllowList).mockRejectedValue(error)
+    vi.mocked(replaceGrantAllowList).mockRejectedValue(error)
+
+    const response = await request(method)
+
+    expect(response.statusCode).toBe(statusCode)
+    expect(
+      load(response.result as unknown as string)('body').text()
+    ).not.toContain(unavailable)
+  })
+
+  test.each(['GET', 'POST'] as const)(
+    '%s keeps a GAS 503 naming another error code on the generic error page',
+    async (method) => {
+      const error = gasError(503, { errorCode: 'CONFIGURATION_UNAVAILABLE' })
       vi.mocked(getGrantAllowList).mockRejectedValue(error)
       vi.mocked(replaceGrantAllowList).mockRejectedValue(error)
 
-      const response = await server.inject({
-        method,
-        url,
-        payload: method === 'POST' ? { sbi: '', crn: '' } : undefined,
-        auth: {
-          strategy: 'session',
-          credentials: {
-            ...credentials,
-            user: { ...credentials.user, cwRoles: null }
-          }
-        }
-      })
+      const response = await request(method)
 
-      expect(response.statusCode).toBe(statusCode)
+      expect(response.statusCode).toBe(statusCodes.serviceUnavailable)
       expect(
         load(response.result as unknown as string)('body').text()
-      ).not.toContain('try signing out and back in')
+      ).not.toContain(unavailable)
     }
   )
+
+  test('keeps a GAS 503 on the generic error page when re-reading after a refused save', async () => {
+    vi.mocked(replaceGrantAllowList).mockRejectedValue(
+      gasError(400, { message: 'Unshaped refusal' })
+    )
+    vi.mocked(getGrantAllowList).mockRejectedValue(gasError(503))
+
+    const response = await request('POST')
+
+    expect(response.statusCode).toBe(statusCodes.serviceUnavailable)
+    expect(
+      load(response.result as unknown as string)('body').text()
+    ).not.toContain(unavailable)
+  })
 })

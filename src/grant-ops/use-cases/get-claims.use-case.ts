@@ -6,6 +6,7 @@ export type {
   BannerField,
   ClaimableEntitlement,
   Claims,
+  ClaimsAccess,
   EntitlementTemplate,
   EntitlementTemplateField,
   SubmittedClaim

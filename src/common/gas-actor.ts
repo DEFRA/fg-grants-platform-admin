@@ -5,7 +5,6 @@ import { AsyncLocalStorage } from 'node:async_hooks'
 export interface GasActor {
   name?: string
   id?: string
-  cwRoles?: string[] | null
 }
 
 const storage = new AsyncLocalStorage<GasActor>()
@@ -36,7 +35,6 @@ type CredentialsUser = {
   id?: string
   name?: string
   email?: string
-  cwRoles?: string[] | null
 }
 
 const userOf = (request: Request): CredentialsUser | undefined =>
@@ -57,7 +55,6 @@ export const toGasActor = (request: Request): GasActor => {
 
   return {
     name: user && nameOf(user),
-    id: user && idOf(user),
-    cwRoles: user?.cwRoles
+    id: user && idOf(user)
   }
 }

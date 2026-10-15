@@ -2,7 +2,10 @@ import Boom from '@hapi/boom'
 import type { Request, ResponseToolkit, ServerRoute } from '@hapi/hapi'
 import Joi from 'joi'
 
-import { toGasRefusal } from '../use-cases/gas-refusal.ts'
+import {
+  isCaseworkingRolesUnavailable,
+  toGasRefusal
+} from '../use-cases/gas-refusal.ts'
 import type { AllowListView } from '../use-cases/get-allow-list.use-case.ts'
 import { getAllowListUseCase } from '../use-cases/get-allow-list.use-case.ts'
 import type {
@@ -58,26 +61,35 @@ const page = ({ activeTab, code, view, errorSummary, saved }: PageOptions) => ({
 const activeTabFor = (activeTab: string | undefined) =>
   activeTab === 'who-can-apply' ? activeTab : 'grant-setup'
 
-const respondToAdministrationRefusal = (
-  request: Request,
-  h: ResponseToolkit
-) => {
-  const { cwRoles } = request.auth.credentials.user
+const forbidden = 403
+const serviceUnavailable = 503
 
-  if (cwRoles === null) {
-    return h
-      .view('roles-unavailable', {
-        pageTitle: 'Caseworking roles could not be determined',
-        heading: 503,
-        message:
-          'Caseworking roles could not be determined — try signing out and back in'
-      })
-      .code(503)
-  }
+const viewRolesUnavailable = (h: ResponseToolkit) =>
+  h
+    .view('roles-unavailable', {
+      pageTitle: 'Caseworking roles could not be determined',
+      heading: serviceUnavailable,
+      message: 'Caseworking roles could not be determined — try again later'
+    })
+    .code(serviceUnavailable)
 
+const refuseAdministration = () => {
   throw Boom.forbidden(
     'You do not have access to administration for this grant'
   )
+}
+
+/** GAS refuses administration with a 403, and answers a 503 naming the roles lookup when it cannot tell. */
+const respondToAdministrationFailure = (h: ResponseToolkit, error: unknown) => {
+  if (isCaseworkingRolesUnavailable(error)) {
+    return viewRolesUnavailable(h)
+  }
+
+  if (toGasRefusal(error)?.statusCode === forbidden) {
+    return refuseAdministration()
+  }
+
+  throw error
 }
 
 export const viewAllowListRoute: ServerRoute = {
@@ -102,10 +114,7 @@ export const viewAllowListRoute: ServerRoute = {
         })
       )
     } catch (error) {
-      if (toGasRefusal(error)?.statusCode === 403) {
-        return respondToAdministrationRefusal(request, h)
-      }
-      throw error
+      return respondToAdministrationFailure(h, error)
     }
   }
 }
@@ -157,7 +166,6 @@ const renderGenericRefusal = async (h: ResponseToolkit, code: string) => {
 }
 
 const respondToOutcome = (
-  request: Request,
   h: ResponseToolkit,
   code: string,
   outcome: Exclude<ReplaceAllowListOutcome, { outcome: 'saved' }>
@@ -183,8 +191,8 @@ const respondToOutcome = (
     throw Boom.notFound()
   }
 
-  if (refusal.statusCode === 403) {
-    return respondToAdministrationRefusal(request, h)
+  if (refusal.statusCode === forbidden) {
+    return refuseAdministration()
   }
 
   return renderGenericRefusal(h, code)
@@ -201,14 +209,18 @@ export const replaceAllowListRoute: ServerRoute = {
     // would only duplicate a decision GAS already makes for real.
     const form = request.payload as AllowListFormSubmission
 
-    const outcome = await replaceAllowListUseCase(code, form)
+    try {
+      const outcome = await replaceAllowListUseCase(code, form)
 
-    if (outcome.outcome === 'saved') {
-      request.yar.flash(allowListSavedKey, 'Allow list saved')
-      request.yar.flash(allowListActiveTabKey, 'who-can-apply')
-      return h.redirect(adminHrefFor(code)).code(303)
+      if (outcome.outcome === 'saved') {
+        request.yar.flash(allowListSavedKey, 'Allow list saved')
+        request.yar.flash(allowListActiveTabKey, 'who-can-apply')
+        return h.redirect(adminHrefFor(code)).code(303)
+      }
+
+      return await respondToOutcome(h, code, outcome)
+    } catch (error) {
+      return respondToAdministrationFailure(h, error)
     }
-
-    return respondToOutcome(request, h, code, outcome)
   }
 }

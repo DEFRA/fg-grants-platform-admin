@@ -62,10 +62,7 @@ export interface SubmittedClaim {
   submittedAt: string
 }
 
-export interface RequiredRoles {
-  allOf: string[]
-  anyOf: string[]
-}
+export type ClaimsAccess = 'full' | 'view-only'
 
 export interface Claims {
   // Absent until a grant configures a claims page.
@@ -73,7 +70,7 @@ export interface Claims {
   availableEntitlements: EntitlementTemplate[]
   claimableEntitlements: ClaimableEntitlement[]
   claims: SubmittedClaim[]
-  claimsRequiredRoles?: RequiredRoles | null
+  access: ClaimsAccess
 }
 
 export interface ClaimableEntitlement {
@@ -90,13 +87,26 @@ export interface ClaimableEntitlement {
 
 export interface Claim extends Omit<Claims, 'claims'> {
   entitlementTemplate: EntitlementTemplate
-  claimsRequiredRoles?: RequiredRoles | null
 }
 
 export interface ClaimableItem extends Claims {
   claimableEntitlement: ClaimableEntitlement
   entitlementTemplate: EntitlementTemplate
 }
+
+/** What GAS answers with, where `access` may be absent. */
+type GasAnswer<T extends { access: ClaimsAccess }> = Omit<T, 'access'> & {
+  access?: ClaimsAccess
+}
+
+/** Only full access offers changes; anything else, an absent answer included, is view-only. */
+const withAccess = <T extends { access: ClaimsAccess }>({
+  access,
+  ...answer
+}: GasAnswer<T>) => ({
+  ...answer,
+  access: access === 'full' ? ('full' as const) : ('view-only' as const)
+})
 
 export interface EntitlementFieldValue {
   value: string | number | boolean
@@ -142,8 +152,10 @@ export const findClaims = async (
   code: string,
   clientRef: string
 ): Promise<Claims> =>
-  getFromGas<Claims>(
-    `/grant-admin/grants/${encodeURIComponent(code)}/applications/${encodeURIComponent(clientRef)}/claims`
+  withAccess(
+    await getFromGas<GasAnswer<Claims>>(
+      `/grant-admin/grants/${encodeURIComponent(code)}/applications/${encodeURIComponent(clientRef)}/claims`
+    )
   )
 
 export const findClaim = async (
@@ -151,8 +163,10 @@ export const findClaim = async (
   clientRef: string,
   claimCode: string
 ): Promise<Claim> =>
-  getFromGas<Claim>(
-    `/grant-admin/grants/${encodeURIComponent(code)}/applications/${encodeURIComponent(clientRef)}/claims/${encodeURIComponent(claimCode)}`
+  withAccess(
+    await getFromGas<GasAnswer<Claim>>(
+      `/grant-admin/grants/${encodeURIComponent(code)}/applications/${encodeURIComponent(clientRef)}/claims/${encodeURIComponent(claimCode)}`
+    )
   )
 
 export const findEntitlement = async (
@@ -160,6 +174,8 @@ export const findEntitlement = async (
   clientRef: string,
   entitlementId: string
 ): Promise<ClaimableItem> =>
-  getFromGas<ClaimableItem>(
-    `/grant-admin/grants/${encodeURIComponent(code)}/applications/${encodeURIComponent(clientRef)}/claims/entitlements/${encodeURIComponent(entitlementId)}`
+  withAccess(
+    await getFromGas<GasAnswer<ClaimableItem>>(
+      `/grant-admin/grants/${encodeURIComponent(code)}/applications/${encodeURIComponent(clientRef)}/claims/entitlements/${encodeURIComponent(entitlementId)}`
+    )
   )

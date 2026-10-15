@@ -1,3 +1,4 @@
+import Boom from '@hapi/boom'
 import { load } from 'cheerio'
 import type { Server } from '@hapi/hapi'
 
@@ -95,7 +96,8 @@ const givenClaims = (
     banner,
     availableEntitlements,
     claimableEntitlements,
-    claims
+    claims,
+    access: 'full'
   })
 
 const viewPage = async () => {
@@ -180,7 +182,8 @@ describe('viewClaimsRoute', () => {
     vi.mocked(getClaimsUseCase).mockResolvedValue({
       availableEntitlements: [],
       claimableEntitlements: [],
-      claims: []
+      claims: [],
+      access: 'full'
     })
 
     const { statusCode } = await server.inject({
@@ -358,6 +361,52 @@ describe('viewClaimsRoute', () => {
     expect($('[data-testid="awaiting-claim-amount"]').text().trim()).toBe(
       '455,000 ha'
     )
+  })
+
+  test('offers changing an item awaiting a claim', async () => {
+    givenClaims([template()], [claimableEntitlement()])
+
+    const { $ } = await viewPage()
+
+    expect($('[data-testid="awaiting-claim-change"]').attr('href')).toBe(
+      `${url}/entitlements/entitlement-1/change#change-entitlement`
+    )
+  })
+
+  test('shows the claims without create or change links when the backend grants view-only access', async () => {
+    vi.mocked(getClaimsUseCase).mockResolvedValue({
+      banner,
+      availableEntitlements: [template()],
+      claimableEntitlements: [claimableEntitlement()],
+      claims: [],
+      access: 'view-only'
+    })
+
+    const { $, statusCode } = await viewPage()
+
+    expect(statusCode).toBe(statusCodes.ok)
+    expect($('[data-testid="available-entitlement"]')).toHaveLength(1)
+    expect($('[data-testid="available-entitlement-create"]')).toHaveLength(0)
+    expect($('[data-testid="awaiting-claim-description"]').text().trim()).toBe(
+      'Entitlement for Woodland Management Plan (PA3).'
+    )
+    expect($('[data-testid="awaiting-claim-change"]')).toHaveLength(0)
+  })
+
+  test('forbids the page when the backend refuses the claims', async () => {
+    vi.mocked(getClaimsUseCase).mockRejectedValue(Boom.forbidden())
+
+    const { statusCode } = await viewPage()
+
+    expect(statusCode).toBe(statusCodes.forbidden)
+  })
+
+  test('answers unavailable when the backend cannot determine access to the claims', async () => {
+    vi.mocked(getClaimsUseCase).mockRejectedValue(Boom.serverUnavailable())
+
+    const { statusCode } = await viewPage()
+
+    expect(statusCode).toBe(statusCodes.serviceUnavailable)
   })
 
   test('shows the awaiting claims empty state', async () => {

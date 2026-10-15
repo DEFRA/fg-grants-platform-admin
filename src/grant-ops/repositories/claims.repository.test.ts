@@ -12,8 +12,11 @@ vi.mock(import('../../common/gas.ts'))
 const payload = {
   availableEntitlements: [],
   claimableEntitlements: [],
-  claims: []
+  claims: [],
+  access: 'full'
 }
+
+const { access: _access, ...withoutAccess } = payload
 
 describe('findClaims', () => {
   beforeEach(() => {
@@ -22,6 +25,21 @@ describe('findClaims', () => {
 
   test('reads the claims payload for a grant code and client reference', async () => {
     await expect(findClaims('woodland', 'wood-1001')).resolves.toEqual(payload)
+  })
+
+  test('keeps the full access GAS granted', async () => {
+    await expect(findClaims('woodland', 'wood-1001')).resolves.toMatchObject({
+      access: 'full'
+    })
+  })
+
+  test('reads a GAS answer naming no access as view-only', async () => {
+    vi.mocked(getFromGas).mockResolvedValue(withoutAccess)
+
+    await expect(findClaims('woodland', 'wood-1001')).resolves.toEqual({
+      ...withoutAccess,
+      access: 'view-only'
+    })
   })
 
   test('calls the backend claims endpoint', async () => {
@@ -42,6 +60,24 @@ describe('findClaims', () => {
 })
 
 describe('findClaim', () => {
+  beforeEach(() => {
+    vi.mocked(getFromGas).mockResolvedValue(payload)
+  })
+
+  test('keeps the full access GAS granted', async () => {
+    await expect(
+      findClaim('woodland', 'wood-1001', 'ENT_CS_CAPITAL_PA3')
+    ).resolves.toMatchObject({ access: 'full' })
+  })
+
+  test('reads a GAS answer naming no access as view-only', async () => {
+    vi.mocked(getFromGas).mockResolvedValue(withoutAccess)
+
+    await expect(
+      findClaim('woodland', 'wood-1001', 'ENT_CS_CAPITAL_PA3')
+    ).resolves.toMatchObject({ access: 'view-only' })
+  })
+
   test('reads the authoritative template for one claim', async () => {
     await findClaim('woodland', 'wood-1001', 'ENT_CS_CAPITAL_PA3')
 
@@ -60,6 +96,24 @@ describe('findClaim', () => {
 })
 
 describe('findEntitlement', () => {
+  beforeEach(() => {
+    vi.mocked(getFromGas).mockResolvedValue(payload)
+  })
+
+  test('keeps the full access GAS granted', async () => {
+    await expect(
+      findEntitlement('woodland', 'wood-1001', 'entitlement-1')
+    ).resolves.toMatchObject({ access: 'full' })
+  })
+
+  test('reads a GAS answer naming no access as view-only', async () => {
+    vi.mocked(getFromGas).mockResolvedValue(withoutAccess)
+
+    await expect(
+      findEntitlement('woodland', 'wood-1001', 'entitlement-1')
+    ).resolves.toMatchObject({ access: 'view-only' })
+  })
+
   test('reads one entitlement, escaping every path segment', async () => {
     await findEntitlement('woodland/../admin', 'wood 1001', 'entitlement/1')
 

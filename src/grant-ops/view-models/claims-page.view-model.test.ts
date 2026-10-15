@@ -1,6 +1,7 @@
 import type {
   Banner,
   ClaimableEntitlement,
+  ClaimsAccess,
   EntitlementTemplate,
   SubmittedClaim
 } from '../use-cases/get-claims.use-case.ts'
@@ -81,7 +82,17 @@ const page = (
     banner: claimsBanner,
     availableEntitlements,
     claimableEntitlements,
-    claims: []
+    claims: [],
+    access: 'full'
+  })
+
+const accessPage = (access: ClaimsAccess) =>
+  toClaimsPage('woodland', 'WMP-1T9-RXN', {
+    banner,
+    availableEntitlements: [template()],
+    claimableEntitlements: [awaitingClaim()],
+    claims: [],
+    access
   })
 
 const claimed = (claims: SubmittedClaim[]) =>
@@ -89,7 +100,8 @@ const claimed = (claims: SubmittedClaim[]) =>
     banner,
     availableEntitlements: [],
     claimableEntitlements: [],
-    claims
+    claims,
+    access: 'full'
   }).claimed
 
 describe('toClaimsPage', () => {
@@ -165,7 +177,8 @@ describe('toClaimsPage', () => {
       banner,
       availableEntitlements: [],
       claimableEntitlements: [],
-      claims: []
+      claims: [],
+      access: 'full'
     }).tabs
 
     expect(claims.href).toBe(
@@ -263,12 +276,30 @@ describe('toClaimsPage', () => {
       banner,
       availableEntitlements: [template({ claimCode: 'ENT/PA3' })],
       claimableEntitlements: [],
-      claims: []
+      claims: [],
+      access: 'full'
     }).entitlements
 
     expect(row.createHref).toBe(
       '/grant-ops/grants/wood%20land/applications/wood%2F1001/claims/new-entitlement/ENT%2FPA3#new-entitlement'
     )
+  })
+})
+
+describe('the access GAS granted to the claims', () => {
+  test('offers creating and changing items with full access', () => {
+    const { entitlements, awaitingClaims } = accessPage('full')
+
+    expect(entitlements[0].createHref).toBeDefined()
+    expect(awaitingClaims[0].changeHref).toBeDefined()
+  })
+
+  test('offers neither creating nor changing items with view-only access', () => {
+    const { entitlements, awaitingClaims } = accessPage('view-only')
+
+    expect(entitlements[0].canCreate).toBe(false)
+    expect(entitlements[0].createHref).toBeUndefined()
+    expect(awaitingClaims[0].changeHref).toBeUndefined()
   })
 })
 
