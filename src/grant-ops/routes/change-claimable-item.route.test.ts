@@ -21,6 +21,9 @@ vi.mock(import('../repositories/claims.repository.ts'))
 
 const claimsUrl = '/grant-ops/grants/woodland/applications/WMP-1T9-RXN/claims'
 const url = `${claimsUrl}/entitlements/entitlement-1/change`
+const escapedClaimsUrl =
+  '/grant-ops/grants/wood%20land/applications/wood%2F1001/claims'
+const escapedUrl = `${escapedClaimsUrl}/entitlements/entitlement-1/change`
 
 const credentials = {
   user: { name: 'Ada Lovelace' },
@@ -340,6 +343,33 @@ describe('changeClaimableItemRoute', () => {
 
     expect(statusCode).toBe(statusCodes.notFound)
   })
+
+  test('cancels back to the escaped claims page', async () => {
+    const { result } = await server.inject({
+      method: 'GET',
+      url: escapedUrl,
+      auth: { strategy: 'session', credentials }
+    })
+
+    expect(
+      load(result as unknown as string)(
+        '[data-testid="claimable-cancel"]'
+      ).attr('href')
+    ).toBe(escapedClaimsUrl)
+  })
+
+  test('returns to the escaped claims page when a claim was made against the item first', async () => {
+    vi.mocked(findEntitlement).mockRejectedValue(Boom.conflict(claimed))
+
+    const { headers, statusCode } = await server.inject({
+      method: 'GET',
+      url: escapedUrl,
+      auth: { strategy: 'session', credentials }
+    })
+
+    expect(statusCode).toBe(statusCodes.seeOther)
+    expect(headers.location).toBe(escapedClaimsUrl)
+  })
 })
 
 const gasRefusal = (statusCode: number, message: string, errorCode?: string) =>
@@ -600,5 +630,22 @@ describe('updateClaimableItemRoute', () => {
     expect(statusCode).toBe(statusCodes.seeOther)
     expect(headers.location).toBe(claimsUrl)
     expect(updateEntitlement).not.toHaveBeenCalled()
+  })
+
+  test('returns to the escaped claims page after changing', async () => {
+    const { headers } = await server.inject({
+      method: 'POST',
+      url: escapedUrl,
+      payload: { totalHectares: '45.5' },
+      auth: { strategy: 'session', credentials }
+    })
+
+    expect(updateEntitlement).toHaveBeenCalledWith(
+      expect.objectContaining({
+        grantCode: 'wood land',
+        clientRef: 'wood/1001'
+      })
+    )
+    expect(headers.location).toBe(escapedClaimsUrl)
   })
 })

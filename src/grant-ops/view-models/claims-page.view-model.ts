@@ -62,8 +62,6 @@ export interface Tab {
 }
 
 export interface ClaimsPage {
-  code: string
-  clientRef: string
   claimsHref: string
   header: Header
   tabs: Tab[]
@@ -218,6 +216,9 @@ const toClaimedRow = (claim: SubmittedClaim): ClaimedRow => ({
 const toBase = (code: string, clientRef: string): string =>
   `/grant-ops/grants/${encodeURIComponent(code)}/applications/${encodeURIComponent(clientRef)}`
 
+export const toClaimsHref = (code: string, clientRef: string): string =>
+  `${toBase(code, clientRef)}/claims`
+
 const toTabs = (claimsHref: string): Tab[] => {
   // The application data and payments pages arrive with later tickets, so
   // those tabs have nowhere to go yet.
@@ -261,11 +262,9 @@ export const toClaimsPage = (
   }
 ): ClaimsPage => {
   const base = toBase(code, clientRef)
-  const claimsHref = `${base}/claims`
+  const claimsHref = toClaimsHref(code, clientRef)
 
   return {
-    code,
-    clientRef,
     claimsHref,
     header: toHeader(banner),
     tabs: toTabs(claimsHref),

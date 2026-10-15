@@ -22,6 +22,7 @@ vi.mock(
 
 const url = '/grant-ops/grants/woodland/admin'
 const resetUrl = `${url}/reset`
+const escapedUrl = '/grant-ops/grants/wood%20land/admin'
 const credentials = {
   user: {
     name: 'Ada Lovelace',
@@ -152,6 +153,7 @@ describe('viewAllowListRoute', () => {
 
     expect(statusCode).toBe(statusCodes.ok)
     expect($('title').text()).toContain('Who can apply')
+    expect($('title').text()).not.toContain('Error:')
     expect($('h1').text().trim()).toBe('Grant code woodland')
     expect($('body').text()).not.toContain('Woodland Creation')
     expect($('[data-testid="allow-list-explanation"]').text().trim()).toBe(
@@ -213,6 +215,21 @@ describe('viewAllowListRoute', () => {
     expect(reset.attr('href')).toBe(resetUrl)
     expect(reset.hasClass('govuk-button--secondary')).toBe(true)
   })
+
+  test('reads the allow list for the unescaped code and escapes it in the form hrefs', async () => {
+    const response = await server.inject({
+      method: 'GET',
+      url: escapedUrl,
+      auth: authenticated
+    })
+    const $ = load(response.result as unknown as string)
+
+    expect(getGrantAllowList).toHaveBeenCalledWith('wood land')
+    expect($('#who-can-apply form').attr('action')).toBe(escapedUrl)
+    expect($('[data-testid="allow-list-reset"]').attr('href')).toBe(
+      `${escapedUrl}/reset`
+    )
+  })
 })
 
 describe('resetAllowListRoute', () => {
@@ -273,6 +290,16 @@ describe('resetAllowListRoute', () => {
     expect($('#sbi').text()).toBe('106000033\n106000044')
     expect($('#crn').text()).toBe('1042000000')
     expect($('[data-testid="allow-list-saved"]')).toHaveLength(0)
+  })
+
+  test('redirects a reset to the escaped admin page', async () => {
+    const response = await server.inject({
+      method: 'GET',
+      url: `${escapedUrl}/reset`,
+      auth: authenticated
+    })
+
+    expect(response.headers.location).toBe(escapedUrl)
   })
 })
 
@@ -367,6 +394,7 @@ describe('replaceAllowListRoute', () => {
 
     expect(response.statusCode).toBe(statusCodes.badRequest)
     expect(replaceGrantAllowList).toHaveBeenCalledWith('woodland', submitted)
+    expect($('title').text()).toContain('Error: Who can apply')
     expect($('.govuk-error-summary')).toHaveLength(1)
     expect($('.govuk-tabs').attr('data-active-tab')).toBe('who-can-apply')
     expect(
@@ -447,6 +475,7 @@ describe('replaceAllowListRoute', () => {
 
     expect(response.statusCode).toBe(statusCodes.badRequest)
     expect(getGrantAllowList).toHaveBeenCalledWith('woodland')
+    expect($('title').text()).toContain('Error: Who can apply')
     expect($('.govuk-error-summary').text()).toContain(
       'The allow list could not be saved. Check the entries and try again.'
     )
@@ -473,6 +502,19 @@ describe('replaceAllowListRoute', () => {
     expect(load(response.result as unknown as string)('body').text()).toContain(
       'Something went wrong'
     )
+  })
+
+  test('saves for the unescaped code and redirects to the escaped admin page', async () => {
+    const submitted = { sbi: '106000033', crn: '' }
+    const response = await server.inject({
+      method: 'POST',
+      url: escapedUrl,
+      payload: submitted,
+      auth: authenticated
+    })
+
+    expect(replaceGrantAllowList).toHaveBeenCalledWith('wood land', submitted)
+    expect(response.headers.location).toBe(escapedUrl)
   })
 })
 

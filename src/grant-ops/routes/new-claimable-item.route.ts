@@ -15,6 +15,7 @@ import {
   validateClaimableItem
 } from '../view-models/claimable-item-form.view-model.ts'
 import {
+  toClaimsHref,
   toClaimsPage,
   toClaimsRefusalPage
 } from '../view-models/claims-page.view-model.ts'
@@ -184,10 +185,6 @@ export const createClaimableItemRoute: ServerRoute = {
       toCreatedNotice(claimableTemplate, form)
     )
 
-    return h
-      .redirect(
-        `/grant-ops/grants/${encodeURIComponent(code)}/applications/${encodeURIComponent(clientRef)}/claims`
-      )
-      .code(303)
+    return h.redirect(toClaimsHref(code, clientRef)).code(303)
   }
 }
