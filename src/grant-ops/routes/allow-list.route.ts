@@ -6,20 +6,24 @@ import {
   isCaseworkingRolesUnavailable,
   toGasRefusal
 } from '../use-cases/gas-refusal.ts'
-import type { AllowListView } from '../use-cases/get-allow-list.use-case.ts'
 import { getAllowListUseCase } from '../use-cases/get-allow-list.use-case.ts'
 import type {
   AllowListFormSubmission,
   ReplaceAllowListOutcome
 } from '../use-cases/replace-allow-list.use-case.ts'
 import { replaceAllowListUseCase } from '../use-cases/replace-allow-list.use-case.ts'
+import {
+  allowListActiveTabKey,
+  allowListSavedKey,
+  toAdminHref,
+  toAllowListInvalidPage,
+  toAllowListPage,
+  toAllowListRefusalPage
+} from '../view-models/allow-list-page.view-model.ts'
 
 interface AllowListParams {
   code: string
 }
-
-export const allowListSavedKey = 'allowListSaved'
-const allowListActiveTabKey = 'allowListActiveTab'
 
 const params = Joi.object({ code: Joi.string().required() })
 
@@ -27,39 +31,6 @@ const payload = Joi.object({
   sbi: Joi.string().allow('').required(),
   crn: Joi.string().allow('').required()
 }).unknown(false)
-
-const adminHrefFor = (code: string): string =>
-  `/grant-ops/grants/${encodeURIComponent(code)}/admin`
-
-const resetHrefFor = (code: string): string => `${adminHrefFor(code)}/reset`
-
-interface ErrorSummaryItem {
-  text: string
-  href?: string
-  attributes?: { 'data-error-line': number }
-}
-
-interface PageOptions {
-  activeTab: 'grant-setup' | 'who-can-apply'
-  code: string
-  view: AllowListView
-  errorSummary: ErrorSummaryItem[]
-  saved: string | undefined
-}
-
-const page = ({ activeTab, code, view, errorSummary, saved }: PageOptions) => ({
-  activeTab,
-  code,
-  pageTitle: errorSummary.length ? 'Error: Who can apply' : 'Who can apply',
-  formAction: adminHrefFor(code),
-  form: view,
-  errorSummary,
-  resetHref: resetHrefFor(code),
-  saved
-})
-
-const activeTabFor = (activeTab: string | undefined) =>
-  activeTab === 'who-can-apply' ? activeTab : 'grant-setup'
 
 const forbidden = 403
 const serviceUnavailable = 503
@@ -105,13 +76,7 @@ export const viewAllowListRoute: ServerRoute = {
 
       return h.view(
         'allow-list',
-        page({
-          activeTab: activeTabFor(activeTab),
-          code,
-          view,
-          errorSummary: [],
-          saved
-        })
+        toAllowListPage(code, view, { saved, activeTab })
       )
     } catch (error) {
       return respondToAdministrationFailure(h, error)
@@ -130,18 +95,12 @@ export const resetAllowListRoute: ServerRoute = {
     // own real GAS call. Checking here too would be a second audited read of
     // the whole list for a request that never shows or uses that data.
     request.yar.flash(allowListActiveTabKey, 'who-can-apply')
-    return h.redirect(adminHrefFor(code)).code(303)
+    return h.redirect(toAdminHref(code)).code(303)
   }
 }
 
-const saveRefusalSummary = [
-  {
-    text: 'The allow list could not be saved. Check the entries and try again.'
-  }
-]
-
 /**
- * There is no view-model left in GPA to rebuild field values from what the
+ * GAS shapes the field values and GPA does not rebuild them from what the
  * user typed, so this doesn't try: it re-fetches the current saved state and
  * shows a generic banner. GAS's only documented allow-list refusal mode is
  * the shaped 'invalid' outcome, handled separately below - this is a
@@ -151,18 +110,7 @@ const saveRefusalSummary = [
 const renderGenericRefusal = async (h: ResponseToolkit, code: string) => {
   const view = await getAllowListUseCase(code)
 
-  return h
-    .view(
-      'allow-list',
-      page({
-        activeTab: 'who-can-apply',
-        code,
-        view,
-        errorSummary: saveRefusalSummary,
-        saved: undefined
-      })
-    )
-    .code(400)
+  return h.view('allow-list', toAllowListRefusalPage(code, view)).code(400)
 }
 
 const respondToOutcome = (
@@ -172,16 +120,7 @@ const respondToOutcome = (
 ) => {
   if (outcome.outcome === 'invalid') {
     return h
-      .view(
-        'allow-list',
-        page({
-          activeTab: 'who-can-apply',
-          code,
-          view: outcome.view,
-          errorSummary: outcome.view.errorSummary,
-          saved: undefined
-        })
-      )
+      .view('allow-list', toAllowListInvalidPage(code, outcome.view))
       .code(400)
   }
 
@@ -215,7 +154,7 @@ export const replaceAllowListRoute: ServerRoute = {
       if (outcome.outcome === 'saved') {
         request.yar.flash(allowListSavedKey, 'Allow list saved')
         request.yar.flash(allowListActiveTabKey, 'who-can-apply')
-        return h.redirect(adminHrefFor(code)).code(303)
+        return h.redirect(toAdminHref(code)).code(303)
       }
 
       return await respondToOutcome(h, code, outcome)
