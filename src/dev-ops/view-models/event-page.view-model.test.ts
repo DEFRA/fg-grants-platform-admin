@@ -6,17 +6,15 @@ import type {
   EventKey,
   EventResult
 } from '../use-cases/get-event.use-case.ts'
-import type {
-  EventRow,
-  ServiceFilter
-} from '../use-cases/get-events.use-case.ts'
+import type { BucketEntry } from '../use-cases/get-catalogue.use-case.ts'
+import type { EventRow } from '../repositories/events.repository.ts'
 import { hoursPerDay, minutesPerHour, msPerMinute } from './event-formats.ts'
 import {
   toEventPage,
   toSafeFrom,
   UnknownRecordKindError
 } from './event-page.view-model.ts'
-import { toEventsPage } from './events-page.view-model.ts'
+import { toEventRow } from './event-row.ts'
 import type { JsonView } from './json-viewer.view-model.ts'
 
 vi.mock(import('../../common/config.ts'))
@@ -42,10 +40,52 @@ const key: EventKey = { service: 'gas', box: 'outbox', id }
 
 const inboxKey: EventKey = { service: 'gas', box: 'inbox', id }
 
-const services: ServiceFilter[] = [
-  { value: 'gas', label: 'GAS' },
-  { value: 'caseworking', label: 'CW-BE' }
-]
+const listPath = '/dev-ops/events/gas/outbox'
+
+const bucket: BucketEntry = {
+  id: 'gas.outbox',
+  path: 'events/gas/outbox',
+  label: 'GAS outbox',
+  service: 'GAS',
+  shortLabel: 'Outbox',
+  icon: 'activity',
+  order: 10,
+  noun: { one: 'event', many: 'events' },
+  time: { label: 'Created' },
+  facts: [
+    {
+      name: 'status',
+      param: 'status',
+      label: 'Status',
+      values: [{ value: 'DEAD_LETTER', label: 'Dead letter', tone: 'error' }],
+      toggle: null
+    },
+    {
+      name: 'lastError.name',
+      param: 'error',
+      label: 'Error name',
+      values: null,
+      toggle: null
+    },
+    {
+      name: 'eventType',
+      param: 'event',
+      label: 'Event',
+      values: [{ value: 'Audit', label: 'Audit', hidden: true }],
+      toggle: { label: 'Show audit events', param: 'audit' }
+    }
+  ],
+  refs: [],
+  indexes: [[], ['status']],
+  groupings: ['status'],
+  title: { label: 'Event', format: 'eventType' },
+  columns: [],
+  audited: false,
+  timeline: true,
+  summaries: [],
+  page: null,
+  tab: null
+}
 
 const deadLetter = {
   status: 'DEAD_LETTER',
@@ -77,6 +117,7 @@ const base = {
   id,
   eventId: '3f2c1a0e-1111-2222-3333-444455556666',
   type: 'case.status.updated',
+  eventType: 'CaseStatusUpdated',
   ...deadLetter,
   createdAt: '2026-06-16T10:00:00.000Z'
 }
@@ -130,6 +171,18 @@ const model = (
   notice?: Parameters<typeof toEventPage>[3]
 ) => toEventPage(result, key, query, notice)
 
+/** Opened from a list that filters by status and error name. */
+const listed = (result: EventResult = found(), from: BucketEntry = bucket) =>
+  toEventPage(
+    result,
+    key,
+    { back: listPath },
+    undefined,
+    undefined,
+    undefined,
+    from
+  )
+
 const noticed = (
   notice: Omit<NonNullable<Parameters<typeof toEventPage>[3]>, 'page'>
 ) => model(found(), {}, { ...notice, page: `/dev-ops/events/gas/outbox/${id}` })
@@ -141,41 +194,58 @@ const inboxModel = (
 
 describe('toSafeFrom', () => {
   test.each([
-    ['?status=DEAD_LETTER', '?status=DEAD_LETTER'],
-    ['?cursor=a%2Bb&direction=forward', '?cursor=a%2Bb&direction=forward'],
-    ['?', '?']
-  ])('keeps %s', (from, expected) => {
-    expect(toSafeFrom(from)).toBe(expected)
+    '/dev-ops/events/gas/outbox',
+    '/dev-ops/events/cw/inbox?status=DEAD_LETTER&audit=on',
+    '/dev-ops/cases?workflow=example-workflow&range=24h',
+    '/dev-ops/applications/example-grant/abc-123?tab=events',
+    '/dev-ops/cases/example-workflow/abc-123?tab=events&back=%2Fdev-ops%2Fcases'
+  ])('keeps %s', (back) => {
+    expect(toSafeFrom(back)).toBe(back)
   })
 
   test.each([
     ['an absolute url', 'https://example.com'],
     ['a protocol-relative url', '//example.com'],
-    ['a query hiding one', '?next=//example.com'],
-    ['a path', '/dev-ops/events'],
-    ['a bare needle', 'status=FAILED'],
+    ['a list hiding one', '/dev-ops/events/gas/outbox?next=//example.com'],
+    ['a list with a backslash', '/dev-ops/events/gas/outbox\\example.com'],
+    ['a record hiding a url', '/dev-ops/cases/a/b?back=//example.com'],
+    ['another app', '/grant-ops'],
+    ['the admin itself', '/dev-ops'],
+    ['a bare query', '?status=FAILED'],
     ['an empty string', ''],
     ['nothing at all', undefined]
-  ])('drops %s', (_name, from) => {
-    expect(toSafeFrom(from)).toBe('')
+  ])('drops %s', (_name, back) => {
+    expect(toSafeFrom(back)).toBe('')
   })
 })
 
 describe('toEventPage', () => {
-  test('links back to the plain list when there is no query to keep', () => {
-    expect(model().backHref).toBe('/dev-ops/events')
+  test('leaves the way back to the layout when there is no list to return to', () => {
+    expect(model()).toMatchObject({
+      backHref: '',
+      navActive: null
+    })
   })
 
-  test('links back to the list the operator left', () => {
-    expect(model(found(), { from: '?status=FAILED' }).backHref).toBe(
-      '/dev-ops/events?status=FAILED'
-    )
+  test('links back to the list the operator left, and sits under it in the navigation', () => {
+    expect(
+      toEventPage(
+        found(),
+        key,
+        { back: `${listPath}?status=FAILED` },
+        undefined,
+        undefined,
+        undefined,
+        bucket
+      )
+    ).toMatchObject({
+      backHref: `${listPath}?status=FAILED`,
+      navActive: 'gas.outbox'
+    })
   })
 
-  test('links back to the plain list when the query is not one', () => {
-    expect(model(found(), { from: '//example.com' }).backHref).toBe(
-      '/dev-ops/events'
-    )
+  test('drops a list that is not one of its own', () => {
+    expect(model(found(), { back: '//example.com' }).backHref).toBe('')
   })
 
   test('names the event and the state the endpoint says it is in', () => {
@@ -326,13 +396,13 @@ describe('toEventPage', () => {
   })
 
   test('points the confirmation and the write at this same event', () => {
-    const page = model(found(), { from: '?status=DEAD_LETTER' })
+    const page = model(found(), { back: `${listPath}?status=DEAD_LETTER` })
 
     expect(page.redriveHref).toBe(
-      `/dev-ops/events/gas/outbox/${id}?from=%3Fstatus%3DDEAD_LETTER&confirm=redrive`
+      `/dev-ops/events/gas/outbox/${id}?back=%2Fdev-ops%2Fevents%2Fgas%2Foutbox%3Fstatus%3DDEAD_LETTER&confirm=redrive`
     )
     expect(page.cancelHref).toBe(
-      `/dev-ops/events/gas/outbox/${id}?from=%3Fstatus%3DDEAD_LETTER`
+      `/dev-ops/events/gas/outbox/${id}?back=%2Fdev-ops%2Fevents%2Fgas%2Foutbox%3Fstatus%3DDEAD_LETTER`
     )
     expect(page.redriveAction).toBe(`/dev-ops/events/gas/outbox/${id}/redrive`)
   })
@@ -381,11 +451,11 @@ describe('toEventPage', () => {
   test('keeps the way back on a page whose event could not be read', () => {
     const page = model(
       { outcome: 'unavailable', event: null },
-      { from: '?status=FAILED' }
+      { back: `${listPath}?status=FAILED` }
     )
 
     expect(page.unavailable).toBe(true)
-    expect(page.backHref).toBe('/dev-ops/events?status=FAILED')
+    expect(page.backHref).toBe(`${listPath}?status=FAILED`)
     expect(page.payloadView).toBeNull()
     expect(page.canRedrive).toBe(false)
   })
@@ -831,8 +901,6 @@ describe('toEventPage', () => {
 
     expect(model()).toMatchObject({
       segregationRef: null,
-      segregationRefHref: null,
-      segregationRefTitle: null,
       traceId: null,
       traceHref: null
     })
@@ -857,24 +925,14 @@ describe('toEventPage', () => {
     )
   })
 
-  test('links an inbox row segregation ref at every event that shares it', () => {
-    expect(inboxModel()).toMatchObject({
+  test('shows an inbox row segregation ref as it is stored, with no link to follow', () => {
+    const page = inboxModel()
+
+    expect(page).toMatchObject({
       segregationRef: 'GLD-9B2-BWS-grasslands',
-      segregationRefHref: '/dev-ops/events?q=GLD-9B2-BWS-grasslands',
-      segregationRefTitle:
-        'GLD-9B2-BWS-grasslands\nShow every event with this segregation ref',
       traceId: '4bf92f3577b34da6a3ce929d0e0e4736'
     })
-  })
-
-  test('keeps audit rows in the segregation ref search from an audit record', () => {
-    expect(
-      model(
-        found(
-          detail({ type: 'audit', segregationRef: 'GLD-9B2-BWS-grasslands' })
-        )
-      ).segregationRefHref
-    ).toBe('/dev-ops/events?q=GLD-9B2-BWS-grasslands&audit=include')
+    expect(page).not.toHaveProperty('segregationRefHref')
   })
 
   // The id is there and the explorer is configured, so the plain span it falls
@@ -1134,40 +1192,98 @@ describe('the deletion date', () => {
 })
 
 describe('the shared failure link', () => {
-  test('offers every other dead letter with this error, whole', () => {
-    expect(model().errorSearchHref).toBe(
-      '/dev-ops/events?error=E11000+duplicate+key'
+  test('offers every dead letter with this error name, in the list the event was opened from', () => {
+    expect(listed().errorSearchHref).toBe(
+      `${listPath}?status=DEAD_LETTER&error=MongoServerError`
     )
   })
 
-  test('keeps audit rows in the error search from an audit record', () => {
-    expect(model(found(detail({ type: 'audit' }))).errorSearchHref).toBe(
-      '/dev-ops/events?error=E11000+duplicate+key&audit=include'
+  test('drops the filters the list was under, so the error alone narrows it', () => {
+    const page = toEventPage(
+      found(),
+      key,
+      { back: `${listPath}?status=FAILED&grant=example-grant` },
+      undefined,
+      undefined,
+      undefined,
+      bucket
+    )
+
+    expect(page.errorSearchHref).toBe(
+      `${listPath}?status=DEAD_LETTER&error=MongoServerError`
     )
   })
 
-  test('escapes a message that would otherwise be a query of its own', () => {
-    const page = model(
+  test('keeps what the list was showing, so an event it showed is still in the list', () => {
+    const page = toEventPage(
+      found(),
+      key,
+      { back: `${listPath}?status=FAILED&audit=on` },
+      undefined,
+      undefined,
+      undefined,
+      bucket
+    )
+
+    expect(page.errorSearchHref).toBe(
+      `${listPath}?status=DEAD_LETTER&error=MongoServerError&audit=on`
+    )
+  })
+
+  test('escapes a name that would otherwise be a query of its own', () => {
+    const page = listed(
       found(
         detail({
           attemptHistory: [
             {
               at: '2026-06-16T10:16:05.000Z',
-              name: 'Error',
-              message: 'a&b=c #1',
+              name: 'a&b=c #1',
+              message: 'boom',
               stack: null
             }
           ],
-          lastError: { name: 'Error', message: 'a&b=c #1', at: null }
+          lastError: { name: 'a&b=c #1', message: 'boom', at: null }
         })
       )
     )
 
-    expect(page.errorSearchHref).toBe('/dev-ops/events?error=a%26b%3Dc+%231')
+    expect(page.errorSearchHref).toBe(
+      `${listPath}?status=DEAD_LETTER&error=a%26b%3Dc+%231`
+    )
+  })
+
+  test('is absent on an event opened from no list', () => {
+    expect(model().errorSearchHref).toBeNull()
+  })
+
+  test.each([
+    [
+      'has no error name to filter by',
+      { ...bucket, facts: bucket.facts.slice(0, 1) }
+    ],
+    ['has no status to filter by', { ...bucket, facts: bucket.facts.slice(1) }],
+    [
+      'lists no dead letters',
+      {
+        ...bucket,
+        facts: [{ ...bucket.facts[0], values: [] }, bucket.facts[1]]
+      }
+    ],
+    [
+      'takes any status',
+      {
+        ...bucket,
+        facts: [{ ...bucket.facts[0], values: null }, bucket.facts[1]]
+      }
+    ]
+  ])('is absent on an event opened from a list that %s', (_name, from) => {
+    expect(listed(found(), from).errorSearchHref).toBeNull()
   })
 
   test('is absent on an event with no failure recorded', () => {
-    expect(model(found(detail({ lastError: null }))).errorSearchHref).toBeNull()
+    expect(
+      listed(found(detail({ lastError: null }))).errorSearchHref
+    ).toBeNull()
   })
 
   test.each([
@@ -1175,31 +1291,12 @@ describe('the shared failure link', () => {
     ['PARKED', 'PARKED']
   ])('is absent on a %s event', (status, label) => {
     expect(
-      model(found(detail(stateOf(status, label)))).errorSearchHref
+      listed(found(detail(stateOf(status, label)))).errorSearchHref
     ).toBeNull()
   })
 })
 
-const listRow = (event: EventRow) =>
-  toEventsPage(
-    {
-      page: {
-        events: [event],
-        pagination: {
-          endCursor: null,
-          hasNextPage: false
-        },
-        sourceErrors: []
-      },
-      statuses: [],
-      services,
-      facets: null,
-      breakdown: null,
-      unavailable: false
-    },
-    {},
-    now
-  ).rows[0]
+const listRow = (event: EventRow) => toEventRow(now, listPath)(event)
 
 const row = (overrides: Partial<EventRow> = {}): EventRow => ({
   ...base,
@@ -1208,14 +1305,15 @@ const row = (overrides: Partial<EventRow> = {}): EventRow => ({
   ...overrides
 })
 
-describe('the Queue cell, on the list and on this page', () => {
-  test('says the service and the box the same way on both, and keeps no hop', () => {
+describe('the Queue fact, on this page alone', () => {
+  test('says the box and the service on this page, neither on a list row, and keeps no hop', () => {
     const page = model(found(detail()))
-    const listed = listRow(row())
+    const drawn = listRow(row())
 
     expect(page).toMatchObject({ serviceLabel: 'GAS', boxLabel: 'Outbox' })
-    expect(listed).toMatchObject({ serviceLabel: 'GAS', boxLabel: 'Outbox' })
-    for (const surface of [page, listed]) {
+    expect(drawn).not.toHaveProperty('boxLabel')
+    expect(drawn).not.toHaveProperty('serviceLabel')
+    for (const surface of [page, drawn]) {
       expect(surface).not.toHaveProperty('hop')
       expect(surface).not.toHaveProperty('queue')
     }
@@ -1239,8 +1337,8 @@ describe('the last attempt and the failure link', () => {
     stack: null
   })
 
-  test('draws the whole message the link searches for', () => {
-    const page = model(
+  test('draws the whole message of the error the link is for', () => {
+    const page = listed(
       found(
         detail({
           attemptHistory: [truncated(longMessage.slice(0, 512))],
@@ -1255,13 +1353,8 @@ describe('the last attempt and the failure link', () => {
 
     expect(page.attemptHistory[0].message).toBe(longMessage)
     expect(page.errorSearchHref).toBe(
-      `/dev-ops/events?error=${encodeURIComponent(longMessage).replace(/%20/g, '+')}`
+      `${listPath}?status=DEAD_LETTER&error=MongoServerError`
     )
-    expect(
-      new URL(page.errorSearchHref ?? '', 'http://dev-ops').searchParams.get(
-        'error'
-      )
-    ).toBe(page.attemptHistory[0].message)
   })
 
   test('leaves a message the backend did not cut alone', () => {
@@ -1303,7 +1396,7 @@ describe('the last attempt and the failure link', () => {
   })
 
   test('leaves an attempt the failure does not describe alone', () => {
-    const page = model(
+    const page = listed(
       found(
         detail({
           attemptHistory: [truncated('claim expired before completion')],
@@ -1319,12 +1412,12 @@ describe('the last attempt and the failure link', () => {
     expect(page.attemptHistory[0].message).toBe(
       'claim expired before completion'
     )
-    // The link would search the failure text, which this page never shows.
+    // The link would be for a failure this page never shows.
     expect(page.errorSearchHref).toBeNull()
   })
 
   test('still offers the lookup where no attempt disagrees with it', () => {
-    const page = model(
+    const page = listed(
       found(
         detail({
           attemptHistory: [],
@@ -1338,12 +1431,12 @@ describe('the last attempt and the failure link', () => {
     )
 
     expect(page.errorSearchHref).toBe(
-      '/dev-ops/events?error=E11000+duplicate+key'
+      `${listPath}?status=DEAD_LETTER&error=MongoServerError`
     )
   })
 
   test('says nothing of a failure on an event that has none', () => {
-    const page = model(
+    const page = listed(
       found(detail({ attemptHistory: [truncated('boom')], lastError: null }))
     )
 
@@ -1616,10 +1709,12 @@ describe('the purge button', () => {
   })
 
   test('points the confirmation and the write at this same event', () => {
-    const page = model(found(purgeable()), { from: '?status=DEAD_LETTER' })
+    const page = model(found(purgeable()), {
+      back: `${listPath}?status=DEAD_LETTER`
+    })
 
     expect(page.purgeHref).toBe(
-      `/dev-ops/events/gas/outbox/${id}?from=%3Fstatus%3DDEAD_LETTER&confirm=purge`
+      `/dev-ops/events/gas/outbox/${id}?back=%2Fdev-ops%2Fevents%2Fgas%2Foutbox%3Fstatus%3DDEAD_LETTER&confirm=purge`
     )
     expect(page.purgeAction).toBe(`/dev-ops/events/gas/outbox/${id}/purge`)
   })
@@ -2169,10 +2264,12 @@ describe('the edit button', () => {
   )
 
   test('points at this same event, keeping the list query', () => {
-    const page = model(found(editable()), { from: '?status=DEAD_LETTER' })
+    const page = model(found(editable()), {
+      back: `${listPath}?status=DEAD_LETTER`
+    })
 
     expect(page.editHref).toBe(
-      `/dev-ops/events/gas/outbox/${id}?from=%3Fstatus%3DDEAD_LETTER&edit=payload`
+      `/dev-ops/events/gas/outbox/${id}?back=%2Fdev-ops%2Fevents%2Fgas%2Foutbox%3Fstatus%3DDEAD_LETTER&edit=payload`
     )
     expect(page.reviewAction).toBe(
       `/dev-ops/events/gas/outbox/${id}/payload/review#payload`

@@ -1,5 +1,4 @@
 {% extends 'layouts/page.njk' %}
-{% set navActive = 'events' %}
 
 {% from "back/macro.njk" import back %}
 {% from "char-count/macro.njk" import charCount %}
@@ -61,7 +60,7 @@
 {% block pageTitle %}{% if eventName.name %}{{ eventName.name }} {{ (eventId.slice(0, 8) ~ "…" ~ eventId.slice(-4)) if eventId | length > 16 else eventId }}{% else %}{{ pageTitle }}{% endif %} | {{ serviceName }}{% endblock %}
 
 {% block content %}
-  {{ back({ href: backHref }) }}
+  {{ back({ href: backHref or homeHref }) }}
 
   {% if banner %}
     <div id="event-banner" role="alert" class="alert {{ bannerAlerts[banner.role] }} mt-3 text-sm{% if bannerFocus %} focus:outline-none{% endif %}"{% if bannerFocus %} tabindex="-1" data-focus-on-arrival{% endif %} data-testid="event-banner">
@@ -94,7 +93,7 @@
           </div>
 
           <form class="flex flex-col gap-3" method="post" action="{{ reviewAction }}" data-testid="event-payload-held-form">
-            <input type="hidden" name="from" value="{{ from }}" data-testid="event-payload-held-from">
+            <input type="hidden" name="back" value="{{ from }}" data-testid="event-payload-held-from">
             <input type="hidden" name="revision" value="{{ heldEdit.revision }}" data-testid="event-payload-held-revision">
             <textarea id="payload-text" class="textarea min-h-40 w-full resize-y px-3 py-2 font-mono text-sm leading-5 whitespace-pre" name="text" rows="{{ heldEdit.rows }}" wrap="off" spellcheck="false" autocapitalize="off" autocomplete="off" aria-labelledby="payload-heading"{% if not heldEdit.canRetry %} readonly{% endif %} data-testid="event-payload-held-text">
 {{ heldEdit.text }}</textarea>
@@ -194,7 +193,7 @@
           <dl class="grid grid-cols-1 content-start gap-x-6 gap-y-3 sm:grid-cols-[8rem_minmax(0,1fr)]" data-testid="event-facts-box">
             {% call fact("Segregation ref", "event-fact-segregation-ref") %}
               {% if segregationRef %}
-                <a class="link link-hover {{ monoValue }}" href="{{ segregationRefHref }}" title="{{ segregationRefTitle }}" data-testid="event-segregation-ref">{{ segregationRef }}</a>
+                <span class="{{ monoValue }}" data-testid="event-segregation-ref">{{ segregationRef }}</span>
               {% else %}
                 <span class="{{ monoMuted }}" data-testid="event-segregation-ref-none">—</span>
               {% endif %}
@@ -289,7 +288,7 @@
                   {%- else -%}
                     <div class="font-mono text-sm wrap-anywhere" title="{{ attempt.name }}: {{ attempt.message }}" data-testid="event-attempt-error"><span class="font-medium" data-testid="event-attempt-name">{{ attempt.name }}</span>: {{ attempt.message }}</div>
                   {%- endif -%}
-                  {# `?error=` matches `lastError.message` exactly, so only the last attempt links. #}
+                  {# The link filters by the last error's name, so only the last attempt carries it. #}
                   {% if loop.last and errorSearchHref %}
                     <div class="mt-1"><a class="link text-sm" href="{{ errorSearchHref }}" data-testid="event-error-search">Show all events with this error{{ icon({ name: 'arrow-right', class: 'ms-1 inline size-3.5 align-middle' }) }}</a></div>
                   {% endif %}
@@ -393,7 +392,7 @@
             <p id="redrive-explain" class="text-sm" data-testid="event-redrive-question">The poller will retry it up to its attempt limit. {% if redrivePurgedNote %}<span data-testid="event-redrive-purged">{{ redrivePurgedNote }}</span> {% endif %}{% if redriveEditedNote %}<span data-testid="event-redrive-edited">{{ redriveEditedNote }}</span> {% endif %}This action is audited.</p>
             <div class="flex items-center gap-2">
               <form method="post" action="{{ redriveAction }}" data-testid="event-redrive-form">
-                <input type="hidden" name="from" value="{{ from }}" data-testid="event-redrive-from">
+                <input type="hidden" name="back" value="{{ from }}" data-testid="event-redrive-from">
                 <button class="btn btn-error" type="submit"{% if futileWarning %} aria-describedby="redrive-futile"{% endif %} data-testid="event-redrive-submit">Confirm redrive</button>
               </form>
               <a class="btn btn-ghost" href="{{ cancelHref }}#redrive" data-testid="event-redrive-cancel">Cancel</a>
@@ -408,7 +407,7 @@
             <p id="purge-explain" class="text-sm" data-testid="event-purge-question">It won't be processed or retried, and it leaves the dead-letter list. It will be deleted on {{ timestamp(purgeConfirm.deletionText, purgeConfirm.deletionInstant, "font-medium tabular-nums", "event-purge-deletion-date") }}. You can redrive it until then. This action is audited.</p>
 
             <form class="flex flex-col gap-3" method="post" action="{{ purgeAction }}" data-testid="event-purge-form">
-              <input type="hidden" name="from" value="{{ from }}" data-testid="event-purge-from">
+              <input type="hidden" name="back" value="{{ from }}" data-testid="event-purge-from">
 
               {% if purgeConfirm.error %}
                 {# daisyUI has no error summary; with one possible error this is one alert and one link. #}
@@ -474,7 +473,7 @@
             {% endif %}
 
             <form class="flex flex-col gap-3" method="post" action="{{ reviewAction }}" data-testid="event-payload-editor-form">
-              <input type="hidden" name="from" value="{{ from }}" data-testid="event-payload-editor-from">
+              <input type="hidden" name="back" value="{{ from }}" data-testid="event-payload-editor-from">
               <input type="hidden" name="revision" value="{{ payloadEditor.revision }}" data-testid="event-payload-editor-revision">
               {# The gutter is drawn by the element, which keeps it level with the text as it scrolls; without it there is no gutter to fall out of step. #}
               {# daisyUI's own pattern for a field with more than the control in it: the component class on the parent, which takes the focus outline and the `validator` colours, and a bare textarea inside.
@@ -542,7 +541,7 @@
               <p id="edit-explain" class="text-sm" data-testid="event-edit-question">{{ payloadReview.confirmBody }}</p>
 
               <form class="flex flex-col gap-3" method="post" action="{{ saveAction }}" data-testid="event-edit-form">
-                <input type="hidden" name="from" value="{{ from }}" data-testid="event-edit-from">
+                <input type="hidden" name="back" value="{{ from }}" data-testid="event-edit-from">
                 <input type="hidden" name="revision" value="{{ payloadReview.revision }}" data-testid="event-edit-revision">
                 {# The formatted text rides the page body, never a url or the session; the save reads it again. #}
                 <input type="hidden" name="text" value="{{ payloadReview.text }}" data-testid="event-edit-text">
@@ -577,7 +576,7 @@
 
                 <div class="flex items-center gap-2">
                   <button class="btn btn-neutral" type="submit" data-testid="event-edit-submit">Confirm save</button>
-                  <button class="btn btn-ghost" type="submit" formaction="{{ reviewAction }}" name="back" value="edit" data-payload-editor-back data-testid="event-edit-back">Back to editing</button>
+                  <button class="btn btn-ghost" type="submit" formaction="{{ reviewAction }}" name="step" value="edit" data-payload-editor-back data-testid="event-edit-back">Back to editing</button>
                 </div>
               </form>
             </section>

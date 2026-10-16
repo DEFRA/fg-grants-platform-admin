@@ -16,6 +16,7 @@ const event = (overrides: Partial<EventDetail> = {}): EventDetail => ({
   id: '665f1c2e9a1b2c3d4e5f6a7b',
   eventId: '3f2c1a0e-1111-2222-3333-444455556666',
   type: 'case.status.updated',
+  eventType: 'CaseStatusUpdated',
   status: 'FAILED',
   statusLabel: 'Failed',
   statusRole: 'warning',

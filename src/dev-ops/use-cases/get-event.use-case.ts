@@ -10,11 +10,15 @@ import { toGasStatusCode } from './gas-status.ts'
 
 export type {
   BadgeRole,
+  EventBox,
   EventDetail,
   EventKey,
   EventLastEdit,
   EventLastPurge,
-  EventRecord
+  EventRecord,
+  EventRow,
+  EventService,
+  SourceError
 } from '../repositories/events.repository.ts'
 
 export type EventOutcome = 'found' | 'not-found' | 'timed-out' | 'unavailable'

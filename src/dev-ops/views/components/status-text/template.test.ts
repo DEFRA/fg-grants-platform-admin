@@ -12,7 +12,7 @@ describe('status-text component', () => {
     const label = $('[data-testid="case-status-label"]')
 
     expect(label.text()).toBe('In review')
-    expect(label.attr('title')).toBeUndefined()
+    expect(label.attr('title')).toBe('In review')
     expect($('.relative')).toHaveLength(0)
     expect(label.attr('aria-hidden')).toBe('true')
     expect($('.sr-only').text()).toBe('Pre award › Assessment › In review')

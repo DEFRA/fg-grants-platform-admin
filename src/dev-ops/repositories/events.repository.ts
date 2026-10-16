@@ -39,92 +39,8 @@ export interface EventWithAttempts extends Event {
   lastError: EventLastError | null
 }
 
-export interface ListPagination {
-  endCursor: string | null
-  hasNextPage: boolean
-}
-
-/** Any list's page with nothing after it: the one a failed read leaves. */
-export const noNextPage: ListPagination = {
-  endCursor: null,
-  hasNextPage: false
-}
-
 export interface SourceError {
   hop: string
-}
-
-export interface StatusFilter {
-  value: string
-  label: string
-  explainer: string
-}
-
-export interface ServiceFilter {
-  value: string
-  label: string
-}
-
-export interface EventsPage {
-  events: EventRow[]
-  pagination: ListPagination
-  sourceErrors: SourceError[]
-}
-
-export interface EventsQuery {
-  cursor?: string
-  status?: string
-  service?: string
-  q?: string
-  from?: string
-  to?: string
-  error?: string
-  audit?: string
-}
-
-const toSearchString = <T extends object>(query: T): string => {
-  const params = new URLSearchParams(
-    Object.entries(query).filter(([, value]) => value !== undefined) as [
-      string,
-      string
-    ][]
-  )
-
-  return params.size ? `?${params}` : ''
-}
-
-export interface SectionError {
-  section: string
-  message: string
-}
-
-export interface EventsPageResponse extends EventsPage {
-  statuses: StatusFilter[]
-  services: ServiceFilter[]
-  counts: EventCounts | null
-  breakdown: EventBreakdownPage | null
-  sectionErrors: SectionError[]
-}
-
-export const findEventsPage = async (
-  query: EventsQuery
-): Promise<EventsPageResponse> =>
-  getFromGas<EventsPageResponse>(
-    `/grant-admin/events/page${toSearchString(query)}`
-  )
-
-export interface EventCounts {
-  PUBLISHED: number
-  PROCESSING: number
-  FAILED: number
-  RESUBMITTED: number
-  COMPLETED: number
-  DEAD_LETTER: number
-  PURGED?: number
-}
-
-export interface EventFacets {
-  counts: EventCounts
 }
 
 export interface EventAttempt {
@@ -142,6 +58,8 @@ export interface EventRecord {
 }
 
 export interface EventDetail extends EventWithAttempts {
+  /** The name stamped on the row, as its list shows it; null on a row not yet stamped. */
+  eventType: string | null
   attemptHistory: EventAttempt[]
   payload: unknown
   segregationRef?: string | null
@@ -239,16 +157,4 @@ export const editPayload = async (
     payload: { payload, note, revision },
     actor
   })
-}
-
-export interface EventBreakdownGroup {
-  error: string | null
-  type: string
-  count: number
-  firstAt: string | null
-  lastAt: string | null
-}
-
-export interface EventBreakdownPage {
-  groups: EventBreakdownGroup[]
 }

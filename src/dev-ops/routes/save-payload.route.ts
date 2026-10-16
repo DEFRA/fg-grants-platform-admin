@@ -7,10 +7,12 @@ import {
 } from '../use-cases/edit-payload-command.ts'
 import type { PayloadSubmission } from '../use-cases/edit-payload-step.ts'
 import { editPayloadUseCase } from '../use-cases/edit-payload.use-case.ts'
+import { getCatalogueUseCase } from '../use-cases/get-catalogue.use-case.ts'
 import type { EventKey } from '../use-cases/get-event.use-case.ts'
 import { getEventUseCase } from '../use-cases/get-event.use-case.ts'
 import { toActor } from '../../common/view-models/actor.ts'
-import { eventAddress } from '../view-models/event-address.ts'
+import { toBackBucket } from '../view-models/bucket-nav.ts'
+import { eventAddress, toEventKey } from '../view-models/event-address.ts'
 import { toEventHref } from '../view-models/event-formats.ts'
 import {
   eventBannerId,
@@ -33,14 +35,14 @@ const noteMax = 2000
 interface SavePayload {
   text: string
   revision: number
-  from: string
+  back: string
   note: string
 }
 
 /** To the banner, which takes focus there: the form posted to `#payload`, which a bare Location would inherit. */
 const toRedirect = (key: EventKey, from: string): string => {
   const href = toEventHref(key)
-  const query = from === '' ? '' : `?from=${encodeURIComponent(from)}`
+  const query = from === '' ? '' : `?back=${encodeURIComponent(from)}`
 
   return `${href}${query}#${eventBannerId}`
 }
@@ -56,10 +58,14 @@ const rerender = async (
   h: ResponseToolkit,
   submission: PayloadSubmission
 ) => {
-  const key = request.params as unknown as EventKey
+  const key = toEventKey(request.params)
   const result = await getEventUseCase(key)
+  const bucket = toBackBucket(
+    await getCatalogueUseCase(),
+    toSafeFrom(submission.from)
+  )
 
-  return h.view('event', toPayloadPage(result, key, submission))
+  return h.view('event', toPayloadPage(result, key, submission, bucket))
 }
 
 /**
@@ -81,7 +87,7 @@ export const savePayloadRoute: ServerRoute = {
       payload: Joi.object({
         text: Joi.string().allow('').default(''),
         revision: Joi.number().integer().min(0).required(),
-        from: Joi.string().allow('').max(fromMax).default(''),
+        back: Joi.string().allow('').max(fromMax).default(''),
         // Truncated rather than refused: a pasted payload is a note to
         // shorten, and the form can only say so with the note in front of it.
         note: Joi.string().allow('').max(noteMax).truncate().default('')
@@ -89,8 +95,8 @@ export const savePayloadRoute: ServerRoute = {
     }
   },
   async handler(request: Request, h: ResponseToolkit) {
-    const key = request.params as unknown as EventKey
-    const { text, revision, from, note } = request.payload as SavePayload
+    const key = toEventKey(request.params)
+    const { text, revision, back: from, note } = request.payload as SavePayload
     const check = checkEditPayload({ text, revision, note })
 
     if (check.kind === 'invalid') {

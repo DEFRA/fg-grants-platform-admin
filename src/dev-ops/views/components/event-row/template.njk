@@ -2,7 +2,7 @@
 {% from "./macro.njk" import createdCell, rowClass, rowClassDeadLetter %}
 
 {% macro identity(row) %}
-  <a href="{{ row.eventHref }}" class="block truncate text-sm font-semibold no-underline after:absolute after:inset-0 focus-visible:outline-none" data-testid="event-link"><span aria-hidden="true" data-testid="event-type-name">{{ row.eventName.name }}</span><span class="sr-only" data-testid="event-link-name">{{ row.eventName.spoken }}, event {{ row.eventId }}</span></a>
+  <a href="{{ row.eventHref }}" title="{{ row.eventName.name }}" class="block truncate text-sm font-semibold no-underline after:absolute after:inset-0 focus-visible:outline-none" data-testid="event-link"><span aria-hidden="true" data-testid="event-type-name">{{ row.eventName.name }}</span><span class="sr-only" data-testid="event-link-name">{{ row.eventName.spoken }}, event {{ row.eventId }}</span></a>
   <div class="w-fit max-w-full truncate font-mono text-sm text-base-content/70" aria-hidden="true" data-testid="event-id">{{ row.eventId }}</div>
 {% endmacro %}
 
@@ -15,10 +15,8 @@
 {%- set row = params -%}
   <tr class="{{ rowClassDeadLetter if row.isDeadLetter else rowClass }}" data-testid="event-row">
     <td>{{ identity(row) }}</td>
-    <td class="text-center"><div class="truncate" data-testid="event-service">{{ row.serviceLabel }}</div></td>
-    <td class="text-center"><div class="truncate" data-testid="event-box">{{ row.boxLabel }}</div></td>
     <td class="overflow-hidden" data-testid="event-status">
-      <span class="inline-flex">{{ statusBadge({
+      <span class="inline-flex whitespace-nowrap">{{ statusBadge({
         status: row.status,
         label: row.statusLabel,
         role: row.statusRole,

@@ -1,3 +1,4 @@
+import type { BucketEntry } from '../use-cases/get-catalogue.use-case.ts'
 import type { PayloadSubmission } from '../use-cases/edit-payload-step.ts'
 import { toSubmittedStep } from '../use-cases/edit-payload-step.ts'
 import type {
@@ -31,9 +32,10 @@ const toFoundPage = (
   result: EventResult,
   event: EventDetail,
   key: EventKey,
-  submission: PayloadSubmission
+  submission: PayloadSubmission,
+  bucket: BucketEntry | null
 ): PayloadPageModel => {
-  const query = { from: submission.from }
+  const query = { back: submission.from }
   const page = canEditEvent(event, toEventState(event))
     ? toEventPage(
         result,
@@ -41,9 +43,18 @@ const toFoundPage = (
         query,
         undefined,
         undefined,
-        toSubmittedStep(event, submission)
+        toSubmittedStep(event, submission),
+        bucket
       )
-    : toEventPage(result, key, query, toConflict(key, event))
+    : toEventPage(
+        result,
+        key,
+        query,
+        toConflict(key, event),
+        undefined,
+        undefined,
+        bucket
+      )
 
   return { ...page, pageTitle: 'Event', heldEdit: null }
 }
@@ -58,7 +69,7 @@ const toUnreadPage = (
   key: EventKey,
   submission: PayloadSubmission
 ): PayloadPageModel => ({
-  ...toEventPage(result, key, { from: submission.from }),
+  ...toEventPage(result, key, { back: submission.from }),
   pageTitle: result.outcome === 'not-found' ? 'Event not found' : 'Event',
   heldEdit: toHeldEdit(result.outcome, submission)
 })
@@ -71,11 +82,12 @@ const toUnreadPage = (
 export const toPayloadPage = (
   result: EventResult,
   key: EventKey,
-  submission: PayloadSubmission
+  submission: PayloadSubmission,
+  bucket: BucketEntry | null = null
 ): PayloadPageModel =>
   result.event === null
     ? toUnreadPage(result, key, submission)
-    : toFoundPage(result, result.event, key, submission)
+    : toFoundPage(result, result.event, key, submission, bucket)
 
 /** Not read: nothing is written, and the event has nothing to add to the refusal. */
 export const toUnattributedPage = (
@@ -83,7 +95,7 @@ export const toUnattributedPage = (
   submission: PayloadSubmission
 ): PayloadPageModel => ({
   ...toEventPage({ outcome: 'unavailable', event: null }, key, {
-    from: submission.from
+    back: submission.from
   }),
   pageTitle: 'Event',
   heldEdit: toUnattributedEdit(submission)

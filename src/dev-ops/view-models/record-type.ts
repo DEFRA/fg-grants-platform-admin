@@ -1,13 +1,11 @@
-/** What tells the Applications and Cases areas apart; their lists and pages are otherwise the same. */
+/** What tells an application's page from a case's; they are otherwise the same. */
 export interface RecordType {
-  /** Also names the nav area. */
+  /** The list a Back link names. */
   listId: string
   itemId: string
   title: string
+  /** Where its pages live. */
   path: string
-  noun: { one: string; many: string }
-  /** Grant or Workflow. */
-  codeName: string
   /** The service a failed read is blamed on. */
   source: string
   showClosed: boolean

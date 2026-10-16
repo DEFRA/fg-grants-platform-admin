@@ -10,6 +10,7 @@ import { getApplicationPageUseCase } from '../use-cases/get-application-page.use
 import type { CasePage } from '../use-cases/get-case-page.use-case.ts'
 import { getCasePageUseCase } from '../use-cases/get-case-page.use-case.ts'
 
+vi.mock(import('../use-cases/get-catalogue.use-case.ts'))
 vi.mock(import('../use-cases/get-application-page.use-case.ts'), async () => ({
   ...(await vi.importActual<
     typeof import('../use-cases/get-application-page.use-case.ts')
@@ -258,13 +259,45 @@ describe('the application page', () => {
     )
   })
 
-  test('links back to the list', async () => {
+  test('links back to the first list when opened from no list', async () => {
     const { $ } = await viewPage()
 
     expect(part($, 'application-back').attr('href')).toBe(
-      '/dev-ops/applications'
+      '/dev-ops/events/gas/outbox'
     )
     expect(textOf($, 'application-back')).toBe('Back to applications')
+    expect($('[data-testid="do-nav"] [aria-current="page"]')).toHaveLength(0)
+  })
+
+  test('links back to the list it was opened from, on every tab, and sits under it in the navigation', async () => {
+    const from = '/dev-ops/applications?grant=example-grant'
+    const { $ } = await viewPage(`${path}?back=${encodeURIComponent(from)}`)
+
+    expect(part($, 'application-back').attr('href')).toBe(from)
+    expect(
+      $('[data-testid="do-nav"] [aria-current="page"]').text().trim()
+    ).toBe('Applications')
+    expect(
+      part($, 'application-tab')
+        .toArray()
+        .map((tab) => $(tab).attr('href'))
+    ).toEqual([
+      `${path}?back=${encodeURIComponent(from)}`,
+      `${path}?tab=events&back=${encodeURIComponent(from)}`,
+      `${path}?tab=raw&back=${encodeURIComponent(from)}`
+    ])
+  })
+
+  test.each([
+    ['an absolute url', 'https://example.com/phish'],
+    ['a path outside the admin', '/grant-ops'],
+    ['a list hiding a protocol-relative url', '/dev-ops/cases?a=//b.com']
+  ])('drops %s from the back link', async (_name, from) => {
+    const { $ } = await viewPage(`${path}?back=${encodeURIComponent(from)}`)
+
+    expect(part($, 'application-back').attr('href')).toBe(
+      '/dev-ops/events/gas/outbox'
+    )
   })
 
   test('keeps the scrollbar gutter, so the page does not shift beside the taller lists', async () => {
@@ -299,7 +332,7 @@ describe('the application page', () => {
   })
 
   test('offers Overview, Events and Raw, marking the open one', async () => {
-    const { $ } = await viewPage(`${path}?section=events`)
+    const { $ } = await viewPage(`${path}?tab=events`)
 
     expect(
       part($, 'application-tab')
@@ -307,8 +340,8 @@ describe('the application page', () => {
         .map((tab) => `${$(tab).text()} ${$(tab).attr('href')}`)
     ).toEqual([
       `Overview ${path}`,
-      `Events ${path}?section=events`,
-      `Raw ${path}?section=raw`
+      `Events ${path}?tab=events`,
+      `Raw ${path}?tab=raw`
     ])
     expect(
       part($, 'application-tabs').find('[aria-current="page"]').text()
@@ -322,7 +355,7 @@ describe('the application page', () => {
   })
 
   test('refuses a tab it does not have', async () => {
-    const { statusCode } = await viewPage(`${path}?section=answers`)
+    const { statusCode } = await viewPage(`${path}?tab=answers`)
 
     expect(statusCode).toBe(statusCodes.badRequest)
   })
@@ -661,7 +694,7 @@ describe('the Series card', () => {
         .find('[data-testid$="-created-at"]')
         .closest('td')
         .attr('class')
-    ).toBe('text-right')
+    ).toBe('whitespace-nowrap text-right')
   })
 
   test.each([
@@ -724,7 +757,7 @@ describe('the Series card', () => {
   test('is on the Overview tab alone', async () => {
     givenPage({ events: { rows: [], more: false } })
 
-    const { $ } = await viewPage(`${path}?section=events`)
+    const { $ } = await viewPage(`${path}?tab=events`)
 
     expect(part($, 'application-series')).toHaveLength(0)
   })
@@ -756,7 +789,7 @@ describe('the Events tab', () => {
     box: 'inbox' as const,
     id: '665f1c2e9a1b2c3d4e5f6a7b',
     eventId: 'f95b057cf7865370c10fca61',
-    type: 'application.created',
+    type: 'ApplicationCreated',
     status: 'COMPLETED',
     statusLabel: 'Completed',
     statusRole: 'success' as const,
@@ -769,7 +802,7 @@ describe('the Events tab', () => {
   test('reads the Events tab of the application', async () => {
     givenPage({ overview: undefined, events: { rows: [event], more: false } })
 
-    await viewPage(`${path}?section=events`)
+    await viewPage(`${path}?tab=events`)
 
     expect(getApplicationPageUseCase).toHaveBeenCalledWith(
       expect.anything(),
@@ -782,28 +815,73 @@ describe('the Events tab', () => {
     async ({ itemId, path: recordPath, given }) => {
       given({ overview: undefined, events: { rows: [event], more: false } })
 
-      const { $ } = await viewPage(`${recordPath}?section=events`)
+      const { $ } = await viewPage(`${recordPath}?tab=events`)
 
       expect(
         part($, `${itemId}-events`).find('[data-testid="event-row"]')
       ).toHaveLength(1)
       expect(part($, 'event-link').attr('href')).toBe(
-        '/dev-ops/events/gas/inbox/665f1c2e9a1b2c3d4e5f6a7b'
+        `/dev-ops/events/gas/inbox/665f1c2e9a1b2c3d4e5f6a7b?back=${encodeURIComponent(`${recordPath}?tab=events`)}`
       )
       expect(part($, `${itemId}-events-more`)).toHaveLength(0)
+      expect(
+        part($, `${itemId}-events-table`)
+          .find('thead th')
+          .toArray()
+          .map((th) => $(th).text())
+      ).toEqual(['Event', 'Status', 'Created'])
+      expect(part($, 'event-box')).toHaveLength(0)
+      expect(
+        part($, `${itemId}-events-table`)
+          .find('colgroup col')
+          .toArray()
+          .map((col) => $(col).attr('class') ?? '')
+      ).toEqual(['', 'w-[20%] xl:w-[18%]', 'w-[17%] xl:w-[13%]'])
+      expect(part($, 'event-service')).toHaveLength(0)
+      expect(part($, 'event-row').find('td')).toHaveLength(3)
     }
   )
 
-  test('links on to the events search when there are more', async () => {
+  test('says so, with no link, when there are more than it shows', async () => {
     givenPage({ overview: undefined, events: { rows: [event], more: true } })
 
-    const { $ } = await viewPage(`${path}?section=events`)
+    const { $ } = await viewPage(`${path}?tab=events`)
 
-    expect(textOf($, 'application-events-all')).toBe('All in Events')
-    expect(part($, 'application-events-all').attr('href')).toBe(
-      '/dev-ops/events?q=a7c-2f1-9e4'
+    expect(textOf($, 'application-events-more')).toBe(
+      'Showing the newest 50 from each GAS queue.'
     )
+    expect(part($, 'application-events-more').find('a')).toHaveLength(0)
   })
+
+  test('sends an event back to this tab, and on to the list the record was opened from', async () => {
+    givenPage({ overview: undefined, events: { rows: [event], more: false } })
+
+    const list = '/dev-ops/applications?grant=frps-private-beta'
+    const tab = `${path}?tab=events&back=${encodeURIComponent(list)}`
+    const { $ } = await viewPage(tab)
+
+    expect(
+      new URL(part($, 'event-link').attr('href')!, 'http://x').searchParams.get(
+        'back'
+      )
+    ).toBe(tab)
+  })
+
+  test.each(recordTypes)(
+    'draws nothing under the $itemId table but the table',
+    async ({ itemId, path: recordPath, given }) => {
+      given({ overview: undefined, events: { rows: [event], more: false } })
+
+      const { $ } = await viewPage(`${recordPath}?tab=events`)
+
+      expect(
+        $(`[data-testid^="${itemId}-events-"]`)
+          .toArray()
+          .map((node) => $(node).attr('data-testid'))
+      ).toEqual([`${itemId}-events-table`])
+      expect($('body').text()).not.toMatch(/Application events|Case events/)
+    }
+  )
 
   test('says which event sources were missed', async () => {
     givenPage({
@@ -813,7 +891,7 @@ describe('the Events tab', () => {
       header: { ...header, counterpart: { exists: false } }
     })
 
-    const { $ } = await viewPage(`${path}?section=events`)
+    const { $ } = await viewPage(`${path}?tab=events`)
 
     expect(textOf($, 'application-events-partial')).toBe(
       'Some event sources are unavailable: CW Inbox. Showing the rest.'
@@ -823,7 +901,7 @@ describe('the Events tab', () => {
   test('says when there are no events', async () => {
     givenPage({ overview: undefined, events: { rows: [], more: false } })
 
-    const { $ } = await viewPage(`${path}?section=events`)
+    const { $ } = await viewPage(`${path}?tab=events`)
 
     expect(textOf($, 'application-events-empty')).toBe('No events found.')
   })
@@ -837,7 +915,7 @@ describe('the Events tab', () => {
       ]
     })
 
-    const { $ } = await viewPage(`${path}?section=events`)
+    const { $ } = await viewPage(`${path}?tab=events`)
 
     expect(textOf($, 'application-section-error')).toBe(
       'Events could not be loaded'
@@ -848,7 +926,7 @@ describe('the Events tab', () => {
 describe('a tab the source sent nothing for', () => {
   test.each(
     recordTypes.flatMap((type) =>
-      ['', '?section=events', '?section=raw'].map((query) => ({
+      ['', '?tab=events', '?tab=raw'].map((query) => ({
         ...type,
         url: `${type.path}${query}`
       }))
@@ -876,7 +954,7 @@ describe('the Raw tab', () => {
       storedBytes: 2458
     })
 
-    const { $ } = await viewPage(`${path}?section=raw`)
+    const { $ } = await viewPage(`${path}?tab=raw`)
 
     expect(part($, 'application-raw').attr('aria-label')).toBe(
       'Application document'
@@ -904,7 +982,7 @@ describe('the Raw tab', () => {
         sectionErrors: [{ section: 'raw', message: 'too large to show' }]
       })
 
-      const { $ } = await viewPage(`${recordPath}?section=raw`)
+      const { $ } = await viewPage(`${recordPath}?tab=raw`)
 
       expect(textOf($, `${itemId}-raw-too-large`)).toBe('Too large to show')
       expect(part($, `${itemId}-raw`)).toHaveLength(0)
@@ -920,7 +998,7 @@ describe('the Raw tab', () => {
       sectionErrors: [{ section: 'raw', message: 'Raw could not be loaded' }]
     })
 
-    const { $ } = await viewPage(`${path}?section=raw`)
+    const { $ } = await viewPage(`${path}?tab=raw`)
 
     expect(textOf($, 'application-section-error')).toBe(
       'Raw could not be loaded'
@@ -947,10 +1025,7 @@ describe('the case page', () => {
       'Post agreement, Monitoring, Active'
     )
     expect(textOf($, 'case-back')).toBe('Back to cases')
-    expect(part($, 'case-back').attr('href')).toBe('/dev-ops/cases')
-    expect(
-      $('[data-testid="do-nav"] [aria-current="page"]').text().trim()
-    ).toBe('Cases')
+    expect(part($, 'case-back').attr('href')).toBe('/dev-ops/events/gas/outbox')
   })
 
   test('links to the application as the second fact when it exists', async () => {
@@ -989,7 +1064,7 @@ describe('the case page', () => {
       sourceErrors: [{ hop: 'GAS Applications' }, { hop: 'GAS Inbox' }]
     })
 
-    const { $ } = await viewPage(`${casePath}?section=events`)
+    const { $ } = await viewPage(`${casePath}?tab=events`)
 
     expect(textOf($, 'case-events-partial')).toBe(
       'Some event sources are unavailable: GAS Applications, GAS Inbox. Showing the rest.'
@@ -1043,7 +1118,7 @@ describe('the case page', () => {
       storedBytes: 30
     })
 
-    const { $ } = await viewPage(`${casePath}?section=raw`)
+    const { $ } = await viewPage(`${casePath}?tab=raw`)
 
     expect(part($, 'case-raw').attr('aria-label')).toBe('Case document')
     expect(part($, 'case-raw-line').eq(1).find('code').text()).toBe(
