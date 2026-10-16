@@ -9,6 +9,7 @@ import { getEventUseCase } from '../use-cases/get-event.use-case.ts'
 import type { RedriveResult } from '../use-cases/redrive-event.use-case.ts'
 import { redriveEventUseCase } from '../use-cases/redrive-event.use-case.ts'
 
+vi.mock(import('../use-cases/get-catalogue.use-case.ts'))
 vi.mock(import('../use-cases/redrive-event.use-case.ts'))
 vi.mock(import('../use-cases/get-event.use-case.ts'))
 
@@ -30,6 +31,7 @@ const event: EventDetail = {
   id,
   eventId: '3f2c1a0e-1111-2222-3333-444455556666',
   type: 'case.status.updated',
+  eventType: 'CaseStatusUpdated',
   targetTopic: 'gas__sns__update_case_status_fifo',
   status: 'DEAD_LETTER',
   statusLabel: 'Dead letter',
@@ -177,20 +179,20 @@ describe('redriveEventRoute', () => {
   // keep the way back to it.
   test('carries the list query through the write', async () => {
     const { headers } = await redrive({
-      from: '?status=DEAD_LETTER&cursor=END'
+      back: '/dev-ops/events/gas/outbox?status=DEAD_LETTER&cursor=END'
     })
 
     expect(headers.location).toBe(
-      `${page}?from=%3Fstatus%3DDEAD_LETTER%26cursor%3DEND`
+      `${page}?back=%2Fdev-ops%2Fevents%2Fgas%2Foutbox%3Fstatus%3DDEAD_LETTER%26cursor%3DEND`
     )
   })
 
   test.each([
     ['an absolute url', 'https://example.com/phish'],
     ['a protocol-relative url', '//example.com'],
-    ['a value that is not a query string', '/dev-ops/events']
+    ['a path outside the admin', '/grant-ops']
   ])('drops %s rather than redirecting through it', async (_name, from) => {
-    const { headers } = await redrive({ from })
+    const { headers } = await redrive({ back: from })
 
     expect(headers.location).toBe(page)
   })
@@ -218,15 +220,15 @@ describe('redriveEventRoute', () => {
   })
 
   // Echoed into the redirect, so it is bounded.
-  test('refuses a from longer than any query this app writes', async () => {
-    const { statusCode } = await redrive({ from: `?q=${'x'.repeat(2100)}` })
+  test('refuses a back link longer than any query this app writes', async () => {
+    const { statusCode } = await redrive({ back: `?q=${'x'.repeat(2100)}` })
 
     expect(statusCode).toBe(statusCodes.badRequest)
     expect(redriveEventUseCase).not.toHaveBeenCalled()
   })
 
   test('refuses a field the form does not have', async () => {
-    const { statusCode } = await redrive({ from: '?a=b', confirm: 'yes' })
+    const { statusCode } = await redrive({ back: '?a=b', confirm: 'yes' })
 
     expect(statusCode).toBe(statusCodes.badRequest)
     expect(redriveEventUseCase).not.toHaveBeenCalled()
@@ -296,10 +298,12 @@ describe('the message a redrive leaves behind', () => {
   })
 
   test('reaches the page the operator is sent back to with a list query on it', async () => {
-    const written = await redrive({ from: '?status=DEAD_LETTER' })
+    const written = await redrive({
+      back: '/dev-ops/events/gas/outbox?status=DEAD_LETTER'
+    })
     const banner = await follow(
       sessionCookie(written),
-      `${page}?from=%3Fstatus%3DDEAD_LETTER`
+      `${page}?back=%2Fdev-ops%2Fevents%2Fgas%2Foutbox%3Fstatus%3DDEAD_LETTER`
     )
 
     expect(banner.attr('class')).toContain('alert-success')

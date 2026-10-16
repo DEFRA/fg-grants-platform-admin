@@ -9,6 +9,7 @@ import { getEventUseCase } from '../use-cases/get-event.use-case.ts'
 import type { PurgeResult } from '../use-cases/purge-event.use-case.ts'
 import { purgeEventUseCase } from '../use-cases/purge-event.use-case.ts'
 
+vi.mock(import('../use-cases/get-catalogue.use-case.ts'))
 vi.mock(import('../use-cases/purge-event.use-case.ts'))
 vi.mock(import('../use-cases/get-event.use-case.ts'))
 
@@ -30,6 +31,7 @@ const event: EventDetail = {
   id,
   eventId: '3f2c1a0e-1111-2222-3333-444455556666',
   type: 'case.status.updated',
+  eventType: 'CaseStatusUpdated',
   targetTopic: 'gas__sns__update_case_status_fifo',
   status: 'DEAD_LETTER',
   statusLabel: 'Dead letter',
@@ -226,20 +228,20 @@ describe('purgeEventRoute', () => {
   test('carries the list query through the write', async () => {
     const { headers } = await purge({
       ...good,
-      from: '?status=DEAD_LETTER&cursor=END'
+      back: '/dev-ops/events/gas/outbox?status=DEAD_LETTER&cursor=END'
     })
 
     expect(headers.location).toBe(
-      `${page}?from=%3Fstatus%3DDEAD_LETTER%26cursor%3DEND`
+      `${page}?back=%2Fdev-ops%2Fevents%2Fgas%2Foutbox%3Fstatus%3DDEAD_LETTER%26cursor%3DEND`
     )
   })
 
   test.each([
     ['an absolute url', 'https://example.com/phish'],
     ['a protocol-relative url', '//example.com'],
-    ['a value that is not a query string', '/dev-ops/events']
+    ['a path outside the admin', '/grant-ops']
   ])('drops %s rather than redirecting through it', async (_name, from) => {
-    const { headers } = await purge({ ...good, from })
+    const { headers } = await purge({ ...good, back: from })
 
     expect(headers.location).toBe(page)
   })
@@ -256,10 +258,10 @@ describe('purgeEventRoute', () => {
     expect(purgeEventUseCase).not.toHaveBeenCalled()
   })
 
-  test('refuses a from longer than any query this app writes', async () => {
+  test('refuses a back link longer than any query this app writes', async () => {
     const { statusCode } = await purge({
       ...good,
-      from: `?q=${'x'.repeat(2100)}`
+      back: `?q=${'x'.repeat(2100)}`
     })
 
     expect(statusCode).toBe(statusCodes.badRequest)
@@ -419,11 +421,11 @@ describe('a purge form the admin refused', () => {
   test('keeps the way back to the list the operator came from', async () => {
     const { location } = await purgeAndFollow({
       reasonCode: 'OTHER',
-      from: '?status=DEAD_LETTER'
+      back: '/dev-ops/events/gas/outbox?status=DEAD_LETTER'
     })
 
     expect(location).toBe(
-      `${page}?from=%3Fstatus%3DDEAD_LETTER&confirm=purge#payload`
+      `${page}?back=%2Fdev-ops%2Fevents%2Fgas%2Foutbox%3Fstatus%3DDEAD_LETTER&confirm=purge#payload`
     )
   })
 

@@ -1,29 +1,7 @@
-import { getFromGas, postToGas } from '../../common/gas.ts'
-import {
-  findApplicationPage,
-  searchApplications
-} from './applications.repository.ts'
+import { getFromGas } from '../../common/gas.ts'
+import { findApplicationPage } from './applications.repository.ts'
 
 vi.mock(import('../../common/gas.ts'))
-
-describe('searchApplications', () => {
-  test('posts the search, so a ref never travels in a URL', async () => {
-    await searchApplications({ ref: '9d3-5b1-e08', code: 'woodland' }, false)
-
-    expect(postToGas).toHaveBeenCalledWith('/grant-admin/applications/search', {
-      payload: { ref: '9d3-5b1-e08', code: 'woodland' }
-    })
-  })
-
-  test('marks a repeated search as one', async () => {
-    await searchApplications({ ref: '9d3-5b1-e08' }, true)
-
-    expect(postToGas).toHaveBeenCalledWith('/grant-admin/applications/search', {
-      payload: { ref: '9d3-5b1-e08' },
-      headers: { 'x-search-repeat': '1' }
-    })
-  })
-})
 
 describe('findApplicationPage', () => {
   test('reads one tab of one application', async () => {

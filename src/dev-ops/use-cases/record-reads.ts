@@ -1,11 +1,9 @@
 import { describeError } from '../../common/describe-error.ts'
 import { logger } from '../../common/logger.ts'
 import { statusCodes } from '../../common/status-codes.ts'
-import { noNextPage } from '../repositories/events.repository.ts'
 import { toGasErrorField, toGasStatusCode } from './gas-status.ts'
 
 export type {
-  ListPagination,
   ListTotal,
   Position,
   RecordEvents,
@@ -16,19 +14,12 @@ export type {
 } from '../repositories/record-page.ts'
 export { recordTabs } from '../repositories/record-page.ts'
 
-/** What GAS is asked for: the URL's filters less the preset key, and the stored ref. */
-export interface RecordListSearch {
-  ref?: string
-  code?: string
-  from?: string
-  to?: string
-  cursor?: string
-}
-
 export interface ListResult<P> {
   page: P
   unavailable: boolean
   refused: boolean
+  /** GAS's own reason for a refusal: fixed text that never repeats what was sent. */
+  refusal: string | null
 }
 
 const logListFailure = (name: string, refused: boolean, error: unknown) => {
@@ -45,12 +36,6 @@ const logListFailure = (name: string, refused: boolean, error: unknown) => {
   )
 }
 
-export const emptyListPage = {
-  rows: [],
-  pagination: noNextPage,
-  sourceErrors: []
-}
-
 /** A list has one source, so any failure leaves it empty; a 400 is a bad link, not an outage. */
 export const readList = async <P>(
   name: string,
@@ -58,13 +43,23 @@ export const readList = async <P>(
   empty: P
 ): Promise<ListResult<P>> => {
   try {
-    return { page: await read(), unavailable: false, refused: false }
+    return {
+      page: await read(),
+      unavailable: false,
+      refused: false,
+      refusal: null
+    }
   } catch (error) {
     const refused = toGasStatusCode(error) === statusCodes.badRequest
 
     logListFailure(name, refused, error)
 
-    return { page: empty, unavailable: !refused, refused }
+    return {
+      page: empty,
+      unavailable: !refused,
+      refused,
+      refusal: refused ? toGasErrorField(error, 'message') : null
+    }
   }
 }
 

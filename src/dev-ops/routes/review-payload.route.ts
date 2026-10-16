@@ -7,10 +7,14 @@ import {
   toEditNoteProblem
 } from '../use-cases/edit-payload-command.ts'
 import type { PayloadSubmission } from '../use-cases/edit-payload-step.ts'
-import type { EventKey } from '../use-cases/get-event.use-case.ts'
+import { getCatalogueUseCase } from '../use-cases/get-catalogue.use-case.ts'
 import { getEventUseCase } from '../use-cases/get-event.use-case.ts'
-import { eventAddress } from '../view-models/event-address.ts'
-import { eventPageCache } from '../view-models/event-page.view-model.ts'
+import { toBackBucket } from '../view-models/bucket-nav.ts'
+import { eventAddress, toEventKey } from '../view-models/event-address.ts'
+import {
+  eventPageCache,
+  toSafeFrom
+} from '../view-models/event-page.view-model.ts'
 import { toPayloadPage } from '../view-models/payload-edit-page.ts'
 
 /** Longer than any query this app builds for itself, and still bounded. */
@@ -22,8 +26,8 @@ const noteMax = 2000
 interface ReviewPayload {
   text: string
   revision: number
-  from: string
-  back?: string
+  back: string
+  step?: string
   retry?: string
   note: string
 }
@@ -32,13 +36,13 @@ interface ReviewPayload {
 const toSubmission = ({
   text,
   revision,
-  from,
-  back,
+  back: from,
+  step,
   retry,
   note
 }: ReviewPayload): PayloadSubmission => {
   if (retry !== 'save') {
-    return { text, revision, from, back: back === 'edit' }
+    return { text, revision, from, back: step === 'edit' }
   }
 
   const trimmed = toEditNote(note)
@@ -75,8 +79,8 @@ export const reviewPayloadRoute: ServerRoute = {
       payload: Joi.object({
         text: Joi.string().allow('').default(''),
         revision: Joi.number().integer().min(0).required(),
-        from: Joi.string().allow('').max(fromMax).default(''),
-        back: Joi.string().valid('edit'),
+        back: Joi.string().allow('').max(fromMax).default(''),
+        step: Joi.string().valid('edit'),
         retry: Joi.string().valid('save'),
         // Back to editing posts the save form, note and all; only a retried save keeps it.
         note: Joi.string().allow('').max(noteMax).truncate().default('')
@@ -84,12 +88,14 @@ export const reviewPayloadRoute: ServerRoute = {
     }
   },
   async handler(request: Request, h: ResponseToolkit) {
-    const key = request.params as unknown as EventKey
+    const key = toEventKey(request.params)
     const result = await getEventUseCase(key)
-
-    return h.view(
-      'event',
-      toPayloadPage(result, key, toSubmission(request.payload as ReviewPayload))
+    const submission = toSubmission(request.payload as ReviewPayload)
+    const bucket = toBackBucket(
+      await getCatalogueUseCase(),
+      toSafeFrom(submission.from)
     )
+
+    return h.view('event', toPayloadPage(result, key, submission, bucket))
   }
 }

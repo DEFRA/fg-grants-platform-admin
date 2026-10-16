@@ -21,6 +21,7 @@ const detail: EventDetail = {
   id: '665f1c2e9a1b2c3d4e5f6a7b',
   eventId: '3f2c1a0e-1111-2222-3333-444455556666',
   type: 'case.status.updated',
+  eventType: 'CaseStatusUpdated',
   targetTopic: 'gas__sns__update_case_status_fifo',
   status: 'DEAD_LETTER',
   statusLabel: 'Dead letter',

@@ -1,22 +1,29 @@
+import { randomUUID } from 'node:crypto'
 import type { Request } from '@hapi/hapi'
 
 /** The first page last shown, a browse or a search: the ref lives here, not in a URL, and a render of it again is a repeat. */
 export interface StoredSearch {
   /** Empty for a browse. */
   q: string
+  /** Names this search in its later pages' links, so a page never continues another. */
+  id: string
   /** The list's own URL for the filters it last ran under. */
   listHref: string
   storedAt: number
   fresh: boolean
 }
 
-export type StoredSearchKey = 'applicationsSearch' | 'casesSearch'
+export type StoredSearchKey = `bucketSearch:${string}`
+
+export const toSearchKey = (bucketId: string): StoredSearchKey =>
+  `bucketSearch:${bucketId}`
 
 const maxAgeMs = 15 * 60 * 1000
 
 export interface SearchToRun {
   q: string
   repeat: boolean
+  id: string
 }
 
 /** A posted search, or an empty one that clears it: a new query either way. */
@@ -26,7 +33,13 @@ export const storeSearch = (
   q: string,
   listHref: string
 ): void => {
-  request.yar.set(key, { q, listHref, storedAt: Date.now(), fresh: true })
+  request.yar.set(key, {
+    q,
+    id: randomUUID(),
+    listHref,
+    storedAt: Date.now(),
+    fresh: true
+  })
 }
 
 export const clearSearch = (request: Request, key: StoredSearchKey): void => {
@@ -52,7 +65,13 @@ const isLive = (stored: StoredSearch | null): stored is StoredSearch =>
 const toLive = (stored: StoredSearch | null): StoredSearch =>
   isLive(stored)
     ? stored
-    : { q: '', listHref: '', storedAt: Date.now(), fresh: true }
+    : {
+        q: '',
+        id: randomUUID(),
+        listHref: '',
+        storedAt: Date.now(),
+        fresh: true
+      }
 
 /** The search for this first page; a repeat when the last first page shown was this one. */
 export const takeSearch = (
@@ -65,5 +84,18 @@ export const takeSearch = (
 
   request.yar.set(key, { ...live, listHref, fresh: false })
 
-  return { q: live.q, repeat }
+  return { q: live.q, repeat, id: live.id }
+}
+
+/** The search a later page continues, left as it is; null when it is no longer the one held. */
+export const peekSearch = (
+  request: Request,
+  key: StoredSearchKey,
+  id: string
+): SearchToRun | null => {
+  const stored = request.yar.get(key)
+
+  return isLive(stored) && stored.q !== '' && stored.id === id
+    ? { q: stored.q, repeat: false, id }
+    : null
 }

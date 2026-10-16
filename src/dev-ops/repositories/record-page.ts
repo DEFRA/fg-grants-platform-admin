@@ -1,14 +1,12 @@
 import type { EventRow } from './events.repository.ts'
 
-// Shapes GAS uses alike for its Applications and Cases lists and pages.
+// Shapes GAS uses alike for its lists and its application and case pages.
 
 export interface Position {
   phase: string | null
   stage: string | null
   status: string | null
 }
-
-export type { ListPagination } from './events.repository.ts'
 
 export interface ListTotal {
   count: number
@@ -27,7 +25,7 @@ export interface RecordSeries<Member> {
 
 export interface RecordEvents {
   rows: EventRow[]
-  /** More than one page matched: the rest are on the events search. */
+  /** More matched than the newest each queue gives. */
   more: boolean
 }
 

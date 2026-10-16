@@ -3,7 +3,11 @@
 {% from "user-menu/macro.njk" import userMenu %}
 
 {% macro brand(testId) %}
-  <a class="whitespace-nowrap text-lg font-bold" href="/dev-ops" data-testid="{{ testId }}-brand">Grants Platform</a>
+  {% if homeHref %}
+    <a class="whitespace-nowrap text-lg font-bold" href="{{ homeHref }}" data-testid="{{ testId }}-brand">Grants Platform</a>
+  {% else %}
+    <span class="whitespace-nowrap text-lg font-bold" data-testid="{{ testId }}-brand">Grants Platform</span>
+  {% endif %}
   {% if environmentLabel %}
     {% if environmentIsProduction %}
       <span class="badge badge-warning badge-outline" title="This is the {{ environmentLabel }} environment" data-testid="{{ testId }}-environment">{{ environmentLabel }}</span>
@@ -13,8 +17,10 @@
   {% endif %}
 {% endmacro %}
 
-{% macro navItem(id, label, href, iconName) %}
-  <li><a class="gap-3{% if navActive == id %} menu-active{% endif %}" href="{{ href }}"{% if navActive == id %} aria-current="page"{% endif %} data-testid="do-nav-{{ id }}">{{ icon({ name: iconName, class: 'size-4.5 shrink-0' }) }}{{ label }}</a></li>
+{# A link that stands for several lists is the current one on any of them. #}
+{% macro navItem(item) %}
+  {%- set current = navActive in item.ids -%}
+  <li><a class="gap-3{% if current %} menu-active{% endif %}" href="{{ item.href }}"{% if current %} aria-current="page"{% endif %} data-testid="do-nav-{{ item.id }}">{{ icon({ name: item.icon, class: 'size-4.5 shrink-0' }) }}{{ item.label }}</a></li>
 {% endmacro %}
 
 <!DOCTYPE html>
@@ -39,11 +45,12 @@
           <div class="flex min-h-14 items-center gap-2 border-b border-base-300 px-4">{{ brand('do') }}</div>
           <nav class="flex-1" aria-label="Dev ops" data-testid="do-nav">
             <ul class="menu w-full gap-0.5 p-3">
-              <li class="menu-title">Operations</li>
-              {{ navItem('events', 'Events', '/dev-ops/events', 'activity') }}
-              <li class="menu-title">Records</li>
-              {{ navItem('applications', 'Applications', '/dev-ops/applications', 'file-text') }}
-              {{ navItem('cases', 'Cases', '/dev-ops/cases', 'folder') }}
+              {% for section in navSections %}
+                <li class="menu-title">{{ section.title }}</li>
+                {% for item in section.items %}
+                  {{ navItem(item) }}
+                {% endfor %}
+              {% endfor %}
             </ul>
           </nav>
           <div class="flex items-center {{ 'justify-between' if signedInUser else 'justify-end' }} gap-2 border-t border-base-300 p-3" data-testid="do-sidebar-foot">

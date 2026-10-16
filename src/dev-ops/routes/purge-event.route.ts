@@ -5,7 +5,7 @@ import type { EventDetail, EventKey } from '../use-cases/get-event.use-case.ts'
 import { getEventUseCase } from '../use-cases/get-event.use-case.ts'
 import type { PurgeResult } from '../use-cases/purge-event.use-case.ts'
 import { purgeEventUseCase } from '../use-cases/purge-event.use-case.ts'
-import { eventAddress } from '../view-models/event-address.ts'
+import { eventAddress, toEventKey } from '../view-models/event-address.ts'
 import { toEventHref } from '../view-models/event-formats.ts'
 import {
   purgeFormKey,
@@ -27,7 +27,7 @@ const reasonMax = 64
 const noteMax = 2000
 
 interface PurgePayload {
-  from: string
+  back: string
   reasonCode: string
   note: string
 }
@@ -36,7 +36,7 @@ const toQuery = (from: string, reopen: boolean): string => {
   const params = new URLSearchParams()
 
   if (from !== '') {
-    params.set('from', from)
+    params.set('back', from)
   }
 
   if (reopen) {
@@ -83,7 +83,7 @@ export const purgeEventRoute: ServerRoute = {
     validate: {
       params: Joi.object(eventAddress),
       payload: Joi.object({
-        from: Joi.string().allow('').max(fromMax).default(''),
+        back: Joi.string().allow('').max(fromMax).default(''),
         // Bounded, not checked: an unknown code is "no reason chosen", which
         // is a sentence on the page rather than a 400 in front of it.
         reasonCode: Joi.string().allow('').max(reasonMax).default(''),
@@ -95,12 +95,12 @@ export const purgeEventRoute: ServerRoute = {
         // Spelled out rather than `{}`: an object default is taken as written,
         // so its children's defaults never fire on the body-less POST hapi
         // hands a payload of `null`.
-        .default({ from: '', reasonCode: '', note: '' })
+        .default({ back: '', reasonCode: '', note: '' })
     }
   },
   async handler(request: Request, h: ResponseToolkit) {
-    const key = request.params as unknown as EventKey
-    const { from, reasonCode, note } = request.payload as PurgePayload
+    const key = toEventKey(request.params)
+    const { back: from, reasonCode, note } = request.payload as PurgePayload
     const page = toEventHref(key)
     const submission = { reasonCode, note: toPurgeNote(note) }
     const error = toPurgeFormError(submission)

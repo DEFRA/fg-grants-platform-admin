@@ -46,11 +46,12 @@ const eventsParams = {
   nounOne: 'event'
 }
 
-const pageOf = (ids: string[], next: string | null) =>
+const pageOf = (ids: string[], next: string | null, extra: object = {}) =>
   `<table><tbody id="events-rows">${ids
     .map((id) => `<tr data-testid="event-row"><td>${id}</td></tr>`)
     .join('')}</tbody></table>${render('load-more', {
     ...eventsParams,
+    ...extra,
     nextHref: next
   })('body').html()}`
 
@@ -209,6 +210,148 @@ describe('do-load-more', () => {
     await vi.advanceTimersByTimeAsync(0)
 
     expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  test('takes the tail of the last page loaded in place of the one drawn, and does not call a list that can go on over', async () => {
+    await import('../index.ts')
+    document.body.innerHTML = `${pageOf(['1'], '/dev-ops/buckets/x?cursor=A', { tail: 'list-tail' })}<p id="list-tail" hidden></p>`
+    await vi.advanceTimersByTimeAsync(0)
+
+    const end = document.querySelector<HTMLElement>(
+      '[data-testid="events-load-more-end"]'
+    )!
+
+    farAway(
+      document.querySelector<HTMLElement>(
+        '[data-testid="events-load-more-sentinel"]'
+      )!
+    )
+    fetchMock.mockResolvedValueOnce(
+      answer(
+        `${pageOf(['2'], null, { tail: 'list-tail', open: true })}<p id="list-tail">Searched back to 3 Sep. <a href="/dev-ops/buckets/x?cursor=B">Keep looking</a></p>`
+      )
+    )
+    intersect()
+    await vi.advanceTimersByTimeAsync(0)
+
+    const tail = document.getElementById('list-tail')!
+
+    expect(tail.hidden).toBe(false)
+    expect(tail.querySelector('a')?.getAttribute('href')).toBe(
+      '/dev-ops/buckets/x?cursor=B'
+    )
+    expect(document.querySelectorAll('#list-tail')).toHaveLength(1)
+    expect(end.hidden).toBe(true)
+    expect(FakeObserver.made[0].disconnected).toBe(true)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  test('says no more of its own when the last page loaded ends with a tail that says it searched everything', async () => {
+    await import('../index.ts')
+    document.body.innerHTML = `${pageOf(['1'], '/dev-ops/buckets/x?cursor=A', { tail: 'list-tail' })}<p id="list-tail" hidden></p>`
+    await vi.advanceTimersByTimeAsync(0)
+
+    fetchMock.mockResolvedValueOnce(
+      answer(
+        `${pageOf(['2'], null, { tail: 'list-tail', closed: true })}<p id="list-tail" data-closed>Searched everything.</p>`
+      )
+    )
+    intersect()
+    await vi.advanceTimersByTimeAsync(0)
+
+    expect(document.getElementById('list-tail')?.textContent).toBe(
+      'Searched everything.'
+    )
+    expect(
+      document.querySelector<HTMLElement>(
+        '[data-testid="events-load-more-end"]'
+      )?.hidden
+    ).toBe(true)
+    expect(FakeObserver.made[0].disconnected).toBe(true)
+  })
+
+  test('shows the tail an empty last page kept hidden, and says no more of its own, when that page searched everything', async () => {
+    await import('../index.ts')
+    document.body.innerHTML = `${pageOf(['1'], '/dev-ops/buckets/x?cursor=A', { tail: 'list-tail' })}<p id="list-tail" hidden></p>`
+    await vi.advanceTimersByTimeAsync(0)
+
+    fetchMock.mockResolvedValueOnce(
+      answer(
+        `<div data-testid="events-card"><p data-testid="events-empty">No events found. Searched everything.</p></div><p id="list-tail" hidden data-closed>Searched everything.</p>`
+      )
+    )
+    intersect()
+    await vi.advanceTimersByTimeAsync(0)
+
+    const tail = document.getElementById('list-tail')!
+
+    expect(tail.hidden).toBe(false)
+    expect(tail.textContent).toBe('Searched everything.')
+    expect(
+      document.querySelector<HTMLElement>(
+        '[data-testid="events-load-more-end"]'
+      )?.hidden
+    ).toBe(true)
+  })
+
+  test('does not call a list over when its last page found no rows but can go on', async () => {
+    await import('../index.ts')
+    document.body.innerHTML = `${pageOf(['1'], '/dev-ops/buckets/x?cursor=A', { tail: 'list-tail' })}<p id="list-tail" hidden></p>`
+    await vi.advanceTimersByTimeAsync(0)
+
+    fetchMock.mockResolvedValueOnce(
+      answer(
+        `${emptyPage}<p id="list-tail" data-open>Searched back to 3 Sep. <a href="/dev-ops/buckets/x?cursor=B">Keep looking</a></p>`
+      )
+    )
+    intersect()
+    await vi.advanceTimersByTimeAsync(0)
+
+    expect(document.querySelector('#list-tail a')?.getAttribute('href')).toBe(
+      '/dev-ops/buckets/x?cursor=B'
+    )
+    expect(
+      document.querySelector<HTMLElement>(
+        '[data-testid="events-load-more-end"]'
+      )?.hidden
+    ).toBe(true)
+  })
+
+  test('adds nothing from a page it was redirected to', async () => {
+    const list = await mountList()
+
+    fetchMock.mockResolvedValueOnce({
+      ...answer(pageOf(['9'], null)),
+      redirected: true
+    })
+    intersect()
+    await vi.advanceTimersByTimeAsync(0)
+
+    expect(list.rows()).toEqual(['1'])
+    expect(list.error.hidden).toBe(false)
+  })
+
+  test('says the list is over when its last page has a tail but no way on', async () => {
+    await import('../index.ts')
+    document.body.innerHTML = `${pageOf(['1'], '/dev-ops/buckets/x?cursor=A', { tail: 'list-tail' })}<p id="list-tail" hidden></p>`
+    await vi.advanceTimersByTimeAsync(0)
+
+    fetchMock.mockResolvedValueOnce(
+      answer(
+        `${pageOf(['2'], null, { tail: 'list-tail' })}<p id="list-tail">Searched everything.</p>`
+      )
+    )
+    intersect()
+    await vi.advanceTimersByTimeAsync(0)
+
+    expect(document.getElementById('list-tail')?.textContent).toBe(
+      'Searched everything.'
+    )
+    expect(
+      document.querySelector<HTMLElement>(
+        '[data-testid="events-load-more-end"]'
+      )?.hidden
+    ).toBe(false)
   })
 
   test('watches nothing on a page that is already the last', async () => {
