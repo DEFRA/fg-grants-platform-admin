@@ -9,6 +9,7 @@ Admin frontend for the Farming Grants platform. It has two areas:
 - **Grant ops**: view an application's claims, and add or change its claimable items until a claim is made against them.
 - **Dev ops**: browse platform events, applications and cases.
 
+- [Running with other services](#running-with-other-services)
 - [Requirements](#requirements)
   - [Node.js](#nodejs)
 - [Server-side Caching](#server-side-caching)
@@ -29,6 +30,26 @@ Admin frontend for the Farming Grants platform. It has two areas:
   - [SonarCloud](#sonarcloud)
 - [Licence](#licence)
   - [About the licence](#about-the-licence)
+
+## Running with other services
+
+fg-grants-platform-admin needs fg-gas-backend (and the Entra stub to sign in) to do anything useful, so the easiest way to run it is
+with the rest of Farming Grants: check out [fg-grants-core](https://github.com/DEFRA/fg-grants-core) alongside this repo and run
+`npm run stack cw` there. fg-grants-core runs the shared infrastructure and
+wires the services together.
+
+This repo's own `compose.yml` only runs redis and this service. To work on it
+without fg-grants-core, run what it calls separately and start this service
+with `npm run dev` (see [Local Development](#local-development)).
+
+Both ways use this repo's `compose/compose.platform-admin.yml`, so:
+
+- Container env goes in the `environment:` block of `compose/compose.platform-admin.yml`.
+  `.env` is for running node on your machine.
+- Values that only make sense in the full stack, such as other services' URLs
+  and tokens, stay in fg-grants-core's `compose/compose.override.yml`.
+- Keep the infrastructure versions in `compose.yml` the same as
+  fg-grants-core's. `npm run stack` there warns when they differ.
 
 ## Requirements
 
@@ -201,17 +222,14 @@ docker run -p 3000:3000 fg-grants-platform-admin
 
 ### Docker Compose
 
-A local environment with:
-
-- Floci (replacing Localstack) for AWS services (S3, SQS)
-- Redis
-- MongoDB
-- This service.
-- A commented out backend example.
+`compose.yml` runs redis and this service:
 
 ```bash
 docker compose up --build -d
 ```
+
+It doesn't run fg-gas-backend or the Entra stub. To run them together use
+fg-grants-core (see [Running with other services](#running-with-other-services)).
 
 ### Dependabot
 
