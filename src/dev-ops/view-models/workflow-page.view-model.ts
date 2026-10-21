@@ -22,6 +22,8 @@ import {
 import type { Fact, RecordPageModel } from './record-page.view-model.ts'
 import { toVersionHeader, toVersionPath } from './version-header.ts'
 import type { VersionHeader } from './version-header.ts'
+import { toWorkflowPagesTab } from './workflow-pages-tab.ts'
+import type { WorkflowPagesTab } from './workflow-pages-tab.ts'
 import { toWorkflowHref, workflowType } from './workflows-page.view-model.ts'
 
 export interface WorkflowPageModel extends RecordPageModel {
@@ -30,6 +32,7 @@ export interface WorkflowPageModel extends RecordPageModel {
   notices: DefinitionFetchNotice[]
   /** The file the tab needs, while it is not stored. */
   notStored: WorkflowFileType | null
+  pages: WorkflowPagesTab | null
 }
 
 const toFacts = (
@@ -51,6 +54,11 @@ const toNotStored = (
 
   return file && !files[file].stored ? file : null
 }
+
+const toPagesTab = ({
+  definition
+}: WorkflowVersionPage): WorkflowPagesTab | null =>
+  definition ? toWorkflowPagesTab(definition) : null
 
 export const toWorkflowPage = (
   page: WorkflowVersionPage,
@@ -80,6 +88,7 @@ export const toWorkflowPage = (
       notice,
       toVersionPath(workflowType, page.header)
     ),
-    notStored: toNotStored(page.header, tab)
+    notStored: toNotStored(page.header, tab),
+    pages: tab === 'pages' ? toPagesTab(page) : null
   }
 }

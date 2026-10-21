@@ -1,0 +1,91 @@
+{% from "workflow-pages/action-cell.njk" import actionCell %}
+
+{# Tailwind only sees class names written literally in this file. #}
+{% set card = "card card-border mt-4 bg-base-100 first:mt-0" %}
+{% set mono = "font-mono text-sm leading-none break-words" %}
+{% set muted = "font-mono text-sm leading-none text-base-content/70" %}
+{% set factLabel = "text-sm font-medium text-base-content/70" %}
+
+{% macro storedText(value) %}
+  {%- if value.kind == "value" -%}
+    <span class="{{ mono }}">{{ value.text }}</span>
+  {%- else -%}
+    <span class="{{ muted }}">{{ value.text }}</span>
+  {%- endif -%}
+{% endmacro %}
+
+{% macro dash() %}<span class="{{ muted }}">—</span>{% endmacro %}
+
+{%- set tab = params.tab -%}
+{%- set testId = params.testId -%}
+<div data-testid="{{ testId }}">
+  <section class="{{ card }}" aria-labelledby="{{ testId }}-banner-title" data-testid="{{ testId }}-banner">
+    <div class="card-body gap-3 p-5">
+      <h2 class="card-title text-base" id="{{ testId }}-banner-title">Case banner</h2>
+      <dl id="banner" class="grid grid-cols-[5rem_minmax(0,1fr)] gap-x-4 gap-y-2 text-sm">
+        <dt class="{{ factLabel }}">Title</dt>
+        <dd class="min-w-0" data-testid="{{ testId }}-title">{{ storedText(tab.banner.title) }}</dd>
+        <dt class="{{ factLabel }}">Buttons</dt>
+        <dd class="min-w-0" data-testid="{{ testId }}-buttons">
+          {%- for call in tab.banner.buttons -%}
+            {{ actionCell(call, testId ~ "-button") }}
+          {%- else -%}
+            {{ dash() }}
+          {%- endfor -%}
+        </dd>
+      </dl>
+      {% if tab.banner.summary | length %}
+        <div class="w-full overflow-x-auto">
+          <table class="table w-full min-w-[40rem] table-fixed" data-testid="{{ testId }}-summary">
+            <colgroup><col class="w-[18%]"><col class="w-[22%]"><col class="w-[40%]"><col class="w-[20%]"></colgroup>
+            <thead>
+              <tr><th scope="col">Key</th><th scope="col">Label</th><th scope="col">Value from</th><th scope="col">Type</th></tr>
+            </thead>
+            <tbody>
+              {% for row in tab.banner.summary %}
+                <tr class="hover:bg-base-200" data-testid="{{ testId }}-summary-row"><td><span class="{{ mono }}">{{ row.key }}</span></td><td>{{ row.label }}</td><td>{{ storedText(row.valueFrom) }}</td><td><span class="{{ mono }}">{{ row.type }}</span></td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% endif %}
+    </div>
+  </section>
+
+  <section class="{{ card }}" aria-labelledby="{{ testId }}-tabs-title" data-testid="{{ testId }}-tabs">
+    <div class="card-body gap-3 p-5">
+      <h2 class="card-title text-base" id="{{ testId }}-tabs-title">Case tabs</h2>
+      <div class="w-full overflow-x-auto">
+        <table class="table w-full min-w-[48rem] table-fixed">
+          <colgroup><col class="w-[8%]"><col class="w-[20%]"><col class="w-[24%]"><col class="w-[30%]"><col class="w-[18%]"></colgroup>
+          <thead>
+            <tr><th scope="col">Order</th><th scope="col">Tab</th><th scope="col">Shown when</th><th scope="col">Fires upon open</th><th scope="col">Components</th></tr>
+          </thead>
+          <tbody>
+            {% for row in tab.tabs %}
+              <tr class="hover:bg-base-200 [&>td]:align-top" id="tab-{{ row.key }}" data-testid="{{ testId }}-tab-row">
+                <td><span class="{{ mono }}">{{ row.order }}</span></td>
+                <td>{{ row.label }}{% if row.builtIn %} <span class="badge badge-sm badge-outline" data-testid="{{ testId }}-built-in">built in</span>{% endif %}</td>
+                <td>{% if row.shownWhen %}<span class="{{ mono }}">{{ row.shownWhen }}</span>{% else %}<span class="{{ muted }}">always</span>{% endif %}</td>
+                <td>
+                  {%- for call in row.fires -%}
+                    {{ actionCell(call, testId ~ "-action") }}
+                  {%- else -%}
+                    {{ dash() }}
+                  {%- endfor -%}
+                </td>
+                <td>
+                  {%- for component in row.components -%}
+                    <span class="{{ mono }}">{{ component }}</span>{% if not loop.last %}<span class="text-base-content/40">, </span>{% endif %}
+                  {%- else -%}
+                    {{ dash() }}
+                  {%- endfor -%}
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+</div>

@@ -16,6 +16,7 @@ const responseError = (statusCode: number, body: object = {}) =>
 describe('getWorkflowPageUseCase', () => {
   test.each([
     ['overview', 'overview'],
+    ['pages', 'definition'],
     ['raw', 'raw']
   ] as const)("reads the %s tab from GAS's %s read", async (tab, read) => {
     const found = {

@@ -9,6 +9,7 @@ import { fetchWorkflowDefinitionUseCase } from '../use-cases/fetch-workflow-defi
 import type { WorkflowVersionPage } from '../use-cases/get-workflow-page.use-case.ts'
 import { getWorkflowPageUseCase } from '../use-cases/get-workflow-page.use-case.ts'
 import { getWorkflowVersionsUseCase } from '../use-cases/get-workflow-versions.use-case.ts'
+import { woodlandDefinition } from '../use-cases/test-fixtures.ts'
 
 vi.mock(import('../use-cases/get-catalogue.use-case.ts'))
 vi.mock(import('../use-cases/get-workflow-page.use-case.ts'))
@@ -106,6 +107,13 @@ const givenRaw = (overrides: Partial<WorkflowVersionPage> = {}) =>
     overview: undefined,
     raw: document,
     storedBytes: 14540,
+    ...overrides
+  })
+
+const givenDefinition = (overrides: Partial<WorkflowVersionPage> = {}) =>
+  givenWorkflow({
+    overview: undefined,
+    definition: woodlandDefinition,
     ...overrides
   })
 
@@ -252,7 +260,7 @@ describe('the workflow page', () => {
     ])
   })
 
-  test('offers Overview and Raw, keeping the list it was opened from', async () => {
+  test('offers Overview, Pages and Raw, keeping the list it was opened from', async () => {
     const { $ } = await viewPage(
       `${path}?tab=raw&back=${encodeURIComponent(listed)}`
     )
@@ -263,6 +271,7 @@ describe('the workflow page', () => {
         .map((tab) => `${$(tab).text()} ${$(tab).attr('href')}`)
     ).toEqual([
       `Overview ${path}?back=${encodeURIComponent(listed)}`,
+      `Pages ${path}?tab=pages&back=${encodeURIComponent(listed)}`,
       `Raw ${path}?tab=raw&back=${encodeURIComponent(listed)}`
     ])
     expect(part($, 'workflow-tabs').find('[aria-current="page"]').text()).toBe(
@@ -552,6 +561,75 @@ describe('the workflow Raw tab', () => {
     expect(textOf($, 'workflow-no-data')).toBe(
       'CW returned no data for this tab'
     )
+  })
+})
+
+describe('the workflow Pages tab', () => {
+  test('reads the Pages tab of the workflow version in the URL', async () => {
+    givenDefinition()
+
+    await viewPage(`${path}?tab=pages`)
+
+    expect(getWorkflowPageUseCase).toHaveBeenCalledWith(
+      { code: 'woodland-creation', version: '1.2.0' },
+      'pages'
+    )
+  })
+
+  test('shows the case banner, then the case tabs', async () => {
+    givenDefinition()
+
+    const { $ } = await viewPage(`${path}?tab=pages`)
+
+    expect(
+      part($, 'workflow-pages')
+        .children()
+        .toArray()
+        .map((card) => $(card).find('h2').text())
+    ).toEqual(['Case banner', 'Case tabs'])
+    expect(part($, 'workflow-pages-tab-row')).toHaveLength(6)
+  })
+
+  test('says the workflow definition is not stored, under the banner, and nothing else', async () => {
+    givenDefinition({ header: notStored, definition: null })
+
+    const { $ } = await viewPage(`${path}?tab=pages`)
+
+    expect(textOf($, 'workflow-not-stored')).toBe(
+      'Workflow definition not stored.'
+    )
+    expect(part($, 'workflow-banner')).toHaveLength(1)
+    expect(part($, 'workflow-pages')).toHaveLength(0)
+    expect(part($, 'workflow-no-data')).toHaveLength(0)
+  })
+
+  test("says a stored definition over GAS's cap is too large to show", async () => {
+    givenDefinition({
+      definition: null,
+      sectionErrors: [{ section: 'definition', message: 'too large to show' }]
+    })
+
+    const { $ } = await viewPage(`${path}?tab=pages`)
+
+    expect(textOf($, 'workflow-too-large')).toBe('Too large to show')
+    expect(part($, 'workflow-pages')).toHaveLength(0)
+    expect(part($, 'workflow-section-error')).toHaveLength(0)
+  })
+
+  test('says the definition could not be read on any other failure', async () => {
+    givenDefinition({
+      definition: null,
+      sectionErrors: [
+        { section: 'definition', message: 'Definition could not be loaded' }
+      ]
+    })
+
+    const { $ } = await viewPage(`${path}?tab=pages`)
+
+    expect(textOf($, 'workflow-section-error')).toBe(
+      'Definition could not be loaded'
+    )
+    expect(part($, 'workflow-pages')).toHaveLength(0)
   })
 })
 

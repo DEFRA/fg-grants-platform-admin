@@ -4,6 +4,7 @@ import type {
   BucketSummary,
   Catalogue
 } from './get-catalogue.use-case.ts'
+import type { WorkflowDefinition } from './get-workflow-page.use-case.ts'
 
 /** A bucket of events and a bucket of records, shaped as GAS's catalogue describes them. */
 export const outboxBucket: BucketEntry = {
@@ -308,4 +309,102 @@ export const catalogue: Catalogue = {
     workflowsBucket
   ],
   sourceErrors: []
+}
+
+/** The prototype's `woodland-creation@1.2.0`, as GAS answers its definition read. */
+export const woodlandDefinition: WorkflowDefinition = {
+  workflow: {
+    pages: {
+      cases: {
+        details: {
+          banner: {
+            title: { text: '$.payload.answers.businessName', type: 'string' },
+            summary: {
+              sbi: {
+                label: 'SBI',
+                text: '$.payload.identifiers.sbi',
+                type: 'string'
+              },
+              reference: {
+                label: 'Reference',
+                text: '$.caseRef',
+                type: 'string'
+              },
+              hectares: {
+                label: 'Area (ha)',
+                text: '$.payload.answers.hectares',
+                type: 'number'
+              },
+              submitted: {
+                label: 'Submitted',
+                text: '$.payload.submittedAt',
+                type: 'date',
+                format: 'dd MMM yyyy'
+              }
+            }
+          },
+          tabs: {
+            'case-details': { content: [{ component: 'summary-list' }] },
+            'land-parcels': {
+              link: { text: 'Land', index: 2 },
+              action: { parcels: 'REFRESH_PARCELS' },
+              content: [{ component: 'table' }]
+            },
+            agreements: {
+              link: { text: 'Agreement', index: 5 },
+              renderIf: '$.supplementaryData.agreements',
+              content: [{ component: 'table' }]
+            }
+          }
+        }
+      }
+    },
+    endpoints: [
+      {
+        code: 'land-parcels',
+        service: 'LAND_DATA',
+        path: '/api/v2/parcels/{sbi}',
+        method: 'GET'
+      },
+      {
+        code: 'recalculate',
+        service: 'PAYMENT_CALC',
+        path: '/api/v1/calculate',
+        method: 'POST'
+      }
+    ],
+    externalActions: [
+      {
+        code: 'RECALCULATE',
+        name: 'Recalculate payment',
+        description: 'Ask the land service for a new payment figure.',
+        display: true,
+        endpoint: { code: 'recalculate' },
+        target: {
+          targetNode: 'payment',
+          dataType: 'OBJECT',
+          position: null,
+          place: 'append'
+        }
+      },
+      {
+        code: 'REFRESH_PARCELS',
+        name: 'Refresh land parcels',
+        display: false,
+        endpoint: {
+          code: 'land-parcels',
+          endpointParams: { PATH: { sbi: '$.payload.identifiers.sbi' } }
+        },
+        target: null
+      }
+    ]
+  },
+  addresses: [
+    {
+      code: 'land-parcels',
+      service: 'LAND_DATA',
+      url: 'https://land-data.example/api/v2/parcels/{sbi}'
+    },
+    { code: 'recalculate', service: 'PAYMENT_CALC', url: null }
+  ]
 }
