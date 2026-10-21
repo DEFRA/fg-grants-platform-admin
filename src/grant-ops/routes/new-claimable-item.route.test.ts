@@ -21,6 +21,9 @@ vi.mock(import('../repositories/claims.repository.ts'))
 
 const claimsUrl = '/grant-ops/grants/woodland/applications/WMP-1T9-RXN/claims'
 const url = `${claimsUrl}/new-entitlement/ENT_CS_CAPITAL_PA3`
+const escapedClaimsUrl =
+  '/grant-ops/grants/wood%20land/applications/wood%2F1001/claims'
+const escapedUrl = `${escapedClaimsUrl}/new-entitlement/ENT_CS_CAPITAL_PA3`
 
 const credentials = {
   user: { name: 'Ada Lovelace' },
@@ -337,6 +340,20 @@ describe('newClaimableItemRoute', () => {
 
     expect(statusCode).toBe(statusCodes.notFound)
   })
+
+  test('cancels back to the escaped claims page', async () => {
+    const { result } = await server.inject({
+      method: 'GET',
+      url: escapedUrl,
+      auth: { strategy: 'session', credentials }
+    })
+
+    expect(
+      load(result as unknown as string)(
+        '[data-testid="claimable-cancel"]'
+      ).attr('href')
+    ).toBe(escapedClaimsUrl)
+  })
 })
 
 describe('createClaimableItemRoute', () => {
@@ -601,5 +618,24 @@ describe('createClaimableItemRoute', () => {
 
     expect(statusCode).toBe(statusCodes.notFound)
     expect(createEntitlement).not.toHaveBeenCalled()
+  })
+
+  test('returns to the escaped claims page after creating', async () => {
+    vi.mocked(createEntitlement).mockResolvedValue()
+
+    const { headers } = await server.inject({
+      method: 'POST',
+      url: escapedUrl,
+      payload: { totalHectares: '40.25' },
+      auth: { strategy: 'session', credentials }
+    })
+
+    expect(createEntitlement).toHaveBeenCalledWith(
+      expect.objectContaining({
+        grantCode: 'wood land',
+        clientRef: 'wood/1001'
+      })
+    )
+    expect(headers.location).toBe(escapedClaimsUrl)
   })
 })

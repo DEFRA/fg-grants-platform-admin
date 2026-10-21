@@ -5,7 +5,11 @@ import type {
   EntitlementTemplate,
   SubmittedClaim
 } from '../use-cases/get-claims.use-case.ts'
-import { toClaimsPage, toTypeLabel } from './claims-page.view-model.ts'
+import {
+  toClaimsHref,
+  toClaimsPage,
+  toTypeLabel
+} from './claims-page.view-model.ts'
 
 const banner: Banner = {
   title: { text: 'Example Woodland Holdings', type: 'string' },
@@ -282,6 +286,20 @@ describe('toClaimsPage', () => {
 
     expect(row.createHref).toBe(
       '/grant-ops/grants/wood%20land/applications/wood%2F1001/claims/new-entitlement/ENT%2FPA3#new-entitlement'
+    )
+  })
+})
+
+describe('toClaimsHref', () => {
+  test('links to the claims page of the application', () => {
+    expect(toClaimsHref('woodland', 'WMP-1T9-RXN')).toBe(
+      '/grant-ops/grants/woodland/applications/WMP-1T9-RXN/claims'
+    )
+  })
+
+  test('escapes the grant code and the application reference', () => {
+    expect(toClaimsHref('wood land', 'wood/1001')).toBe(
+      '/grant-ops/grants/wood%20land/applications/wood%2F1001/claims'
     )
   })
 })
