@@ -2,7 +2,15 @@
 
 {% from "filter-menu/macro.njk" import filterMenu %}
 {% from "icon/macro.njk" import icon %}
+{% from "schema-tree/macro.njk" import schemaTree %}
 {% from "status-badge/macro.njk" import statusBadge %}
+
+{% macro errorAlert(text, testId) %}
+  <div role="alert" class="alert alert-error alert-soft text-sm" data-testid="{{ testId }}">
+    {{ icon({ name: 'exclamation-circle', class: 'size-4 shrink-0' }) }}
+    <span>{{ text }}</span>
+  </div>
+{% endmacro %}
 
 {% block recordHeader %}
   {% if versionHeader %}
@@ -29,6 +37,50 @@
     <div class="card card-border bg-base-100" data-testid="{{ record.itemId }}-not-stored">
       <p class="px-4 py-10 text-center text-sm text-base-content/60">{{ notStored | capitalize }} definition not stored.</p>
     </div>
+  {% elif tab == "questions" and questions.kind == "no-phases" %}
+    {{ errorAlert("The grant definition has no phases: every submission throws.", "grant-questions-no-phases") }}
+  {% elif tab == "questions" and questions %}
+    {% for card in questions.cards %}
+      <section class="card card-border mt-4 bg-base-100 first:mt-0" aria-labelledby="grant-questions-{{ loop.index }}" data-testid="grant-questions-phase">
+        <div class="card-body gap-3 p-5">
+          <h2 class="card-title text-base" id="grant-questions-{{ loop.index }}">{% if card.title.code %}<span class="font-mono">{{ card.title.code }}</span>{% else %}Phase {{ card.title.index }}{% endif %}{% if not card.usedByGas %} <span class="text-sm font-normal">{{ statusBadge({ label: 'Not used by GAS', role: 'neutral' }) }}</span>{% endif %}</h2>
+          {% if card.noCode %}
+            {{ errorAlert("This phase has no code.", "grant-questions-no-code") }}
+          {% endif %}
+          {% if card.kind == "not-an-object" %}
+            {{ errorAlert("This phase is not an object.", "grant-questions-not-an-object") }}
+          {% elif card.kind == "missing" %}
+            {{ errorAlert("No questions: every submission throws.", "grant-questions-missing") }}
+          {% elif card.kind == "not-a-schema" %}
+            {{ errorAlert("Questions are not a JSON Schema object.", "grant-questions-not-a-schema") }}
+          {% elif card.kind == "rejects-all" %}
+            {{ errorAlert("Every answer is rejected.", "grant-questions-rejects-all") }}
+          {% elif card.kind == "accepts-any" %}
+            <p class="text-sm text-base-content/60" data-testid="grant-questions-any">Any answers accepted.</p>
+          {% elif card.rows | length %}
+            {{ schemaTree({ rows: card.rows, testId: "grant-questions-tree" }) }}
+          {% else %}
+            <p class="text-sm text-base-content/60" data-testid="grant-questions-empty">No properties.</p>
+          {% endif %}
+          {% if card.rules | length %}
+            <h3 class="mt-2 text-sm font-semibold">Rules</h3>
+            <div class="w-full overflow-x-auto">
+              <table class="table w-full table-fixed" data-testid="grant-questions-rules">
+                <colgroup><col class="w-[42%] sm:w-[26%]"><col class="w-[58%] sm:w-[74%]"></colgroup>
+                <thead>
+                  <tr><th scope="col">Applies to</th><th scope="col">Rule</th></tr>
+                </thead>
+                <tbody>
+                  {% for rule in card.rules %}
+                    <tr class="hover:bg-base-200"><td><span class="font-mono text-sm leading-none break-words">{{ rule.appliesTo }}</span></td><td class="text-sm">{{ rule.text }}</td></tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          {% endif %}
+        </div>
+      </section>
+    {% endfor %}
   {% else %}
     {{ super() }}
   {% endif %}

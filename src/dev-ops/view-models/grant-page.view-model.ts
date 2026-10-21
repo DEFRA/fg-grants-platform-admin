@@ -7,6 +7,8 @@ import type {
 import { grantTabs } from '../use-cases/grant-tabs.ts'
 import type { GrantTabId } from '../use-cases/grant-tabs.ts'
 import { toUnavailableSources } from './event-row.ts'
+import { toGrantQuestions } from './grant-questions.ts'
+import type { GrantQuestionsTab } from './grant-questions.ts'
 import { grantType, toGrantHref } from './grants-page.view-model.ts'
 import {
   toDateFact,
@@ -24,6 +26,7 @@ export interface GrantPageModel extends RecordPageModel {
   versionHeader: VersionHeader
   /** The file the tab needs, while it is not stored. */
   notStored: DefinitionFileType | null
+  questions: GrantQuestionsTab | null
 }
 
 const toFacts = (
@@ -70,6 +73,10 @@ export const toGrantPage = (
     ...toTabSection(page.definition, page.sectionErrors, tab, read),
     unavailableSources: toUnavailableSources(page.sourceErrors),
     versionHeader: toVersionHeader(grantType, page.header, tab, from),
-    notStored: toNotStored(page.header, tab)
+    notStored: toNotStored(page.header, tab),
+    questions:
+      tab === 'questions' && page.definition
+        ? toGrantQuestions(page.definition)
+        : null
   }
 }
