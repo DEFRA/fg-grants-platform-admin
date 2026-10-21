@@ -11,6 +11,7 @@ interface GrantTab {
 
 export const grantTabs = {
   overview: { read: 'overview', file: null },
+  actions: { read: 'definition', file: 'grant' },
   raw: { read: 'definition', file: 'grant' }
 } as const satisfies Record<string, GrantTab>
 

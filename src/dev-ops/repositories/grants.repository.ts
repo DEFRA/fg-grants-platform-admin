@@ -48,10 +48,18 @@ export interface GrantVersionOverview {
   storedBytes: number | null
 }
 
+/** GAS checks the method on arrival, but not on a lazy S3 load or in versions stored before that check. */
+export interface GrantAction {
+  name: string
+  method: string
+  url: string
+}
+
 /** The stored grants document, as GAS stores it; each tab adds the keys it reads. */
 export interface GrantDefinition {
   code: string
   version: string
+  actions: GrantAction[]
 }
 
 export interface GrantVersionPage {

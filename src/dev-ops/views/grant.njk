@@ -29,6 +29,32 @@
     <div class="card card-border bg-base-100" data-testid="{{ record.itemId }}-not-stored">
       <p class="px-4 py-10 text-center text-sm text-base-content/60">{{ notStored | capitalize }} definition not stored.</p>
     </div>
+  {% elif tab == "actions" and actions %}
+    <section class="card card-border mt-4 bg-base-100 first:mt-0" aria-label="Actions" data-testid="grant-actions">
+      {% if actions | length %}
+        <div class="card-body gap-3 p-5">
+          <div class="w-full overflow-x-auto">
+            <table class="table w-full table-fixed" data-testid="grant-actions-table">
+              <colgroup><col class="w-[24%]"><col class="w-[12%]"><col class="w-[64%]"></colgroup>
+              <thead>
+                <tr><th scope="col">Name</th><th scope="col">Method</th><th scope="col">URL</th></tr>
+              </thead>
+              <tbody>
+                {% for action in actions %}
+                  <tr class="hover:bg-base-200" data-testid="grant-action">
+                    <td><span class="font-mono text-sm leading-none break-words">{{ action.name }}</span></td>
+                    <td><span class="font-mono text-sm leading-none break-words">{{ action.method }}</span></td>
+                    <td><span class="font-mono text-sm leading-none break-words">{{ action.url }}</span></td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      {% else %}
+        <p class="px-4 py-10 text-center text-sm text-base-content/60" data-testid="grant-actions-empty">No actions.</p>
+      {% endif %}
+    </section>
   {% else %}
     {{ super() }}
   {% endif %}

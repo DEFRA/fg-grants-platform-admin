@@ -9,7 +9,10 @@ import type { ApplicationPage } from '../use-cases/get-application-page.use-case
 import { getApplicationPageUseCase } from '../use-cases/get-application-page.use-case.ts'
 import type { CasePage } from '../use-cases/get-case-page.use-case.ts'
 import { getCasePageUseCase } from '../use-cases/get-case-page.use-case.ts'
-import type { GrantVersionPage } from '../use-cases/get-grant-page.use-case.ts'
+import type {
+  GrantDefinition,
+  GrantVersionPage
+} from '../use-cases/get-grant-page.use-case.ts'
 import { getGrantPageUseCase } from '../use-cases/get-grant-page.use-case.ts'
 import { getGrantVersionsUseCase } from '../use-cases/get-grant-versions.use-case.ts'
 
@@ -1224,7 +1227,13 @@ const grantDefinition = {
   code: 'woodland-creation',
   version: '1.2.0',
   metadata: { description: 'Funding to plant new woodland.' },
-  actions: [{ name: 'parcels', method: 'GET' }]
+  actions: [
+    {
+      name: 'parcels',
+      method: 'GET',
+      url: 'https://land-data.example/api/v2/parcels'
+    }
+  ]
 }
 
 const givenGrant = (overrides: Partial<GrantVersionPage> = {}) =>
@@ -1346,7 +1355,7 @@ describe('the grant page', () => {
     ])
   })
 
-  test('offers Overview and Raw, keeping the list it was opened from', async () => {
+  test('offers Overview, Actions and Raw, keeping the list it was opened from', async () => {
     const from = '/dev-ops/grants'
     const { $ } = await viewPage(
       `${grantPath}?tab=raw&back=${encodeURIComponent(from)}`
@@ -1358,6 +1367,7 @@ describe('the grant page', () => {
         .map((tab) => `${$(tab).text()} ${$(tab).attr('href')}`)
     ).toEqual([
       `Overview ${grantPath}?back=${encodeURIComponent(from)}`,
+      `Actions ${grantPath}?tab=actions&back=${encodeURIComponent(from)}`,
       `Raw ${grantPath}?tab=raw&back=${encodeURIComponent(from)}`
     ])
     expect(part($, 'grant-tabs').find('[aria-current="page"]').text()).toBe(
@@ -1652,6 +1662,174 @@ describe('the grant Raw tab', () => {
       'Definition could not be loaded'
     )
     expect(part($, 'grant-raw-too-large')).toHaveLength(0)
+  })
+})
+
+describe('the grant Actions tab', () => {
+  const actionsPath = `${grantPath}?tab=actions`
+
+  const givenActions = (actions: GrantDefinition['actions']) =>
+    givenGrant({
+      overview: undefined,
+      definition: { ...grantDefinition, actions }
+    })
+
+  const cellsOf = ($: CheerioAPI) =>
+    part($, 'grant-action')
+      .toArray()
+      .map((row) =>
+        $(row)
+          .find('td')
+          .toArray()
+          .map((cell) => flatten($(cell).text()))
+      )
+
+  test('sits after Overview and before Raw, and reads the stored definition', async () => {
+    givenActions(grantDefinition.actions)
+
+    const { $ } = await viewPage(actionsPath)
+
+    expect(
+      part($, 'grant-tab')
+        .toArray()
+        .map((tab) => $(tab).text())
+    ).toEqual(['Overview', 'Actions', 'Raw'])
+    expect(part($, 'grant-tabs').find('[aria-current="page"]').text()).toBe(
+      'Actions'
+    )
+    expect(getGrantPageUseCase).toHaveBeenCalledWith(
+      { code: 'woodland-creation', version: '1.2.0' },
+      'actions'
+    )
+  })
+
+  test('lists each declared action by name, method and URL, in order', async () => {
+    givenActions([
+      {
+        name: 'calculate-payment',
+        method: 'POST',
+        url: 'https://land-data.example/api/v2/payments/calculate'
+      },
+      {
+        name: 'parcels',
+        method: 'GET',
+        url: 'https://land-data.example/api/v2/parcels'
+      }
+    ])
+
+    const { $ } = await viewPage(actionsPath)
+    const table = part($, 'grant-actions-table')
+
+    expect(
+      table
+        .find('th')
+        .toArray()
+        .map((head) => $(head).text())
+    ).toEqual(['Name', 'Method', 'URL'])
+    expect(cellsOf($)).toEqual([
+      [
+        'calculate-payment',
+        'POST',
+        'https://land-data.example/api/v2/payments/calculate'
+      ],
+      ['parcels', 'GET', 'https://land-data.example/api/v2/parcels']
+    ])
+    expect(
+      part($, 'grant-action')
+        .find('td > span')
+        .toArray()
+        .every((cell) => $(cell).hasClass('font-mono'))
+    ).toBe(true)
+  })
+
+  test('shows only the scheme, host and path of a URL', async () => {
+    givenActions([
+      {
+        name: 'parcels',
+        method: 'GET',
+        url: 'https://user:secret@land-data.%ENVIRONMENT%.example/parcels/$sbi?key=x#top'
+      }
+    ])
+
+    const { $ } = await viewPage(actionsPath)
+
+    expect(cellsOf($)).toEqual([
+      ['parcels', 'GET', 'https://land-data.%ENVIRONMENT%.example/parcels/$sbi']
+    ])
+  })
+
+  test('escapes markup in a declared action', async () => {
+    givenActions([
+      { name: '<b>parcels</b>', method: 'GET', url: 'https://a.example' }
+    ])
+
+    const { $ } = await viewPage(actionsPath)
+
+    expect(part($, 'grant-action').find('b')).toHaveLength(0)
+    expect(cellsOf($)[0][0]).toBe('<b>parcels</b>')
+  })
+
+  test('wraps long values rather than scrolling the page sideways', async () => {
+    givenActions(grantDefinition.actions)
+
+    const { $ } = await viewPage(actionsPath)
+
+    expect(part($, 'grant-actions-table').parent().attr('class')).toContain(
+      'w-full overflow-x-auto'
+    )
+    expect(
+      part($, 'grant-action').find('td > span').last().attr('class')
+    ).toContain('break-words')
+  })
+
+  test('says a grant with no actions has none', async () => {
+    givenActions([])
+
+    const { $ } = await viewPage(actionsPath)
+
+    expect(textOf($, 'grant-actions-empty')).toBe('No actions.')
+    expect(part($, 'grant-actions-table')).toHaveLength(0)
+  })
+
+  test('says the grant definition is not stored, and nothing else', async () => {
+    givenGrant({ header: nothingStored, overview: undefined, definition: null })
+
+    const { $ } = await viewPage(actionsPath)
+
+    expect(textOf($, 'grant-not-stored')).toBe('Grant definition not stored.')
+    expect(part($, 'grant-actions')).toHaveLength(0)
+    expect(part($, 'grant-no-data')).toHaveLength(0)
+  })
+
+  test("says a stored document over GAS's cap is too large to show", async () => {
+    givenGrant({
+      overview: undefined,
+      definition: null,
+      sectionErrors: [{ section: 'definition', message: 'too large to show' }]
+    })
+
+    const { $ } = await viewPage(actionsPath)
+
+    expect(textOf($, 'grant-too-large')).toBe('Too large to show')
+    expect(part($, 'grant-section-error')).toHaveLength(0)
+    expect(part($, 'grant-actions')).toHaveLength(0)
+  })
+
+  test('says the definition could not be read on any other failure', async () => {
+    givenGrant({
+      overview: undefined,
+      definition: null,
+      sectionErrors: [
+        { section: 'definition', message: 'Definition could not be loaded' }
+      ]
+    })
+
+    const { $ } = await viewPage(actionsPath)
+
+    expect(textOf($, 'grant-section-error')).toBe(
+      'Definition could not be loaded'
+    )
+    expect(part($, 'grant-actions')).toHaveLength(0)
   })
 })
 
