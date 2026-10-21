@@ -28,6 +28,8 @@ import { toWorkflowPagesTab } from './workflow-pages-tab.ts'
 import type { WorkflowPagesTab } from './workflow-pages-tab.ts'
 import { toWorkflowPhases } from './workflow-phases.view-model.ts'
 import type { WorkflowPhasesTab } from './workflow-phases.view-model.ts'
+import { toTaskGroups } from './workflow-tasks.view-model.ts'
+import type { TaskGroupCard } from './workflow-tasks.view-model.ts'
 import { toWorkflowHref, workflowType } from './workflows-page.view-model.ts'
 
 export interface WorkflowPageModel extends RecordPageModel {
@@ -37,6 +39,7 @@ export interface WorkflowPageModel extends RecordPageModel {
   /** The file the tab needs, while it is not stored. */
   notStored: WorkflowFileType | null
   phases: WorkflowPhasesTab | null
+  taskGroups: TaskGroupCard[] | null
   pages: WorkflowPagesTab | null
 }
 
@@ -65,6 +68,14 @@ const toNotStored = (
 
   return file && !files[file].stored ? file : null
 }
+
+const toTasksTab = (
+  { definition }: WorkflowPage,
+  tab: WorkflowTabId
+): TaskGroupCard[] | null =>
+  tab === 'tasks' && definition
+    ? toTaskGroups(definition.workflow.phases)
+    : null
 
 const toPagesTab = ({ definition }: WorkflowPage): WorkflowPagesTab | null =>
   definition ? toWorkflowPagesTab(definition) : null
@@ -121,6 +132,7 @@ export const toWorkflowPage = (
     ),
     notStored: toNotStored(page.header, tab),
     phases: tab === 'phases' ? toPhasesTab(page, from, query) : null,
+    taskGroups: toTasksTab(page, tab),
     pages: tab === 'pages' ? toPagesTab(page) : null
   }
 }

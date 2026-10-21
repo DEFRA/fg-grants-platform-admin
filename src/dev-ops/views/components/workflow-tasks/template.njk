@@ -1,0 +1,78 @@
+{# Tailwind only sees class names written literally in this file. #}
+{% set muted = "font-mono text-sm leading-none text-base-content/70" %}
+{% set quiet = "text-base-content/60" %}
+{% set note = "mt-0.5 text-sm text-base-content/60" %}
+{% set spanned = "border-b border-base-200" %}
+
+{% macro dash() %}<span class="{{ muted }}">—</span>{% endmacro %}
+
+{% macro yesNo(value) %}{% if value %}Yes{% else %}<span class="{{ quiet }}">No</span>{% endif %}{% endmacro %}
+
+{% macro rowspan(task) %}{% if task.answers | length > 1 %} rowspan="{{ task.answers | length }}"{% endif %}{% endmacro %}
+
+{% macro taskCells(task, testId) %}
+  <td{{ rowspan(task) }} class="{{ spanned }}" data-testid="{{ testId }}-task">{{ task.name }}</td>
+  <td{{ rowspan(task) }} class="{{ spanned }}" data-testid="{{ testId }}-mandatory">{{ yesNo(task.mandatory) }}</td>
+{% endmacro %}
+
+{% macro rolesCell(task, testId) %}
+  <td{{ rowspan(task) }} class="{{ spanned }}" data-testid="{{ testId }}-roles">
+    {%- for role in task.roles -%}
+      <div class="font-mono text-sm">{{ role }}</div>
+    {%- else -%}
+      Any caseworker
+    {%- endfor -%}
+  </td>
+{% endmacro %}
+
+{%- set testId = params.testId -%}
+<div data-testid="{{ testId }}">
+  {% for group in params.groups %}
+    <section class="card card-border mt-4 bg-base-100 first:mt-0" aria-labelledby="{{ testId }}-group-{{ loop.index }}-title" data-testid="{{ testId }}-group">
+      <div class="card-body gap-3 p-5">
+        <h2 class="card-title text-base" id="{{ testId }}-group-{{ loop.index }}-title" data-testid="{{ testId }}-group-title">{{ group.name }} <span class="font-normal text-base-content/70">{{ group.stageName }}</span></h2>
+        <div class="w-full overflow-x-auto">
+          <table class="table w-full min-w-[64rem] table-fixed">
+            <colgroup><col class="w-[17%]"><col class="w-[9%]"><col class="w-[20%]"><col class="w-[13%]"><col class="w-[20%]"><col class="w-[21%]"></colgroup>
+            <thead>
+              <tr><th scope="col">Task</th><th scope="col">Mandatory</th><th scope="col">Answer</th><th scope="col">Completes task</th><th scope="col">Comment</th><th scope="col">Roles</th></tr>
+            </thead>
+            <tbody>
+              {% for task in group.tasks %}
+                {% for answer in task.answers %}
+                  <tr class="[&>td]:align-top{% if not loop.last %} [&>td]:border-b-0{% endif %}" data-testid="{{ testId }}-answer">
+                    {% if loop.first %}{{ taskCells(task, testId) }}{% endif %}
+                    <td>
+                      {{ answer.name }}
+                      {%- if answer.shownAs %}<div class="{{ note }}" data-testid="{{ testId }}-shown-as">shown as {{ answer.shownAs }}</div>{% endif %}
+                      {%- if answer.rules | length %}<div class="{{ note }}" data-testid="{{ testId }}-rules">{{ answer.rules | join(", ") }}</div>{% endif %}
+                    </td>
+                    <td data-testid="{{ testId }}-completes">
+                      {%- if answer.completes == null %}When filled in{% else %}{{ yesNo(answer.completes) }}{% endif -%}
+                    </td>
+                    <td data-testid="{{ testId }}-comment">
+                      {%- if answer.comment %}{{ answer.comment.label }} <span class="{{ quiet }}">{{ "required" if answer.comment.required else "optional" }}</span>{% else %}{{ dash() }}{% endif -%}
+                    </td>
+                    {% if loop.first %}{{ rolesCell(task, testId) }}{% endif %}
+                  </tr>
+                {% else %}
+                  <tr class="[&>td]:align-top" data-testid="{{ testId }}-answer">
+                    {{ taskCells(task, testId) }}
+                    <td>{{ dash() }}</td>
+                    <td data-testid="{{ testId }}-completes">{{ dash() }}</td>
+                    <td data-testid="{{ testId }}-comment">{{ dash() }}</td>
+                    {{ rolesCell(task, testId) }}
+                  </tr>
+                {% endfor %}
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  {% else %}
+    <div class="card card-border bg-base-100" data-testid="{{ testId }}-empty">
+      <p class="px-4 py-10 text-center text-sm text-base-content/60">No task groups.</p>
+    </div>
+  {% endfor %}
+</div>
