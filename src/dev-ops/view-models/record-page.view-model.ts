@@ -1,4 +1,4 @@
-import type { SourceError } from '../use-cases/get-events.use-case.ts'
+import type { SourceError } from '../use-cases/get-event.use-case.ts'
 import type {
   Position,
   RecordEvents,
@@ -12,12 +12,12 @@ import {
   none,
   toAbsolute,
   toPreciseInstant,
-  toSearchHref,
   toStoredTimeCell
 } from './event-formats.ts'
 import type { TimeCell } from './event-formats.ts'
-import { toEventRow, toUnavailableSources } from './events-page.view-model.ts'
-import type { EventRow } from './events-page.view-model.ts'
+import { backKey } from './bucket-links.ts'
+import { toEventRow, toUnavailableSources } from './event-row.ts'
+import type { EventRow } from './event-row.ts'
 import { toJsonView } from './json-viewer.view-model.ts'
 import type { JsonView } from './json-viewer.view-model.ts'
 import { toPositionLabel, toPositionTrail, toStatusLabel } from './position.ts'
@@ -73,7 +73,8 @@ interface SectionTab {
 
 interface EventsTab {
   rows: EventRow[]
-  allHref: string | null
+  /** More matched than are shown: each queue gives only its newest. */
+  more: boolean
 }
 
 interface RawTab {
@@ -97,6 +98,10 @@ export interface RecordPageData {
 export interface RecordPageModel {
   record: RecordType
   ref: string
+  /** Empty when opened from no list: the layout's first list stands in. */
+  backHref: string
+  /** The bucket the page was opened from, which is where it sits in the navigation. */
+  navActive: string | null
   trail: PositionStep[]
   tabs: SectionTab[]
   tab: RecordTab
@@ -116,14 +121,21 @@ const tabLabels: Record<RecordTab, string> = {
   raw: 'Raw'
 }
 
-const toTabHref = (href: string, tab: RecordTab): string =>
-  tab === 'overview' ? href : `${href}?section=${tab}`
+/** Every tab keeps the list the record was opened from, so Back still returns to it. */
+const toTabHref = (href: string, tab: RecordTab, from: string): string => {
+  const params = new URLSearchParams({
+    ...(tab === 'overview' ? {} : { tab }),
+    ...(from === '' ? {} : { [backKey]: from })
+  })
 
-const toTabs = (href: string, active: RecordTab): SectionTab[] =>
+  return params.size ? `${href}?${params}` : href
+}
+
+const toTabs = (href: string, active: RecordTab, from: string): SectionTab[] =>
   (Object.keys(tabLabels) as RecordTab[]).map((id) => ({
     id,
     label: tabLabels[id],
-    href: toTabHref(href, id),
+    href: toTabHref(href, id, from),
     active: id === active
   }))
 
@@ -253,19 +265,13 @@ const toSeries = (
 const isDetailed = ({ series }: RecordPageData): boolean =>
   series?.detailed ?? false
 
-/** No list query: the event page's Back returns to the whole events list. */
-const noListQuery = ''
-
 const toEvents = (
   events: RecordEvents | null | undefined,
-  ref: string,
-  now: Date
+  now: Date,
+  from: string
 ): EventsTab | null =>
   events
-    ? {
-        rows: events.rows.map(toEventRow(now, noListQuery)),
-        allHref: events.more ? toSearchHref(ref) : null
-      }
+    ? { rows: events.rows.map(toEventRow(now, from)), more: events.more }
     : null
 
 /** GAS's own words for a document it will not show; any other Raw failure is an error like any tab's. */
@@ -290,17 +296,20 @@ export const toRecordPage = (
   record: RecordType,
   data: RecordPageData,
   tab: RecordTab,
+  from: string = '',
   now: Date = new Date()
 ): RecordPageModel => ({
   record,
   ref: data.ref,
+  backHref: from,
+  navActive: null,
   trail: toPositionTrail(data.position),
-  tabs: toTabs(data.href, tab),
+  tabs: toTabs(data.href, tab, from),
   tab,
   facts: data.facts,
   series: toSeries(data, now),
   seriesDetailed: isDetailed(data),
-  events: toEvents(data.events, data.ref, now),
+  events: toEvents(data.events, now, toTabHref(data.href, 'events', from)),
   raw: tab === 'raw' ? toRaw(data) : null,
   sectionError: toSectionError(data, tab),
   unavailableSources: toUnavailableSources(data.sourceErrors)

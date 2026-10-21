@@ -37,6 +37,12 @@ interface Page {
   rows: Node[][]
   next: string | null
   partial: string | null
+  /** What the list says after its last row, such as where a search stopped. */
+  tail: Node | null
+  /** The list is not over although no page follows: the tail says how to go on. */
+  open: boolean
+  /** The tail says the list is over in its own words, so "No more" would say it twice. */
+  closed: boolean
 }
 
 const find = (root: ParentNode, selector?: string): Element | null =>
@@ -49,6 +55,28 @@ const isPageOfRows = (page: Document, selectors: PageSelectors): boolean =>
 
 const nextPageOf = (page: Document): string | null =>
   page.querySelector('do-load-more')?.getAttribute('data-next-page') ?? null
+
+/** Said by the list, or by the tail of a page that found no rows and so draws no list. */
+const isOpen = (page: Document): boolean =>
+  page.querySelector('[data-open]') !== null
+
+const isClosed = (page: Document): boolean =>
+  page.querySelector('[data-closed]') !== null
+
+/** A page with no rows says its end in its empty line and hides its tail; under rows, the tail says it. */
+const unhideClosed = (tail: Node): Node => {
+  if (tail instanceof HTMLElement && tail.hasAttribute('data-closed')) {
+    tail.hidden = false
+  }
+
+  return tail
+}
+
+const tailOf = (page: Document, id?: string): Node | null => {
+  const tail = id ? page.querySelector(`[id="${id}"]`) : null
+
+  return tail ? document.importNode(tail, true) : null
+}
 
 const partialOf = (page: Document, selector?: string): string | null =>
   find(page, selector)?.textContent?.trim() ?? null
@@ -66,7 +94,8 @@ const rowsOf = (ids = ''): HTMLElement[] | null => {
 const readPage = (
   page: Document,
   rowsIds: string[],
-  selectors: PageSelectors
+  selectors: PageSelectors,
+  tailId?: string
 ): Page => ({
   rows: rowsIds.map((rowsId) =>
     [...page.querySelectorAll(`[id="${rowsId}"] > *`)].map((row) =>
@@ -74,20 +103,25 @@ const readPage = (
     )
   ),
   next: nextPageOf(page),
-  partial: partialOf(page, selectors.partial)
+  partial: partialOf(page, selectors.partial),
+  tail: tailOf(page, tailId),
+  open: isOpen(page),
+  closed: isClosed(page)
 })
 
 const fetchPage = async (
   href: string,
   rowsIds: string[],
-  selectors: PageSelectors
+  selectors: PageSelectors,
+  tailId?: string
 ): Promise<Page> => {
   const response = await fetch(href, {
     headers: { accept: 'text/html' },
     credentials: 'same-origin'
   })
 
-  if (!response.ok) {
+  // A redirect answers with some other page: never rows to add to these.
+  if (!response.ok || response.redirected) {
     throw new Error(`HTTP ${response.status}`)
   }
 
@@ -100,7 +134,7 @@ const fetchPage = async (
     throw new Error('Not a page of rows')
   }
 
-  return readPage(page, rowsIds, selectors)
+  return readPage(page, rowsIds, selectors, tailId)
 }
 
 interface Parts {
@@ -233,10 +267,11 @@ export class LoadMore extends HTMLElement {
   }
 
   async #append(parts: Parts, href: string) {
-    const { rows, next, partial } = await fetchPage(
+    const { rows, next, partial, tail, open, closed } = await fetchPage(
       href,
       parts.rows.map((container) => container.id),
-      this.#selectors
+      this.#selectors,
+      this.dataset.tail
     )
     const fresh = parts.rows.map((container, index) =>
       this.#withoutShown(container, rows[index])
@@ -245,8 +280,9 @@ export class LoadMore extends HTMLElement {
     parts.rows.forEach((container, index) => container.append(...fresh[index]))
     this.#next = next
     this.#showPartialNotice(parts, partial)
+    this.#showTail(tail)
     if (next === null) {
-      this.#end(parts, href, partial)
+      this.#end(parts, href, partial, open || closed)
     }
     // Every container draws the same rows, so the first one counts them.
     this.#queueAnnouncement(parts, fresh[0].length, partial)
@@ -269,9 +305,12 @@ export class LoadMore extends HTMLElement {
     })
   }
 
-  /** A partial last page may only look like the end: offer to ask for it again. */
-  #end(parts: Parts, href: string, partial: string | null) {
+  /** A partial last page may only look like the end: offer to ask for it again. A tail that speaks for the end leaves nothing to add. */
+  #end(parts: Parts, href: string, partial: string | null, tailed: boolean) {
     this.#observer?.disconnect()
+    if (tailed) {
+      return
+    }
     if (partial === null) {
       parts.end.hidden = false
       this.#pendingEnd = true
@@ -279,6 +318,15 @@ export class LoadMore extends HTMLElement {
     }
     this.#retryHref = href
     parts.retry.hidden = false
+  }
+
+  /** The last page loaded speaks for the whole list, so its tail takes the place of the one drawn. */
+  #showTail(tail: Node | null) {
+    const shown = document.getElementById(this.dataset.tail ?? '')
+
+    if (shown && tail) {
+      shown.replaceWith(unhideClosed(tail))
+    }
   }
 
   #showPartialNotice(parts: Parts, partial: string | null) {

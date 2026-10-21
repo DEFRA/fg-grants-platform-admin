@@ -10,6 +10,7 @@ import { editPayloadUseCase } from '../use-cases/edit-payload.use-case.ts'
 import type { EventDetail } from '../use-cases/get-event.use-case.ts'
 import { getEventUseCase } from '../use-cases/get-event.use-case.ts'
 
+vi.mock(import('../use-cases/get-catalogue.use-case.ts'))
 vi.mock(import('../use-cases/edit-payload.use-case.ts'))
 vi.mock(import('../use-cases/get-event.use-case.ts'))
 
@@ -33,6 +34,7 @@ const event: EventDetail = {
   id,
   eventId: '3f2c1a0e-1111-2222-3333-444455556666',
   type: 'case.status.updated',
+  eventType: 'CaseStatusUpdated',
   targetTopic: 'gas__sns__update_case_status_fifo',
   status: 'DEAD_LETTER',
   statusLabel: 'Dead letter',
@@ -78,7 +80,7 @@ const save = async (
     method: 'POST',
     url: path,
     payload: new URLSearchParams(
-      Object.entries({ from: '', ...fields }).map(([name, value]) => [
+      Object.entries({ back: '', ...fields }).map(([name, value]) => [
         name,
         value.replace(/\n/g, '\r\n')
       ])
@@ -211,15 +213,18 @@ describe('savePayloadRoute', () => {
   })
 
   test('carries the list query through the write', async () => {
-    const { headers } = await save({ ...good, from: '?status=DEAD_LETTER' })
+    const { headers } = await save({
+      ...good,
+      back: '/dev-ops/events/gas/outbox?status=DEAD_LETTER'
+    })
 
     expect(headers.location).toBe(
-      `${page}?from=%3Fstatus%3DDEAD_LETTER#event-banner`
+      `${page}?back=%2Fdev-ops%2Fevents%2Fgas%2Foutbox%3Fstatus%3DDEAD_LETTER#event-banner`
     )
   })
 
-  test('drops a from that is not a query string rather than redirecting through it', async () => {
-    const { headers } = await save({ ...good, from: '//example.com' })
+  test('drops a back link that is not a query string rather than redirecting through it', async () => {
+    const { headers } = await save({ ...good, back: '//example.com' })
 
     expect(headers.location).toBe(`${page}#event-banner`)
   })

@@ -14,6 +14,7 @@ import type {
   PurgeOutcome,
   PurgeResult
 } from '../use-cases/purge-event.use-case.ts'
+import type { BucketEntry } from '../use-cases/get-catalogue.use-case.ts'
 import type { PayloadEditStep } from '../use-cases/edit-payload-step.ts'
 import { toOpenedStep, toStoredJson } from '../use-cases/edit-payload-step.ts'
 import type { EditResult } from '../use-cases/edit-payload.use-case.ts'
@@ -23,9 +24,13 @@ import {
 } from './applications-page.view-model.ts'
 import { toAttemptCount } from './attempt-count.ts'
 import type { AttemptCount } from './attempt-count.ts'
+import { backKey, toBucketHref } from './bucket-links.ts'
+import { devOpsPath } from './bucket-nav.ts'
+import { fromUrlQuery } from './bucket-urls.ts'
+import { showKey } from './bucket-toggles.ts'
 import { caseType, toCaseHref } from './cases-page.view-model.ts'
 import { toBoxLabel, toServiceLabel } from './event-labels.ts'
-import { toEventName } from './event-names.ts'
+import { toStampedEventName } from './event-names.ts'
 import type { EventName } from './event-names.ts'
 import { isPurgedStatus, toEventState } from './event-state.ts'
 import type { EventState } from './event-state.ts'
@@ -37,8 +42,6 @@ import {
   toGap,
   toPreciseInstant,
   toPreciseOrNone,
-  toSearchHref,
-  toSearchTitle,
   toTraceHref,
   toValidDate
 } from './event-formats.ts'
@@ -143,8 +146,11 @@ export interface PurgedFact {
 export interface EventPageModel {
   unavailable: boolean
   timedOut: boolean
+  /** Empty when opened from no list: the layout's first list stands in. */
   backHref: string
   from: string
+  /** The bucket the page was opened from, which is where it sits in the navigation. */
+  navActive: string | null
   banner: EventBanner | null
   /** A saved edit's outcome takes focus: the editor it replaces had it. */
   bannerFocus: boolean
@@ -163,8 +169,6 @@ export interface EventPageModel {
   boxLabel: string
   targetTopic: string | null
   segregationRef: string | null
-  segregationRefHref: string | null
-  segregationRefTitle: string | null
   recordLink: RecordLink | null
   traceId: string | null
   traceHref: string | null
@@ -221,13 +225,16 @@ export interface EventPageModel {
   errorSearchHref: string | null
 }
 
-/** Open-redirect guard: `//` would make this a protocol-relative url. */
+const unsafeInPath = /\/\/|\\/
+
+/** A page is opened from a list or a record's page of this admin, and goes back to it. */
+const isOwnPage = (from: string): boolean => from.startsWith(`${devOpsPath}/`)
+
+/** Open-redirect guard: only a list's or a record's own path and query, and `//` or `\` could leave it. */
 export const toSafeFrom = (from: string | undefined | null): string =>
-  typeof from === 'string' && from.startsWith('?') && !from.includes('//')
+  typeof from === 'string' && isOwnPage(from) && !unsafeInPath.test(from)
     ? from
     : ''
-
-const toBackHref = (from: string): string => `/dev-ops/events${from}`
 
 const toSelfHref = (
   key: EventKey,
@@ -237,7 +244,7 @@ const toSelfHref = (
   const params = new URLSearchParams()
 
   if (from !== '') {
-    params.set('from', from)
+    params.set(backKey, from)
   }
 
   if (extra) {
@@ -388,7 +395,7 @@ export const eventPageCache = { otherwise: 'no-store' }
 export const eventBannerId = 'event-banner'
 
 export interface EventPageQuery {
-  from?: string
+  back?: string
   confirm?: string
   edit?: string
 }
@@ -403,7 +410,8 @@ const toShell = (
 
   return {
     from,
-    backHref: toBackHref(from),
+    backHref: from,
+    navActive: null as string | null,
     banner,
     bannerFocus: banner !== null && notice?.action === 'edit',
     redriveAction: `${toEventHref(key)}/redrive`,
@@ -419,6 +427,7 @@ type ShellKey =
   | 'timedOut'
   | 'backHref'
   | 'from'
+  | 'navActive'
   | 'banner'
   | 'bannerFocus'
   | 'redriveAction'
@@ -439,8 +448,6 @@ const emptyDetail: Omit<EventPageModel, ShellKey> = {
   boxLabel: '',
   targetTopic: null,
   segregationRef: null,
-  segregationRefHref: null,
-  segregationRefTitle: null,
   recordLink: null,
   traceId: null,
   traceHref: null,
@@ -516,24 +523,6 @@ const toStatus = (context: DetailContext) => ({
   statusRetrying: context.event.statusRetrying,
   attempts: toAttemptsShown(context)
 })
-
-const isAuditRecord = (event: EventDetail): boolean => event.type === 'audit'
-
-const toSegregationRef = (event: EventDetail) => {
-  const segregationRef = event.segregationRef ?? null
-
-  return segregationRef === null
-    ? {
-        segregationRef,
-        segregationRefHref: null,
-        segregationRefTitle: null
-      }
-    : {
-        segregationRef,
-        segregationRefHref: toSearchHref(segregationRef, isAuditRecord(event)),
-        segregationRefTitle: toSearchTitle(segregationRef, 'segregation ref')
-      }
-}
 
 interface RecordLink {
   href: string
@@ -982,31 +971,55 @@ const showsLastError = (attempts: AttemptEntry[], message: string): boolean => {
   )
 }
 
-const toDeadLetterErrorMessage = ({
+const toDeadLetterError = ({
   event,
   state
-}: DetailContext): string | null =>
-  state.deadLetter ? (event.lastError?.message ?? null) : null
+}: DetailContext): EventDetail['lastError'] =>
+  state.deadLetter ? event.lastError : null
 
+const deadLetter = 'DEAD_LETTER'
+
+const statusFact = 'status'
+
+const errorNameFact = 'lastError.name'
+
+/** A list can show every event with one error only if it filters by both the status and the error's name. */
+const filtersByError = ({ facts }: BucketEntry): boolean =>
+  facts.some(({ name }) => name === errorNameFact) &&
+  facts.some(
+    ({ name, values }) =>
+      name === statusFact &&
+      (values ?? []).some(({ value }) => value === deadLetter)
+  )
+
+const shownIn = (
+  bucket: BucketEntry,
+  attempts: AttemptEntry[],
+  error: NonNullable<EventDetail['lastError']>
+): boolean => filtersByError(bucket) && showsLastError(attempts, error.message)
+
+/** What is shown is how much of the list there is, so the link keeps it where a filter is dropped. */
+const shownOn = (bucket: BucketEntry, from: string): string | undefined =>
+  fromUrlQuery(
+    bucket,
+    Object.fromEntries(new URL(from, 'http://list').searchParams)
+  )[showKey]
+
+/** Back in the list the event was opened from, narrowed to dead letters with this error's name. */
 const toErrorSearchHref = (
   context: DetailContext,
-  attempts: AttemptEntry[]
+  attempts: AttemptEntry[],
+  { bucket, from }: PageInputs
 ): string | null => {
-  const message = toDeadLetterErrorMessage(context)
+  const error = toDeadLetterError(context)
 
-  if (!message || !showsLastError(attempts, message)) {
-    return null
-  }
-
-  // The error alone: where else a failure happened is no question about status.
-  // `audit` is a scope rather than a filter — an audit row finds none without it.
-  const params = new URLSearchParams({ error: message })
-
-  if (isAuditRecord(context.event)) {
-    params.set('audit', 'include')
-  }
-
-  return `/dev-ops/events?${params}`
+  return error && bucket && shownIn(bucket, attempts, error)
+    ? toBucketHref(bucket, {
+        [statusFact]: deadLetter,
+        [errorNameFact]: error.name,
+        [showKey]: shownOn(bucket, from)
+      })
+    : null
 }
 
 const toTrace = (event: EventDetail) => {
@@ -1052,6 +1065,8 @@ interface PageInputs {
   query: EventPageQuery
   from: string
   form: PurgeFormNotice
+  /** The catalogue's entry for the list in `from`, when it names one. */
+  bucket: BucketEntry | null
   /** Handed over by a review or a save, in place of the editor the link opens. */
   edit?: PayloadEditStep
 }
@@ -1095,6 +1110,10 @@ const toPayloadEdit = (
   }
 }
 
+/** The page is named by the row's own stamp, the name its list shows; a row with none is headed by its id. */
+const toPageEventName = (eventType: string | null): EventName | null =>
+  eventType ? toStampedEventName(eventType) : null
+
 const toDetail = (event: EventDetail, key: EventKey, inputs: PageInputs) => {
   const { query, from, form } = inputs
   const state = toEventState(event)
@@ -1102,14 +1121,14 @@ const toDetail = (event: EventDetail, key: EventKey, inputs: PageInputs) => {
   const attempts = toAttemptHistory(context)
 
   return {
-    eventName: toEventName(event.type),
+    eventName: toPageEventName(event.eventType),
     type: event.type,
     eventId: event.eventId,
     ...toStatus(context),
     serviceLabel: toServiceLabel(event.service),
     boxLabel: toBoxLabel(event.box),
     targetTopic: event.targetTopic,
-    ...toSegregationRef(event),
+    segregationRef: event.segregationRef ?? null,
     recordLink: toRecordLink(event.record),
     ...toTrace(event),
     ...toExpiry(event),
@@ -1128,7 +1147,7 @@ const toDetail = (event: EventDetail, key: EventKey, inputs: PageInputs) => {
     ...toPayloadEdit(context, key, inputs),
     ...toLastRedriveDetail(event.lastRedrive),
     futileWarning: toFutileWarning(context),
-    errorSearchHref: toErrorSearchHref(context, attempts)
+    errorSearchHref: toErrorSearchHref(context, attempts, inputs)
   }
 }
 
@@ -1146,6 +1165,10 @@ const toBannerContext = (detail: EventDetailModel | null): BannerContext =>
     ? { expiresText: null, purged: null }
     : { expiresText: detail.expiresText, purged: isPurgedStatus(detail.status) }
 
+/** A page opened from a list sits under it in the navigation. */
+const toNavActive = (bucket: BucketEntry | null): string | null =>
+  bucket?.id ?? null
+
 /** A flash the redirect never delivered must not refill the form on another event. */
 const toPurgeForm = (key: EventKey, form?: PurgeFormNotice): PurgeFormNotice =>
   form !== undefined && form.page === toEventHref(key) ? form : emptyPurgeForm
@@ -1156,16 +1179,21 @@ export const toEventPage = (
   query: EventPageQuery,
   notice?: EventNotice,
   form?: PurgeFormNotice,
-  edit?: PayloadEditStep
+  edit?: PayloadEditStep,
+  bucket: BucketEntry | null = null
 ): EventPageModel => {
-  const from = toSafeFrom(query.from)
+  const from = toSafeFrom(query.back)
   const detail = toFoundDetail(result, key, {
     query,
     from,
     form: toPurgeForm(key, form),
+    bucket,
     edit
   })
-  const shell = toShell(key, from, toBannerContext(detail), notice)
+  const shell = {
+    ...toShell(key, from, toBannerContext(detail), notice),
+    navActive: toNavActive(bucket)
+  }
 
   if (detail === null) {
     return {

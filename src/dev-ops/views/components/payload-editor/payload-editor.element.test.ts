@@ -14,6 +14,7 @@ const event: EventDetail = {
   ...key,
   eventId: '3f2c1a0e-1111-2222-3333-444455556666',
   type: 'case.status.updated',
+  eventType: 'CaseStatusUpdated',
   targetTopic: 'gas__sns__update_case_status_fifo',
   status: 'DEAD_LETTER',
   statusLabel: 'Dead letter',
@@ -34,12 +35,12 @@ const stored = JSON.stringify(event.payload, null, 2)
 
 const edited = stored.replace('12345', '"12345"')
 
-const from = '?status=DEAD_LETTER'
+const from = '/dev-ops/events/gas/outbox?status=DEAD_LETTER'
 
 /** The event page exactly as the server renders it, so the element meets its real markup. */
 const renderPage = (
   edit?: PayloadEditStep,
-  query: Parameters<typeof toEventPage>[2] = { edit: 'payload', from },
+  query: Parameters<typeof toEventPage>[2] = { edit: 'payload', back: from },
   notice?: Parameters<typeof toEventPage>[3]
 ): string =>
   environment.render('event.njk', {
@@ -75,7 +76,7 @@ const brokenEditorPage = renderPage({
 
 const conflictPage = renderPage(
   undefined,
-  { from },
+  { back: from },
   {
     outcome: 'conflict',
     status: 'Completed',
@@ -264,7 +265,7 @@ describe('do-payload-editor', () => {
     expect(init.method).toBe('POST')
     expect(init.headers).toEqual({ accept: 'text/html' })
     expect(Object.fromEntries(sentBody())).toEqual({
-      from: '?status=DEAD_LETTER',
+      back: '/dev-ops/events/gas/outbox?status=DEAD_LETTER',
       revision: '3',
       text: edited
     })
@@ -305,7 +306,7 @@ describe('do-payload-editor', () => {
     await vi.advanceTimersByTimeAsync(0)
 
     expect(fetchMock.mock.calls[0][0]).toBe(`${page}/payload/review#payload`)
-    expect(sentBody().get('back')).toBe('edit')
+    expect(sentBody().get('step')).toBe('edit')
     expect(sentBody().get('text')).toBe(edited)
     expect(document.activeElement).toBe(part('event-payload-editor-text'))
   })
@@ -474,7 +475,7 @@ describe('do-payload-editor', () => {
     expect(submit).toHaveBeenCalledTimes(1)
     expect(form.getAttribute('action')).toBe(`${page}/payload/review#payload`)
     expect(
-      form.querySelector<HTMLInputElement>('input[type="hidden"][name="back"]')
+      form.querySelector<HTMLInputElement>('input[type="hidden"][name="step"]')
         ?.value
     ).toBe('edit')
   })

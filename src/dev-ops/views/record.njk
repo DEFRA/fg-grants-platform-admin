@@ -1,5 +1,4 @@
 {% extends 'layouts/page.njk' %}
-{% set navActive = record.listId %}
 
 {% from "back/macro.njk" import back %}
 {% from "event-row/macro.njk" import eventRow, eventsHead %}
@@ -39,7 +38,7 @@
 {% block pageTitle %}{{ record.title }} {{ ref }} | {{ serviceName }}{% endblock %}
 
 {% block content %}
-  {{ back({ href: record.path, list: record.listId, navLabel: (record.listId | capitalize) ~ " list", testId: record.itemId }) }}
+  {{ back({ href: backHref or homeHref, list: record.listId, navLabel: (record.listId | capitalize) ~ " list", testId: record.itemId }) }}
 
   <header class="mt-2 mb-5" data-testid="{{ record.itemId }}-header">
     <h1 class="flex flex-wrap items-baseline gap-x-2 text-xl font-semibold break-words" data-testid="{{ record.itemId }}-title"><span>{{ record.title }}</span> <span class="font-mono text-sm font-normal break-all text-base-content/70 select-all" data-testid="{{ record.itemId }}-ref">{{ ref }}</span></h1>
@@ -139,8 +138,8 @@
               </tbody>
             </table>
           </div>
-          {% if events.allHref %}
-            <p class="border-t border-base-300 px-4 py-3 text-sm" data-testid="{{ record.itemId }}-events-more"><a class="link" href="{{ events.allHref }}" data-testid="{{ record.itemId }}-events-all">All in Events</a></p>
+          {% if events.more %}
+            <p class="border-t border-base-300 px-4 py-3 text-sm text-base-content/70" data-testid="{{ record.itemId }}-events-more">Showing the newest 50 from each {{ record.source }} queue.</p>
           {% endif %}
         {% else %}
           <p class="px-4 py-10 text-center text-sm text-base-content/60" data-testid="{{ record.itemId }}-events-empty">No events found.</p>

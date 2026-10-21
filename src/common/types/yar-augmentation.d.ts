@@ -1,6 +1,9 @@
 import '@hapi/yar'
 
-import type { StoredSearch } from '../../dev-ops/view-models/stored-search.ts'
+import type {
+  StoredSearch,
+  StoredSearchKey
+} from '../../dev-ops/view-models/stored-search.ts'
 import type {
   EventNotice,
   PurgeFormNotice
@@ -19,7 +22,6 @@ declare module '@hapi/yar' {
   }
 
   interface YarValues {
-    applicationsSearch: StoredSearch
-    casesSearch: StoredSearch
+    [key: StoredSearchKey]: StoredSearch
   }
 }

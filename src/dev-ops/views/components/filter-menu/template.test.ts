@@ -1,0 +1,89 @@
+import { render } from '../../../test-utils.ts'
+
+const choice = {
+  testId: 'bucket-search-kind',
+  panelId: 'bucket-search-kind-panel',
+  field: 'ref-kind',
+  label: 'Search events by',
+  items: [
+    { value: 'ref', label: 'Reference', active: false },
+    { value: 'msg', label: 'Message id', active: true }
+  ]
+}
+
+const part = ($: ReturnType<typeof render>, name: string) =>
+  $(`[data-testid="bucket-search-kind-${name}"]`)
+
+describe('filter-menu component as a form choice', () => {
+  test('works without script: the select is the field, the menu waits', () => {
+    const $menu = render('filter-menu', choice)
+
+    const select = part($menu, 'select')
+
+    expect(select.attr('name')).toBe('ref-kind')
+    expect(select.attr('aria-label')).toBe('Search events by')
+    expect(
+      select
+        .find('option')
+        .toArray()
+        .map((option) => [$menu(option).attr('value'), $menu(option).text()])
+    ).toEqual([
+      ['ref', 'Reference'],
+      ['msg', 'Message id']
+    ])
+    expect(select.find('option[selected]').attr('value')).toBe('msg')
+    expect(part($menu, 'value').attr('disabled')).toBeDefined()
+    expect(part($menu, 'button').attr('hidden')).toBeDefined()
+  })
+
+  test('carries the choice in a hidden input of the same name', () => {
+    const $menu = render('filter-menu', choice)
+
+    const value = part($menu, 'value')
+
+    expect(value.attr('type')).toBe('hidden')
+    expect(value.attr('name')).toBe('ref-kind')
+    expect(value.attr('value')).toBe('msg')
+  })
+
+  test('names the button for what it chooses and shows the choice', () => {
+    const $menu = render('filter-menu', choice)
+
+    const button = part($menu, 'button')
+
+    expect(button.attr('type')).toBe('button')
+    expect(button.attr('popovertarget')).toBe('bucket-search-kind-panel')
+    expect(button.text().replace(/\s+/g, ' ').trim()).toBe(
+      'Search events by: Message id'
+    )
+    expect(part($menu, 'panel').attr('aria-label')).toBe('Search events by')
+  })
+
+  test('offers each option as a button that submits nothing, marking the chosen one', () => {
+    const $menu = render('filter-menu', choice)
+
+    const options = part($menu, 'chip').toArray()
+
+    expect(
+      options.map((option) => [
+        $menu(option).attr('type'),
+        $menu(option).attr('data-value'),
+        $menu(option).attr('aria-pressed'),
+        $menu(option).text().trim()
+      ])
+    ).toEqual([
+      ['button', 'ref', 'false', 'Reference'],
+      ['button', 'msg', 'true', 'Message id']
+    ])
+  })
+
+  test('starts on the first option when none is chosen', () => {
+    const $menu = render('filter-menu', {
+      ...choice,
+      items: choice.items.map((item) => ({ ...item, active: false }))
+    })
+
+    expect(part($menu, 'value').attr('value')).toBe('ref')
+    expect(part($menu, 'chosen').text()).toBe('Reference')
+  })
+})

@@ -5,13 +5,39 @@
 {% set triggerActive = "btn font-semibold shadow-[inset_0_-3px_0_var(--color-base-content)] [&:has(+:popover-open)]:[--btn-bg:color-mix(in_oklab,var(--btn-color,var(--color-base-200)),#000_5%)] [&:has(+:popover-open)]:[--btn-border:color-mix(in_oklab,var(--btn-color,var(--color-base-200)),#000_7%)] [&:has(+:popover-open)]:translate-y-[0.5px]" %}
 {# The menu is the trigger's next sibling, so `:has(+:popover-open)` turns the chevron with no script. #}
 {% set chevron = "size-4 opacity-60 transition-transform [:has(+:popover-open)>&]:rotate-180" %}
-{% set menu = "dropdown menu menu-md mt-2 w-60 rounded-box border border-base-300 bg-base-100 p-2 shadow-md" %}
-{% set menuItem = "flex items-center gap-2" %}
-{% set menuItemActive = "flex items-center gap-2 font-semibold" %}
+{# As wide as its longest option, within the page; an option that still cannot fit is cut short, never wrapped. #}
+{% set menu = "dropdown menu menu-md mt-2 w-max max-w-[min(32rem,calc(100vw-2rem))] flex-nowrap rounded-box border border-base-300 bg-base-100 p-2 shadow-md" %}
+{% set menuItem = "flex min-w-0 items-center gap-2 whitespace-nowrap" %}
+{% set menuItemActive = "flex min-w-0 items-center gap-2 whitespace-nowrap font-semibold" %}
 {% set tick = "size-4.5 shrink-0" %}
 {% set tickHidden = "size-4.5 shrink-0 invisible" %}
 
+{# A menu inside a `join` is one of its items. #}
+{% set triggerJoined = "btn join-item shrink-0 font-normal [&:has(+:popover-open)]:[--btn-bg:color-mix(in_oklab,var(--btn-color,var(--color-base-200)),#000_5%)] [&:has(+:popover-open)]:[--btn-border:color-mix(in_oklab,var(--btn-color,var(--color-base-200)),#000_7%)] [&:has(+:popover-open)]:[--btn-shadow:0_0_0_0_oklch(0%_0_0/0)]" %}
+
 {%- set testId = params.testId -%}
+{% if params.field %}
+  {#- A choice for a form: without script the select is the field; with it the menu is, and the hidden input carries the choice. -#}
+  {%- set chosen = params.items | selectattr("active") | first -%}
+  {%- if not chosen %}{% set chosen = params.items | first %}{% endif -%}
+  <do-choice-menu class="contents" data-testid="{{ testId }}">
+    <select class="select join-item w-auto shrink-0" name="{{ params.field }}" aria-label="{{ params.label }}" data-choice-fallback data-testid="{{ testId }}-select">
+      {% for chip in params.items %}
+        <option value="{{ chip.value }}"{% if chip.value == chosen.value %} selected{% endif %}>{{ chip.label }}</option>
+      {% endfor %}
+    </select>
+    <input type="hidden" name="{{ params.field }}" value="{{ chosen.value }}" disabled data-choice-value data-testid="{{ testId }}-value">
+    <button class="{{ triggerJoined }}" type="button" popovertarget="{{ params.panelId }}" hidden data-choice-trigger data-testid="{{ testId }}-button">
+      <span><span class="sr-only">{{ params.label }}: </span><span data-choice-label data-testid="{{ testId }}-chosen">{{ chosen.label }}</span></span>
+      {{ icon({ name: 'chevron-down', class: chevron }) }}
+    </button>
+    <ul class="{{ menu }}" popover id="{{ params.panelId }}" aria-label="{{ params.label }}" data-testid="{{ testId }}-panel">
+      {% for chip in params.items %}
+        <li><button class="{{ menuItemActive if chip.value == chosen.value else menuItem }}" type="button" aria-pressed="{{ "true" if chip.value == chosen.value else "false" }}" data-value="{{ chip.value }}" data-testid="{{ testId }}-chip">{{ icon({ name: 'check', class: tick if chip.value == chosen.value else tickHidden }) }}<span class="truncate" title="{{ chip.label }}">{{ chip.label }}</span></button></li>
+      {% endfor %}
+    </ul>
+  </do-choice-menu>
+{% else %}
 {%- set chosen = params.items | selectattr("active") | first -%}
 <div class="flex items-center gap-2" data-testid="{{ testId }}">
   <button class="{{ triggerActive if chosen and chosen.value else trigger }}" type="button" popovertarget="{{ params.panelId }}" data-testid="{{ testId }}-button">
@@ -21,7 +47,8 @@
   </button>
   <ul class="{{ menu }}" popover id="{{ params.panelId }}" aria-label="{{ params.label }}" data-testid="{{ testId }}-panel">
     {% for chip in params.items %}
-      <li><a class="{{ menuItemActive if chip.active else menuItem }}" href="{{ chip.href }}"{% if chip.active %} aria-current="page"{% endif %}{% if chip.value %} data-value="{{ chip.value }}"{% endif %} data-testid="{{ testId }}-chip">{{ icon({ name: 'check', class: tick if chip.active else tickHidden }) }}<span>{{ chip.label }}</span></a></li>
+      <li><a class="{{ menuItemActive if chip.active else menuItem }}" href="{{ chip.href }}"{% if chip.active %} aria-current="page"{% endif %}{% if chip.value %} data-value="{{ chip.value }}"{% endif %} data-testid="{{ testId }}-chip">{{ icon({ name: 'check', class: tick if chip.active else tickHidden }) }}<span class="truncate" title="{{ chip.label }}">{{ chip.label }}</span></a></li>
     {% endfor %}
   </ul>
 </div>
+{% endif %}
