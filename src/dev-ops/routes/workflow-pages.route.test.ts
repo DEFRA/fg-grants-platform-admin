@@ -260,7 +260,7 @@ describe('the workflow page', () => {
     ])
   })
 
-  test('offers Overview, Pages and Raw, keeping the list it was opened from', async () => {
+  test('offers Overview, Pages, Events and Raw, keeping the list it was opened from', async () => {
     const { $ } = await viewPage(
       `${path}?tab=raw&back=${encodeURIComponent(listed)}`
     )
@@ -272,6 +272,7 @@ describe('the workflow page', () => {
     ).toEqual([
       `Overview ${path}?back=${encodeURIComponent(listed)}`,
       `Pages ${path}?tab=pages&back=${encodeURIComponent(listed)}`,
+      `Events ${path}?tab=events&back=${encodeURIComponent(listed)}`,
       `Raw ${path}?tab=raw&back=${encodeURIComponent(listed)}`
     ])
     expect(part($, 'workflow-tabs').find('[aria-current="page"]').text()).toBe(

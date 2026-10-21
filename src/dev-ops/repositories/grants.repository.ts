@@ -7,7 +7,11 @@ import type {
   VersionSummary
 } from './config-versions.ts'
 import type { SourceError } from './events.repository.ts'
-import type { RecordSectionError, StoredDate } from './record-page.ts'
+import type {
+  RecordEvents,
+  RecordSectionError,
+  StoredDate
+} from './record-page.ts'
 
 export type GrantVersionRef = VersionRef
 
@@ -45,13 +49,14 @@ export interface GrantVersionPage {
   overview?: GrantVersionOverview | null
   /** Null when not stored or too large. */
   definition?: GrantDefinition | null
+  events?: RecordEvents | null
   sourceErrors: SourceError[]
   sectionErrors: RecordSectionError[]
 }
 
 export type GrantVersions = ConfigVersions
 
-export type GrantRead = 'overview' | 'definition'
+export type GrantRead = 'overview' | 'definition' | 'events'
 
 const grantPath = (code: string) =>
   `/grant-admin/grants/${encodeURIComponent(code)}/versions`

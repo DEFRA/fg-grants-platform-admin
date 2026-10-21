@@ -14,7 +14,9 @@ import type {
 import { toUnavailableSources } from './event-row.ts'
 import {
   toDateFact,
+  toEvents,
   toSizeFact,
+  toTabHref,
   toTabSection,
   toTabs,
   toTextFact
@@ -55,17 +57,20 @@ const toNotStored = (
   return file && !files[file].stored ? file : null
 }
 
-const toPagesTab = ({
-  definition
-}: WorkflowVersionPage): WorkflowPagesTab | null =>
-  definition ? toWorkflowPagesTab(definition) : null
+const toPagesTab = (
+  { definition }: WorkflowVersionPage,
+  tab: WorkflowTabId
+): WorkflowPagesTab | null =>
+  tab === 'pages' && definition ? toWorkflowPagesTab(definition) : null
 
 export const toWorkflowPage = (
   page: WorkflowVersionPage,
   tab: WorkflowTabId,
   from: string,
-  { notice }: { notice?: DefinitionFetchFlash } = {}
+  { notice }: { notice?: DefinitionFetchFlash } = {},
+  now: Date = new Date()
 ): WorkflowPageModel => {
+  const href = toWorkflowHref(page.header)
   const { read } = workflowTabs[tab]
 
   return {
@@ -74,12 +79,12 @@ export const toWorkflowPage = (
     backHref: from,
     navActive: null,
     trail: [],
-    tabs: toTabs(workflowType, toWorkflowHref(page.header), tab, from),
+    tabs: toTabs(workflowType, href, tab, from),
     tab,
     facts: page.overview ? toFacts(page.header, page.overview) : null,
     series: null,
     seriesDetailed: false,
-    events: null,
+    events: toEvents(page.events, now, toTabHref(href, 'events', from)),
     ...toTabSection(page.raw, page.sectionErrors, tab, read),
     unavailableSources: toUnavailableSources(page.sourceErrors),
     versionHeader: toVersionHeader(workflowType, page.header, tab, from),
@@ -89,6 +94,6 @@ export const toWorkflowPage = (
       toVersionPath(workflowType, page.header)
     ),
     notStored: toNotStored(page.header, tab),
-    pages: tab === 'pages' ? toPagesTab(page) : null
+    pages: toPagesTab(page, tab)
   }
 }

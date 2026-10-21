@@ -15,8 +15,10 @@ import { toUnavailableSources } from './event-row.ts'
 import { grantType, toGrantHref } from './grants-page.view-model.ts'
 import {
   toDateFact,
+  toEvents,
   toMonoFact,
   toSizeFact,
+  toTabHref,
   toTabSection,
   toTabs,
   toTextFact
@@ -59,8 +61,10 @@ export const toGrantPage = (
   page: GrantVersionPage,
   tab: GrantTabId,
   from: string,
-  { notice }: { notice?: DefinitionFetchFlash } = {}
+  { notice }: { notice?: DefinitionFetchFlash } = {},
+  now: Date = new Date()
 ): GrantPageModel => {
+  const href = toGrantHref(page.header)
   const { read } = grantTabs[tab]
 
   return {
@@ -69,12 +73,12 @@ export const toGrantPage = (
     backHref: from,
     navActive: null,
     trail: [],
-    tabs: toTabs(grantType, toGrantHref(page.header), tab, from),
+    tabs: toTabs(grantType, href, tab, from),
     tab,
     facts: page.overview ? toFacts(page.header, page.overview) : null,
     series: null,
     seriesDetailed: false,
-    events: null,
+    events: toEvents(page.events, now, toTabHref(href, 'events', from)),
     ...toTabSection(page.definition, page.sectionErrors, tab, read),
     unavailableSources: toUnavailableSources(page.sourceErrors),
     versionHeader: toVersionHeader(grantType, page.header, tab, from),

@@ -7,7 +7,11 @@ import type {
   VersionSummary
 } from './config-versions.ts'
 import type { SourceError } from './events.repository.ts'
-import type { Counterpart, RecordSectionError } from './record-page.ts'
+import type {
+  Counterpart,
+  RecordEvents,
+  RecordSectionError
+} from './record-page.ts'
 
 export type WorkflowVersionRef = VersionRef
 
@@ -111,13 +115,14 @@ export interface WorkflowVersionPage {
   /** The stored workflow, as Caseworking keeps it; null when not stored or too large. */
   raw?: object | null
   storedBytes?: number | null
+  events?: RecordEvents | null
   sourceErrors: SourceError[]
   sectionErrors: RecordSectionError[]
 }
 
 export type WorkflowVersions = ConfigVersions
 
-export type WorkflowRead = 'overview' | 'definition' | 'raw'
+export type WorkflowRead = 'overview' | 'definition' | 'events' | 'raw'
 
 const workflowPath = (code: string) =>
   `/grant-admin/workflows/${encodeURIComponent(code)}/versions`
