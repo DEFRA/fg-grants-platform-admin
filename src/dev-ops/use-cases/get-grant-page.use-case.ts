@@ -10,11 +10,14 @@ import type { HiddenTab, RecordResult } from './record-reads.ts'
 import { isMissing, readRecord } from './record-reads.ts'
 
 export type {
+  AgreementDefinition,
   DefinitionFileType,
+  GrantAgreement,
   GrantVersionHeader,
   GrantVersionOverview,
   GrantVersionPage,
-  GrantVersionRef
+  GrantVersionRef,
+  ProcessAddress
 } from '../repositories/grants.repository.ts'
 
 export type GrantPageResult = RecordResult<GrantVersionPage> | HiddenTab

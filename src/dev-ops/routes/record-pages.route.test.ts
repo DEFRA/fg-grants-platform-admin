@@ -13,7 +13,11 @@ import type { GrantVersionPage } from '../use-cases/get-grant-page.use-case.ts'
 import { getGrantPageUseCase } from '../use-cases/get-grant-page.use-case.ts'
 import { getGrantVersionsUseCase } from '../use-cases/get-grant-versions.use-case.ts'
 import { getCatalogueUseCase } from '../use-cases/get-catalogue.use-case.ts'
-import { applicationsBucket, catalogue } from '../use-cases/test-fixtures.ts'
+import {
+  agreementDefinition,
+  applicationsBucket,
+  catalogue
+} from '../use-cases/test-fixtures.ts'
 
 vi.mock(import('../use-cases/get-catalogue.use-case.ts'))
 vi.mock(import('../use-cases/get-application-page.use-case.ts'), async () => ({
@@ -1349,7 +1353,7 @@ describe('the grant page', () => {
     ])
   })
 
-  test('offers Overview, Payment and Raw, keeping the list it was opened from', async () => {
+  test('offers Overview, Agreement, Payment and Raw, keeping the list it was opened from', async () => {
     const from = '/dev-ops/grants'
     const { $ } = await viewPage(
       `${grantPath}?tab=raw&back=${encodeURIComponent(from)}`
@@ -1361,6 +1365,7 @@ describe('the grant page', () => {
         .map((tab) => `${$(tab).text()} ${$(tab).attr('href')}`)
     ).toEqual([
       `Overview ${grantPath}?back=${encodeURIComponent(from)}`,
+      `Agreement ${grantPath}?tab=agreement&back=${encodeURIComponent(from)}`,
       `Payment ${grantPath}?tab=payment&back=${encodeURIComponent(from)}`,
       `Raw ${grantPath}?tab=raw&back=${encodeURIComponent(from)}`
     ])
@@ -2141,6 +2146,165 @@ describe('the grant Payment tab', () => {
         .toArray()
         .map((tab) => $(tab).text())
     ).toEqual(['Overview', 'Raw'])
+  })
+})
+
+const agreementPath = `${grantPath}?tab=agreement`
+
+const landData = {
+  process: 'GENERATE_OFFER',
+  service: 'LAND_DATA',
+  url: 'https://land-data.example/api/v2/parcels/{sbi}'
+}
+
+const givenAgreement = (
+  agreement: GrantVersionPage['agreement'],
+  overrides: Partial<GrantVersionPage> = {}
+) => givenGrant({ overview: undefined, agreement, ...overrides })
+
+const agreementProblem = 'Agreement definition code "other" does not match'
+
+describe('the grant Agreement tab', () => {
+  test("reads GAS's agreement read", async () => {
+    givenAgreement(null)
+
+    await viewPage(agreementPath)
+
+    expect(getGrantPageUseCase).toHaveBeenCalledWith(
+      { code: 'woodland-creation', version: '1.2.0' },
+      'agreement'
+    )
+  })
+
+  test('draws the facts, States, Pages and Processes cards', async () => {
+    givenAgreement({
+      definition: agreementDefinition,
+      addresses: [landData],
+      problem: null
+    })
+
+    const { $ } = await viewPage(agreementPath)
+
+    expect(part($, 'grant-agreement-overview').attr('aria-label')).toBe(
+      'Agreement'
+    )
+    expect(textOf($, 'grant-agreement-fact-code')).toBe(
+      'Code woodland-creation'
+    )
+    expect(part($, 'grant-agreement-state-row')).toHaveLength(7)
+    expect(part($, 'grant-agreement-page-row')).toHaveLength(3)
+    expect(
+      part($, 'grant-agreement-process-url')
+        .toArray()
+        .map((url) => $(url).text())
+    ).toEqual([landData.url])
+    expect(textOf($, 'grant-agreement-process-not-configured')).toBe(
+      'Not configured'
+    )
+  })
+
+  test('ends with the stored definition in a closed Raw panel', async () => {
+    givenAgreement({
+      definition: agreementDefinition,
+      addresses: [landData],
+      problem: null
+    })
+
+    const { $ } = await viewPage(agreementPath)
+    const details = part($, 'grant-agreement-raw-details')
+
+    expect(details.attr('open')).toBeUndefined()
+    expect(details.prev().attr('data-testid')).toBe('grant-agreement')
+    expect(textOf($, 'grant-agreement-raw-summary')).toBe('Raw')
+    expect(part($, 'grant-agreement-raw').attr('aria-label')).toBe(
+      'Agreement definition'
+    )
+    expect(
+      part($, 'grant-agreement-raw-line')
+        .toArray()
+        .map((line) => $(line).find('code').text())
+    ).toEqual(JSON.stringify(agreementDefinition, null, 2).split('\n'))
+  })
+
+  test('says why GAS cannot load a definition, then shows it as stored, and draws no cards', async () => {
+    const definition = { ...agreementDefinition, code: 'other' }
+    givenAgreement({ definition, addresses: [], problem: agreementProblem })
+
+    const { $ } = await viewPage(agreementPath)
+
+    expect(textOf($, 'grant-agreement-problem')).toBe(
+      `GAS cannot load this agreement definition: ${agreementProblem}`
+    )
+    expect(part($, 'grant-agreement-states')).toHaveLength(0)
+    expect(part($, 'grant-agreement-raw-details')).toHaveLength(1)
+    expect(part($, 'grant-section-error')).toHaveLength(0)
+  })
+
+  test('says the agreement definition is not stored, and nothing else', async () => {
+    givenAgreement(null, {
+      header: { ...grantHeader, files: { grant: fetched, agreement: pending } }
+    })
+
+    const { $ } = await viewPage(agreementPath)
+
+    expect(textOf($, 'grant-not-stored')).toBe(
+      'Agreement definition not stored.'
+    )
+    expect(part($, 'grant-agreement')).toHaveLength(0)
+    expect(part($, 'grant-no-data')).toHaveLength(0)
+  })
+
+  test("says a stored definition over GAS's cap is too large to show", async () => {
+    givenAgreement(null, {
+      sectionErrors: [{ section: 'agreement', message: 'too large to show' }]
+    })
+
+    const { $ } = await viewPage(agreementPath)
+
+    expect(textOf($, 'grant-too-large')).toBe('Too large to show')
+    expect(part($, 'grant-agreement')).toHaveLength(0)
+    expect(part($, 'grant-section-error')).toHaveLength(0)
+  })
+
+  test("shows GAS's message when the read fails", async () => {
+    givenAgreement(null, {
+      sectionErrors: [
+        { section: 'agreement', message: 'Agreement could not be loaded' }
+      ]
+    })
+
+    const { $ } = await viewPage(agreementPath)
+
+    expect(textOf($, 'grant-section-error')).toBe(
+      'Agreement could not be loaded'
+    )
+    expect(part($, 'grant-agreement')).toHaveLength(0)
+  })
+
+  test('opens Overview when GAS says the version has no agreement file', async () => {
+    vi.mocked(getGrantPageUseCase).mockResolvedValue({
+      outcome: 'hidden',
+      page: null
+    })
+
+    const { statusCode, headers } = await viewPage(agreementPath)
+
+    expect(statusCode).toBe(statusCodes.found)
+    expect(headers.location).toBe(grantPath)
+  })
+
+  test('is not offered on a version with no agreement file', async () => {
+    givenGrant({
+      header: { ...grantHeader, files: { grant: fetched, payment: fetched } }
+    })
+
+    const { $ } = await viewPage(grantPath)
+
+    expect(
+      part($, 'grant-tab')
+        .toArray()
+        .map((tab) => $(tab).text())
+    ).toEqual(['Overview', 'Payment', 'Raw'])
   })
 })
 

@@ -19,6 +19,8 @@ import type {
   DefinitionFetchNotice
 } from './definition-fetch.ts'
 import { toUnavailableSources } from './event-row.ts'
+import { toAgreementTab } from './grant-agreement.view-model.ts'
+import type { AgreementTab } from './grant-agreement.view-model.ts'
 import { grantType, toGrantHref } from './grants-page.view-model.ts'
 import { toPaymentDefinition } from './payment-definition.ts'
 import type { PaymentDefinitionView } from './payment-definition.ts'
@@ -45,6 +47,7 @@ export interface GrantPageModel extends RecordPageModel {
   notices: DefinitionFetchNotice[]
   /** The file the tab needs, while it is not stored. */
   notStored: DefinitionFileType | null
+  agreement: AgreementTab | null
   payment: { view: PaymentDefinitionView | null; raw: RawTab } | null
 }
 
@@ -126,6 +129,9 @@ const toPaymentTab = ({
   raw: toRaw(payment, sectionErrors, 'payment')
 })
 
+const toAgreement = ({ agreement }: GrantVersionPage): AgreementTab | null =>
+  agreement ? toAgreementTab(agreement) : null
+
 export const toGrantPage = (
   page: GrantVersionPage,
   tab: GrantTabId,
@@ -169,6 +175,7 @@ export const toGrantPage = (
       toVersionPath(grantType, page.header)
     ),
     notStored: toNotStored(page.header, tab),
+    agreement: tab === 'agreement' ? toAgreement(page) : null,
     payment: tab === 'payment' ? toPaymentTab(page) : null
   }
 }

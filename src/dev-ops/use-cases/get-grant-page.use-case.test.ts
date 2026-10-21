@@ -19,11 +19,13 @@ const responseError = (statusCode: number, body: object = {}) =>
 describe('getGrantPageUseCase', () => {
   test.each([
     ['overview', 'overview'],
+    ['agreement', 'agreement'],
     ['payment', 'payment'],
     ['raw', 'definition']
   ] as const)("reads the %s tab from GAS's %s read", async (tab, read) => {
     const found = page({
       grant: { stored: true, fetchStatus: 'fetched' },
+      agreement: { stored: true, fetchStatus: 'fetched' },
       payment: { stored: true, fetchStatus: 'fetched' }
     })
     vi.mocked(findGrantVersionPage).mockResolvedValue(found)
@@ -59,16 +61,19 @@ describe('getGrantPageUseCase', () => {
     })
   })
 
-  test('hides a tab GAS says the version has no file for', async () => {
-    vi.mocked(findGrantVersionPage).mockRejectedValue(
-      responseError(404, { reason: 'NO_DEFINITION_FILE' })
-    )
+  test.each(['agreement', 'payment'] as const)(
+    'hides the %s tab when GAS says the version has no file for it',
+    async (tab) => {
+      vi.mocked(findGrantVersionPage).mockRejectedValue(
+        responseError(404, { reason: 'NO_DEFINITION_FILE' })
+      )
 
-    await expect(getGrantPageUseCase(ref, 'payment')).resolves.toEqual({
-      outcome: 'hidden',
-      page: null
-    })
-  })
+      await expect(getGrantPageUseCase(ref, tab)).resolves.toEqual({
+        outcome: 'hidden',
+        page: null
+      })
+    }
+  )
 
   test("is not found only on GAS's own miss of the version", async () => {
     vi.mocked(findGrantVersionPage).mockRejectedValue(

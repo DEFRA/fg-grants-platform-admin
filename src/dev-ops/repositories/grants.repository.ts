@@ -46,6 +46,61 @@ export interface GrantDefinition {
   version: string
 }
 
+/** An agreement endpoint process's Service Address: scheme, host and path only; null when GAS has no usable URL for its service (unset or unparseable). */
+export interface ProcessAddress {
+  process: string
+  service: string
+  url: string | null
+}
+
+interface AgreementTransition {
+  target: string
+  page?: string
+  validation?: { required: unknown[] }
+  processes?: string[]
+}
+
+interface AgreementPage {
+  title: string
+  layout?: string
+  sections?: { id: string }[]
+  components: { component: string }[]
+}
+
+type AgreementProcess =
+  | {
+      type: 'endpoint'
+      endpoint: { method: string; service: string; path: string }
+      request: { body: Record<string, unknown> }
+      output: Record<string, unknown>
+    }
+  | { type: 'handler' }
+
+/** The stored agreement definition, as stored, typed only where the Agreement tab reads it. */
+export interface AgreementDefinition {
+  code: string
+  agreementNumberPrefix: string
+  create: { target: string; application: unknown; processes?: string[] }
+  templates?: Record<string, Record<string, unknown>>
+  states: Record<
+    string,
+    {
+      page?: string
+      processes?: string[]
+      on?: Record<string, AgreementTransition>
+    }
+  >
+  pages: Record<string, AgreementPage>
+  processDefinitions?: Record<string, AgreementProcess>
+}
+
+/** `problem` is why GAS cannot load the definition; then it has no addresses. */
+export interface GrantAgreement {
+  definition: AgreementDefinition
+  addresses: ProcessAddress[]
+  problem: string | null
+}
+
 export interface GrantVersionPage {
   header: GrantVersionHeader
   overview?: GrantVersionOverview | null
@@ -53,13 +108,15 @@ export interface GrantVersionPage {
   definition?: GrantDefinition | null
   /** The stored payment definition as stored: never compiled here. Null when not stored or too large. */
   payment?: object | null
+  /** Null when not stored or too large. */
+  agreement?: GrantAgreement | null
   sourceErrors: SourceError[]
   sectionErrors: RecordSectionError[]
 }
 
 export type GrantVersions = ConfigVersions
 
-export type GrantRead = 'overview' | 'definition' | 'payment'
+export type GrantRead = 'overview' | 'definition' | 'agreement' | 'payment'
 
 const grantPath = (code: string) =>
   `/grant-admin/grants/${encodeURIComponent(code)}/versions`
