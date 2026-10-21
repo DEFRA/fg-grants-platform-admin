@@ -1,0 +1,35 @@
+{% extends "record.njk" %}
+
+{% from "filter-menu/macro.njk" import filterMenu %}
+{% from "icon/macro.njk" import icon %}
+{% from "status-badge/macro.njk" import statusBadge %}
+
+{% block recordHeader %}
+  {% if versionHeader %}
+    <div class="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2 text-sm" data-testid="{{ record.itemId }}-version">
+      {{ statusBadge(versionHeader.status) }}
+      {{ filterMenu(versionHeader.switcher) }}
+    </div>
+  {% endif %}
+{% endblock %}
+
+{% block beforeTabs %}
+  {% if versionHeader.banner %}
+    <div role="status" class="alert alert-soft mb-4 flex flex-wrap items-center gap-3 text-sm" data-testid="{{ record.itemId }}-banner">
+      {{ icon({ name: 'info', class: 'size-4 shrink-0' }) }}
+      <span class="min-w-0 flex-1">{{ versionHeader.banner.text }}</span>
+    </div>
+  {% endif %}
+{% endblock %}
+
+{% block tabBody %}
+  {% if sectionError %}
+    {{ super() }}
+  {% elif notStored %}
+    <div class="card card-border bg-base-100" data-testid="{{ record.itemId }}-not-stored">
+      <p class="px-4 py-10 text-center text-sm text-base-content/60">{{ notStored | capitalize }} definition not stored.</p>
+    </div>
+  {% else %}
+    {{ super() }}
+  {% endif %}
+{% endblock %}

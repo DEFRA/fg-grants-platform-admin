@@ -1,7 +1,9 @@
 {% from "icon/macro.njk" import icon %}
+{% from "status-badge/macro.njk" import statusBadge %}
 
 {# Tailwind only sees class names written literally in this file. #}
 {% set trigger = "btn [&:has(+:popover-open)]:[--btn-bg:color-mix(in_oklab,var(--btn-color,var(--color-base-200)),#000_5%)] [&:has(+:popover-open)]:[--btn-border:color-mix(in_oklab,var(--btn-color,var(--color-base-200)),#000_7%)] [&:has(+:popover-open)]:[--btn-shadow:0_0_0_0_oklch(0%_0_0/0)] [&:has(+:popover-open)]:translate-y-[0.5px]" %}
+{% set triggerSmall = "btn btn-sm [&:has(+:popover-open)]:[--btn-bg:color-mix(in_oklab,var(--btn-color,var(--color-base-200)),#000_5%)] [&:has(+:popover-open)]:[--btn-border:color-mix(in_oklab,var(--btn-color,var(--color-base-200)),#000_7%)] [&:has(+:popover-open)]:[--btn-shadow:0_0_0_0_oklch(0%_0_0/0)] [&:has(+:popover-open)]:translate-y-[0.5px]" %}
 {% set triggerActive = "btn font-semibold shadow-[inset_0_-3px_0_var(--color-base-content)] [&:has(+:popover-open)]:[--btn-bg:color-mix(in_oklab,var(--btn-color,var(--color-base-200)),#000_5%)] [&:has(+:popover-open)]:[--btn-border:color-mix(in_oklab,var(--btn-color,var(--color-base-200)),#000_7%)] [&:has(+:popover-open)]:translate-y-[0.5px]" %}
 {# The menu is the trigger's next sibling, so `:has(+:popover-open)` turns the chevron with no script. #}
 {% set chevron = "size-4 opacity-60 transition-transform [:has(+:popover-open)>&]:rotate-180" %}
@@ -11,6 +13,9 @@
 {% set menuItemActive = "flex min-w-0 items-center gap-2 whitespace-nowrap font-semibold" %}
 {% set tick = "size-4.5 shrink-0" %}
 {% set tickHidden = "size-4.5 shrink-0 invisible" %}
+{# A label followed by a status keeps the statuses in one column. #}
+{% set labelBesideStatus = "min-w-14 truncate" %}
+{% set aside = "ml-auto pl-4 text-base-content/60" %}
 
 {# A menu inside a `join` is one of its items. #}
 {% set triggerJoined = "btn join-item shrink-0 font-normal [&:has(+:popover-open)]:[--btn-bg:color-mix(in_oklab,var(--btn-color,var(--color-base-200)),#000_5%)] [&:has(+:popover-open)]:[--btn-border:color-mix(in_oklab,var(--btn-color,var(--color-base-200)),#000_7%)] [&:has(+:popover-open)]:[--btn-shadow:0_0_0_0_oklch(0%_0_0/0)]" %}
@@ -40,14 +45,14 @@
 {% else %}
 {%- set chosen = params.items | selectattr("active") | first -%}
 <div class="flex items-center gap-2" data-testid="{{ testId }}">
-  <button class="{{ triggerActive if chosen and chosen.value else trigger }}" type="button" popovertarget="{{ params.panelId }}" data-testid="{{ testId }}-button">
+  <button class="{{ triggerActive if chosen and chosen.value else (triggerSmall if params.small else trigger) }}" type="button" popovertarget="{{ params.panelId }}" data-testid="{{ testId }}-button">
     {% if params.icon %}{{ icon({ name: params.icon, class: 'size-4.5 opacity-60' }) }}{% endif %}
     <span><span class="font-normal opacity-70">{{ params.name }}:</span> {{ chosen.label if chosen else "All" }}</span>
     {{ icon({ name: 'chevron-down', class: chevron }) }}
   </button>
   <ul class="{{ menu }}" popover id="{{ params.panelId }}" aria-label="{{ params.label }}" data-testid="{{ testId }}-panel">
     {% for chip in params.items %}
-      <li><a class="{{ menuItemActive if chip.active else menuItem }}" href="{{ chip.href }}"{% if chip.active %} aria-current="page"{% endif %}{% if chip.value %} data-value="{{ chip.value }}"{% endif %} data-testid="{{ testId }}-chip">{{ icon({ name: 'check', class: tick if chip.active else tickHidden }) }}<span class="truncate" title="{{ chip.label }}">{{ chip.label }}</span></a></li>
+      <li><a class="{{ menuItemActive if chip.active else menuItem }}" href="{{ chip.href }}"{% if chip.active %} aria-current="page"{% endif %}{% if chip.value %} data-value="{{ chip.value }}"{% endif %} data-testid="{{ testId }}-chip">{{ icon({ name: 'check', class: tick if chip.active else tickHidden }) }}<span class="{{ labelBesideStatus if chip.status else "truncate" }}" title="{{ chip.label }}">{{ chip.label }}</span>{% if chip.status %}{{ statusBadge(chip.status) }}{% endif %}{% if chip.aside %}<span class="{{ aside }}" data-testid="{{ testId }}-aside">{{ chip.aside }}</span>{% endif %}</a></li>
     {% endfor %}
   </ul>
 </div>

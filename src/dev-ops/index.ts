@@ -10,7 +10,9 @@ import {
 import { purgeEventRoute } from './routes/purge-event.route.ts'
 import {
   viewApplicationRoute,
-  viewCaseRoute
+  viewCaseRoute,
+  viewCurrentGrantRoute,
+  viewGrantRoute
 } from './routes/record-pages.route.ts'
 import { redriveEventRoute } from './routes/redrive-event.route.ts'
 import { reviewPayloadRoute } from './routes/review-payload.route.ts'
@@ -37,6 +39,8 @@ export const devOps = {
             searchBucketRoute,
             viewApplicationRoute,
             viewCaseRoute,
+            viewGrantRoute,
+            viewCurrentGrantRoute,
             viewEventRoute,
             redriveEventRoute,
             purgeEventRoute,

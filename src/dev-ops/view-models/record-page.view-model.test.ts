@@ -1,6 +1,12 @@
 import { applicationType } from './applications-page.view-model.ts'
 import { caseType } from './cases-page.view-model.ts'
-import { toRecordPage, toSeriesData } from './record-page.view-model.ts'
+import {
+  toRaw,
+  toRecordPage,
+  toSectionError,
+  toSeriesData,
+  toTooLarge
+} from './record-page.view-model.ts'
 import type { RecordPageData, SeriesMember } from './record-page.view-model.ts'
 
 const now = new Date('2026-09-30T15:17:31.000Z')
@@ -227,6 +233,34 @@ describe('toRecordPage', () => {
     })
   })
 
+  test('says a document too large to show on any tab but Raw, with no section error', () => {
+    const page = toRecordPage(
+      caseType,
+      data({
+        sectionErrors: [{ section: 'overview', message: 'too large to show' }]
+      }),
+      'overview',
+      '',
+      now
+    )
+
+    expect(page).toMatchObject({ tooLarge: true, sectionError: null })
+  })
+
+  test('leaves too large to Raw on the Raw tab', () => {
+    const page = toRecordPage(
+      caseType,
+      data({
+        sectionErrors: [{ section: 'raw', message: 'too large to show' }]
+      }),
+      'raw',
+      '',
+      now
+    )
+
+    expect(page).toMatchObject({ tooLarge: false, raw: { tooLarge: true } })
+  })
+
   test('leaves Raw out on any other tab', () => {
     expect(
       toRecordPage(
@@ -267,5 +301,63 @@ describe('toRecordPage', () => {
       '/dev-ops/cases/woodland/f02-7d8-a61?tab=events&back=%2Fdev-ops%2Fcases%3Fworkflow%3Dwoodland',
       '/dev-ops/cases/woodland/f02-7d8-a61?tab=raw&back=%2Fdev-ops%2Fcases%3Fworkflow%3Dwoodland'
     ])
+  })
+})
+
+const tooLargeIn = (section: string) => [
+  { section, message: 'too large to show' }
+]
+
+describe('toRaw', () => {
+  test('is too large only for the section it reads', () => {
+    expect(toRaw(null, tooLargeIn('definition'), 'definition')).toEqual({
+      view: null,
+      tooLarge: true
+    })
+    expect(toRaw(null, tooLargeIn('definition'), 'raw')).toEqual({
+      view: null,
+      tooLarge: false
+    })
+  })
+
+  test('draws the document it is given', () => {
+    expect(toRaw({ code: 'x' }, [], 'definition').view).not.toBeNull()
+  })
+})
+
+describe('toSectionError', () => {
+  test("is the failed section's message", () => {
+    expect(
+      toSectionError(
+        [{ section: 'definition', message: 'read failed' }],
+        'definition'
+      )
+    ).toBe('read failed')
+  })
+
+  test('is never too large to show, which has its own warning', () => {
+    expect(toSectionError(tooLargeIn('definition'), 'definition')).toBeNull()
+  })
+
+  test("ignores another section's failure", () => {
+    expect(
+      toSectionError([{ section: 'raw', message: 'read failed' }], 'definition')
+    ).toBeNull()
+  })
+})
+
+describe('toTooLarge', () => {
+  test('is true only for the section it reads', () => {
+    expect(toTooLarge(tooLargeIn('definition'), 'definition')).toBe(true)
+    expect(toTooLarge(tooLargeIn('raw'), 'definition')).toBe(false)
+  })
+
+  test('is false for any other failure of the section', () => {
+    expect(
+      toTooLarge(
+        [{ section: 'definition', message: 'read failed' }],
+        'definition'
+      )
+    ).toBe(false)
   })
 })
