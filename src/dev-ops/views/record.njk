@@ -30,6 +30,8 @@
     <span class="{{ monoMuted }}" data-testid="{{ testId }}">{{ fact.text if fact.text else '""' }}</span>
   {%- elif fact.kind == "link" -%}
     <a class="link" href="{{ fact.href }}" target="_blank" rel="noopener noreferrer" data-testid="{{ testId }}">{{ fact.text }}<span class="sr-only"> (opens in a new tab)</span></a>{{ icon({ name: 'external-link', class: 'inline size-3.5 align-middle opacity-50' }) }}
+  {%- elif fact.kind == "codes" -%}
+    <span data-testid="{{ testId }}">{% for code in fact.codes %}<span class="{{ monoValue }}">{{ code }}</span>{% if not loop.last %}<span class="text-base-content/40">, </span>{% endif %}{% endfor %}</span>
   {%- else -%}
     <span data-testid="{{ testId }}">{{ fact.text }}</span>
   {%- endif -%}

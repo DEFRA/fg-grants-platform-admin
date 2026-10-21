@@ -14,6 +14,7 @@ import type { HiddenTab, RecordResult } from '../use-cases/record-reads.ts'
 import { toApplicationPage } from '../view-models/application-page.view-model.ts'
 import { applicationType } from '../view-models/applications-page.view-model.ts'
 import { getCatalogueUseCase } from '../use-cases/get-catalogue.use-case.ts'
+import type { Catalogue } from '../use-cases/get-catalogue.use-case.ts'
 import { toBackBucket } from '../view-models/bucket-nav.ts'
 import { toCasePage } from '../view-models/case-page.view-model.ts'
 import { caseType } from '../view-models/cases-page.view-model.ts'
@@ -46,7 +47,7 @@ interface RecordPageRoute<K, P, T extends string, N> {
     page: P,
     tab: T,
     from: string,
-    options: { notice?: N }
+    options: { notice?: N; catalogue: Catalogue | null }
   ) => RecordPageModel
   /** Where a write leaves its outcome for the one render after it. */
   noticeKey?: keyof YarFlashes
@@ -58,8 +59,10 @@ interface RecordPageQuery<T> {
 }
 
 /** The list a record's page sits under in the navigation: the one it goes back to. */
-const toNavActive = async (from: string): Promise<string | null> =>
-  toBackBucket(await getCatalogueUseCase(), from)?.id ?? null
+const toNavActive = (
+  catalogue: Catalogue | null,
+  from: string
+): string | null => toBackBucket(catalogue, from)?.id ?? null
 
 /** Taken before the read, so it is spent on this render whatever the read then says. */
 const takeNotice = <N>(
@@ -128,7 +131,8 @@ const recordPageRoute = <K, P, T extends string, N = never>({
       return h.redirect(toTabHref(request.path, 'overview', from))
     }
 
-    const navActive = await toNavActive(from)
+    const catalogue = await getCatalogueUseCase()
+    const navActive = toNavActive(catalogue, from)
 
     if (page === null) {
       return unavailableView(h, record, request.params[record.titleParam], {
@@ -140,7 +144,7 @@ const recordPageRoute = <K, P, T extends string, N = never>({
 
     return h.view(record.view, {
       pageTitle: record.title,
-      ...toPage(page, tab, from, { notice }),
+      ...toPage(page, tab, from, { notice, catalogue }),
       navActive
     })
   }
@@ -183,7 +187,7 @@ const currentVersionRoute = ({
     if (page === null) {
       return unavailableView(h, record, asked, {
         from,
-        navActive: await toNavActive(from),
+        navActive: toNavActive(await getCatalogueUseCase(), from),
         outcome
       })
     }

@@ -12,6 +12,8 @@ import { getCasePageUseCase } from '../use-cases/get-case-page.use-case.ts'
 import type { GrantVersionPage } from '../use-cases/get-grant-page.use-case.ts'
 import { getGrantPageUseCase } from '../use-cases/get-grant-page.use-case.ts'
 import { getGrantVersionsUseCase } from '../use-cases/get-grant-versions.use-case.ts'
+import { getCatalogueUseCase } from '../use-cases/get-catalogue.use-case.ts'
+import { applicationsBucket, catalogue } from '../use-cases/test-fixtures.ts'
 
 vi.mock(import('../use-cases/get-catalogue.use-case.ts'))
 vi.mock(import('../use-cases/get-application-page.use-case.ts'), async () => ({
@@ -1210,7 +1212,8 @@ const grantHeader: GrantVersionPage['header'] = {
       status: 'active',
       receivedAt: '2026-09-10T15:25:00.000Z'
     }
-  ]
+  ],
+  counterpart: { exists: true }
 }
 
 const grantOverview: NonNullable<GrantVersionPage['overview']> = {
@@ -1513,7 +1516,7 @@ describe('the not-stored banner', () => {
 })
 
 describe('the grant Overview tab', () => {
-  test('lists Description, Start date, Received, Admin role and Size', async () => {
+  test('lists the definition facts on the left and the links out on the right', async () => {
     givenGrant()
 
     const { $ } = await viewPage(grantPath)
@@ -1530,7 +1533,7 @@ describe('the grant Overview tab', () => {
         )
     ).toEqual([
       ['Description', 'Start date', 'Received', 'Admin role'],
-      ['Size']
+      ['Workflow', 'Applications', 'Who can apply', 'Versions', 'Size']
     ])
     expect(textOf($, 'grant-description')).toBe(
       'Funding to plant new woodland on agricultural land.'
@@ -1540,7 +1543,94 @@ describe('the grant Overview tab', () => {
       '2026-09-10T15:25:00Z'
     )
     expect(textOf($, 'grant-admin-role')).toBe('Grants.Example.Admin')
+    expect(part($, 'grant-admin-role').attr('class')).toContain('font-mono')
+    expect(textOf($, 'grant-versions')).toBe('2')
     expect(textOf($, 'grant-size')).toBe('9.8 KiB')
+  })
+
+  test('links to the workflow of the same code and version, in a new tab', async () => {
+    givenGrant()
+
+    const { $ } = await viewPage(grantPath)
+    const link = part($, 'grant-workflow')
+
+    expect(link.attr('href')).toBe('/dev-ops/workflows/woodland-creation/1.2.0')
+    expect(link.attr('target')).toBe('_blank')
+    expect(flatten(link.text())).toBe('View workflow (opens in a new tab)')
+  })
+
+  test('says None when CW has no workflow of that version', async () => {
+    givenGrant({ header: { ...grantHeader, counterpart: { exists: false } } })
+
+    const { $ } = await viewPage(grantPath)
+
+    expect(textOf($, 'grant-workflow')).toBe('None')
+    expect(part($, 'grant-workflow').attr('href')).toBeUndefined()
+  })
+
+  test('leaves the Workflow fact out when CW could not say', async () => {
+    givenGrant({ header: { ...grantHeader, counterpart: null } })
+
+    const { $ } = await viewPage(grantPath)
+
+    expect(part($, 'grant-fact-workflow')).toHaveLength(0)
+    expect(part($, 'grant-fact-applications')).toHaveLength(1)
+  })
+
+  test("links to the applications on this version, as the catalogue spells the list's filters", async () => {
+    givenGrant()
+
+    const { $ } = await viewPage(grantPath)
+
+    expect(part($, 'grant-applications').attr('href')).toBe(
+      '/dev-ops/applications?grant=woodland-creation&version=1.2.0'
+    )
+    expect(textOf($, 'grant-applications')).toBe(
+      'View applications (opens in a new tab)'
+    )
+  })
+
+  test.each([
+    [
+      'does not filter applications by version',
+      {
+        ...catalogue,
+        buckets: [
+          {
+            ...applicationsBucket,
+            facts: applicationsBucket.facts.filter(
+              ({ name }) => name !== 'currentConfigVersion'
+            )
+          }
+        ]
+      }
+    ],
+    ['has no applications list', { ...catalogue, buckets: [] }],
+    ['could not be read', null]
+  ])(
+    'reads a dash for Applications when the catalogue %s',
+    async (_, answer) => {
+      givenGrant()
+      vi.mocked(getCatalogueUseCase).mockResolvedValueOnce(answer)
+
+      const { $ } = await viewPage(grantPath)
+
+      expect(textOf($, 'grant-applications')).toBe('—')
+      expect(part($, 'grant-applications').attr('href')).toBeUndefined()
+    }
+  )
+
+  test('opens the allow list on its Who can apply tab', async () => {
+    givenGrant()
+
+    const { $ } = await viewPage(grantPath)
+
+    expect(part($, 'grant-who-can-apply').attr('href')).toBe(
+      '/grant-ops/grants/woodland-creation/admin#who-can-apply'
+    )
+    expect(textOf($, 'grant-who-can-apply')).toBe(
+      'Allow list (opens in a new tab)'
+    )
   })
 
   test('shows the version facts, and a dash for each definition fact, while nothing is stored', async () => {
@@ -1565,6 +1655,15 @@ describe('the grant Overview tab', () => {
     expect(part($, 'grant-received').attr('datetime')).toBe(
       '2026-09-10T15:25:00Z'
     )
+    expect(
+      ['workflow', 'applications', 'who-can-apply'].map((id) =>
+        part($, `grant-${id}`).attr('href')
+      )
+    ).toEqual([
+      '/dev-ops/workflows/woodland-creation/1.2.0',
+      '/dev-ops/applications?grant=woodland-creation&version=1.2.0',
+      '/grant-ops/grants/woodland-creation/admin#who-can-apply'
+    ])
   })
 
   test('says the overview could not be read in place of the facts', async () => {

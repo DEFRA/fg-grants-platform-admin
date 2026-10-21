@@ -7,7 +7,11 @@ import type {
   VersionSummary
 } from './config-versions.ts'
 import type { SourceError } from './events.repository.ts'
-import type { RecordSectionError, StoredDate } from './record-page.ts'
+import type {
+  Counterpart,
+  RecordSectionError,
+  StoredDate
+} from './record-page.ts'
 
 export type GrantVersionRef = VersionRef
 
@@ -24,6 +28,8 @@ export interface GrantVersionHeader {
   >
   /** Newest first. */
   versions: VersionSummary[]
+  /** Null while the workflow link is unknown, and on a tab that does not show it. */
+  counterpart: Counterpart
 }
 
 /** Each is null while the grant file is not stored. */
