@@ -76,8 +76,48 @@ export interface StoredCaseTab {
   content?: { id?: string; component?: string }[] | null
 }
 
+/** A caseworker's button on a transition. */
+export interface StoredAction {
+  code: string
+  name: string
+  checkTasks: boolean
+  comment: { mandatory: boolean } | null
+  confirm?: boolean
+}
+
+export interface StoredTransition {
+  /** `PHASE:STAGE:STATUS`, matched literally. */
+  targetPosition: string
+  checkTasks: boolean
+  /** Null on a move only GAS can drive. */
+  action: StoredAction | null
+}
+
+export interface StoredWorkflowStatus {
+  code: string
+  name: string
+  theme: string
+  interactive: boolean
+  closes?: boolean
+  hideTaskGroups: boolean
+  transitions: StoredTransition[]
+}
+
+export interface StoredWorkflowStage {
+  code: string
+  name: string
+  statuses: StoredWorkflowStatus[]
+}
+
+export interface StoredWorkflowPhase {
+  code: string
+  name: string
+  stages: StoredWorkflowStage[]
+}
+
 /** The stored workflow as Caseworking reads it at runtime, which is looser than its own schema. */
 export interface StoredWorkflow {
+  phases: StoredWorkflowPhase[]
   endpoints?: StoredEndpoint[]
   externalActions?: StoredExternalAction[]
   pages?: { cases?: { details?: StoredCaseView } }

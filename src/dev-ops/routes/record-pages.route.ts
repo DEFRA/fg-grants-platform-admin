@@ -239,6 +239,7 @@ export const viewCurrentGrantRoute = currentVersionRoute({
 export const viewWorkflowRoute = recordPageRoute({
   record: workflowType,
   params: { code: workflowCodeSchema, version: versionSchema },
+  query: { status: statusSchema },
   read: getWorkflowPageUseCase,
   toPage: toWorkflowPage,
   noticeKey: definitionFetchNoticeKey

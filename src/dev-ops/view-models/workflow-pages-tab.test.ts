@@ -3,8 +3,11 @@ import { woodlandDefinition } from '../use-cases/test-fixtures.ts'
 import { toWorkflowPagesTab } from './workflow-pages-tab.ts'
 
 const withWorkflow = (
-  workflow: WorkflowDefinition['workflow']
-): WorkflowDefinition => ({ workflow, addresses: [] })
+  workflow: Omit<WorkflowDefinition['workflow'], 'phases'>
+): WorkflowDefinition => ({
+  workflow: { phases: [], ...workflow },
+  addresses: []
+})
 
 const woodland = toWorkflowPagesTab(woodlandDefinition)
 

@@ -17,7 +17,7 @@ const part = (name: string, definition?: WorkflowDefinition) =>
   renderTab(definition)(`[data-testid="${testId}-${name}"]`)
 
 const withWorkflow = (
-  workflow: WorkflowDefinition['workflow']
+  workflow: Partial<WorkflowDefinition['workflow']>
 ): WorkflowDefinition => ({
   workflow: { ...woodlandDefinition.workflow, ...workflow },
   addresses: woodlandDefinition.addresses

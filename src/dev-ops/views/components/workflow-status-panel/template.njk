@@ -1,0 +1,72 @@
+{% from "icon/macro.njk" import icon %}
+{% from "state-graph/macro.njk" import statusPanelSection, stageFacts %}
+{% from "status-badge/macro.njk" import statusBadge %}
+
+{# Tailwind only sees class names written literally in this file. #}
+{% set mono = "font-mono text-sm leading-none break-words" %}
+{% set muted = "font-mono text-sm leading-none text-base-content/70" %}
+{% set quiet = "text-base-content/60" %}
+{% set outline = "badge badge-sm badge-outline" %}
+
+{% macro position(link, linkClass) %}
+  {%- if link.href -%}
+    <a class="{{ linkClass }}" href="{{ link.href }}">{{ link.text }}</a>
+  {%- else -%}
+    <span class="{{ mono }}">{{ link.text }}</span>
+  {%- endif -%}
+{% endmacro %}
+
+{% macro badges(names) %}
+  {%- for name in names %} <span class="{{ outline }}">{{ name }}</span>{% endfor -%}
+{% endmacro %}
+
+{% macro dash() %}<span class="{{ muted }}">—</span>{% endmacro %}
+
+{%- set panel = params -%}
+<div class="flex flex-wrap items-center gap-2" data-testid="workflow-status-panel-badges">
+  {{ statusBadge({ label: panel.name, status: panel.name, role: panel.role }) }}
+  {% for flag in panel.flags %}<span class="{{ outline }}">{{ flag }}</span> {% endfor %}
+</div>
+{{ stageFacts({ phase: panel.phase, stage: panel.stage, testId: "workflow-status-panel-stage" }) }}
+{% for finding in panel.findings %}
+  <div role="alert" class="alert alert-warning alert-soft text-sm" data-testid="workflow-status-panel-finding">
+    {{ icon({ name: 'exclamation-triangle', class: 'size-4 shrink-0' }) }}
+    <span>{{ finding }}</span>
+  </div>
+{% endfor %}
+{% call statusPanelSection({ title: "Ways in", testId: "workflow-status-panel-ways-in" }) %}
+  {% for way in panel.waysIn %}
+    <div class="mb-1.5" data-testid="workflow-status-panel-way">
+      {{- position(way.from, "link break-words font-mono text-sm") }}
+      {% if way.via.kind == "action" %}<span class="{{ muted }}">{{ way.via.code }}</span>{% else %}<span class="{{ quiet }}">GAS</span>{% endif -%}
+    </div>
+  {% else %}
+    {{ dash() }}
+  {% endfor %}
+{% endcall %}
+{% call statusPanelSection({ title: "Ways out", testId: "workflow-status-panel-ways-out" }) %}
+  {% for way in panel.waysOut %}
+    <div class="mb-1.5" data-testid="workflow-status-panel-way">
+      → {{ position(way.to, "link break-words font-mono text-sm") }}
+      {% if way.move.kind == "action" %}{{ way.move.name }} <span class="{{ muted }}">{{ way.move.code }}</span>{% else %}<span class="{{ quiet }}">GAS sends</span>{% endif %}{{ badges(way.move.badges) -}}
+    </div>
+  {% else %}
+    {% if panel.closes %}<span class="{{ quiet }}">Closes case</span>{% else %}{{ dash() }}{% endif %}
+  {% endfor %}
+{% endcall %}
+{% call statusPanelSection({ title: "Tells GAS", testId: "workflow-status-panel-tells-gas" }) %}
+  {% set tells = panel.tellsGas %}
+  {% if tells.kind == "mapped" %}
+    {% for line in tells.lines %}
+      <div class="mb-1.5" data-testid="workflow-status-panel-way">
+        <span class="{{ quiet }}">while in</span> <span class="{{ mono }}">{{ line.keyedOn }}</span> → {{ position(line.to, "link whitespace-nowrap font-mono text-sm") -}}
+      </div>
+    {% endfor %}
+  {% elif tells.kind == "not-mapped" %}
+    {{ statusBadge({ label: "Not mapped", status: "Not mapped", role: "warning" }) }}
+  {% elif tells.kind == "none" %}
+    {{ dash() }}
+  {% else %}
+    <span class="{{ quiet }}">{{ tells.text }}</span>
+  {% endif %}
+{% endcall %}
