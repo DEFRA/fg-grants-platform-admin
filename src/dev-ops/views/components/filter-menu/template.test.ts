@@ -86,4 +86,10 @@ describe('filter-menu component as a form choice', () => {
     expect(part($menu, 'value').attr('value')).toBe('ref')
     expect(part($menu, 'chosen').text()).toBe('Reference')
   })
+
+  test('opens a menu at least 250px wide', () => {
+    const $menu = render('filter-menu', choice)
+
+    expect(part($menu, 'panel').hasClass('min-w-[250px]')).toBe(true)
+  })
 })

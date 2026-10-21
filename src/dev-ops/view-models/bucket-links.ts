@@ -6,7 +6,9 @@ import { toBucketPath } from './bucket-nav.ts'
 import { toUrlQuery } from './bucket-urls.ts'
 import { toCaseHref } from './cases-page.view-model.ts'
 import { toEventHref } from './event-formats.ts'
+import { toGrantHref } from './grants-page.view-model.ts'
 import { toFilterHref } from './list-filters.ts'
+import { toWorkflowHref } from './workflows-page.view-model.ts'
 
 /** Everything a list's URL holds but its position: one key per filtered fact, and the time range. */
 export type BucketFilters = Record<string, string | undefined>
@@ -62,6 +64,20 @@ const pages = new Map<string, Page>([
       fields: ['workflowCode', 'caseRef'],
       toHref: ({ workflowCode, caseRef }) =>
         toCaseHref({ workflowCode, caseRef })
+    }
+  ],
+  [
+    'grant',
+    {
+      fields: ['code', 'version'],
+      toHref: ({ code, version }) => toGrantHref({ code, version })
+    }
+  ],
+  [
+    'workflow',
+    {
+      fields: ['code', 'version'],
+      toHref: ({ code, version }) => toWorkflowHref({ code, version })
     }
   ]
 ])

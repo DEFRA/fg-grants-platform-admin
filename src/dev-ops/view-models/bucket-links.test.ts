@@ -82,6 +82,21 @@ describe('toRowHref', () => {
     ).toBe(`/dev-ops/cases/example-workflow/abc-123${backTo}`)
   })
 
+  test('opens a grant version on its page', () => {
+    expect(
+      toRowHref(
+        { kind: 'grant', code: 'woodland-creation', version: '1.2.0' },
+        from
+      )
+    ).toBe(`/dev-ops/grants/woodland-creation/1.2.0${backTo}`)
+  })
+
+  test('opens a workflow version on its page, escaping its code', () => {
+    expect(
+      toRowHref({ kind: 'workflow', code: 'FRPS/2', version: '1.0.0' }, from)
+    ).toBe(`/dev-ops/workflows/FRPS%2F2/1.0.0${backTo}`)
+  })
+
   test('escapes each part of the address', () => {
     expect(
       toRowHref({ kind: 'application', code: 'a/b', clientRef: 'c?d' }, '')
@@ -92,6 +107,10 @@ describe('toRowHref', () => {
     ['a row with no link', null],
     ['a kind this app has no page for', { kind: 'payment', id: 'p-1' }],
     ['a link missing part of its address', { kind: 'case', caseRef: 'abc' }],
+    [
+      'a grant link missing its version',
+      { kind: 'grant', code: 'woodland-creation' }
+    ],
     [
       'a link whose address is not text',
       { kind: 'application', code: 'example-grant', clientRef: 7 }

@@ -5,8 +5,8 @@
 {% set triggerActive = "btn font-semibold shadow-[inset_0_-3px_0_var(--color-base-content)] [&:has(+:popover-open)]:[--btn-bg:color-mix(in_oklab,var(--btn-color,var(--color-base-200)),#000_5%)] [&:has(+:popover-open)]:[--btn-border:color-mix(in_oklab,var(--btn-color,var(--color-base-200)),#000_7%)] [&:has(+:popover-open)]:translate-y-[0.5px]" %}
 {# The menu is the trigger's next sibling, so `:has(+:popover-open)` turns the chevron with no script. #}
 {% set chevron = "size-4 opacity-60 transition-transform [:has(+:popover-open)>&]:rotate-180" %}
-{# As wide as its longest option, within the page; an option that still cannot fit is cut short, never wrapped. #}
-{% set menu = "dropdown menu menu-md mt-2 w-max max-w-[min(32rem,calc(100vw-2rem))] flex-nowrap rounded-box border border-base-300 bg-base-100 p-2 shadow-md" %}
+{# At least 250px, else as wide as its longest option, within the page; an option that still cannot fit is cut short, never wrapped. #}
+{% set menu = "dropdown menu menu-md mt-2 w-max min-w-[250px] max-w-[min(32rem,calc(100vw-2rem))] flex-nowrap rounded-box border border-base-300 bg-base-100 p-2 shadow-md" %}
 {% set menuItem = "flex min-w-0 items-center gap-2 whitespace-nowrap" %}
 {% set menuItemActive = "flex min-w-0 items-center gap-2 whitespace-nowrap font-semibold" %}
 {% set tick = "size-4.5 shrink-0" %}

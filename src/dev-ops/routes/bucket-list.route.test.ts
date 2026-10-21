@@ -8,11 +8,13 @@ import { devOps } from '../index.ts'
 import {
   applicationsBucket,
   catalogue,
+  grantsBucket,
   outboxBucket,
   pagedInbox,
   pagedOutbox,
   summarisedBucket,
-  toggledBucket
+  toggledBucket,
+  workflowsBucket
 } from '../use-cases/test-fixtures.ts'
 import {
   getBucketAtUseCase,
@@ -342,7 +344,7 @@ describe('the navigation', () => {
         .find('.menu-title')
         .toArray()
         .map((title) => $(title).text())
-    ).toEqual(['GAS'])
+    ).toEqual(['GAS', 'CW'])
     expect(part($, 'do-nav-gas.outbox').attr('href')).toBe(path)
     expect(part($, 'do-nav-gas.outbox').text().trim()).toBe('Outbox')
     expect(part($, 'bucket-title').text()).toBe('GAS outbox')
@@ -1347,6 +1349,207 @@ describe('a search by identifier', () => {
     const { $ } = await viewPage()
 
     expect(part($, 'bucket-search')).toHaveLength(0)
+  })
+})
+
+describe('the version lists', () => {
+  const grantsPath = '/dev-ops/grants'
+  const workflowsPath = '/dev-ops/workflows'
+
+  const versionRow = (
+    kind: 'grant' | 'workflow',
+    overrides: Partial<BucketRow> = {}
+  ): BucketRow =>
+    row({
+      title: 'woodland-creation',
+      subtitle: null,
+      cells: { version: '1.2.0', status: 'active', definition: 'fetched' },
+      link: { kind, code: 'woodland-creation', version: '1.2.0' },
+      ...overrides
+    })
+
+  const givenGrants = (rows: BucketRow[]) =>
+    givenPage(exact({ bucket: 'gas.grants', rows, groups: [] }))
+
+  const menuNames = ($: CheerioAPI) =>
+    part($, 'bucket-toolbar')
+      .find('[data-testid^="bucket-filter-"][data-testid$="-button"]')
+      .toArray()
+      .map((button) => flatten($(button).text()))
+
+  test('are in the navigation, Grants under GAS after Applications and Workflows under CW after Cases', async () => {
+    const { $ } = await viewPage(grantsPath)
+
+    expect(
+      part($, 'do-nav')
+        .find('a')
+        .toArray()
+        .map((link) => $(link).attr('data-testid'))
+    ).toEqual([
+      'do-nav-gas.outbox',
+      'do-nav-gas.applications',
+      'do-nav-gas.grants',
+      'do-nav-cw.cases',
+      'do-nav-cw.workflows'
+    ])
+    expect(
+      part($, 'do-nav-gas.grants').find('[data-testid="do-icon-scroll-text"]')
+    ).toHaveLength(1)
+    expect(
+      part($, 'do-nav-cw.workflows').find('[data-testid="do-icon-workflow"]')
+    ).toHaveLength(1)
+  })
+
+  test('head the table with grant, version, status, definition and received, in five equal columns', async () => {
+    givenGrants([versionRow('grant')])
+
+    const { $ } = await viewPage(grantsPath)
+
+    expect(queryBucketUseCase).toHaveBeenCalledWith(
+      grantsBucket,
+      { where: {} },
+      false
+    )
+    expect(
+      part($, 'bucket-head')
+        .find('th')
+        .toArray()
+        .map((head) => $(head).text())
+    ).toEqual(['Grant', 'Version', 'Status', 'Definition', 'Received'])
+    expect(
+      part($, 'bucket-table')
+        .find('colgroup col')
+        .toArray()
+        .map((col) => $(col).attr('class'))
+    ).toEqual(['w-1/5', 'w-1/5', 'w-1/5', 'w-1/5', 'w-1/5'])
+  })
+
+  test('draw a grant version by its code, linked to its page, with its version, status and definition', async () => {
+    givenGrants([versionRow('grant')])
+
+    const { $ } = await viewPage(`${grantsPath}?status=active`)
+
+    const link = part($, 'bucket-row-link')
+
+    expect(link.attr('href')).toBe(
+      `${grantsPath}/woodland-creation/1.2.0?back=${encodeURIComponent(`${grantsPath}?status=active`)}`
+    )
+    expect(link.attr('class')).toContain('font-mono')
+    expect(flatten(link.text())).toBe('woodland-creation')
+    expect(textOf($, 'bucket-cell-version')).toBe('1.2.0')
+    expect(part($, 'bucket-cell-version').hasClass('font-mono')).toBe(true)
+    expect(textOf($, 'bucket-cell-status')).toBe('Active')
+    expect(
+      part($, 'bucket-cell-status')
+        .find('[data-testid="do-status-dot"]')
+        .hasClass('status-success')
+    ).toBe(true)
+    expect(textOf($, 'bucket-cell-definition')).toBe('Fetched')
+    expect(part($, 'bucket-row').attr('class')).not.toContain('bg-error/5')
+  })
+
+  test('tint a version whose definition failed for good like a dead letter, and no other', async () => {
+    givenGrants([
+      versionRow('grant', {
+        cells: {
+          version: '1.2.0',
+          status: 'draft',
+          definition: 'permanent_error'
+        }
+      }),
+      versionRow('grant', {
+        id: '66f000000000000000000002',
+        cells: { version: '1.1.0', status: 'active', definition: 'pending' }
+      })
+    ])
+
+    const { $ } = await viewPage(grantsPath)
+
+    const rows = part($, 'bucket-row')
+
+    expect(rows.eq(0).attr('class')).toContain('bg-error/5')
+    expect(rows.eq(1).attr('class')).not.toContain('bg-error/5')
+    expect(textsOf($, 'bucket-cell-definition')).toEqual([
+      'Failed',
+      'Not fetched'
+    ])
+  })
+
+  test('offer the time, then the grant, status and definition menus, with the codes plain, and no search', async () => {
+    const { $ } = await viewPage(grantsPath)
+
+    expect(menuNames($)).toEqual([
+      'Grant: All',
+      'Status: All',
+      'Definition: All'
+    ])
+    expect(
+      part($, 'bucket-filter-grantCode-panel').find('.font-mono')
+    ).toHaveLength(0)
+    expect(textsOf($, 'bucket-filter-grantCode-chip')).toEqual([
+      'All',
+      'hedgerow-restoration',
+      'woodland-creation'
+    ])
+    expect(part($, 'bucket-search')).toHaveLength(0)
+  })
+
+  test('ask GAS for drafts only when the status is Draft', async () => {
+    await viewPage(`${grantsPath}?status=draft`)
+
+    expect(asked()).toEqual([{ where: { status: 'draft' } }, false])
+  })
+
+  test('ask GAS for the definition status as one dotted fact', async () => {
+    await viewPage(`${grantsPath}?definition=permanent_error`)
+
+    expect(asked()).toEqual([
+      { where: { 'definitions.grant.fetchStatus': 'permanent_error' } },
+      false
+    ])
+  })
+
+  test('end with No more grant versions, and say when none are found', async () => {
+    givenGrants([versionRow('grant')])
+
+    const ended = await viewPage(grantsPath)
+
+    expect(textOf(ended.$, 'bucket-load-more-end')).toBe(
+      'No more grant versions'
+    )
+
+    givenGrants([])
+
+    const empty = await viewPage(grantsPath)
+
+    expect(textOf(empty.$, 'bucket-empty')).toBe('No grant versions found.')
+  })
+
+  test('draw a workflow version linked to its page, with the workflow menu, ending on its own noun', async () => {
+    givenPage(
+      exact({
+        bucket: 'cw.workflows',
+        rows: [versionRow('workflow')],
+        groups: []
+      })
+    )
+
+    const { $ } = await viewPage(`${workflowsPath}?workflow=woodland-creation`)
+
+    expect(queryBucketUseCase).toHaveBeenCalledWith(
+      workflowsBucket,
+      { where: { grantCode: 'woodland-creation' } },
+      false
+    )
+    expect(part($, 'bucket-row-link').attr('href')).toBe(
+      `${workflowsPath}/woodland-creation/1.2.0?back=${encodeURIComponent(`${workflowsPath}?workflow=woodland-creation`)}`
+    )
+    expect(menuNames($)).toEqual([
+      'Workflow: woodland-creation',
+      'Status: All',
+      'Definition: All'
+    ])
+    expect(textOf($, 'bucket-load-more-end')).toBe('No more workflow versions')
   })
 })
 

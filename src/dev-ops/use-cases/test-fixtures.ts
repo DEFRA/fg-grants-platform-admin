@@ -1,5 +1,6 @@
 import type {
   BucketEntry,
+  BucketFact,
   BucketSummary,
   Catalogue
 } from './get-catalogue.use-case.ts'
@@ -166,7 +167,145 @@ export const applicationsBucket: BucketEntry = {
   tab: null
 }
 
+const versionStatusFact: BucketFact = {
+  name: 'status',
+  param: 'status',
+  label: 'Status',
+  values: [
+    { value: 'active', label: 'Active', tone: 'success' },
+    { value: 'draft', label: 'Draft', tone: 'neutral' }
+  ],
+  toggle: null
+}
+
+const fetchStatusValues: BucketFact['values'] = [
+  { value: 'fetched', label: 'Fetched', tone: 'success' },
+  { value: 'pending', label: 'Not fetched', tone: 'info' },
+  { value: 'transient_error', label: 'Retrying', tone: 'warning' },
+  { value: 'permanent_error', label: 'Failed', tone: 'error' }
+]
+
+/** Config versions as GAS lists them: one row per grant code and version. */
+export const grantsBucket: BucketEntry = {
+  id: 'gas.grants',
+  path: 'grants',
+  label: 'Grants',
+  service: 'GAS',
+  shortLabel: 'Grants',
+  icon: 'scroll-text',
+  order: 75,
+  noun: { one: 'grant version', many: 'grant versions' },
+  time: { label: 'Received' },
+  facts: [
+    {
+      name: 'grantCode',
+      param: 'grant',
+      label: 'Grant',
+      values: [
+        { value: 'hedgerow-restoration', label: 'hedgerow-restoration' },
+        { value: 'woodland-creation', label: 'woodland-creation' }
+      ],
+      toggle: null
+    },
+    versionStatusFact,
+    {
+      name: 'definitions.grant.fetchStatus',
+      param: 'definition',
+      label: 'Definition',
+      values: fetchStatusValues,
+      toggle: null
+    }
+  ],
+  refs: [],
+  indexes: [
+    [],
+    ['grantCode', 'status', 'definitions.grant.fetchStatus'],
+    ['status', 'definitions.grant.fetchStatus']
+  ],
+  groupings: [],
+  title: { label: 'Grant', format: 'mono' },
+  columns: [
+    { key: 'version', label: 'Version', format: 'mono' },
+    { key: 'status', label: 'Status', format: 'badge', fact: 'status' },
+    {
+      key: 'definition',
+      label: 'Definition',
+      format: 'badge',
+      fact: 'definitions.grant.fetchStatus'
+    }
+  ],
+  audited: false,
+  timeline: false,
+  summaries: [],
+  page: null,
+  tab: null
+}
+
+export const casesBucket: BucketEntry = {
+  ...applicationsBucket,
+  id: 'cw.cases',
+  path: 'cases',
+  label: 'Cases',
+  service: 'CW',
+  shortLabel: 'Cases',
+  icon: 'folder',
+  order: 80,
+  noun: { one: 'case', many: 'cases' }
+}
+
+/** Config versions as CW lists them, through GAS; CW keeps one fetch status per version. */
+export const workflowsBucket: BucketEntry = {
+  ...grantsBucket,
+  id: 'cw.workflows',
+  path: 'workflows',
+  label: 'Workflows',
+  service: 'CW',
+  shortLabel: 'Workflows',
+  icon: 'workflow',
+  order: 85,
+  noun: { one: 'workflow version', many: 'workflow versions' },
+  facts: [
+    {
+      name: 'grantCode',
+      param: 'workflow',
+      label: 'Workflow',
+      values: [{ value: 'woodland-creation', label: 'woodland-creation' }],
+      toggle: null
+    },
+    versionStatusFact,
+    {
+      name: 'fetchStatus',
+      param: 'definition',
+      label: 'Definition',
+      values: fetchStatusValues,
+      toggle: null
+    }
+  ],
+  indexes: [
+    [],
+    ['grantCode', 'status', 'fetchStatus'],
+    ['status', 'fetchStatus']
+  ],
+  title: { label: 'Workflow', format: 'mono' },
+  columns: [
+    { key: 'version', label: 'Version', format: 'mono' },
+    { key: 'status', label: 'Status', format: 'badge', fact: 'status' },
+    {
+      key: 'definition',
+      label: 'Definition',
+      format: 'badge',
+      fact: 'fetchStatus'
+    }
+  ]
+}
+
 export const catalogue: Catalogue = {
-  buckets: [outboxBucket, applicationsBucket],
+  buckets: [
+    outboxBucket,
+    applicationsBucket,
+    grantsBucket,
+    casesBucket,
+    workflowsBucket
+  ],
   sourceErrors: []
 }
