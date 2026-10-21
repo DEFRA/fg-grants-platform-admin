@@ -7,6 +7,8 @@ import type {
 import { grantTabs, offersTab } from '../use-cases/grant-tabs.ts'
 import type { GrantTabId } from '../use-cases/grant-tabs.ts'
 import { toUnavailableSources } from './event-row.ts'
+import { toEntitlementsTab } from './grant-entitlements.ts'
+import type { EntitlementsTab } from './grant-entitlements.ts'
 import { toGrantPhases } from './grant-phases.view-model.ts'
 import type { GrantPhasesTab } from './grant-phases.view-model.ts'
 import { grantType, toGrantHref } from './grants-page.view-model.ts'
@@ -17,6 +19,7 @@ import {
   toMonoFact,
   toRaw,
   toSizeFact,
+  toTabHref,
   toTabSection,
   toTabs,
   toTextFact
@@ -31,6 +34,7 @@ export interface GrantPageModel extends RecordPageModel {
   /** The file the tab needs, while it is not stored. */
   notStored: DefinitionFileType | null
   phases: GrantPhasesTab | null
+  entitlements: EntitlementsTab | null
   payment: { view: PaymentDefinitionView | null; raw: RawTab } | null
 }
 
@@ -66,6 +70,25 @@ const toNotStored = (
 
   return file && files[file]?.stored === false ? file : null
 }
+
+const toEntitlementsHrefs = (href: string, from: string) => ({
+  phases: (status: string | null) =>
+    toTabHref(href, 'phases', from, status === null ? {} : { status }),
+  payment: toTabHref(href, 'payment', from)
+})
+
+const toEntitlements = (
+  { header, entitlements }: GrantVersionPage,
+  tab: GrantTabId,
+  href: string,
+  from: string
+): EntitlementsTab | null =>
+  tab === 'entitlements' && entitlements
+    ? toEntitlementsTab(
+        { entitlements, hasPaymentFile: header.files.payment !== undefined },
+        toEntitlementsHrefs(href, from)
+      )
+    : null
 
 const toPaymentTab = ({
   payment,
@@ -109,6 +132,7 @@ export const toGrantPage = (
             workflowHref: null
           })
         : null,
+    entitlements: toEntitlements(page, tab, href, from),
     payment: tab === 'payment' ? toPaymentTab(page) : null
   }
 }

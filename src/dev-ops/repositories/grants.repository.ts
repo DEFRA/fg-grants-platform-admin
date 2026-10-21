@@ -90,6 +90,61 @@ export interface GrantLifecycle {
   claimApproval: { from: LifecyclePosition; to: LifecyclePosition } | null
 }
 
+/** A template position may stop at the phase or the stage, and then matches every position under it. */
+export interface TemplatePosition {
+  phase: string
+  stage?: string
+  status?: string
+}
+
+export interface EntitlementField {
+  input: boolean
+  label?: string
+  value?: string | number | boolean
+  unitType: 'decimal' | 'string'
+  decimalPlaces?: number
+  unit?: string
+  /** Null is the definition's own "no bound". */
+  minValue?: number | null
+  maxValue?: number | null
+  minLength?: number | null
+  maxLength?: number | null
+}
+
+export type HelpBlock = { text: string } | { items: string[] }
+
+/** As GAS's domain model normalises it: its defaults are applied, and a key the template has not got is absent. */
+export interface EntitlementTemplate {
+  claimCode: string
+  name: string
+  description?: string
+  materialised: boolean
+  maxEntitlements: number
+  availableAt: TemplatePosition[]
+  fields?: Record<string, EntitlementField>
+  help?: { summary: string; content: HelpBlock[] }
+  claim?: {
+    claimableAt?: TemplatePosition[]
+    limits: { maximumClaims: number; allowsPartialClaims: boolean }
+    requiresApproval: boolean
+    requiresEvidence: boolean
+  }
+}
+
+export interface GrantEntitlements {
+  entitlementTemplates: EntitlementTemplate[]
+  claims: {
+    /** Both positions are always full. */
+    onClaimApproval?: {
+      currentPosition: TemplatePosition
+      targetPosition: TemplatePosition
+    }
+    requiredRoles?: { allOf?: string[]; anyOf?: string[] }
+  } | null
+  /** The stored payment definition, as stored; null when there is no payment file or it is not stored. */
+  payment: object | null
+}
+
 export interface GrantVersionPage {
   header: GrantVersionHeader
   overview?: GrantVersionOverview | null
@@ -101,6 +156,8 @@ export interface GrantVersionPage {
   problem?: string | null
   /** The stored payment definition as stored: never compiled here. Null when not stored or too large. */
   payment?: object | null
+  /** Null when the grant file is not stored, too large, or refused by GAS's model (each with its section error). */
+  entitlements?: GrantEntitlements | null
   sourceErrors: SourceError[]
   sectionErrors: RecordSectionError[]
 }
@@ -112,7 +169,12 @@ export interface GrantVersions {
   versions: GrantVersionSummary[]
 }
 
-export type GrantRead = 'overview' | 'definition' | 'phases' | 'payment'
+export type GrantRead =
+  | 'overview'
+  | 'definition'
+  | 'phases'
+  | 'entitlements'
+  | 'payment'
 
 const grantPath = (code: string) =>
   `/grant-admin/grants/${encodeURIComponent(code)}/versions`

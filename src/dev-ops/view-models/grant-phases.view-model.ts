@@ -26,7 +26,7 @@ type ReachedFrom = { processes: string[] } & (
 )
 
 type SetBy =
-  | { kind: 'last-claim'; from: string }
+  | { kind: 'last-claim'; from: string; href: string }
   | { kind: 'external'; label: string; href: string | null; whileIn: string }
 
 interface CodeAndName {
@@ -144,7 +144,8 @@ const toPanel = (
   lifecycle: GrantLifecycle,
   { position, phase, stage, status }: NonNullable<StateGraphs['selected']>,
   hrefOf: (position: string) => string,
-  workflowHref: GrantPhasesOptions['workflowHref']
+  workflowHref: GrantPhasesOptions['workflowHref'],
+  entitlementsHref: string
 ): StatusPanel => {
   const { claimApproval } = lifecycle
 
@@ -166,7 +167,13 @@ const toPanel = (
       })),
     setBy: [
       ...(claimApproval?.to === position
-        ? [{ kind: 'last-claim' as const, from: claimApproval.from }]
+        ? [
+            {
+              kind: 'last-claim' as const,
+              from: claimApproval.from,
+              href: entitlementsHref
+            }
+          ]
         : []),
       ...lifecycle.externalMappings
         .filter(({ to }) => to === position)
@@ -201,6 +208,12 @@ export const toGrantPhases = (
     legend,
     panel:
       graphs.selected &&
-      toPanel(lifecycle, graphs.selected, hrefOf, workflowHref)
+      toPanel(
+        lifecycle,
+        graphs.selected,
+        hrefOf,
+        workflowHref,
+        toTabHref(href, 'entitlements', from)
+      )
   }
 }

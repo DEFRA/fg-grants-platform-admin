@@ -11,13 +11,18 @@ import { isMissing, readRecord } from './record-reads.ts'
 
 export type {
   DefinitionFileType,
+  EntitlementField,
+  EntitlementTemplate,
   ExternalStatusMapping,
+  GrantEntitlements,
   GrantLifecycle,
   GrantVersionHeader,
   GrantVersionOverview,
   GrantVersionPage,
   GrantVersionRef,
   GrantVersionSummary,
+  HelpBlock,
+  TemplatePosition,
   WayIn
 } from '../repositories/grants.repository.ts'
 

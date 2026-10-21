@@ -1,4 +1,4 @@
-import { toPaymentDefinition } from './payment-definition.ts'
+import { contextRootsOf, toPaymentDefinition } from './payment-definition.ts'
 
 /** GAS `compose/seed/woodland/1.39.1/gas/payment.json`. */
 const woodland = {
@@ -322,5 +322,40 @@ describe('toPaymentDefinition', () => {
       forEach: null,
       rows: []
     })
+  })
+})
+
+describe('contextRootsOf', () => {
+  const rootsOf = (value: unknown) => [...contextRootsOf({ value })]
+
+  test.each([
+    ['a whole reference', '$.agreement.agreementNumber', ['agreement']],
+    [
+      'a reference with a longer name',
+      '$.agreementNumber',
+      ['agreementNumber']
+    ],
+    ['a claim reference', '$.claim.frn', ['claim']],
+    ['a row reference', '@.dueDate', []],
+    ['a literal GAS does not resolve', '$.agreement.sbi ', []],
+    ['an expression', 'jsonata: $.agreement.x', ['agreement']],
+    ['an expression on the root', 'jsonata: $$.agreement.x', ['agreement']],
+    [
+      'an expression naming two roots',
+      'jsonata:$.claim.total ?? $substring($.execution.executedAt, 0, 4)',
+      ['claim', 'execution']
+    ],
+    ['a number', 12, []]
+  ])('reads %s', (_name, value, roots) => {
+    expect(rootsOf(value)).toEqual(roots)
+  })
+
+  test('finds a reference nested in due payments and invoice lines', () => {
+    expect(
+      rootsOf({
+        payments: [{ invoiceLines: [{ amountPence: '$.agreement.total' }] }]
+      })
+    ).toEqual(['agreement'])
+    expect([...contextRootsOf(woodland)]).toEqual(['claim', 'execution'])
   })
 })

@@ -287,11 +287,15 @@ describe('toGrantPhases', () => {
     expect(panelOf('POST_AWARD:AGREEMENT:OFFERED')?.movesTo).toStrictEqual([])
   })
 
-  test('puts the last claim first under Set by', () => {
+  test('puts the last claim first under Set by, linking to Entitlements', () => {
     expect(
       panelOf('POST_AWARD:AGREEMENT:CLAIMS_COMPLETE')?.setBy
     ).toStrictEqual([
-      { kind: 'last-claim', from: 'POST_AWARD:AGREEMENT:OFFERED' }
+      {
+        kind: 'last-claim',
+        from: 'POST_AWARD:AGREEMENT:OFFERED',
+        href: `${href}?tab=entitlements&back=${encodeURIComponent(from)}`
+      }
     ])
   })
 

@@ -1,6 +1,7 @@
 {% extends "record.njk" %}
 
 {% from "filter-menu/macro.njk" import filterMenu %}
+{% from "grant-entitlements/macro.njk" import grantEntitlements %}
 {% from "icon/macro.njk" import icon %}
 {% from "state-graph/macro.njk" import stateGraph, statusPanelSection, stageFacts %}
 {% from "payment-definition/macro.njk" import paymentDefinition %}
@@ -84,7 +85,7 @@
           {% for setter in panel.setBy %}
             <div class="mb-1.5">
               {%- if setter.kind == "last-claim" -%}
-                <span class="text-sm">Last claim</span> <span class="{{ quiet }}">while at</span> <span class="{{ mono }}">{{ setter.from }}</span>
+                <a class="link text-sm" href="{{ setter.href }}">Last claim</a> <span class="{{ quiet }}">while at</span> <span class="{{ mono }}">{{ setter.from }}</span>
               {%- else -%}
                 {% if setter.href %}<a class="link font-mono text-sm" href="{{ setter.href }}">{{ setter.label }}</a>{% else %}<span class="font-mono text-sm">{{ setter.label }}</span>{% endif %} <span class="{{ quiet }}">while in</span> <span class="{{ mono }}">{{ setter.whileIn }}</span>
               {%- endif -%}
@@ -95,6 +96,8 @@
         {% endcall %}
       {% endif %}
     {% endcall %}
+  {% elif tab == "entitlements" and entitlements %}
+    {{ grantEntitlements({ view: entitlements, testId: "grant-entitlements" }) }}
   {% elif tab == "payment" and payment.view %}
     {{ paymentDefinition({ view: payment.view, testId: "grant-payment" }) }}
     {{ rawDetails({ view: payment.raw.view, label: "Payment definition", testId: "grant-payment-raw" }) }}

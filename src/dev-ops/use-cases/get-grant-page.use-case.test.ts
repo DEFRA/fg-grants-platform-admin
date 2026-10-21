@@ -20,6 +20,7 @@ describe('getGrantPageUseCase', () => {
   test.each([
     ['overview', 'overview'],
     ['phases', 'phases'],
+    ['entitlements', 'entitlements'],
     ['payment', 'payment'],
     ['raw', 'definition']
   ] as const)("reads the %s tab from GAS's %s read", async (tab, read) => {

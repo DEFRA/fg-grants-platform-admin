@@ -1349,7 +1349,7 @@ describe('the grant page', () => {
     ])
   })
 
-  test('offers Overview, Phases, Payment and Raw, keeping the list it was opened from', async () => {
+  test('offers Overview, Phases, Entitlements, Payment and Raw, keeping the list it was opened from', async () => {
     const from = '/dev-ops/grants'
     const { $ } = await viewPage(
       `${grantPath}?tab=raw&back=${encodeURIComponent(from)}`
@@ -1362,6 +1362,7 @@ describe('the grant page', () => {
     ).toEqual([
       `Overview ${grantPath}?back=${encodeURIComponent(from)}`,
       `Phases ${grantPath}?tab=phases&back=${encodeURIComponent(from)}`,
+      `Entitlements ${grantPath}?tab=entitlements&back=${encodeURIComponent(from)}`,
       `Payment ${grantPath}?tab=payment&back=${encodeURIComponent(from)}`,
       `Raw ${grantPath}?tab=raw&back=${encodeURIComponent(from)}`
     ])
@@ -2020,7 +2021,7 @@ describe('the grant Payment tab', () => {
       part($, 'grant-tab')
         .toArray()
         .map((tab) => $(tab).text())
-    ).toEqual(['Overview', 'Phases', 'Raw'])
+    ).toEqual(['Overview', 'Phases', 'Entitlements', 'Raw'])
   })
 })
 
@@ -2268,6 +2269,9 @@ describe('the grant Phases tab', () => {
     expect(sectionLines($, 'grant-phases-set-by')).toEqual([
       'Last claim while at POST_AWARD:AGREEMENT:OFFERED'
     ])
+    expect(part($, 'grant-phases-set-by').find('a').attr('href')).toBe(
+      `${grantPath}?tab=entitlements`
+    )
     expect(
       part($, 'grant-phases-panel')
         .find('dd')
@@ -2346,6 +2350,177 @@ describe('the grant Phases tab', () => {
 
     expect(textOf($, 'grant-section-error')).toBe('Phases could not be loaded')
     expect(part($, 'grant-phases-legend')).toHaveLength(0)
+  })
+})
+
+const offered = {
+  phase: 'POST_AWARD',
+  stage: 'AGREEMENT',
+  status: 'OFFERED'
+}
+
+const grantEntitlements: NonNullable<GrantVersionPage['entitlements']> = {
+  entitlementTemplates: [
+    {
+      claimCode: 'MAINTENANCE',
+      name: 'Maintenance payment',
+      materialised: false,
+      maxEntitlements: 10,
+      availableAt: [offered],
+      fields: {
+        hectares: {
+          input: true,
+          label: 'Area maintained this year',
+          unitType: 'decimal',
+          decimalPlaces: 2,
+          unit: 'ha',
+          minValue: 0.1,
+          maxValue: null
+        }
+      },
+      claim: {
+        claimableAt: [{ phase: 'POST_AWARD', stage: 'AGREEMENT' }],
+        limits: { maximumClaims: 10, allowsPartialClaims: false },
+        requiresApproval: false,
+        requiresEvidence: true
+      }
+    }
+  ],
+  claims: {
+    onClaimApproval: {
+      currentPosition: offered,
+      targetPosition: { ...offered, status: 'CLAIMS_COMPLETE' }
+    },
+    requiredRoles: { allOf: ['Grants.Claims.Read'], anyOf: [] }
+  },
+  payment: { code: 'woodland-creation', sbi: '$.agreement.identifiers.sbi' }
+}
+
+const givenEntitlements = (overrides: Partial<GrantVersionPage> = {}) =>
+  givenGrant({
+    overview: undefined,
+    entitlements: grantEntitlements,
+    ...overrides
+  })
+
+const entitlementsPath = `${grantPath}?tab=entitlements`
+
+describe('the grant Entitlements tab', () => {
+  test("reads GAS's entitlements read once and draws the tab", async () => {
+    givenEntitlements()
+
+    const { $, statusCode } = await viewPage(entitlementsPath)
+
+    expect(statusCode).toBe(statusCodes.ok)
+    expect(getGrantPageUseCase).toHaveBeenCalledTimes(1)
+    expect(getGrantPageUseCase).toHaveBeenCalledWith(
+      { code: 'woodland-creation', version: '1.2.0' },
+      'entitlements'
+    )
+    expect(textOf($, 'grant-entitlements-template-title')).toBe(
+      'MAINTENANCE Maintenance payment'
+    )
+    expect(textOf($, 'grant-entitlements-on-submit')).toBe('Pays now')
+    expect(
+      part($, 'grant-entitlements-warning')
+        .toArray()
+        .map((warning) => flatten($(warning).text()))
+    ).toEqual([
+      'MAINTENANCE pays on submit, but the payment definition reads $.agreement; claim payments carry only claim and execution.'
+    ])
+  })
+
+  test('keeps back on the chip and Payment links', async () => {
+    givenEntitlements()
+    const from = '/dev-ops/grants'
+    const back = `back=${encodeURIComponent(from)}`
+
+    const { $ } = await viewPage(`${entitlementsPath}&${back}`)
+
+    expect(
+      part($, 'grant-entitlements-move')
+        .find('a')
+        .toArray()
+        .map((chip) => $(chip).attr('href'))
+    ).toEqual([
+      `${grantPath}?tab=phases&${back}&status=${encodeURIComponent('POST_AWARD:AGREEMENT:OFFERED')}`,
+      `${grantPath}?tab=phases&${back}&status=${encodeURIComponent('POST_AWARD:AGREEMENT:CLAIMS_COMPLETE')}`
+    ])
+    expect(
+      part($, 'grant-entitlements-fact-claimable-at').find('a').attr('href')
+    ).toBe(`${grantPath}?tab=phases&${back}`)
+    expect(
+      part($, 'grant-entitlements-payment-file').find('a').attr('href')
+    ).toBe(`${grantPath}?tab=payment&${back}`)
+  })
+
+  test('says there is no payment file when the version has none', async () => {
+    givenEntitlements({
+      header: { ...grantHeader, files: { grant: fetched } },
+      entitlements: { ...grantEntitlements, payment: null }
+    })
+
+    const { $ } = await viewPage(entitlementsPath)
+
+    expect(textOf($, 'grant-entitlements-on-submit')).toBe('No payment file')
+    expect(
+      flatten(part($, 'grant-entitlements-payment-file').find('dd').text())
+    ).toBe('—')
+    expect(part($, 'grant-entitlements-warning')).toHaveLength(0)
+  })
+
+  test('says the grant definition is not stored, and nothing else', async () => {
+    givenEntitlements({ header: nothingStored, entitlements: null })
+
+    const { $ } = await viewPage(entitlementsPath)
+
+    expect(textOf($, 'grant-not-stored')).toBe('Grant definition not stored.')
+    expect(part($, 'grant-entitlements')).toHaveLength(0)
+  })
+
+  test('warns that the entitlements are too large to show', async () => {
+    givenEntitlements({
+      entitlements: null,
+      sectionErrors: [{ section: 'entitlements', message: 'too large to show' }]
+    })
+
+    const { $ } = await viewPage(entitlementsPath)
+
+    expect(textOf($, 'grant-too-large')).toBe('Too large to show')
+    expect(part($, 'grant-section-error')).toHaveLength(0)
+    expect(part($, 'grant-no-data')).toHaveLength(0)
+  })
+
+  test('says the entitlements could not be read on a section error', async () => {
+    givenEntitlements({
+      entitlements: null,
+      sectionErrors: [
+        {
+          section: 'entitlements',
+          message: 'Invalid entitlement template "MAINTENANCE"'
+        }
+      ]
+    })
+
+    const { $ } = await viewPage(entitlementsPath)
+
+    expect(textOf($, 'grant-section-error')).toBe(
+      'Invalid entitlement template "MAINTENANCE"'
+    )
+    expect(part($, 'grant-entitlements')).toHaveLength(0)
+  })
+
+  test('says GAS could not be reached', async () => {
+    vi.mocked(getGrantPageUseCase).mockResolvedValue({
+      outcome: 'unavailable',
+      page: null
+    })
+
+    const { $ } = await viewPage(entitlementsPath)
+
+    expect(textOf($, 'grant-error')).toBe(
+      'This grant could not be loaded from GAS.'
+    )
   })
 })
 
