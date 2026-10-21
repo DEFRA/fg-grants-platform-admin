@@ -137,6 +137,13 @@ const toEntitlementsHrefs = (href: string, from: string) => ({
   payment: toTabHref(href, 'payment', from)
 })
 
+/** Null unless CW has the workflow version, so a CW status never links to a page CW cannot show. */
+const toWorkflowPhasesHref = (header: GrantVersionHeader) =>
+  header.counterpart?.exists
+    ? (cwStatus: string, back: string) =>
+        toTabHref(toWorkflowHref(header), 'phases', back, { status: cwStatus })
+    : null
+
 const toEntitlements = (
   { header, entitlements }: GrantVersionPage,
   tab: GrantTabId,
@@ -208,7 +215,7 @@ export const toGrantPage = (
             status: query.status,
             href,
             from,
-            workflowHref: null
+            workflowHref: toWorkflowPhasesHref(page.header)
           })
         : null,
     entitlements: toEntitlements(page, tab, href, from),
