@@ -25,7 +25,7 @@ export const versionSchema = Joi.string()
   .pattern(/^\d+\.\d+\.\d+$/)
 
 /** Longer than any list link this app builds for itself, and still bounded. */
-const fromMax = 2048
+export const fromMax = 2048
 
 // Checked by `toSafeFrom`: a bad one falls back to the admin's root, not an error page.
 export const backSchema = Joi.string().allow('').max(fromMax)

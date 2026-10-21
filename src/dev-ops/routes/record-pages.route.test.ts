@@ -476,6 +476,29 @@ describe('the Overview tab', () => {
     expect(part($, 'application-grant-from')).toHaveLength(0)
   })
 
+  test('links the grant to its version page, which leads back here', async () => {
+    const from = '/dev-ops/applications?grant=frps-private-beta'
+    const { $ } = await viewPage(`${path}?back=${encodeURIComponent(from)}`)
+
+    const link = part($, 'application-grant')
+    expect(link.is('a')).toBe(true)
+    expect(link.attr('href')).toBe(
+      `/dev-ops/grants/frps-private-beta/1.4.2?back=${encodeURIComponent(`${path}?back=${encodeURIComponent(from)}`)}`
+    )
+    expect(link.attr('class')).toContain('link')
+    expect(link.attr('target')).toBeUndefined()
+    expect(textOf($, 'application-grant-from')).toBe('from 1.4.0')
+  })
+
+  test('leaves the grant unlinked when it has no version', async () => {
+    givenPage({ overview: { ...overview, currentConfigVersion: null } })
+
+    const { $ } = await viewPage()
+
+    expect(part($, 'application-grant').is('span')).toBe(true)
+    expect(textOf($, 'application-grant')).toBe('frps-private-beta')
+  })
+
   test('spells each date out in UK time, as the event page does', async () => {
     const { $ } = await viewPage()
 
@@ -1115,6 +1138,29 @@ describe('the case page', () => {
     )
     expect(textOf($, 'case-closed-at')).toBe('—')
     expect(textOf($, 'case-size')).toBe('4 KiB')
+  })
+
+  test('links the workflow to its version page, which leads back here', async () => {
+    const from = '/dev-ops/cases?workflow=woodland'
+    const { $ } = await viewPage(`${casePath}?back=${encodeURIComponent(from)}`)
+
+    const link = part($, 'case-workflow')
+    expect(link.is('a')).toBe(true)
+    expect(link.attr('href')).toBe(
+      `/dev-ops/workflows/woodland/1.4.2?back=${encodeURIComponent(`${casePath}?back=${encodeURIComponent(from)}`)}`
+    )
+    expect(link.attr('class')).toContain('link')
+    expect(link.attr('target')).toBeUndefined()
+    expect(textOf($, 'case-workflow-from')).toBe('from 1.3.5')
+  })
+
+  test('leaves the workflow unlinked when it has no version', async () => {
+    givenCase({ overview: { ...caseOverview, currentConfigVersion: null } })
+
+    const { $ } = await viewPage(casePath)
+
+    expect(part($, 'case-workflow').is('span')).toBe(true)
+    expect(textOf($, 'case-workflow')).toBe('woodland')
   })
 
   test('shows the stored closing date of a case not marked closed', async () => {

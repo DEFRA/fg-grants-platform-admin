@@ -23,6 +23,7 @@ import { toJsonView } from './json-viewer.view-model.ts'
 import type { JsonView } from './json-viewer.view-model.ts'
 import { toPositionLabel, toPositionTrail, toStatusLabel } from './position.ts'
 import type { PositionStep } from './position.ts'
+import { fromMax } from './record-filters.ts'
 import type { RecordType } from './record-type.ts'
 
 interface FactBase {
@@ -32,7 +33,7 @@ interface FactBase {
 
 export type Fact = FactBase &
   (
-    | { kind: 'mono'; text: string; from: string | null }
+    | { kind: 'mono'; text: string; from: string | null; href: string | null }
     | { kind: 'date'; text: string; instant: string | null }
     | { kind: 'text'; text: string }
     | { kind: 'link'; text: string; href: string }
@@ -129,6 +130,25 @@ export const toTabHref = (href: string, tab: string, from: string): string => {
   return params.size ? `${href}?${params}` : href
 }
 
+/** The record's Overview with its own way back, or the bare Overview when that would not fit in a `back`. */
+const toBackToRecord = (recordHref: string, from: string): string => {
+  const back = toTabHref(recordHref, 'overview', from)
+
+  return back.length > fromMax ? recordHref : back
+}
+
+/** A version's page, told to come back to this record's Overview; null without a version to link to. */
+export const toVersionLinkOf = (
+  toVersionHref: (ref: { code: string; version: string }) => string,
+  code: string,
+  version: string | null,
+  recordHref: string,
+  from: string
+): string | null =>
+  version
+    ? `${toVersionHref({ code, version })}?${backKey}=${encodeURIComponent(toBackToRecord(recordHref, from))}`
+    : null
+
 export const toTabs = (
   { tabs }: RecordType,
   href: string,
@@ -199,7 +219,14 @@ export const toMonoFact = (
   id: string,
   label: string,
   value: string | null
-): Fact => ({ id, label, kind: 'mono', text: value ?? none, from: null })
+): Fact => ({
+  id,
+  label,
+  kind: 'mono',
+  text: value ?? none,
+  from: null,
+  href: null
+})
 
 interface Versions {
   code: string
@@ -211,7 +238,8 @@ interface Versions {
 export const toVersionedFact = (
   id: string,
   label: string,
-  { code, currentConfigVersion, originalConfigVersion }: Versions
+  { code, currentConfigVersion, originalConfigVersion }: Versions,
+  href: string | null
 ): Fact => ({
   id,
   label,
@@ -220,7 +248,8 @@ export const toVersionedFact = (
   from:
     originalConfigVersion && originalConfigVersion !== currentConfigVersion
       ? originalConfigVersion
-      : null
+      : null,
+  href
 })
 
 /** The other record as a fact named for its type; no row at all when there is no link to follow. */
