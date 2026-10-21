@@ -9,6 +9,8 @@ import { fetchWorkflowDefinitionUseCase } from '../use-cases/fetch-workflow-defi
 import type { WorkflowVersionPage } from '../use-cases/get-workflow-page.use-case.ts'
 import { getWorkflowPageUseCase } from '../use-cases/get-workflow-page.use-case.ts'
 import { getWorkflowVersionsUseCase } from '../use-cases/get-workflow-versions.use-case.ts'
+import { getCatalogueUseCase } from '../use-cases/get-catalogue.use-case.ts'
+import { casesBucket, catalogue } from '../use-cases/test-fixtures.ts'
 
 vi.mock(import('../use-cases/get-catalogue.use-case.ts'))
 vi.mock(import('../use-cases/get-workflow-page.use-case.ts'))
@@ -410,7 +412,7 @@ describe('the workflow not-stored banner', () => {
 })
 
 describe('the workflow Overview tab', () => {
-  test('lists Scheme name and Received, then Size', async () => {
+  test('lists the definition facts, then the release facts', async () => {
     const { $ } = await viewPage()
 
     expect(
@@ -423,12 +425,99 @@ describe('the workflow Overview tab', () => {
             .toArray()
             .map((label) => $(label).text())
         )
-    ).toEqual([['Scheme name', 'Received'], ['Size']])
+    ).toEqual([
+      ['Scheme name', 'Received', 'Roles, all of', 'Roles, any of'],
+      ['Grant', 'Cases', 'Versions', 'Size']
+    ])
     expect(textOf($, 'workflow-scheme-name')).toBe('Woodland Creation Offer')
     expect(part($, 'workflow-received').attr('datetime')).toBe(
       '2026-10-10T16:25:00Z'
     )
+    expect(textOf($, 'workflow-versions')).toBe('2')
     expect(textOf($, 'workflow-size')).toBe('14.2 KiB')
+  })
+
+  test('shows each required role in mono, in order, separated by commas', async () => {
+    const { $ } = await viewPage()
+    const roles = part($, 'workflow-roles-any-of').find('.font-mono')
+
+    expect(roles.toArray().map((role) => $(role).text())).toEqual([
+      'Casework.ReadWrite',
+      'Casework.Admin'
+    ])
+    expect(textOf($, 'workflow-roles-any-of')).toBe(
+      'Casework.ReadWrite, Casework.Admin'
+    )
+    expect(textOf($, 'workflow-roles-all-of')).toBe('Casework.Read')
+  })
+
+  test('reads a dash for a role list the workflow leaves empty, and for no scheme name', async () => {
+    givenWorkflow({
+      overview: {
+        ...overview,
+        schemeName: null,
+        requiredRoles: { allOf: [], anyOf: ['Casework.Admin'] }
+      }
+    })
+
+    const { $ } = await viewPage()
+
+    expect(textOf($, 'workflow-roles-all-of')).toBe('—')
+    expect(textOf($, 'workflow-roles-any-of')).toBe('Casework.Admin')
+    expect(textOf($, 'workflow-scheme-name')).toBe('—')
+  })
+
+  test('links to the grant of the same code and version, in a new tab', async () => {
+    const { $ } = await viewPage()
+    const link = part($, 'workflow-grant')
+
+    expect(link.attr('href')).toBe('/dev-ops/grants/woodland-creation/1.2.0')
+    expect(link.attr('target')).toBe('_blank')
+    expect(flatten(link.text())).toBe('View grant (opens in a new tab)')
+  })
+
+  test('leaves the Grant fact out when GAS could not say', async () => {
+    givenWorkflow({ header: { ...header, counterpart: null } })
+
+    const { $ } = await viewPage()
+
+    expect(part($, 'workflow-fact-grant')).toHaveLength(0)
+    expect(part($, 'workflow-fact-cases')).toHaveLength(1)
+  })
+
+  test("links to the cases on this version, as the catalogue spells the list's filters", async () => {
+    const { $ } = await viewPage('/dev-ops/workflows/Casework-Smoke/1.0.0')
+
+    expect(part($, 'workflow-cases').attr('href')).toBe(
+      '/dev-ops/cases?workflow=Casework-Smoke&version=1.0.0'
+    )
+    expect(textOf($, 'workflow-cases')).toBe('View cases (opens in a new tab)')
+  })
+
+  test.each([
+    [
+      'does not filter cases by version',
+      {
+        ...catalogue,
+        buckets: [
+          {
+            ...casesBucket,
+            facts: casesBucket.facts.filter(
+              ({ name }) => name !== 'currentConfigVersion'
+            )
+          }
+        ]
+      }
+    ],
+    ['has no cases list', { ...catalogue, buckets: [] }],
+    ['could not be read', null]
+  ])('reads a dash for Cases when the catalogue %s', async (_, answer) => {
+    vi.mocked(getCatalogueUseCase).mockResolvedValueOnce(answer)
+
+    const { $ } = await viewPage()
+
+    expect(textOf($, 'workflow-cases')).toBe('—')
+    expect(part($, 'workflow-cases').attr('href')).toBeUndefined()
   })
 
   test('shows the version facts, and a dash for each definition fact, while the workflow is not stored', async () => {
@@ -437,14 +526,23 @@ describe('the workflow Overview tab', () => {
     const { $ } = await viewPage()
 
     expect(part($, 'workflow-not-stored')).toHaveLength(0)
-    expect(textOf($, 'workflow-scheme-name')).toBe('—')
-    expect(textOf($, 'workflow-size')).toBe('—')
+    expect(
+      ['scheme-name', 'roles-all-of', 'roles-any-of', 'size'].map((id) =>
+        textOf($, `workflow-${id}`)
+      )
+    ).toEqual(['—', '—', '—', '—'])
     expect(part($, 'workflow-received').attr('datetime')).toBe(
       '2026-10-10T16:25:00Z'
     )
+    expect(
+      ['grant', 'cases'].map((id) => part($, `workflow-${id}`).attr('href'))
+    ).toEqual([
+      '/dev-ops/grants/woodland-creation/1.2.0',
+      '/dev-ops/cases?workflow=woodland-creation&version=1.2.0'
+    ])
   })
 
-  test('renders the same for a workflow with no grant', async () => {
+  test('says None for a workflow with no grant', async () => {
     givenWorkflow({
       header: {
         ...header,
@@ -459,7 +557,8 @@ describe('the workflow Overview tab', () => {
     )
 
     expect(statusCode).toBe(statusCodes.ok)
-    expect(textOf($, 'workflow-scheme-name')).toBe('Woodland Creation Offer')
+    expect(textOf($, 'workflow-grant')).toBe('None')
+    expect(part($, 'workflow-grant').attr('href')).toBeUndefined()
   })
 
   test('says the overview could not be read in place of the facts', async () => {

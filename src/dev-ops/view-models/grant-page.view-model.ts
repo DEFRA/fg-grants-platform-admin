@@ -5,14 +5,11 @@ import type {
   GrantVersionPage,
   GrantVersionRef
 } from '../use-cases/get-grant-page.use-case.ts'
-import type {
-  BucketEntry,
-  Catalogue
-} from '../use-cases/get-catalogue.use-case.ts'
+import type { Catalogue } from '../use-cases/get-catalogue.use-case.ts'
 import { grantTabs } from '../use-cases/grant-tabs.ts'
 import type { GrantTabId } from '../use-cases/grant-tabs.ts'
 import { toAdminHref } from '../../grant-ops/view-models/allow-list-page.view-model.ts'
-import { toBucketHref } from './bucket-links.ts'
+import { toVersionListHref } from './bucket-links.ts'
 import { toDefinitionFetchNotices } from './definition-fetch.ts'
 import type {
   DefinitionFetchFlash,
@@ -48,22 +45,16 @@ const toAllowListHref = (code: string): string =>
 
 const applicationsBucket = 'gas.applications'
 
-const versionFacts = ['code', 'currentConfigVersion']
-
-const declaresVersionFacts = ({ facts }: BucketEntry): boolean =>
-  versionFacts.every((name) => facts.some((fact) => fact.name === name))
-
-/** Null unless the list declares both facts: an undeclared one would drop out of the URL and widen the list. */
 const toApplicationsHref = (
   catalogue: Catalogue | null,
   { code, version }: GrantVersionRef
-): string | null => {
-  const bucket = catalogue?.buckets.find(({ id }) => id === applicationsBucket)
-
-  return bucket && declaresVersionFacts(bucket)
-    ? toBucketHref(bucket, { code, currentConfigVersion: version })
-    : null
-}
+): string | null =>
+  toVersionListHref(
+    catalogue,
+    applicationsBucket,
+    { codeFact: 'code', versionFact: 'currentConfigVersion' },
+    { code, version }
+  )
 
 const toFacts = (
   header: GrantVersionHeader,

@@ -267,7 +267,30 @@ export const casesBucket: BucketEntry = {
   shortLabel: 'Cases',
   icon: 'folder',
   order: 80,
-  noun: { one: 'case', many: 'cases' }
+  noun: { one: 'case', many: 'cases' },
+  facts: [
+    {
+      name: 'workflowCode',
+      param: 'workflow',
+      label: 'Workflow',
+      values: [{ value: 'example-grant', label: 'example-grant' }],
+      toggle: null,
+      within: null
+    },
+    {
+      name: 'currentConfigVersion',
+      param: 'version',
+      label: 'Version',
+      values: null,
+      toggle: null,
+      within: 'workflowCode'
+    }
+  ],
+  indexes: [['workflowCode'], ['workflowCode', 'currentConfigVersion']],
+  columns: [
+    { key: 'workflowCode', label: 'Workflow', format: 'mono' },
+    { key: 'position', label: 'Status', format: 'position' }
+  ]
 }
 
 /** Config versions as CW lists them, through GAS; CW keeps one fetch status per version. */

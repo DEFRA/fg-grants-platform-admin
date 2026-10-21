@@ -2,18 +2,25 @@ import type {
   WorkflowFileType,
   WorkflowVersionHeader,
   WorkflowVersionOverview,
-  WorkflowVersionPage
+  WorkflowVersionPage,
+  WorkflowVersionRef
 } from '../use-cases/get-workflow-page.use-case.ts'
+import type { Catalogue } from '../use-cases/get-catalogue.use-case.ts'
 import { workflowTabs } from '../use-cases/workflow-tabs.ts'
 import type { WorkflowTabId } from '../use-cases/workflow-tabs.ts'
+import { toVersionListHref } from './bucket-links.ts'
 import { toDefinitionFetchNotices } from './definition-fetch.ts'
 import type {
   DefinitionFetchFlash,
   DefinitionFetchNotice
 } from './definition-fetch.ts'
 import { toUnavailableSources } from './event-row.ts'
+import { grantType, toGrantHref } from './grants-page.view-model.ts'
 import {
+  toCodesFact,
   toDateFact,
+  toLinkFact,
+  toReleaseCounterpartFacts,
   toSizeFact,
   toTabSection,
   toTabs,
@@ -32,15 +39,47 @@ export interface WorkflowPageModel extends RecordPageModel {
   notStored: WorkflowFileType | null
 }
 
+const toCasesHref = (
+  catalogue: Catalogue | null,
+  { code, version }: WorkflowVersionRef
+): string | null =>
+  toVersionListHref(
+    catalogue,
+    'cw.cases',
+    { codeFact: 'workflowCode', versionFact: 'currentConfigVersion' },
+    { code, version }
+  )
+
+const noRoles = { allOf: null, anyOf: null }
+
+const toRolesFacts = ({
+  allOf,
+  anyOf
+}: Record<'allOf' | 'anyOf', string[] | null>): Fact[] => [
+  toCodesFact('roles-all-of', 'Roles, all of', allOf),
+  toCodesFact('roles-any-of', 'Roles, any of', anyOf)
+]
+
 const toFacts = (
   header: WorkflowVersionHeader,
-  overview: WorkflowVersionOverview
+  overview: WorkflowVersionOverview,
+  casesHref: string | null
 ): Fact[][] => [
   [
     toTextFact('scheme-name', 'Scheme name', overview.schemeName),
-    toDateFact('received', 'Received', header.receivedAt)
+    toDateFact('received', 'Received', header.receivedAt),
+    ...toRolesFacts(overview.requiredRoles ?? noRoles)
   ],
-  [toSizeFact(overview.storedBytes)]
+  [
+    ...toReleaseCounterpartFacts(
+      grantType,
+      header.counterpart,
+      toGrantHref(header)
+    ),
+    toLinkFact('cases', 'Cases', 'View cases', casesHref),
+    toTextFact('versions', 'Versions', String(header.versions.length)),
+    toSizeFact(overview.storedBytes)
+  ]
 ]
 
 const toNotStored = (
@@ -56,7 +95,10 @@ export const toWorkflowPage = (
   page: WorkflowVersionPage,
   tab: WorkflowTabId,
   from: string,
-  { notice }: { notice?: DefinitionFetchFlash } = {}
+  {
+    notice,
+    catalogue
+  }: { notice?: DefinitionFetchFlash; catalogue: Catalogue | null }
 ): WorkflowPageModel => {
   const { read } = workflowTabs[tab]
 
@@ -68,7 +110,9 @@ export const toWorkflowPage = (
     trail: [],
     tabs: toTabs(workflowType, toWorkflowHref(page.header), tab, from),
     tab,
-    facts: page.overview ? toFacts(page.header, page.overview) : null,
+    facts: page.overview
+      ? toFacts(page.header, page.overview, toCasesHref(catalogue, page.header))
+      : null,
     series: null,
     seriesDetailed: false,
     events: null,
