@@ -19,7 +19,10 @@ import {
   updatedNoticeKey,
   validateClaimableItem
 } from '../view-models/claimable-item-form.view-model.ts'
-import { toClaimsPage } from '../view-models/claims-page.view-model.ts'
+import {
+  toClaimsHref,
+  toClaimsPage
+} from '../view-models/claims-page.view-model.ts'
 
 interface ChangeClaimableItemParams {
   code: string
@@ -51,9 +54,6 @@ const assertFullClaimsAccess = async (code: string, clientRef: string) => {
   }
 }
 
-const claimsHrefFor = (code: string, clientRef: string) =>
-  `/grant-ops/grants/${encodeURIComponent(code)}/applications/${encodeURIComponent(clientRef)}/claims`
-
 const redirectWithRefusal = (
   request: Request,
   h: ResponseToolkit,
@@ -62,7 +62,7 @@ const redirectWithRefusal = (
 ) => {
   request.yar.flash(refusedNoticeKey, toFinalRefusalSummary(message, 'changed'))
 
-  return h.redirect(claimsHrefFor(code, clientRef)).code(303)
+  return h.redirect(toClaimsHref(code, clientRef)).code(303)
 }
 
 const changePage = (
@@ -191,7 +191,7 @@ const applyUpdate = async (
     toUpdatedNotice(page.claimableTemplate, form)
   )
 
-  return h.redirect(claimsHrefFor(code, clientRef)).code(303)
+  return h.redirect(toClaimsHref(code, clientRef)).code(303)
 }
 
 export const changeClaimableItemRoute: ServerRoute = {
