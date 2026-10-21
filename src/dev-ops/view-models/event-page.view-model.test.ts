@@ -58,21 +58,24 @@ const bucket: BucketEntry = {
       param: 'status',
       label: 'Status',
       values: [{ value: 'DEAD_LETTER', label: 'Dead letter', tone: 'error' }],
-      toggle: null
+      toggle: null,
+      within: null
     },
     {
       name: 'lastError.name',
       param: 'error',
       label: 'Error name',
       values: null,
-      toggle: null
+      toggle: null,
+      within: null
     },
     {
       name: 'eventType',
       param: 'event',
       label: 'Event',
       values: [{ value: 'Audit', label: 'Audit', hidden: true }],
-      toggle: { label: 'Show audit events', param: 'audit' }
+      toggle: { label: 'Show audit events', param: 'audit' },
+      within: null
     }
   ],
   refs: [],

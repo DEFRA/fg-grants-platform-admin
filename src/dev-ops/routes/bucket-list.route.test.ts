@@ -701,6 +701,35 @@ describe('the filters', () => {
     )
   })
 
+  test('note a version of the chosen grant, clear it to the grant, and drop it from every choice of grant', async () => {
+    givenPage(
+      exact({
+        bucket: 'gas.applications',
+        rows: [applicationRow({ cells: { code: 'example-grant@1.2.0' } })]
+      })
+    )
+
+    const { $ } = await viewPage(
+      `${applicationsPath}?grant=example-grant&version=1.2.0`
+    )
+
+    expect(asked()).toEqual([
+      { where: { code: 'example-grant', currentConfigVersion: '1.2.0' } },
+      false
+    ])
+    expect(textOf($, 'bucket-cell-code')).toBe('example-grant@1.2.0')
+    expect(textOf($, 'bucket-note-currentConfigVersion')).toBe(
+      'Version: "1.2.0"'
+    )
+    expect(part($, 'bucket-note-currentConfigVersion-clear').attr('href')).toBe(
+      `${applicationsPath}?grant=example-grant`
+    )
+    expect(hrefsOf($, 'bucket-filter-code-chip')).toEqual([
+      applicationsPath,
+      `${applicationsPath}?grant=example-grant`
+    ])
+  })
+
   test('offer no box to type a filter into, on any list', async () => {
     for (const url of [path, applicationsPath]) {
       const { $ } = await viewPage(url)
