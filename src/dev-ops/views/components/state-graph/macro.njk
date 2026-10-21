@@ -1,0 +1,13 @@
+{% macro stateGraph(params) %}
+    {%- include "./template.njk" -%}
+{% endmacro %}
+
+{# A titled section of the status panel, called with its body. #}
+{% macro statusPanelSection(params) %}
+    {%- include "./status-panel-section.njk" -%}
+{% endmacro %}
+
+{# The selected status's phase and stage, each code then its name. #}
+{% macro stageFacts(params) %}
+    {%- include "./stage-facts.njk" -%}
+{% endmacro %}
