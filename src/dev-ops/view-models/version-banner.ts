@@ -13,7 +13,7 @@ import type { FactLine } from './record-page.view-model.ts'
 import type { RecordType } from './record-type.ts'
 import type { Words } from './words.ts'
 
-export type VersionFileType = 'grant' | 'agreement' | 'payment'
+export type VersionFileType = 'grant' | 'agreement' | 'payment' | 'workflow'
 
 export type BannerTone = 'info' | 'warning' | 'error'
 
@@ -25,22 +25,30 @@ export interface VersionFiles extends VersionRef {
   s3Bucket?: string | null
 }
 
-export const fileOrder: VersionFileType[] = ['grant', 'agreement', 'payment']
+export const fileOrder: VersionFileType[] = [
+  'grant',
+  'agreement',
+  'payment',
+  'workflow'
+]
 
 const fileNames: Record<VersionFileType, string> = {
   grant: 'Grant definition',
   agreement: 'Agreement definition',
-  payment: 'Payment definition'
+  payment: 'Payment definition',
+  workflow: 'Workflow definition'
 }
 
 /** The file the service fetches for itself and caps at five tries; the others it reads on demand, uncapped. */
-const isMainFile = (type: VersionFileType): boolean => type === 'grant'
+const isMainFile = (type: VersionFileType): boolean =>
+  type === 'grant' || type === 'workflow'
 
 /** The service stops fetching the main file after this many failures, and marks it Failed the next time it needs the version. */
 const maxFetchAttempts = 5
 
 const fetchLabels: Record<string, string> = {
-  grant: 'Fetch definitions'
+  grant: 'Fetch definitions',
+  workflow: 'Fetch definition'
 }
 
 export const toFetchLabel = ({ itemId }: RecordType): string =>
@@ -152,7 +160,9 @@ const failedConsequences: Record<
   agreement: (major, version) =>
     `GAS won't use this agreement definition: new agreements use the newest usable ${major}.x one at or below ${version}, and actions before acceptance use the newest usable ${major}.x one. Publish a fixed version.`,
   payment: () =>
-    'Payments for this version will fail: GAS has no fallback for a payment definition. Publish a fixed version.'
+    'Payments for this version will fail: GAS has no fallback for a payment definition. Publish a fixed version.',
+  workflow: (major) =>
+    `CW won't roll forward to this version: cases on ${major}.x use the newest usable ${major}.x version instead. Publish a fixed version.`
 }
 
 /** What a Failed file stops, in a sentence of its own: also a badge's title. */
@@ -197,9 +207,11 @@ const toneRank: BannerTone[] = ['info', 'warning', 'error']
 const worstTone = (tones: BannerTone[]): BannerTone =>
   toneRank[Math.max(0, ...tones.map((tone) => toneRank.indexOf(tone)))]
 
-const draftWords = ({ source }: RecordType): Words => [
+const draftWords = ({ source, itemId }: RecordType): Words => [
   { strong: 'Draft:' },
-  ` ${source} won't pick this version for new work until the config broker publishes it as active. Fetch definitions stores its files now; once the version is active, ${source} uses the stored agreement and payment files, and still fetches the grant file from S3 itself.`
+  itemId === 'workflow'
+    ? ` ${source} won't pick this version for new work until the config broker publishes it as active. Fetch definition stores its file now; once the version is active, ${source} still fetches the workflow file from S3 itself.`
+    : ` ${source} won't pick this version for new work until the config broker publishes it as active. Fetch definitions stores its files now; once the version is active, ${source} uses the stored agreement and payment files, and still fetches the grant file from S3 itself.`
 ]
 
 export interface BannerLines {
@@ -235,12 +247,14 @@ export const toBannerLines = (
 const fileLabels: Record<VersionFileType, string> = {
   grant: 'Grant',
   agreement: 'Agreement',
-  payment: 'Payment'
+  payment: 'Payment',
+  workflow: 'Workflow'
 }
 
 /** The list's own Definition values, as the service declares them for its version list. */
 const versionLists: Record<string, string> = {
-  grant: 'gas.grants'
+  grant: 'gas.grants',
+  workflow: 'cw.workflows'
 }
 
 const valuesOf = (

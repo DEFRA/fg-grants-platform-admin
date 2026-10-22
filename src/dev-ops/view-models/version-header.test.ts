@@ -2,6 +2,7 @@ import type { VersionSummary } from '../repositories/config-versions.ts'
 import type { GrantVersionHeader } from '../use-cases/get-grant-page.use-case.ts'
 import { catalogue } from '../use-cases/test-fixtures.ts'
 import { grantType } from './grants-page.view-model.ts'
+import { workflowType } from './workflows-page.view-model.ts'
 import { toVersionHeader } from './version-header.ts'
 
 const header = (
@@ -24,6 +25,7 @@ const header = (
       receivedAt: '2026-10-10T16:25:00.000Z'
     }
   ],
+  counterpart: null,
   ...overrides
 })
 
@@ -197,6 +199,12 @@ describe('toVersionHeader', () => {
     expect(itemFor(withState('permanent_error', true)).note).toBeNull()
   })
 
+  test('names CW on a workflow version, from the workflows list', () => {
+    expect(itemFor(withState('pending', true), workflowType).note?.text).toBe(
+      '· stored, not loaded by CW yet'
+    )
+  })
+
   test('shows the status badge as before when the backend sends no fetch status, or there is no catalogue', () => {
     expect(
       itemFor({
@@ -262,6 +270,20 @@ describe('toVersionHeader', () => {
         ''
       ).banner
     ).toMatchObject({ tone: 'info', fetch: null })
+  })
+
+  test('says Fetch definition on a workflow page', () => {
+    expect(
+      toVersionHeader(
+        workflowType,
+        { ...header(), files: { workflow: notStored } },
+        'raw',
+        ''
+      ).banner?.fetch
+    ).toMatchObject({
+      action: '/dev-ops/workflows/woodland-creation/1.2.0/fetch',
+      label: 'Fetch definition'
+    })
   })
 
   test('links the newest older version with every file stored, while the grant file is not stored', () => {

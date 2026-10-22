@@ -22,7 +22,8 @@ export interface VersionShell {
 
 /** The list each kind of version is listed in, by its catalogue id. */
 const ownLists: Record<string, string> = {
-  grant: 'gas.grants'
+  grant: 'gas.grants',
+  workflow: 'cw.workflows'
 }
 
 /** A page opened from nowhere goes back to, and sits under, its own list. */
@@ -59,6 +60,10 @@ const waitingTexts: Record<string, string> = {
     "The agreement's states, pages and processes appear once the agreement definition is stored.",
   payment:
     'Payment request fields appear once the payment definition is stored.',
+  tasks: 'The task groups appear once the workflow definition is stored.',
+  pages: 'The case pages appear once the workflow definition is stored.',
+  integrations:
+    'The external actions appear once the workflow definition is stored.',
   raw: 'The stored {file} definition appears here once it is stored.'
 }
 

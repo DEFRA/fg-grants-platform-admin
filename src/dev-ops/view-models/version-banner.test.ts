@@ -4,6 +4,7 @@ import { grantType } from './grants-page.view-model.ts'
 import { toBannerLines, toFileLines } from './version-banner.ts'
 import type { VersionFiles } from './version-banner.ts'
 import type { Words } from './words.ts'
+import { workflowType } from './workflows-page.view-model.ts'
 
 const version = (
   files: VersionFiles['files'],
@@ -194,6 +195,23 @@ describe('toBannerLines', () => {
     )
   })
 
+  test('names CW for a workflow file, and its own consequence', () => {
+    expect(
+      lines(
+        {
+          workflow: file({ fetchStatus: 'permanent_error', fetchError: null })
+        },
+        {},
+        workflowType
+      )
+    ).toEqual([
+      "Workflow definition failed. CW won't roll forward to this version: cases on 1.x use the newest usable 1.x version instead. Publish a fixed version."
+    ])
+    expect(lines({ workflow: file({}) }, {}, workflowType)?.[0]).toBe(
+      "Workflow definition not stored yet. CW fetches it from S3 when it first needs it. CW only uses the newest usable version in each major, so an older version's workflow file is never fetched; that is normal. Fetch definition stores it now."
+    )
+  })
+
   test('opens a draft with the draft sentence, and stops its file sentences after their first', () => {
     expect(
       lines(
@@ -294,6 +312,22 @@ describe('toFileLines', () => {
           `${label} ${badges?.map(({ status }) => status).join(' ')}`
       )
     ).toEqual(['Grant Fetch error', 'Payment Not stored yet'])
+  })
+
+  test("takes CW's words for a workflow file from CW's list", () => {
+    expect(
+      toFileLines(
+        workflowType,
+        version({ workflow: file({ fetchStatus: 'transient_error' }) }),
+        catalogue
+      )
+    ).toEqual([
+      {
+        label: 'Workflow',
+        badges: [{ status: 'Fetch error', role: 'warning' }],
+        note: null
+      }
+    ])
   })
 
   test('says nothing of the files without the catalogue to word them', () => {
