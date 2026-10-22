@@ -12,6 +12,12 @@ import { getCasePageUseCase } from '../use-cases/get-case-page.use-case.ts'
 import type { GrantVersionPage } from '../use-cases/get-grant-page.use-case.ts'
 import { getGrantPageUseCase } from '../use-cases/get-grant-page.use-case.ts'
 import { getGrantVersionsUseCase } from '../use-cases/get-grant-versions.use-case.ts'
+import { getCatalogueUseCase } from '../use-cases/get-catalogue.use-case.ts'
+import {
+  agreementDefinition,
+  applicationsBucket,
+  catalogue
+} from '../use-cases/test-fixtures.ts'
 import type { WorkflowVersionPage } from '../use-cases/get-workflow-page.use-case.ts'
 import { getWorkflowPageUseCase } from '../use-cases/get-workflow-page.use-case.ts'
 
@@ -1213,7 +1219,8 @@ const grantHeader: GrantVersionPage['header'] = {
       status: 'active',
       receivedAt: '2026-09-10T15:25:00.000Z'
     }
-  ]
+  ],
+  counterpart: { exists: true }
 }
 
 const grantOverview: NonNullable<GrantVersionPage['overview']> = {
@@ -1349,7 +1356,7 @@ describe('the grant page', () => {
     ])
   })
 
-  test('offers Overview, Events and Raw, keeping the list it was opened from', async () => {
+  test('offers Overview, Agreement, Payment, Events and Raw, keeping the list it was opened from', async () => {
     const from = '/dev-ops/grants'
     const { $ } = await viewPage(
       `${grantPath}?tab=raw&back=${encodeURIComponent(from)}`
@@ -1361,6 +1368,8 @@ describe('the grant page', () => {
         .map((tab) => `${$(tab).text()} ${$(tab).attr('href')}`)
     ).toEqual([
       `Overview ${grantPath}?back=${encodeURIComponent(from)}`,
+      `Agreement ${grantPath}?tab=agreement&back=${encodeURIComponent(from)}`,
+      `Payment ${grantPath}?tab=payment&back=${encodeURIComponent(from)}`,
       `Events ${grantPath}?tab=events&back=${encodeURIComponent(from)}`,
       `Raw ${grantPath}?tab=raw&back=${encodeURIComponent(from)}`
     ])
@@ -1517,7 +1526,7 @@ describe('the not-stored banner', () => {
 })
 
 describe('the grant Overview tab', () => {
-  test('lists Description, Start date, Received, Admin role and Size', async () => {
+  test('lists the definition facts on the left and the links out on the right', async () => {
     givenGrant()
 
     const { $ } = await viewPage(grantPath)
@@ -1534,7 +1543,7 @@ describe('the grant Overview tab', () => {
         )
     ).toEqual([
       ['Description', 'Start date', 'Received', 'Admin role'],
-      ['Size']
+      ['Workflow', 'Applications', 'Who can apply', 'Versions', 'Size']
     ])
     expect(textOf($, 'grant-description')).toBe(
       'Funding to plant new woodland on agricultural land.'
@@ -1544,7 +1553,94 @@ describe('the grant Overview tab', () => {
       '2026-09-10T15:25:00Z'
     )
     expect(textOf($, 'grant-admin-role')).toBe('Grants.Example.Admin')
+    expect(part($, 'grant-admin-role').attr('class')).toContain('font-mono')
+    expect(textOf($, 'grant-versions')).toBe('2')
     expect(textOf($, 'grant-size')).toBe('9.8 KiB')
+  })
+
+  test('links to the workflow of the same code and version, in a new tab', async () => {
+    givenGrant()
+
+    const { $ } = await viewPage(grantPath)
+    const link = part($, 'grant-workflow')
+
+    expect(link.attr('href')).toBe('/dev-ops/workflows/woodland-creation/1.2.0')
+    expect(link.attr('target')).toBe('_blank')
+    expect(flatten(link.text())).toBe('View workflow (opens in a new tab)')
+  })
+
+  test('says None when CW has no workflow of that version', async () => {
+    givenGrant({ header: { ...grantHeader, counterpart: { exists: false } } })
+
+    const { $ } = await viewPage(grantPath)
+
+    expect(textOf($, 'grant-workflow')).toBe('None')
+    expect(part($, 'grant-workflow').attr('href')).toBeUndefined()
+  })
+
+  test('leaves the Workflow fact out when CW could not say', async () => {
+    givenGrant({ header: { ...grantHeader, counterpart: null } })
+
+    const { $ } = await viewPage(grantPath)
+
+    expect(part($, 'grant-fact-workflow')).toHaveLength(0)
+    expect(part($, 'grant-fact-applications')).toHaveLength(1)
+  })
+
+  test("links to the applications on this version, as the catalogue spells the list's filters", async () => {
+    givenGrant()
+
+    const { $ } = await viewPage(grantPath)
+
+    expect(part($, 'grant-applications').attr('href')).toBe(
+      '/dev-ops/applications?grant=woodland-creation&version=1.2.0'
+    )
+    expect(textOf($, 'grant-applications')).toBe(
+      'View applications (opens in a new tab)'
+    )
+  })
+
+  test.each([
+    [
+      'does not filter applications by version',
+      {
+        ...catalogue,
+        buckets: [
+          {
+            ...applicationsBucket,
+            facts: applicationsBucket.facts.filter(
+              ({ name }) => name !== 'currentConfigVersion'
+            )
+          }
+        ]
+      }
+    ],
+    ['has no applications list', { ...catalogue, buckets: [] }],
+    ['could not be read', null]
+  ])(
+    'reads a dash for Applications when the catalogue %s',
+    async (_, answer) => {
+      givenGrant()
+      vi.mocked(getCatalogueUseCase).mockResolvedValueOnce(answer)
+
+      const { $ } = await viewPage(grantPath)
+
+      expect(textOf($, 'grant-applications')).toBe('—')
+      expect(part($, 'grant-applications').attr('href')).toBeUndefined()
+    }
+  )
+
+  test('opens the allow list on its Who can apply tab', async () => {
+    givenGrant()
+
+    const { $ } = await viewPage(grantPath)
+
+    expect(part($, 'grant-who-can-apply').attr('href')).toBe(
+      '/grant-ops/grants/woodland-creation/admin#who-can-apply'
+    )
+    expect(textOf($, 'grant-who-can-apply')).toBe(
+      'Allow list (opens in a new tab)'
+    )
   })
 
   test('shows the version facts, and a dash for each definition fact, while nothing is stored', async () => {
@@ -1569,6 +1665,15 @@ describe('the grant Overview tab', () => {
     expect(part($, 'grant-received').attr('datetime')).toBe(
       '2026-09-10T15:25:00Z'
     )
+    expect(
+      ['workflow', 'applications', 'who-can-apply'].map((id) =>
+        part($, `grant-${id}`).attr('href')
+      )
+    ).toEqual([
+      '/dev-ops/workflows/woodland-creation/1.2.0',
+      '/dev-ops/applications?grant=woodland-creation&version=1.2.0',
+      '/grant-ops/grants/woodland-creation/admin#who-can-apply'
+    ])
   })
 
   test('says the overview could not be read in place of the facts', async () => {
@@ -1681,6 +1786,529 @@ describe('the grant Raw tab', () => {
       'Definition could not be loaded'
     )
     expect(part($, 'grant-raw-too-large')).toHaveLength(0)
+  })
+})
+
+/** GAS `compose/seed/pigs-might-fly/1.0.0/gas/payment.json`. */
+const pigsMightFlyPayment = {
+  code: 'pigs-might-fly',
+  sbi: '$.agreement.identifiers.sbi',
+  frn: '$.agreement.identifiers.frn',
+  originalInvoiceNumber: '',
+  scheme: 'SFI',
+  sourceSystem: 'FPTT',
+  deliveryBody: 'RP00',
+  fesCode: 'FALS_FPTT',
+  ledger: 'AP',
+  totalAmountPence: '$.agreement.totalAmountPence',
+  currency: 'GBP',
+  marketingYear: 'jsonata:$substring($.execution.executedAt, 0, 4)',
+  payments: {
+    itemsRef: '$.agreement.paymentSchedule.instalments',
+    items: {
+      dueDate: '@.dueDate',
+      totalAmountPence: '@.totalAmountPence',
+      invoiceLines: {
+        itemsRef: '@.lineItems',
+        items: {
+          schemeCode: 'CMOR1',
+          description: 'jsonata:@.description',
+          amountPence: '@.amountPence',
+          accountCode: 'SOS710',
+          fundCode: 'DRD10',
+          deliveryBody: 'RP00',
+          marketingYear: 'jsonata:$substring($.execution.executedAt, 0, 4)'
+        }
+      }
+    }
+  }
+}
+
+/** GAS `compose/seed/woodland/1.39.1/gas/payment.json`, trimmed. */
+const woodlandPayment = {
+  code: 'woodland',
+  sbi: '$.claim.sbi',
+  payments: [
+    {
+      dueDate: 'jsonata:$substring($.execution.executedAt, 0, 10)',
+      totalAmountPence: '$.claim.totalAmountPence',
+      invoiceLines: [
+        {
+          schemeCode: 'WMP',
+          description: 'Woodland Management Plan Payment',
+          amountPence: '$.claim.totalAmountPence',
+          accountCode: 'SOS710',
+          fundCode: 'DRD10',
+          deliveryBody: 'RP10',
+          marketingYear: 'jsonata:$substring($.execution.executedAt, 0, 4)'
+        }
+      ]
+    }
+  ]
+}
+
+const paymentPath = `${grantPath}?tab=payment`
+
+const givenPayment = (payment: object | null, overrides = {}) =>
+  givenGrant({ overview: undefined, payment, ...overrides })
+
+const cellsOf = ($: CheerioAPI, testId: string) =>
+  part($, testId)
+    .toArray()
+    .map((row) =>
+      $(row)
+        .children('td')
+        .toArray()
+        .map((cell) => flatten($(cell).text()))
+    )
+
+describe('the grant Payment tab', () => {
+  test("reads GAS's payment read", async () => {
+    givenPayment(pigsMightFlyPayment)
+
+    await viewPage(paymentPath)
+
+    expect(getGrantPageUseCase).toHaveBeenCalledWith(
+      { code: 'woodland-creation', version: '1.2.0' },
+      'payment'
+    )
+  })
+
+  test('lists every request field with its value and kind, without code or payments', async () => {
+    givenPayment(pigsMightFlyPayment)
+
+    const { $ } = await viewPage(paymentPath)
+
+    expect(
+      textOf($, 'grant-payment-request').startsWith('Payment request')
+    ).toBe(true)
+    expect(cellsOf($, 'grant-payment-field')).toEqual([
+      ['sbi', '$.agreement.identifiers.sbi', 'reference'],
+      ['frn', '$.agreement.identifiers.frn', 'reference'],
+      ['originalInvoiceNumber', '""', 'literal'],
+      ['scheme', 'SFI', 'literal'],
+      ['sourceSystem', 'FPTT', 'literal'],
+      ['deliveryBody', 'RP00', 'literal'],
+      ['fesCode', 'FALS_FPTT', 'literal'],
+      ['ledger', 'AP', 'literal'],
+      ['totalAmountPence', '$.agreement.totalAmountPence', 'reference'],
+      ['currency', 'GBP', 'literal'],
+      [
+        'marketingYear',
+        'jsonata:$substring($.execution.executedAt, 0, 4)',
+        'expression'
+      ]
+    ])
+  })
+
+  test('shows the empty string muted, and every other value in mono', async () => {
+    givenPayment(pigsMightFlyPayment)
+
+    const { $ } = await viewPage(paymentPath)
+    const [sbi, , empty] = part($, 'grant-payment-field').toArray()
+
+    expect($(sbi).find('td').eq(1).children().attr('class')).toBe(
+      'font-mono text-sm leading-none break-words'
+    )
+    expect($(empty).find('td').eq(1).children().attr('class')).toContain(
+      'text-base-content/70'
+    )
+  })
+
+  test('gives a collection of due payments one card, saying what it repeats for', async () => {
+    givenPayment(pigsMightFlyPayment)
+
+    const { $ } = await viewPage(paymentPath)
+    const due = part($, 'grant-payment-due')
+
+    expect(due).toHaveLength(1)
+    expect(flatten(due.find('h2').text())).toBe('Due payments')
+    expect(textOf($, 'grant-payment-due-fact-for-each')).toBe(
+      'For each $.agreement.paymentSchedule.instalments'
+    )
+    expect(textOf($, 'grant-payment-due-fact-due-date')).toBe(
+      'Due date @.dueDate'
+    )
+    expect(textOf($, 'grant-payment-due-fact-total')).toBe(
+      'Total (pence) @.totalAmountPence'
+    )
+    expect(textOf($, 'grant-payment-for-each')).toBe(
+      'One line per row of @.lineItems'
+    )
+    expect(cellsOf($, 'grant-payment-line')).toEqual([
+      [
+        'CMOR1',
+        'jsonata:@.description',
+        '@.amountPence',
+        'SOS710',
+        'DRD10',
+        'RP00',
+        'jsonata:$substring($.execution.executedAt, 0, 4)'
+      ]
+    ])
+    expect(
+      part($, 'grant-payment-line').find('td').eq(1).children().attr('class')
+    ).toContain('font-mono')
+  })
+
+  test('gives each due payment of an array a numbered card, with a literal description as plain text', async () => {
+    givenPayment(woodlandPayment)
+
+    const { $ } = await viewPage(paymentPath)
+
+    expect(flatten(part($, 'grant-payment-due').find('h2').text())).toBe(
+      'Due payment 1'
+    )
+    expect(part($, 'grant-payment-due-fact-for-each')).toHaveLength(0)
+    expect(part($, 'grant-payment-for-each')).toHaveLength(0)
+    expect(
+      part($, 'grant-payment-line')
+        .find('td')
+        .eq(1)
+        .contents()
+        .toArray()
+        .map((node) => node.type)
+    ).toEqual(['text'])
+    expect(textOf($, 'grant-payment-line')).toContain(
+      'Woodland Management Plan Payment'
+    )
+  })
+
+  test('labels each card by its heading, and heads each table column', async () => {
+    givenPayment(woodlandPayment)
+
+    const { $ } = await viewPage(paymentPath)
+
+    for (const testId of ['grant-payment-request', 'grant-payment-due']) {
+      const card = part($, testId)
+
+      expect($(`#${card.attr('aria-labelledby')}`).is('h2')).toBe(true)
+    }
+    expect(
+      part($, 'grant-payment-lines')
+        .find('th')
+        .toArray()
+        .map((head) => `${$(head).attr('scope')} ${$(head).text()}`)
+    ).toEqual([
+      'col Scheme',
+      'col Description',
+      'col Amount (pence)',
+      'col Account',
+      'col Fund',
+      'col Delivery body',
+      'col Marketing year'
+    ])
+  })
+
+  test('says where due payments given as one mapping come from', async () => {
+    givenPayment({ code: 'woodland', payments: '$.agreement.payments' })
+
+    const { $ } = await viewPage(paymentPath)
+
+    expect(textOf($, 'grant-payment-from')).toBe(
+      'From $.agreement.payments reference'
+    )
+    expect(part($, 'grant-payment-lines')).toHaveLength(0)
+  })
+
+  test('says where invoice lines given as one mapping, or one line given as a mapping, come from', async () => {
+    givenPayment({
+      code: 'woodland',
+      payments: [
+        { dueDate: '@.dueDate', invoiceLines: '@.lines' },
+        { dueDate: '@.dueDate', invoiceLines: ['@.line'] }
+      ]
+    })
+
+    const { $ } = await viewPage(paymentPath)
+
+    expect(textOf($, 'grant-payment-lines-from')).toBe(
+      'Invoice lines from @.lines'
+    )
+    expect(textOf($, 'grant-payment-line-from')).toBe(
+      'Line from @.line reference'
+    )
+    expect(
+      part($, 'grant-payment-line-from').children('td').attr('colspan')
+    ).toBe('7')
+  })
+
+  test('shows a dash for each key a due payment has not got', async () => {
+    givenPayment({ code: 'woodland', payments: [{ invoiceLines: [] }] })
+
+    const { $ } = await viewPage(paymentPath)
+
+    expect(textOf($, 'grant-payment-due-fact-due-date')).toBe('Due date —')
+    expect(textOf($, 'grant-payment-due-fact-total')).toBe('Total (pence) —')
+  })
+
+  test('says when there are no due payments', async () => {
+    givenPayment({ code: 'woodland', payments: [] })
+
+    const { $ } = await viewPage(paymentPath)
+
+    expect(textOf($, 'grant-payment-no-due')).toBe('No due payments.')
+    expect(part($, 'grant-payment-due')).toHaveLength(0)
+  })
+
+  test('says when a due payment has no invoice lines, with no table', async () => {
+    givenPayment({
+      code: 'woodland',
+      payments: [{ dueDate: '@.dueDate', invoiceLines: [] }]
+    })
+
+    const { $ } = await viewPage(paymentPath)
+
+    expect(textOf($, 'grant-payment-no-lines')).toBe('No invoice lines.')
+    expect(part($, 'grant-payment-lines')).toHaveLength(0)
+  })
+
+  test('ends with the stored definition in a closed Raw panel', async () => {
+    givenPayment(woodlandPayment)
+
+    const { $ } = await viewPage(paymentPath)
+    const details = part($, 'grant-payment-raw-details')
+
+    expect(details.is('details')).toBe(true)
+    expect(details.attr('open')).toBeUndefined()
+    expect(details.prev().attr('data-testid')).toBe('grant-payment')
+    expect(textOf($, 'grant-payment-raw-summary')).toBe('Raw')
+    expect(part($, 'grant-payment-raw').attr('aria-label')).toBe(
+      'Payment definition'
+    )
+    expect(
+      part($, 'grant-payment-raw-line')
+        .toArray()
+        .map((line) => $(line).find('code').text())
+    ).toEqual(JSON.stringify(woodlandPayment, null, 2).split('\n'))
+  })
+
+  test('says the payment definition is not stored, and nothing else', async () => {
+    givenPayment(null, {
+      header: { ...grantHeader, files: { grant: fetched, payment: pending } }
+    })
+
+    const { $ } = await viewPage(paymentPath)
+
+    expect(textOf($, 'grant-not-stored')).toBe('Payment definition not stored.')
+    expect(part($, 'grant-payment')).toHaveLength(0)
+    expect(part($, 'grant-no-data')).toHaveLength(0)
+  })
+
+  test("says a stored definition over GAS's cap is too large to show", async () => {
+    givenPayment(null, {
+      sectionErrors: [{ section: 'payment', message: 'too large to show' }]
+    })
+
+    const { $ } = await viewPage(paymentPath)
+
+    expect(textOf($, 'grant-too-large')).toBe('Too large to show')
+    expect(part($, 'grant-payment')).toHaveLength(0)
+    expect(part($, 'grant-section-error')).toHaveLength(0)
+  })
+
+  test('says the definition could not be read on any other failure', async () => {
+    givenPayment(null, {
+      sectionErrors: [
+        { section: 'payment', message: 'Payment could not be loaded' }
+      ]
+    })
+
+    const { $ } = await viewPage(paymentPath)
+
+    expect(textOf($, 'grant-section-error')).toBe('Payment could not be loaded')
+    expect(part($, 'grant-payment')).toHaveLength(0)
+  })
+
+  test('says GAS sent nothing for a stored definition', async () => {
+    givenPayment(null)
+
+    const { $ } = await viewPage(paymentPath)
+
+    expect(textOf($, 'grant-no-data')).toBe('GAS returned no data for this tab')
+  })
+
+  test('opens Overview when GAS says the version has no payment file', async () => {
+    vi.mocked(getGrantPageUseCase).mockResolvedValue({
+      outcome: 'hidden',
+      page: null
+    })
+
+    const { statusCode, headers } = await viewPage(paymentPath)
+
+    expect(statusCode).toBe(statusCodes.found)
+    expect(headers.location).toBe(grantPath)
+  })
+
+  test('is not offered on a version with no payment file', async () => {
+    givenGrant({ header: { ...grantHeader, files: { grant: fetched } } })
+
+    const { $ } = await viewPage(grantPath)
+
+    expect(
+      part($, 'grant-tab')
+        .toArray()
+        .map((tab) => $(tab).text())
+    ).toEqual(['Overview', 'Events', 'Raw'])
+  })
+})
+
+const agreementPath = `${grantPath}?tab=agreement`
+
+const landData = {
+  process: 'GENERATE_OFFER',
+  service: 'LAND_DATA',
+  url: 'https://land-data.example/api/v2/parcels/{sbi}'
+}
+
+const givenAgreement = (
+  agreement: GrantVersionPage['agreement'],
+  overrides: Partial<GrantVersionPage> = {}
+) => givenGrant({ overview: undefined, agreement, ...overrides })
+
+const agreementProblem = 'Agreement definition code "other" does not match'
+
+describe('the grant Agreement tab', () => {
+  test("reads GAS's agreement read", async () => {
+    givenAgreement(null)
+
+    await viewPage(agreementPath)
+
+    expect(getGrantPageUseCase).toHaveBeenCalledWith(
+      { code: 'woodland-creation', version: '1.2.0' },
+      'agreement'
+    )
+  })
+
+  test('draws the facts, States, Pages and Processes cards', async () => {
+    givenAgreement({
+      definition: agreementDefinition,
+      addresses: [landData],
+      problem: null
+    })
+
+    const { $ } = await viewPage(agreementPath)
+
+    expect(part($, 'grant-agreement-overview').attr('aria-label')).toBe(
+      'Agreement'
+    )
+    expect(textOf($, 'grant-agreement-fact-code')).toBe(
+      'Code woodland-creation'
+    )
+    expect(part($, 'grant-agreement-state-row')).toHaveLength(7)
+    expect(part($, 'grant-agreement-page-row')).toHaveLength(3)
+    expect(
+      part($, 'grant-agreement-process-url')
+        .toArray()
+        .map((url) => $(url).text())
+    ).toEqual([landData.url])
+    expect(textOf($, 'grant-agreement-process-not-configured')).toBe(
+      'Not configured'
+    )
+  })
+
+  test('ends with the stored definition in a closed Raw panel', async () => {
+    givenAgreement({
+      definition: agreementDefinition,
+      addresses: [landData],
+      problem: null
+    })
+
+    const { $ } = await viewPage(agreementPath)
+    const details = part($, 'grant-agreement-raw-details')
+
+    expect(details.attr('open')).toBeUndefined()
+    expect(details.prev().attr('data-testid')).toBe('grant-agreement')
+    expect(textOf($, 'grant-agreement-raw-summary')).toBe('Raw')
+    expect(part($, 'grant-agreement-raw').attr('aria-label')).toBe(
+      'Agreement definition'
+    )
+    expect(
+      part($, 'grant-agreement-raw-line')
+        .toArray()
+        .map((line) => $(line).find('code').text())
+    ).toEqual(JSON.stringify(agreementDefinition, null, 2).split('\n'))
+  })
+
+  test('says why GAS cannot load a definition, then shows it as stored, and draws no cards', async () => {
+    const definition = { ...agreementDefinition, code: 'other' }
+    givenAgreement({ definition, addresses: [], problem: agreementProblem })
+
+    const { $ } = await viewPage(agreementPath)
+
+    expect(textOf($, 'grant-agreement-problem')).toBe(
+      `GAS cannot load this agreement definition: ${agreementProblem}`
+    )
+    expect(part($, 'grant-agreement-states')).toHaveLength(0)
+    expect(part($, 'grant-agreement-raw-details')).toHaveLength(1)
+    expect(part($, 'grant-section-error')).toHaveLength(0)
+  })
+
+  test('says the agreement definition is not stored, and nothing else', async () => {
+    givenAgreement(null, {
+      header: { ...grantHeader, files: { grant: fetched, agreement: pending } }
+    })
+
+    const { $ } = await viewPage(agreementPath)
+
+    expect(textOf($, 'grant-not-stored')).toBe(
+      'Agreement definition not stored.'
+    )
+    expect(part($, 'grant-agreement')).toHaveLength(0)
+    expect(part($, 'grant-no-data')).toHaveLength(0)
+  })
+
+  test("says a stored definition over GAS's cap is too large to show", async () => {
+    givenAgreement(null, {
+      sectionErrors: [{ section: 'agreement', message: 'too large to show' }]
+    })
+
+    const { $ } = await viewPage(agreementPath)
+
+    expect(textOf($, 'grant-too-large')).toBe('Too large to show')
+    expect(part($, 'grant-agreement')).toHaveLength(0)
+    expect(part($, 'grant-section-error')).toHaveLength(0)
+  })
+
+  test("shows GAS's message when the read fails", async () => {
+    givenAgreement(null, {
+      sectionErrors: [
+        { section: 'agreement', message: 'Agreement could not be loaded' }
+      ]
+    })
+
+    const { $ } = await viewPage(agreementPath)
+
+    expect(textOf($, 'grant-section-error')).toBe(
+      'Agreement could not be loaded'
+    )
+    expect(part($, 'grant-agreement')).toHaveLength(0)
+  })
+
+  test('opens Overview when GAS says the version has no agreement file', async () => {
+    vi.mocked(getGrantPageUseCase).mockResolvedValue({
+      outcome: 'hidden',
+      page: null
+    })
+
+    const { statusCode, headers } = await viewPage(agreementPath)
+
+    expect(statusCode).toBe(statusCodes.found)
+    expect(headers.location).toBe(grantPath)
+  })
+
+  test('is not offered on a version with no agreement file', async () => {
+    givenGrant({
+      header: { ...grantHeader, files: { grant: fetched, payment: fetched } }
+    })
+
+    const { $ } = await viewPage(grantPath)
+
+    expect(
+      part($, 'grant-tab')
+        .toArray()
+        .map((tab) => $(tab).text())
+    ).toEqual(['Overview', 'Payment', 'Events', 'Raw'])
   })
 })
 

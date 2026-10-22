@@ -4,6 +4,7 @@ import type {
   BucketSummary,
   Catalogue
 } from './get-catalogue.use-case.ts'
+import type { AgreementDefinition } from './get-grant-page.use-case.ts'
 import type { WorkflowDefinition } from './get-workflow-page.use-case.ts'
 
 /** A bucket of events and a bucket of records, shaped as GAS's catalogue describes them. */
@@ -26,7 +27,8 @@ export const outboxBucket: BucketEntry = {
         { value: 'PUBLISHED', label: 'Queued', tone: 'neutral' },
         { value: 'DEAD_LETTER', label: 'Dead letter', tone: 'error' }
       ],
-      toggle: null
+      toggle: null,
+      within: null
     },
     {
       name: 'eventType',
@@ -36,21 +38,24 @@ export const outboxBucket: BucketEntry = {
         { value: 'UpdateCaseStatus', label: 'UpdateCaseStatus' },
         { value: 'Unrecognised', label: 'Unrecognised' }
       ],
-      toggle: null
+      toggle: null,
+      within: null
     },
     {
       name: 'grantCode',
       param: 'grant',
       label: 'Grant',
       values: null,
-      toggle: null
+      toggle: null,
+      within: null
     },
     {
       name: 'lastError.name',
       param: 'error',
       label: 'Error name',
       values: null,
-      toggle: null
+      toggle: null,
+      within: null
     }
   ],
   refs: [
@@ -140,7 +145,16 @@ export const applicationsBucket: BucketEntry = {
       param: 'grant',
       label: 'Grant',
       values: [{ value: 'example-grant', label: 'example-grant' }],
-      toggle: null
+      toggle: null,
+      within: null
+    },
+    {
+      name: 'currentConfigVersion',
+      param: 'version',
+      label: 'Version',
+      values: null,
+      toggle: null,
+      within: 'code'
     },
     {
       name: 'archived',
@@ -150,11 +164,12 @@ export const applicationsBucket: BucketEntry = {
         { value: 'true', label: 'Archived' },
         { value: 'false', label: 'Current' }
       ],
-      toggle: null
+      toggle: null,
+      within: null
     }
   ],
   refs: [{ kind: 'ref', label: 'Reference' }],
-  indexes: [[], ['code']],
+  indexes: [[], ['code'], ['code', 'currentConfigVersion']],
   groupings: [],
   title: { label: 'Reference', format: 'mono' },
   columns: [
@@ -176,7 +191,8 @@ const versionStatusFact: BucketFact = {
     { value: 'active', label: 'Active', tone: 'success' },
     { value: 'draft', label: 'Draft', tone: 'neutral' }
   ],
-  toggle: null
+  toggle: null,
+  within: null
 }
 
 const fetchStatusValues: BucketFact['values'] = [
@@ -206,7 +222,8 @@ export const grantsBucket: BucketEntry = {
         { value: 'hedgerow-restoration', label: 'hedgerow-restoration' },
         { value: 'woodland-creation', label: 'woodland-creation' }
       ],
-      toggle: null
+      toggle: null,
+      within: null
     },
     versionStatusFact,
     {
@@ -214,7 +231,8 @@ export const grantsBucket: BucketEntry = {
       param: 'definition',
       label: 'Definition',
       values: fetchStatusValues,
-      toggle: null
+      toggle: null,
+      within: null
     }
   ],
   refs: [],
@@ -271,7 +289,8 @@ export const workflowsBucket: BucketEntry = {
       param: 'workflow',
       label: 'Workflow',
       values: [{ value: 'woodland-creation', label: 'woodland-creation' }],
-      toggle: null
+      toggle: null,
+      within: null
     },
     versionStatusFact,
     {
@@ -279,7 +298,8 @@ export const workflowsBucket: BucketEntry = {
       param: 'definition',
       label: 'Definition',
       values: fetchStatusValues,
-      toggle: null
+      toggle: null,
+      within: null
     }
   ],
   indexes: [
@@ -407,4 +427,95 @@ export const woodlandDefinition: WorkflowDefinition = {
     },
     { code: 'recalculate', service: 'PAYMENT_CALC', url: null }
   ]
+}
+
+/** An agreement definition as GAS stores it (`agreements__definitions.definition`). */
+export const agreementDefinition: AgreementDefinition = {
+  code: 'woodland-creation',
+  agreementNumberPrefix: 'WC',
+  create: {
+    target: 'offered',
+    application: '$.input.answers',
+    processes: ['GENERATE_OFFER']
+  },
+  states: {
+    offered: {
+      page: 'offered',
+      on: {
+        accept: {
+          target: 'accepted',
+          page: 'accept',
+          validation: {
+            required: [
+              {
+                name: 'confirm',
+                value: '$.form.confirm',
+                href: '#confirm',
+                message: 'Confirm you have read the terms'
+              }
+            ]
+          },
+          processes: ['CREATE_AGREEMENT_PAYMENT']
+        },
+        withdraw: { target: 'withdrawn' },
+        cancel: { target: 'cancelled' }
+      }
+    },
+    accepted: {
+      page: 'accepted',
+      processes: ['GENERATE_OFFER'],
+      on: { terminate: { target: 'terminated' } }
+    },
+    withdrawn: { page: 'withdrawn' },
+    cancelled: {},
+    terminated: { page: 'terminated' }
+  },
+  pages: {
+    document: {
+      title: 'Agreement document',
+      layout: 'document',
+      components: [{ component: 'heading' }],
+      sections: [
+        { id: 'parties' },
+        { id: 'actions' },
+        { id: 'payments' },
+        { id: 'terms' }
+      ]
+    },
+    offered: {
+      title: 'Review your agreement offer',
+      components: [
+        { component: 'summary-list' },
+        { component: 'button' },
+        { component: 'summary-list' }
+      ]
+    },
+    accept: {
+      title: 'Accept your agreement offer',
+      components: [{ component: 'form' }]
+    }
+  },
+  processDefinitions: {
+    GENERATE_OFFER: {
+      type: 'endpoint',
+      endpoint: {
+        method: 'POST',
+        service: 'LAND_DATA',
+        path: '/api/v2/parcels/{sbi}'
+      },
+      request: { body: { sbi: '$.application.sbi' } },
+      output: {
+        offer: '$.response.offer',
+        totalAmountPence: '$.response.totalAmountPence'
+      }
+    },
+    FETCH_TERMS: {
+      type: 'endpoint',
+      endpoint: { method: 'GET', service: 'AGREEMENT_DOCS', path: '/terms' },
+      request: { body: {} },
+      output: { terms: '$.response.terms' }
+    },
+    CREATE_AGREEMENT_PAYMENT: { type: 'handler' }
+  },
+  templates: { terms: { standard: {}, welsh: {} } }
 }

@@ -1,7 +1,10 @@
 {% extends "record.njk" %}
 
 {% from "filter-menu/macro.njk" import filterMenu %}
+{% from "agreement-definition/macro.njk" import agreementDefinition %}
 {% from "icon/macro.njk" import icon %}
+{% from "payment-definition/macro.njk" import paymentDefinition %}
+{% from "raw-details/macro.njk" import rawDetails %}
 {% from "status-badge/macro.njk" import statusBadge %}
 
 {% block recordHeader %}
@@ -51,6 +54,12 @@
     <div class="card card-border bg-base-100" data-testid="{{ record.itemId }}-not-stored">
       <p class="px-4 py-10 text-center text-sm text-base-content/60">{{ notStored | capitalize }} definition not stored.</p>
     </div>
+  {% elif tab == "agreement" and agreement %}
+    {{ agreementDefinition({ tab: agreement, testId: "grant-agreement" }) }}
+    {{ rawDetails({ view: agreement.raw, label: "Agreement definition", testId: "grant-agreement-raw" }) }}
+  {% elif tab == "payment" and payment.view %}
+    {{ paymentDefinition({ view: payment.view, testId: "grant-payment" }) }}
+    {{ rawDetails({ view: payment.raw.view, label: "Payment definition", testId: "grant-payment-raw" }) }}
   {% else %}
     {{ super() }}
   {% endif %}

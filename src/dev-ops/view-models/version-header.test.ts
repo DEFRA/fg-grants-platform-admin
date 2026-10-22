@@ -23,6 +23,7 @@ const header = (
       receivedAt: '2026-10-10T16:25:00.000Z'
     }
   ],
+  counterpart: null,
   ...overrides
 })
 

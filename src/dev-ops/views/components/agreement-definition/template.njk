@@ -1,0 +1,130 @@
+{% from "facts-card/macro.njk" import factsCard %}
+{% from "icon/macro.njk" import icon %}
+{% from "service-address/macro.njk" import serviceAddress %}
+
+{# Tailwind only sees class names written literally in this file. #}
+{% set card = "card card-border mt-4 bg-base-100 first:mt-0" %}
+{% set mono = "font-mono text-sm leading-none break-words" %}
+{% set muted = "font-mono text-sm leading-none text-base-content/70" %}
+{% set quiet = "text-base-content/60" %}
+{% set badge = "badge badge-sm badge-outline" %}
+{% set empty = "px-4 py-10 text-center text-sm text-base-content/60" %}
+
+{% macro codes(list) %}
+  {%- for code in list -%}
+    <span class="{{ mono }}">{{ code }}</span>{% if not loop.last %}<span class="text-base-content/40">, </span>{% endif %}
+  {%- else -%}
+    <span class="{{ muted }}">—</span>
+  {%- endfor -%}
+{% endmacro %}
+
+{% macro monoOr(value, otherwise) %}
+  {%- if value -%}
+    <span class="{{ mono }}">{{ value }}</span>
+  {%- elif otherwise == "none" -%}
+    <span class="{{ quiet }}">none</span>
+  {%- else -%}
+    <span class="{{ muted }}">—</span>
+  {%- endif -%}
+{% endmacro %}
+
+{%- set tab = params.tab -%}
+{%- set testId = params.testId -%}
+<div data-testid="{{ testId }}">
+  {% if tab.problem !== null %}
+    <div role="alert" class="alert alert-error alert-soft text-sm" data-testid="{{ testId }}-problem">
+      {{ icon({ name: 'exclamation-circle', class: 'size-4 shrink-0' }) }}
+      <span>GAS cannot load this agreement definition: {{ tab.problem }}</span>
+    </div>
+  {% else %}
+    {{ factsCard({ facts: tab.facts, label: 'Agreement', testId: testId }) }}
+
+    <section class="{{ card }}" aria-labelledby="{{ testId }}-states-title" data-testid="{{ testId }}-states">
+      <div class="card-body gap-3 p-5">
+        <h2 class="card-title text-base" id="{{ testId }}-states-title">States</h2>
+        <div class="w-full overflow-x-auto">
+          <table class="table w-full min-w-[56rem] table-fixed" data-testid="{{ testId }}-states-table">
+            <colgroup><col class="w-[14%]"><col class="w-[11%]"><col class="w-[11%]"><col class="w-[11%]"><col class="w-[12%]"><col class="w-[11%]"><col class="w-[10%]"><col class="w-[20%]"></colgroup>
+            <thead>
+              <tr><th scope="col">State</th><th scope="col">Page</th><th scope="col">Page processes</th><th scope="col">Action</th><th scope="col">Moves to</th><th scope="col">Action page</th><th scope="col">Checks</th><th scope="col">Runs</th></tr>
+            </thead>
+            <tbody>
+              {% for row in tab.states %}
+                {% set state = row.state %}
+                {% set action = row.action %}
+                <tr class="hover:bg-base-200" data-testid="{{ testId }}-state-row">
+                  <td>{% if state %}<span class="{{ mono }}">{{ state.name }}</span>{% if state.initial %} <span class="{{ badge }}" data-testid="{{ testId }}-initial">initial</span>{% endif %}{% if state.pinsVersion %} <span class="{{ badge }}" data-testid="{{ testId }}-pins-version">pins version</span>{% endif %}{% endif %}</td>
+                  <td>{% if state %}{{ monoOr(state.page, "none") }}{% endif %}</td>
+                  <td>{% if state %}{{ codes(state.pageProcesses) }}{% endif %}</td>
+                  {% if action %}
+                    <td><span class="{{ mono }}">{{ action.name }}</span></td>
+                    <td><span class="{{ mono }}">{{ action.target }}</span></td>
+                    <td>{{ monoOr(action.page) }}</td>
+                    <td>{% if action.required !== null %}{{ action.required }} required{% else %}<span class="{{ muted }}">—</span>{% endif %}</td>
+                    <td>{{ codes(action.runs) }}</td>
+                  {% else %}
+                    <td><span class="{{ quiet }}">none</span></td>
+                    <td></td><td></td><td></td><td></td>
+                  {% endif %}
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section class="{{ card }}" aria-labelledby="{{ testId }}-pages-title" data-testid="{{ testId }}-pages">
+      <div class="card-body gap-3 p-5">
+        <h2 class="card-title text-base" id="{{ testId }}-pages-title">Pages</h2>
+        <div class="w-full overflow-x-auto">
+          <table class="table w-full min-w-[40rem] table-fixed" data-testid="{{ testId }}-pages-table">
+            <colgroup><col class="w-[14%]"><col class="w-[30%]"><col class="w-[12%]"><col class="w-[24%]"><col class="w-[20%]"></colgroup>
+            <thead>
+              <tr><th scope="col">Page</th><th scope="col">Title</th><th scope="col">Layout</th><th scope="col">Sections</th><th scope="col">Components</th></tr>
+            </thead>
+            <tbody>
+              {% for page in tab.pages %}
+                <tr class="hover:bg-base-200" data-testid="{{ testId }}-page-row">
+                  <td><span class="{{ mono }}">{{ page.id }}</span></td>
+                  <td>{{ page.title }}</td>
+                  <td>{{ monoOr(page.layout) }}</td>
+                  <td>{% if page.sections %}{{ codes(page.sections) }}{% else %}<span class="{{ muted }}">—</span>{% endif %}</td>
+                  <td>{{ codes(page.components) }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section class="{{ card }}" aria-labelledby="{{ testId }}-processes-title" data-testid="{{ testId }}-processes">
+      <div class="card-body gap-3 p-5">
+        <h2 class="card-title text-base" id="{{ testId }}-processes-title">Processes</h2>
+        {% if tab.processes | length %}
+          <div class="w-full overflow-x-auto">
+            <table class="table w-full min-w-[40rem] table-fixed" data-testid="{{ testId }}-processes-table">
+              <colgroup><col class="w-[22%]"><col class="w-[10%]"><col class="w-[46%]"><col class="w-[22%]"></colgroup>
+              <thead>
+                <tr><th scope="col">Process</th><th scope="col">Type</th><th scope="col">Calls</th><th scope="col">Outputs</th></tr>
+              </thead>
+              <tbody>
+                {% for process in tab.processes %}
+                  <tr class="hover:bg-base-200" data-testid="{{ testId }}-process-row">
+                    <td><span class="{{ mono }}">{{ process.name }}</span></td>
+                    <td><span class="{{ mono }}">{{ process.type }}</span></td>
+                    <td>{% if process.call %}<div class="flex gap-2"><span class="{{ mono }}">{{ process.call.method }}</span> <div class="min-w-0">{{ serviceAddress({ url: process.call.url, service: process.call.service, testId: testId ~ "-process" }) }}</div></div>{% else %}<span class="{{ muted }}">—</span>{% endif %}</td>
+                    <td>{{ codes(process.outputs) }}</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        {% else %}
+          <p class="{{ empty }}" data-testid="{{ testId }}-no-processes">No processes.</p>
+        {% endif %}
+      </div>
+    </section>
+  {% endif %}
+</div>

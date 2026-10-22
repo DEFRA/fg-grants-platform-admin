@@ -2,37 +2,16 @@
 
 {% from "back/macro.njk" import back %}
 {% from "event-row/macro.njk" import eventRow, eventsHead %}
+{% from "facts-card/macro.njk" import factsCard %}
 {% from "icon/macro.njk" import icon %}
 {% from "json-viewer/macro.njk" import jsonViewer %}
 {% from "record-row/macro.njk" import recordItem, recordRow %}
-
-{# Tailwind only sees class names written literally in this file. #}
-{% set factLabel = "text-sm font-medium text-base-content/70" %}
-{% set monoValue = "font-mono text-sm leading-none break-all" %}
-{% set monoMuted = "font-mono text-sm leading-none text-base-content/70" %}
-{% set monoTime = "font-mono text-sm leading-none tabular-nums whitespace-nowrap" %}
-{% set factList = "grid grid-cols-1 content-start gap-x-6 gap-y-3 sm:grid-cols-[8rem_minmax(0,1fr)]" %}
 
 {% macro noData(record) %}
   <div role="alert" class="alert alert-warning alert-soft text-sm" data-testid="{{ record.itemId }}-no-data">
     {{ icon({ name: 'exclamation-triangle', class: 'size-4 shrink-0' }) }}
     <span>{{ record.source }} returned no data for this tab</span>
   </div>
-{% endmacro %}
-
-{% macro factValue(fact, testId) %}
-  {%- if fact.kind == "mono" -%}
-    <span class="{{ monoValue }}" data-testid="{{ testId }}">{{ fact.text }}</span>{% if fact.from %} <span class="{{ monoMuted }}" data-testid="{{ testId }}-from">from {{ fact.from }}</span>{% endif %}
-  {%- elif fact.kind == "date" and fact.instant -%}
-    <time class="{{ monoTime }}" datetime="{{ fact.instant }}" data-testid="{{ testId }}">{{ fact.text }}</time>
-  {%- elif fact.kind == "date" -%}
-    {# Stored but empty: said as such, so it never reads as missing. #}
-    <span class="{{ monoMuted }}" data-testid="{{ testId }}">{{ fact.text if fact.text else '""' }}</span>
-  {%- elif fact.kind == "link" -%}
-    <a class="link" href="{{ fact.href }}" target="_blank" rel="noopener noreferrer" data-testid="{{ testId }}">{{ fact.text }}<span class="sr-only"> (opens in a new tab)</span></a>{{ icon({ name: 'external-link', class: 'inline size-3.5 align-middle opacity-50' }) }}
-  {%- else -%}
-    <span data-testid="{{ testId }}">{{ fact.text }}</span>
-  {%- endif -%}
 {% endmacro %}
 
 {% block pageTitle %}{{ record.title }} {{ ref }} | {{ serviceName }}{% endblock %}
@@ -82,23 +61,7 @@
         <span>Too large to show</span>
       </div>
     {% elif tab == "overview" and facts %}
-      <section class="card card-border bg-base-100" aria-label="Overview" data-testid="{{ record.itemId }}-overview">
-        <div class="card-body p-5">
-          {# Two lists, not one grid: auto-placement never goes backwards, so the right-hand facts would stack below the left. #}
-          <div class="grid gap-x-6 gap-y-3 text-sm lg:grid-cols-2" data-testid="{{ record.itemId }}-facts">
-            {% for column in facts %}
-              <dl class="{{ factList }}">
-                {% for fact in column %}
-                  <div class="contents" data-testid="{{ record.itemId }}-fact-{{ fact.id }}">
-                    <dt class="{{ factLabel }}">{{ fact.label }}</dt>
-                    <dd class="min-w-0">{{ factValue(fact, record.itemId ~ "-" ~ fact.id) }}</dd>
-                  </div>
-                {% endfor %}
-              </dl>
-            {% endfor %}
-          </div>
-        </div>
-      </section>
+      {{ factsCard({ facts: facts, label: 'Overview', testId: record.itemId }) }}
       {% if series %}
         {% set seriesPrefix = record.itemId ~ "-series" %}
         <section class="card card-border mt-4 bg-base-100" aria-labelledby="{{ seriesPrefix }}-title" data-testid="{{ seriesPrefix }}">
