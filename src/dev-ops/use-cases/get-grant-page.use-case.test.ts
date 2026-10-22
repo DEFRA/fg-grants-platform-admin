@@ -30,6 +30,7 @@ const responseError = (statusCode: number, body: object = {}) =>
 describe('getGrantPageUseCase', () => {
   test.each([
     ['overview', 'overview'],
+    ['questions', 'definition'],
     ['raw', 'definition']
   ] as const)("reads the %s tab from GAS's %s read", async (tab, read) => {
     const found = page({ grant: { stored: true, fetchStatus: 'fetched' } })

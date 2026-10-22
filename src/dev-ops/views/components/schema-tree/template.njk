@@ -1,0 +1,57 @@
+{% from "icon/macro.njk" import icon %}
+
+{# Tailwind only sees class names written literally in this file. #}
+{% set columns = "sm:grid sm:grid-cols-[minmax(0,2fr)_minmax(0,1.3fr)_minmax(0,1fr)_minmax(0,2.4fr)] sm:gap-3" %}
+{# The CSP blocks inline styles, so each level's indent is a class. #}
+{% set indents = ["pl-0", "pl-5", "pl-10", "pl-15", "pl-20", "pl-25", "pl-30", "pl-35", "pl-40"] %}
+{% set mono = "font-mono text-sm leading-none break-words" %}
+
+{%- set testId = params.testId -%}
+<div data-testid="{{ testId }}">
+  <div class="{{ columns }} hidden border-b border-base-300 pb-2 text-sm font-semibold text-base-content/70" data-testid="{{ testId }}-head"><span>Property</span><span>Type</span><span>Required</span><span>Constraints</span></div>
+  {%- for row in params.rows -%}
+    {%- if row.kind == "end" -%}
+      </details>
+    {%- else -%}
+      {%- set field = row.field -%}
+      {%- set indent = indents[field.indent] -%}
+      {%- if row.kind == "open" -%}
+        <details open>
+        <summary class="cursor-pointer list-none border-b border-base-200 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-base-content [&::-webkit-details-marker]:hidden" data-testid="{{ testId }}-fold">
+      {%- else -%}
+        <div class="border-b border-base-200">
+      {%- endif -%}
+      <div class="{{ columns }} items-center py-2 text-sm" data-testid="{{ testId }}-row">
+        <span class="flex min-w-0 items-center gap-1 {{ indent }}">
+          {%- if row.kind == "open" -%}
+            {{ icon({ name: 'chevron-down', class: 'size-3.5 shrink-0 -rotate-90 text-base-content/50 [details[open]>summary_&]:rotate-0' }) }}
+          {%- else -%}
+            <span class="w-3.5 shrink-0"></span>
+          {%- endif -%}
+          <span class="min-w-0 break-words"><span class="font-mono break-all" data-testid="{{ testId }}-name">{{ field.name }}</span>{% if field.required %}<span class="text-error" aria-hidden="true"> *</span>{% endif %}{% if field.title %} <span class="text-base-content/60">{{ field.title }}</span>{% endif %}</span>
+        </span>
+        <span class="mt-1 ml-4.5 flex flex-wrap items-center gap-x-3 gap-y-1 {{ indent }} sm:contents">
+          <span data-testid="{{ testId }}-type"><span class="{{ mono }}">{{ field.type }}</span></span>
+          <span data-testid="{{ testId }}-required">{% if field.required %}Required{% else %}<span class="text-base-content/60">Optional</span>{% endif %}</span>
+          <span class="min-w-0" data-testid="{{ testId }}-constraints">
+            {%- for constraint in field.constraints -%}
+              {%- if not loop.first %}<span class="text-base-content/40">, </span>{% endif -%}
+              <span class="{{ mono }}">{{ constraint }}</span>
+            {%- endfor -%}
+            {%- if field.defaultValue !== null -%}
+              {%- if field.constraints | length %}<span class="text-base-content/40">, </span>{% endif -%}
+              <span class="badge badge-sm badge-outline">default {{ field.defaultValue }}</span>
+            {%- elif not field.constraints | length -%}
+              <span class="font-mono text-sm leading-none text-base-content/70">—</span>
+            {%- endif -%}
+          </span>
+        </span>
+      </div>
+      {%- if row.kind == "open" -%}
+        </summary>
+      {%- else -%}
+        </div>
+      {%- endif -%}
+    {%- endif -%}
+  {%- endfor -%}
+</div>

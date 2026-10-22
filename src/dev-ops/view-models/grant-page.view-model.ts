@@ -16,6 +16,8 @@ import type {
   DefinitionFetchNotice
 } from './definition-fetch.ts'
 import { toUnavailableSources } from './event-row.ts'
+import { toGrantQuestions } from './grant-questions.ts'
+import type { GrantQuestionsTab } from './grant-questions.ts'
 import { grantType, toGrantHref } from './grants-page.view-model.ts'
 import {
   toDateFact,
@@ -38,6 +40,7 @@ export interface GrantPageModel extends RecordPageModel {
   notices: DefinitionFetchNotice[]
   /** The file the tab needs, while it is not stored. */
   notStored: DefinitionFileType | null
+  questions: GrantQuestionsTab | null
 }
 
 const toAllowListHref = (code: string): string =>
@@ -136,6 +139,10 @@ export const toGrantPage = (
       notice,
       toVersionPath(grantType, page.header)
     ),
-    notStored: toNotStored(page.header, tab)
+    notStored: toNotStored(page.header, tab),
+    questions:
+      tab === 'questions' && page.definition
+        ? toGrantQuestions(page.definition)
+        : null
   }
 }

@@ -1395,7 +1395,7 @@ describe('the grant page', () => {
     ])
   })
 
-  test('offers Overview and Raw, keeping the list it was opened from', async () => {
+  test('offers Overview, Questions and Raw, keeping the list it was opened from', async () => {
     const from = '/dev-ops/grants'
     const { $ } = await viewPage(
       `${grantPath}?tab=raw&back=${encodeURIComponent(from)}`
@@ -1407,6 +1407,7 @@ describe('the grant page', () => {
         .map((tab) => `${$(tab).text()} ${$(tab).attr('href')}`)
     ).toEqual([
       `Overview ${grantPath}?back=${encodeURIComponent(from)}`,
+      `Questions ${grantPath}?tab=questions&back=${encodeURIComponent(from)}`,
       `Raw ${grantPath}?tab=raw&back=${encodeURIComponent(from)}`
     ])
     expect(part($, 'grant-tabs').find('[aria-current="page"]').text()).toBe(
@@ -1822,6 +1823,237 @@ describe('the grant Raw tab', () => {
       'Definition could not be loaded'
     )
     expect(part($, 'grant-raw-too-large')).toHaveLength(0)
+  })
+})
+
+describe('the grant Questions tab', () => {
+  const questionsPath = `${grantPath}?tab=questions`
+
+  const preAward = {
+    type: 'object',
+    additionalProperties: false,
+    required: ['hectares'],
+    properties: {
+      hectares: { type: 'number', title: 'Area to plant (ha)', minimum: 0.5 },
+      hasWoodlandPlan: { type: 'boolean', default: false }
+    }
+  }
+
+  const givenPhases = (...phases: unknown[]) => {
+    const definition = { ...grantDefinition, phases }
+
+    givenGrant({ overview: undefined, definition })
+  }
+
+  const cards = ($: CheerioAPI) => part($, 'grant-questions-phase')
+
+  test('sits after Overview and before Raw, and reads the stored definition', async () => {
+    givenPhases({ code: 'PRE_AWARD', questions: preAward })
+
+    const { $ } = await viewPage(questionsPath)
+
+    expect(
+      part($, 'grant-tab')
+        .toArray()
+        .map((tab) => $(tab).text())
+    ).toEqual(['Overview', 'Questions', 'Raw'])
+    expect(part($, 'grant-tabs').find('[aria-current="page"]').text()).toBe(
+      'Questions'
+    )
+    expect(getGrantPageUseCase).toHaveBeenCalledWith(
+      { code: 'woodland-creation', version: '1.2.0' },
+      'questions'
+    )
+  })
+
+  test('gives each phase with questions a card titled by its code, badging every phase after the first', async () => {
+    givenPhases(
+      { code: 'PRE_AWARD', questions: preAward },
+      { code: 'POST_AWARD', questions: { type: 'object', properties: {} } },
+      { code: 'CLAIM' }
+    )
+
+    const { $ } = await viewPage(questionsPath)
+    const titles = cards($).find('h2')
+
+    expect(titles.toArray().map((title) => flatten($(title).text()))).toEqual([
+      'PRE_AWARD',
+      'POST_AWARD Not used by GAS'
+    ])
+    expect(titles.first().find('.font-mono').text()).toBe('PRE_AWARD')
+    expect(titles.first().find('[data-testid="do-status-badge"]')).toHaveLength(
+      0
+    )
+    expect(
+      titles.eq(1).find('[data-testid="do-status-dot"]').attr('class')
+    ).toBe('status bg-base-content/80')
+  })
+
+  test('draws the schema tree of a phase', async () => {
+    givenPhases({ code: 'PRE_AWARD', questions: preAward })
+
+    const { $ } = await viewPage(questionsPath)
+
+    expect(
+      part($, 'grant-questions-tree-name')
+        .toArray()
+        .map((name) => $(name).text())
+    ).toEqual(['hectares', 'hasWoodlandPlan'])
+  })
+
+  test('lists the rules that apply beyond single fields, in a scrolling table', async () => {
+    givenPhases({ code: 'PRE_AWARD', questions: preAward })
+
+    const { $ } = await viewPage(questionsPath)
+    const rules = part($, 'grant-questions-rules')
+
+    expect(rules.parent().prev('h3').text()).toBe('Rules')
+    expect(rules.parent().attr('class')).toContain('w-full overflow-x-auto')
+    expect(
+      rules
+        .find('th')
+        .toArray()
+        .map((head) => $(head).text())
+    ).toEqual(['Applies to', 'Rule'])
+    expect(
+      rules
+        .find('tbody tr')
+        .toArray()
+        .map((row) =>
+          $(row)
+            .find('td')
+            .toArray()
+            .map((cell) => flatten($(cell).text()))
+        )
+    ).toEqual([
+      ['(root)', 'Undeclared fields are removed on submission'],
+      ['hasWoodlandPlan', 'Default false filled in when missing']
+    ])
+  })
+
+  test('has no Rules heading when no rule applies', async () => {
+    givenPhases({
+      code: 'PRE_AWARD',
+      questions: { properties: { sbi: { type: 'string' } } }
+    })
+
+    const { $ } = await viewPage(questionsPath)
+
+    expect(cards($).find('h3')).toHaveLength(0)
+    expect(part($, 'grant-questions-rules')).toHaveLength(0)
+  })
+
+  test('says a schema with no properties has none', async () => {
+    givenPhases({ code: 'PRE_AWARD', questions: { type: 'object' } })
+
+    const { $ } = await viewPage(questionsPath)
+
+    expect(textOf($, 'grant-questions-empty')).toBe('No properties.')
+    expect(part($, 'grant-questions-tree')).toHaveLength(0)
+  })
+
+  test.each([
+    [
+      'without questions',
+      { code: 'PRE_AWARD' },
+      'No questions: every submission throws.'
+    ],
+    [
+      'whose questions reject every answer',
+      { code: 'PRE_AWARD', questions: false },
+      'Every answer is rejected.'
+    ],
+    [
+      'whose questions are not a schema',
+      { code: 'PRE_AWARD', questions: 'object' },
+      'Questions are not a JSON Schema object.'
+    ],
+    ['that is not an object', 'PRE_AWARD', 'This phase is not an object.']
+  ])(
+    'shows an error alert for a first phase %s',
+    async (_name, phase, text) => {
+      givenPhases(phase)
+
+      const { $ } = await viewPage(questionsPath)
+      const alert = cards($).find('[role="alert"]')
+
+      expect(flatten(alert.text())).toBe(text)
+      expect(alert.attr('class')).toContain('alert-error')
+    }
+  )
+
+  test('says questions that are true accept any answer, with no alert', async () => {
+    givenPhases({ code: 'PRE_AWARD', questions: true })
+
+    const { $ } = await viewPage(questionsPath)
+
+    expect(textOf($, 'grant-questions-any')).toBe('Any answers accepted.')
+    expect(cards($).find('[role="alert"]')).toHaveLength(0)
+  })
+
+  test('titles a phase with no code by its place, says so, and still shows its questions', async () => {
+    givenPhases({ questions: preAward })
+
+    const { $ } = await viewPage(questionsPath)
+
+    expect(flatten(cards($).find('h2').text())).toBe('Phase 1')
+    expect(flatten(cards($).find('[role="alert"]').text())).toBe(
+      'This phase has no code.'
+    )
+    expect(part($, 'grant-questions-tree-row')).toHaveLength(2)
+  })
+
+  test('says a definition with no phases makes every submission throw', async () => {
+    givenPhases()
+
+    const { $, statusCode } = await viewPage(questionsPath)
+
+    expect(statusCode).toBe(statusCodes.ok)
+    expect(textOf($, 'grant-questions-no-phases')).toBe(
+      'The grant definition has no phases: every submission throws.'
+    )
+    expect(cards($)).toHaveLength(0)
+  })
+
+  test('says the grant definition is not stored, and nothing else', async () => {
+    givenGrant({ header: nothingStored, overview: undefined, definition: null })
+
+    const { $ } = await viewPage(questionsPath)
+
+    expect(textOf($, 'grant-not-stored')).toBe('Grant definition not stored.')
+    expect(cards($)).toHaveLength(0)
+    expect(part($, 'grant-questions-no-phases')).toHaveLength(0)
+  })
+
+  test('says a definition over GAS cap is too large to show, in place of the tab', async () => {
+    givenGrant({
+      overview: undefined,
+      definition: null,
+      sectionErrors: [{ section: 'definition', message: 'too large to show' }]
+    })
+
+    const { $ } = await viewPage(questionsPath)
+
+    expect(textOf($, 'grant-too-large')).toBe('Too large to show')
+    expect(cards($)).toHaveLength(0)
+    expect(part($, 'grant-questions-no-phases')).toHaveLength(0)
+  })
+
+  test('says the definition could not be read, in place of the tab', async () => {
+    givenGrant({
+      overview: undefined,
+      definition: null,
+      sectionErrors: [
+        { section: 'definition', message: 'Definition could not be loaded' }
+      ]
+    })
+
+    const { $ } = await viewPage(questionsPath)
+
+    expect(textOf($, 'grant-section-error')).toBe(
+      'Definition could not be loaded'
+    )
+    expect(cards($)).toHaveLength(0)
   })
 })
 
