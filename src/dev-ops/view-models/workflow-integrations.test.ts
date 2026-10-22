@@ -8,6 +8,10 @@ import type {
 import { woodlandDefinition } from '../use-cases/test-fixtures.ts'
 import { toWorkflowIntegrations } from './workflow-integrations.ts'
 
+// The tab never reads phases, so a fixture may leave them out.
+type AnyWorkflow = Omit<StoredWorkflow, 'phases'> &
+  Partial<Pick<StoredWorkflow, 'phases'>>
+
 const pagesHref =
   '/dev-ops/workflows/woodland-creation/1.2.0?tab=pages&back=%2Fdev-ops%2Fworkflows'
 
@@ -41,10 +45,10 @@ const withBanner = (tabs: Record<string, StoredCaseTab> = {}) => ({
 })
 
 const definitionOf = (
-  workflow: StoredWorkflow,
+  workflow: AnyWorkflow,
   urls: (string | null)[] = []
 ): WorkflowDefinition => ({
-  workflow,
+  workflow: { phases: [], ...workflow },
   addresses: (workflow.endpoints ?? []).map(({ code, service }, index) => ({
     code,
     service,
@@ -52,12 +56,10 @@ const definitionOf = (
   }))
 })
 
-const integrationsOf = (
-  workflow: StoredWorkflow,
-  urls: (string | null)[] = []
-) => toWorkflowIntegrations(definitionOf(workflow, urls), pagesHref)
+const integrationsOf = (workflow: AnyWorkflow, urls: (string | null)[] = []) =>
+  toWorkflowIntegrations(definitionOf(workflow, urls), pagesHref)
 
-const cardOf = (workflow: StoredWorkflow, index = 0) =>
+const cardOf = (workflow: AnyWorkflow, index = 0) =>
   integrationsOf(workflow).cards[index]
 
 describe('toWorkflowIntegrations', () => {

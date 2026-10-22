@@ -8,6 +8,7 @@ import type { AgreementDefinition } from './get-grant-page.use-case.ts'
 import type {
   StoredAction,
   StoredTransition,
+  StoredValueOption,
   StoredWorkflowPhase,
   StoredWorkflowStatus,
   WorkflowDefinition
@@ -389,6 +390,19 @@ const act = (
   confirm = false
 ): StoredAction => ({ code, name, checkTasks: false, comment, confirm })
 
+/** A value option; one with a comment label asks for a required comment. */
+const option = (
+  code: string,
+  name: string,
+  completes: boolean,
+  comment?: string
+): StoredValueOption => ({
+  code,
+  name,
+  completes,
+  comment: comment ? { label: comment, mandatory: true } : null
+})
+
 /** The prototype's `woodland-creation@1.2.0` phases, as CW stores them. */
 export const woodlandPhases: StoredWorkflowPhase[] = [
   {
@@ -451,6 +465,58 @@ export const woodlandPhases: StoredWorkflowPhase[] = [
             closes: true,
             hideTaskGroups: true
           })
+        ],
+        taskGroups: [
+          {
+            code: 'CHECKS',
+            name: 'Application checks',
+            tasks: [
+              {
+                code: 'CHECK_ELIGIBILITY',
+                name: 'Check eligibility',
+                mandatory: true,
+                requiredRoles: null,
+                valueOptions: [
+                  option('ACCEPTED', 'Accepted', true),
+                  option('RFI', 'Information needed', false, 'What is missing'),
+                  option('CANNOT_COMPLETE', 'Cannot complete', false, 'Why')
+                ]
+              },
+              {
+                code: 'CHECK_LAND',
+                name: 'Check land parcels',
+                mandatory: true,
+                requiredRoles: null,
+                valueOptions: [
+                  option('ACCEPTED', 'Accepted', true),
+                  option('NOT_ACCEPTED', 'Not accepted', true, 'Which parcels')
+                ]
+              },
+              {
+                code: 'SITE_VISIT_DATE',
+                name: 'Record site visit date',
+                mandatory: false,
+                requiredRoles: { allOf: ['ROLE_RPA_CASES_APPROVE'], anyOf: [] },
+                input: { type: 'date', label: 'Site visit date' }
+              }
+            ]
+          },
+          {
+            code: 'APPROVAL',
+            name: 'Approval',
+            tasks: [
+              {
+                code: 'SECOND_CHECK',
+                name: 'Second check',
+                mandatory: true,
+                requiredRoles: { allOf: [], anyOf: ['ROLE_RPA_ADMIN'] },
+                valueOptions: [
+                  option('AGREED', 'Agreed', true),
+                  option('NOT_AGREED', 'Not agreed', true, 'Why not')
+                ]
+              }
+            ]
+          }
         ]
       }
     ]
@@ -470,7 +536,8 @@ export const woodlandPhases: StoredWorkflowPhase[] = [
             interactive: false,
             closes: true
           })
-        ]
+        ],
+        taskGroups: []
       }
     ]
   }

@@ -149,7 +149,12 @@ const onePhase = (
   {
     code: 'P',
     name: 'Phase',
-    stages: stages.map(([code, statuses]) => ({ code, name: code, statuses }))
+    stages: stages.map(([code, statuses]) => ({
+      code,
+      name: code,
+      statuses,
+      taskGroups: []
+    }))
   }
 ]
 

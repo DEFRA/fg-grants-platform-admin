@@ -9,7 +9,7 @@
 
 {% macro factValue(fact, testId) %}
   {%- if fact.kind == "mono" -%}
-    <span class="{{ monoValue }}" data-testid="{{ testId }}">{{ fact.text }}</span>{% if fact.from %} <span class="{{ monoMuted }}" data-testid="{{ testId }}-from">from {{ fact.from }}</span>{% endif %}
+    {% if fact.href %}<a class="link {{ monoValue }}" href="{{ fact.href }}" data-testid="{{ testId }}">{{ fact.text }}</a>{% else %}<span class="{{ monoValue }}" data-testid="{{ testId }}">{{ fact.text }}</span>{% endif %}{% if fact.from %} <span class="{{ monoMuted }}" data-testid="{{ testId }}-from">from {{ fact.from }}</span>{% endif %}
   {%- elif fact.kind == "date" and fact.instant -%}
     <time class="{{ monoTime }}" datetime="{{ fact.instant }}" data-testid="{{ testId }}">{{ fact.text }}</time>
   {%- elif fact.kind == "date" -%}

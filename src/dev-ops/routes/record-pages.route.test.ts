@@ -17,14 +17,14 @@ import type {
 import { getGrantPageUseCase } from '../use-cases/get-grant-page.use-case.ts'
 import { getGrantVersionsUseCase } from '../use-cases/get-grant-versions.use-case.ts'
 import { getCatalogueUseCase } from '../use-cases/get-catalogue.use-case.ts'
-import type { WorkflowVersionPage } from '../use-cases/get-workflow-page.use-case.ts'
-import { getWorkflowPageUseCase } from '../use-cases/get-workflow-page.use-case.ts'
 import {
   agreementDefinition,
   applicationsBucket,
   catalogue,
   woodlandDefinition
 } from '../use-cases/test-fixtures.ts'
+import type { WorkflowVersionPage } from '../use-cases/get-workflow-page.use-case.ts'
+import { getWorkflowPageUseCase } from '../use-cases/get-workflow-page.use-case.ts'
 
 vi.mock(import('../use-cases/get-catalogue.use-case.ts'))
 vi.mock(import('../use-cases/get-application-page.use-case.ts'), async () => ({

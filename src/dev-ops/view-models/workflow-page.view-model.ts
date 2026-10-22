@@ -37,6 +37,8 @@ import { toWorkflowPagesTab } from './workflow-pages-tab.ts'
 import type { WorkflowPagesTab } from './workflow-pages-tab.ts'
 import { toWorkflowPhases } from './workflow-phases.view-model.ts'
 import type { WorkflowPhasesTab } from './workflow-phases.view-model.ts'
+import { toTaskGroups } from './workflow-tasks.view-model.ts'
+import type { TaskGroupCard } from './workflow-tasks.view-model.ts'
 import { toWorkflowHref, workflowType } from './workflows-page.view-model.ts'
 
 export interface WorkflowPageModel extends RecordPageModel {
@@ -46,6 +48,7 @@ export interface WorkflowPageModel extends RecordPageModel {
   /** The file the tab needs, while it is not stored. */
   notStored: WorkflowFileType | null
   phases: WorkflowPhasesTab | null
+  taskGroups: TaskGroupCard[] | null
   pages: WorkflowPagesTab | null
   integrations: WorkflowIntegrations | null
 }
@@ -108,6 +111,14 @@ const toNotStored = (
   return file && !files[file].stored ? file : null
 }
 
+const toTasksTab = (
+  { definition }: WorkflowPage,
+  tab: WorkflowTabId
+): TaskGroupCard[] | null =>
+  tab === 'tasks' && definition
+    ? toTaskGroups(definition.workflow.phases)
+    : null
+
 const toPagesTab = (
   { definition }: WorkflowPage,
   tab: WorkflowTabId,
@@ -148,6 +159,12 @@ const toPhasesTab = (
     : null
 }
 
+const toOverviewFacts = (
+  { header, overview }: WorkflowPage,
+  catalogue: Catalogue | null
+): Fact[][] | null =>
+  overview ? toFacts(header, overview, toCasesHref(catalogue, header)) : null
+
 export const toWorkflowPage = (
   page: WorkflowPage,
   tab: WorkflowTabId,
@@ -174,9 +191,7 @@ export const toWorkflowPage = (
     trail: [],
     tabs: toTabs(workflowType, href, tab, from),
     tab,
-    facts: page.overview
-      ? toFacts(page.header, page.overview, toCasesHref(catalogue, page.header))
-      : null,
+    facts: toOverviewFacts(page, catalogue),
     series: null,
     seriesDetailed: false,
     events: toEvents(page.events, now, toTabHref(href, 'events', from)),
@@ -190,6 +205,7 @@ export const toWorkflowPage = (
     ),
     notStored: toNotStored(page.header, tab),
     phases: tab === 'phases' ? toPhasesTab(page, from, query) : null,
+    taskGroups: toTasksTab(page, tab),
     pages: toPagesTab(page, tab, toTabHref(href, 'integrations', from)),
     integrations: toIntegrationsTab(page, tab, toTabHref(href, 'pages', from))
   }

@@ -18,7 +18,7 @@ const renderTab = (definition: WorkflowDefinition = woodlandDefinition) =>
   })
 
 const withWorkflow = (
-  workflow: WorkflowDefinition['workflow']
+  workflow: Partial<WorkflowDefinition['workflow']>
 ): WorkflowDefinition => ({
   workflow: { ...woodlandDefinition.workflow, ...workflow },
   addresses: woodlandDefinition.addresses
@@ -241,7 +241,7 @@ describe('workflow-integrations component', () => {
   })
 
   test('says only that there are no external actions when there are no endpoints either', () => {
-    const $ = renderTab({ workflow: {}, addresses: [] })
+    const $ = renderTab({ workflow: { phases: [] }, addresses: [] })
 
     expect($(`[data-testid="${testId}-empty"]`)).toHaveLength(1)
     expect($(`[data-testid="${testId}-unused"]`)).toHaveLength(0)

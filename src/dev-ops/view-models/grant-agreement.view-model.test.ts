@@ -47,21 +47,24 @@ describe('toAgreementTab', () => {
           label: 'Code',
           kind: 'mono',
           text: 'woodland-creation',
-          from: null
+          from: null,
+          href: null
         },
         {
           id: 'number-prefix',
           label: 'Number prefix',
           kind: 'mono',
           text: 'WC',
-          from: null
+          from: null,
+          href: null
         },
         {
           id: 'created-as',
           label: 'Created as',
           kind: 'mono',
           text: 'offered',
-          from: null
+          from: null,
+          href: null
         }
       ],
       [
@@ -70,7 +73,8 @@ describe('toAgreementTab', () => {
           label: 'Application data',
           kind: 'mono',
           text: '$.input.answers',
-          from: null
+          from: null,
+          href: null
         },
         {
           id: 'on-create',

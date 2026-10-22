@@ -6,6 +6,7 @@
 {% from "status-badge/macro.njk" import statusBadge %}
 {% from "workflow-integrations/macro.njk" import workflowIntegrations %}
 {% from "workflow-pages/macro.njk" import workflowPages %}
+{% from "workflow-tasks/macro.njk" import workflowTasks %}
 {% from "workflow-status-panel/macro.njk" import workflowStatusPanel %}
 
 {% block recordHeader %}
@@ -63,6 +64,8 @@
         <p class="text-base-content/60" data-testid="workflow-phases-no-statuses">No statuses.</p>
       {% endif %}
     {% endcall %}
+  {% elif tab == "tasks" and taskGroups %}
+    {{ workflowTasks({ groups: taskGroups, testId: "workflow-tasks" }) }}
   {% elif tab == "pages" and pages %}
     {{ workflowPages({ tab: pages, testId: "workflow-pages" }) }}
   {% elif tab == "integrations" and integrations %}

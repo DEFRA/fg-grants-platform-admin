@@ -107,10 +107,55 @@ export interface StoredWorkflowStatus {
   transitions: StoredTransition[]
 }
 
+export type StoredLabel = string | { text: string; classes?: string }
+
+export interface StoredComment {
+  label: StoredLabel
+  mandatory: boolean
+}
+
+export interface StoredValueOption {
+  code: string
+  name: string
+  /** The task's status in the task list once chosen, in place of `name`. */
+  altName?: string | null
+  completes: boolean
+  comment?: StoredComment | null
+}
+
+export interface StoredInput {
+  type: 'text' | 'number' | 'date'
+  label: StoredLabel
+  pattern?: string
+  maxlength?: number
+  min?: number
+  max?: number
+  integer?: boolean
+}
+
+/** Either `valueOptions` or `input`; CW tells them apart by whether `input` is set. */
+export type StoredTask = {
+  code: string
+  name: string
+  mandatory: boolean
+  comment?: StoredComment | null
+  requiredRoles?: { allOf: string[]; anyOf: string[] } | null
+} & (
+  | { valueOptions: StoredValueOption[]; input?: undefined }
+  | { input: StoredInput; valueOptions?: undefined }
+)
+
+export interface StoredTaskGroup {
+  code: string
+  name: string
+  tasks: StoredTask[]
+}
+
 export interface StoredWorkflowStage {
   code: string
   name: string
   statuses: StoredWorkflowStatus[]
+  taskGroups: StoredTaskGroup[]
 }
 
 export interface StoredWorkflowPhase {

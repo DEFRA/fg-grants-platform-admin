@@ -270,7 +270,7 @@ describe('the workflow page', () => {
     ])
   })
 
-  test('offers Overview, Phases, Pages, Integrations, Events and Raw, keeping the list it was opened from', async () => {
+  test('offers every tab in order, keeping the list it was opened from', async () => {
     const { $ } = await viewPage(
       `${path}?tab=raw&back=${encodeURIComponent(listed)}`
     )
@@ -282,6 +282,7 @@ describe('the workflow page', () => {
     ).toEqual([
       `Overview ${path}?back=${encodeURIComponent(listed)}`,
       `Phases ${path}?tab=phases&back=${encodeURIComponent(listed)}`,
+      `Tasks ${path}?tab=tasks&back=${encodeURIComponent(listed)}`,
       `Pages ${path}?tab=pages&back=${encodeURIComponent(listed)}`,
       `Integrations ${path}?tab=integrations&back=${encodeURIComponent(listed)}`,
       `Events ${path}?tab=events&back=${encodeURIComponent(listed)}`,
@@ -671,6 +672,89 @@ describe('the workflow Raw tab', () => {
     expect(textOf($, 'workflow-no-data')).toBe(
       'CW returned no data for this tab'
     )
+  })
+})
+
+describe('the workflow Tasks tab', () => {
+  test('reads the Tasks tab of the workflow version in the URL', async () => {
+    givenDefinition()
+
+    await viewPage(`${path}?tab=tasks`)
+
+    expect(getWorkflowPageUseCase).toHaveBeenCalledWith(
+      { code: 'woodland-creation', version: '1.2.0' },
+      'tasks'
+    )
+  })
+
+  test('shows a card per task group, with a row per answer', async () => {
+    givenDefinition()
+
+    const { $ } = await viewPage(`${path}?tab=tasks`)
+
+    expect(
+      part($, 'workflow-tasks-group-title')
+        .toArray()
+        .map((title) => flatten($(title).text()))
+    ).toEqual([
+      'Application checks Review application',
+      'Approval Review application'
+    ])
+    expect(part($, 'workflow-tasks-answer')).toHaveLength(8)
+    expect(part($, 'workflow-tabs').find('[aria-current="page"]').text()).toBe(
+      'Tasks'
+    )
+  })
+
+  test('says a workflow without task groups has none', async () => {
+    givenDefinition({
+      definition: {
+        workflow: {
+          phases: [
+            {
+              code: 'PRE_AWARD',
+              name: 'Pre-award',
+              stages: [
+                { code: 'REVIEW', name: 'Review', statuses: [], taskGroups: [] }
+              ]
+            }
+          ]
+        },
+        addresses: []
+      }
+    })
+
+    const { $ } = await viewPage(`${path}?tab=tasks`)
+
+    expect(textOf($, 'workflow-tasks-empty')).toBe('No task groups.')
+  })
+
+  test('says the workflow definition is not stored, under the banner, and nothing else', async () => {
+    givenDefinition({ header: notStored, definition: null })
+
+    const { $ } = await viewPage(`${path}?tab=tasks`)
+
+    expect(textOf($, 'workflow-not-stored')).toBe(
+      'Workflow definition not stored.'
+    )
+    expect(part($, 'workflow-banner')).toHaveLength(1)
+    expect(part($, 'workflow-tasks')).toHaveLength(0)
+  })
+
+  test('says the definition could not be read, and draws no tasks', async () => {
+    givenDefinition({
+      definition: null,
+      sectionErrors: [
+        { section: 'definition', message: 'Definition could not be loaded' }
+      ]
+    })
+
+    const { $ } = await viewPage(`${path}?tab=tasks`)
+
+    expect(textOf($, 'workflow-section-error')).toBe(
+      'Definition could not be loaded'
+    )
+    expect(part($, 'workflow-tasks')).toHaveLength(0)
   })
 })
 

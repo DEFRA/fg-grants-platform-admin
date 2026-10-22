@@ -149,7 +149,11 @@ const recordPageRoute = <K, P, T extends string, N = never, Q = object>({
 
     return h.view(record.view, {
       pageTitle: record.title,
-      ...toPage(page, tab, from, { notice, query: extra as Q, catalogue }),
+      ...toPage(page, tab, from, {
+        notice,
+        query: extra as Q,
+        catalogue
+      }),
       navActive
     })
   }

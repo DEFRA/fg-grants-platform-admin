@@ -158,19 +158,58 @@ const toEntitlements = (
       )
     : null
 
-const toPaymentTab = ({
-  payment,
-  sectionErrors
-}: GrantVersionPage): GrantPageModel['payment'] => ({
-  view: payment ? toPaymentDefinition(payment) : null,
-  raw: toRaw(payment, sectionErrors, 'payment')
-})
+const toPaymentTab = (
+  { payment, sectionErrors }: GrantVersionPage,
+  tab: GrantTabId
+): GrantPageModel['payment'] =>
+  tab === 'payment'
+    ? {
+        view: payment ? toPaymentDefinition(payment) : null,
+        raw: toRaw(payment, sectionErrors, 'payment')
+      }
+    : null
 
 const toAgreement = (
   { agreement }: GrantVersionPage,
   tab: GrantTabId
 ): AgreementTab | null =>
   tab === 'agreement' && agreement ? toAgreementTab(agreement) : null
+
+const toQuestions = (
+  { definition }: GrantVersionPage,
+  tab: GrantTabId
+): GrantQuestionsTab | null =>
+  tab === 'questions' && definition ? toGrantQuestions(definition) : null
+
+const toActions = (
+  { definition }: GrantVersionPage,
+  tab: GrantTabId
+): GrantActionRow[] | null =>
+  tab === 'actions' && definition ? toGrantActions(definition.actions) : null
+
+const toPhases = (
+  page: GrantVersionPage,
+  tab: GrantTabId,
+  { status }: GrantPageQuery,
+  href: string,
+  from: string
+): GrantPhasesTab | null =>
+  tab === 'phases'
+    ? toGrantPhases(page, {
+        status,
+        href,
+        from,
+        workflowHref: toWorkflowPhasesHref(page.header)
+      })
+    : null
+
+const toOverviewFacts = (
+  { header, overview }: GrantVersionPage,
+  catalogue: Catalogue | null
+): Fact[][] | null =>
+  overview
+    ? toFacts(header, overview, toApplicationsHref(catalogue, header))
+    : null
 
 export const toGrantPage = (
   page: GrantVersionPage,
@@ -198,13 +237,7 @@ export const toGrantPage = (
     trail: [],
     tabs: toTabs(toOfferedGrantType(page.header), href, tab, from),
     tab,
-    facts: page.overview
-      ? toFacts(
-          page.header,
-          page.overview,
-          toApplicationsHref(catalogue, page.header)
-        )
-      : null,
+    facts: toOverviewFacts(page, catalogue),
     series: null,
     seriesDetailed: false,
     events: toEvents(page.events, now, toTabHref(href, 'events', from)),
@@ -217,25 +250,11 @@ export const toGrantPage = (
       toVersionPath(grantType, page.header)
     ),
     notStored: toNotStored(page.header, tab),
-    phases:
-      tab === 'phases'
-        ? toGrantPhases(page, {
-            status: query.status,
-            href,
-            from,
-            workflowHref: toWorkflowPhasesHref(page.header)
-          })
-        : null,
-    questions:
-      tab === 'questions' && page.definition
-        ? toGrantQuestions(page.definition)
-        : null,
-    actions:
-      tab === 'actions' && page.definition
-        ? toGrantActions(page.definition.actions)
-        : null,
+    phases: toPhases(page, tab, query, href, from),
+    questions: toQuestions(page, tab),
+    actions: toActions(page, tab),
     entitlements: toEntitlements(page, tab, href, from),
     agreement: toAgreement(page, tab),
-    payment: tab === 'payment' ? toPaymentTab(page) : null
+    payment: toPaymentTab(page, tab)
   }
 }
