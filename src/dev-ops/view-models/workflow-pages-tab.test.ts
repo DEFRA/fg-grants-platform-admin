@@ -6,14 +6,18 @@ const withWorkflow = (
   workflow: WorkflowDefinition['workflow']
 ): WorkflowDefinition => ({ workflow, addresses: [] })
 
-const woodland = toWorkflowPagesTab(woodlandDefinition)
+const integrationsHref =
+  '/dev-ops/workflows/woodland-creation/1.2.0?tab=integrations&back=%2Fdev-ops%2Fworkflows'
+
+const woodland = toWorkflowPagesTab(woodlandDefinition, integrationsHref)
 
 describe('toWorkflowPagesTab', () => {
-  test('says what CW calls for each button and each action a tab fires', () => {
+  test('says what CW calls for each button and each action a tab fires, linked to its Integrations card', () => {
     expect(woodland.banner.buttons).toEqual([
       expect.objectContaining({
         kind: 'call',
-        action: expect.objectContaining({ code: 'RECALCULATE' })
+        action: expect.objectContaining({ code: 'RECALCULATE' }),
+        href: `${integrationsHref}#action-RECALCULATE`
       })
     ])
     expect(
@@ -21,7 +25,8 @@ describe('toWorkflowPagesTab', () => {
     ).toEqual([
       expect.objectContaining({
         kind: 'call',
-        action: expect.objectContaining({ code: 'REFRESH_PARCELS' })
+        action: expect.objectContaining({ code: 'REFRESH_PARCELS' }),
+        href: `${integrationsHref}#action-REFRESH_PARCELS`
       })
     ])
   })
@@ -30,20 +35,54 @@ describe('toWorkflowPagesTab', () => {
     const [action] = woodlandDefinition.workflow.externalActions ?? []
     const twin = { ...action, name: 'Recalculate again' }
 
-    const tab = toWorkflowPagesTab({
-      ...woodlandDefinition,
-      workflow: {
-        ...woodlandDefinition.workflow,
-        externalActions: [
-          { ...action, display: true },
-          { ...twin, display: true }
-        ]
-      }
-    })
+    const tab = toWorkflowPagesTab(
+      {
+        ...woodlandDefinition,
+        workflow: {
+          ...woodlandDefinition.workflow,
+          externalActions: [
+            { ...action, display: true },
+            { ...twin, display: true }
+          ]
+        }
+      },
+      integrationsHref
+    )
 
     expect(tab.banner.buttons).toEqual([
       expect.objectContaining({ action: { ...action, display: true } }),
       expect.objectContaining({ action: { ...twin, display: true } })
+    ])
+  })
+
+  test('links an action with no endpoint, but not one that is not defined', () => {
+    const tab = toWorkflowPagesTab(
+      withWorkflow({
+        externalActions: [
+          {
+            code: 'BARE',
+            name: 'Bare action',
+            display: false,
+            endpoint: 'nowhere',
+            target: null
+          }
+        ],
+        pages: {
+          cases: {
+            details: { tabs: { land: { action: { a: 'MISSING', b: 'BARE' } } } }
+          }
+        }
+      }),
+      integrationsHref
+    )
+
+    expect(
+      tab.tabs
+        .find(({ key }) => key === 'land')
+        ?.fires.map(({ kind, href }) => ({ kind, href }))
+    ).toEqual([
+      { kind: 'not-defined', href: null },
+      { kind: 'no-endpoint', href: `${integrationsHref}#action-BARE` }
     ])
   })
 
@@ -93,7 +132,8 @@ describe('toWorkflowPagesTab', () => {
             }
           }
         }
-      })
+      }),
+      integrationsHref
     )
 
     expect(tab.banner.title).toEqual({ kind: 'empty', text: '""' })
@@ -107,7 +147,8 @@ describe('toWorkflowPagesTab', () => {
     const tab = toWorkflowPagesTab(
       withWorkflow({
         externalActions: woodlandDefinition.workflow.externalActions
-      })
+      }),
+      integrationsHref
     )
 
     expect(tab.banner).toEqual({

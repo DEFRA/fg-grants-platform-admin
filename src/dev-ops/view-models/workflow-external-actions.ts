@@ -17,7 +17,9 @@ export const findExternalAction = (
     ? (externalActions?.find((action) => action.code === code) ?? null)
     : null
 
-const endpointCodeOf = ({ endpoint }: StoredExternalAction): string | null =>
+export const endpointCodeOf = ({
+  endpoint
+}: StoredExternalAction): string | null =>
   typeof endpoint === 'object' && endpoint?.code ? endpoint.code : null
 
 export const findEndpoint = (
@@ -46,7 +48,7 @@ const toNotDefined = (code: unknown): ActionCall => ({
   code: typeof code === 'string' ? code : JSON.stringify(code)
 })
 
-const addressOf = (
+export const addressOf = (
   { workflow, addresses }: WorkflowDefinition,
   endpoint: StoredEndpoint
 ): ServiceAddress => addresses[(workflow.endpoints ?? []).indexOf(endpoint)]

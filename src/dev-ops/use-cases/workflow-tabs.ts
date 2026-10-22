@@ -12,6 +12,7 @@ interface WorkflowTab {
 export const workflowTabs = {
   overview: { read: 'overview', file: null },
   pages: { read: 'definition', file: 'workflow' },
+  integrations: { read: 'definition', file: 'workflow' },
   events: { read: 'events', file: null },
   raw: { read: 'raw', file: 'workflow' }
 } as const satisfies Record<string, WorkflowTab>

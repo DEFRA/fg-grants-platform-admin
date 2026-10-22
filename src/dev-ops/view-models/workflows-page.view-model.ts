@@ -7,6 +7,7 @@ const workflowsPath = '/dev-ops/workflows'
 const workflowTabLabels: Record<(typeof workflowTabIds)[number], string> = {
   overview: 'Overview',
   pages: 'Pages',
+  integrations: 'Integrations',
   events: 'Events',
   raw: 'Raw'
 }

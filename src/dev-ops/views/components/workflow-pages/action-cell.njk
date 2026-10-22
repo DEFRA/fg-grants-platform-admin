@@ -3,13 +3,13 @@
 {# Tailwind only sees class names written literally in this file. #}
 {% set mono = "font-mono text-sm leading-none break-words" %}
 
-{# One external action by name, with what CW calls for it. #}
+{# One external action by name, linked to its Integrations card, with what CW calls for it. #}
 {% macro actionCell(call, testId) %}
 <div class="mb-1.5" data-testid="{{ testId }}">
   {%- if call.kind == "not-defined" -%}
     <span class="{{ mono }}">{{ call.code }}</span> {{ statusBadge({ status: "Not defined", role: "warning" }) }}
   {%- else -%}
-    <span>{{ call.action.name }}</span>
+    <a class="link" href="{{ call.href }}">{{ call.action.name }}</a>
     <div class="mt-0.5 break-all">
       {%- if call.kind == "no-endpoint" -%}
         {{ statusBadge({ status: "No endpoint", role: "warning" }) }}

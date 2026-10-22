@@ -260,7 +260,7 @@ describe('the workflow page', () => {
     ])
   })
 
-  test('offers Overview, Pages, Events and Raw, keeping the list it was opened from', async () => {
+  test('offers Overview, Pages, Integrations, Events and Raw, keeping the list it was opened from', async () => {
     const { $ } = await viewPage(
       `${path}?tab=raw&back=${encodeURIComponent(listed)}`
     )
@@ -272,6 +272,7 @@ describe('the workflow page', () => {
     ).toEqual([
       `Overview ${path}?back=${encodeURIComponent(listed)}`,
       `Pages ${path}?tab=pages&back=${encodeURIComponent(listed)}`,
+      `Integrations ${path}?tab=integrations&back=${encodeURIComponent(listed)}`,
       `Events ${path}?tab=events&back=${encodeURIComponent(listed)}`,
       `Raw ${path}?tab=raw&back=${encodeURIComponent(listed)}`
     ])
@@ -591,6 +592,29 @@ describe('the workflow Pages tab', () => {
     expect(part($, 'workflow-pages-tab-row')).toHaveLength(6)
   })
 
+  test('links each action to its Integrations card, keeping the list it was opened from', async () => {
+    givenDefinition()
+
+    const { $ } = await viewPage(
+      `${path}?tab=pages&back=${encodeURIComponent(listed)}`
+    )
+
+    expect(
+      $('[data-testid="workflow-pages"] a')
+        .toArray()
+        .map((link) => [$(link).text(), $(link).attr('href')])
+    ).toEqual([
+      [
+        'Recalculate payment',
+        `${path}?tab=integrations&back=${encodeURIComponent(listed)}#action-RECALCULATE`
+      ],
+      [
+        'Refresh land parcels',
+        `${path}?tab=integrations&back=${encodeURIComponent(listed)}#action-REFRESH_PARCELS`
+      ]
+    ])
+  })
+
   test('says the workflow definition is not stored, under the banner, and nothing else', async () => {
     givenDefinition({ header: notStored, definition: null })
 
@@ -631,6 +655,73 @@ describe('the workflow Pages tab', () => {
       'Definition could not be loaded'
     )
     expect(part($, 'workflow-pages')).toHaveLength(0)
+  })
+})
+
+describe('the workflow Integrations tab', () => {
+  test('reads the Integrations tab of the workflow version in the URL', async () => {
+    givenDefinition()
+
+    await viewPage(`${path}?tab=integrations`)
+
+    expect(getWorkflowPageUseCase).toHaveBeenCalledWith(
+      { code: 'woodland-creation', version: '1.2.0' },
+      'integrations'
+    )
+  })
+
+  test('shows a card per external action, its triggers linked back to the Pages tab', async () => {
+    givenDefinition()
+
+    const { $ } = await viewPage(
+      `${path}?tab=integrations&back=${encodeURIComponent(listed)}`
+    )
+
+    expect(
+      part($, 'workflow-integrations')
+        .toArray()
+        .map((card) => $(card).attr('id'))
+    ).toEqual(['action-RECALCULATE', 'action-REFRESH_PARCELS'])
+    expect(
+      part($, 'workflow-integrations-trigger')
+        .find('a')
+        .toArray()
+        .map((link) => $(link).attr('href'))
+    ).toEqual([
+      `${path}?tab=pages&back=${encodeURIComponent(listed)}#banner`,
+      `${path}?tab=pages&back=${encodeURIComponent(listed)}#tab-land-parcels`
+    ])
+    expect(
+      $('[data-testid="workflow-tabs"] [aria-current="page"]').text()
+    ).toBe('Integrations')
+  })
+
+  test('says the workflow definition is not stored, and shows no cards', async () => {
+    givenDefinition({ header: notStored, definition: null })
+
+    const { $ } = await viewPage(`${path}?tab=integrations`)
+
+    expect(textOf($, 'workflow-not-stored')).toBe(
+      'Workflow definition not stored.'
+    )
+    expect(part($, 'workflow-integrations')).toHaveLength(0)
+    expect(part($, 'workflow-integrations-empty')).toHaveLength(0)
+  })
+
+  test('says the definition could not be read, and shows no cards', async () => {
+    givenDefinition({
+      definition: null,
+      sectionErrors: [
+        { section: 'definition', message: 'Definition could not be loaded' }
+      ]
+    })
+
+    const { $ } = await viewPage(`${path}?tab=integrations`)
+
+    expect(textOf($, 'workflow-section-error')).toBe(
+      'Definition could not be loaded'
+    )
+    expect(part($, 'workflow-integrations')).toHaveLength(0)
   })
 })
 

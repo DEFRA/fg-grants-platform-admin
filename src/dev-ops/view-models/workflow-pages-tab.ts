@@ -6,6 +6,7 @@ import { none } from './event-formats.ts'
 import {
   caseViewOf,
   toActionCall,
+  toActionHref,
   toBannerButtons,
   toCall,
   toCaseTabs
@@ -32,12 +33,15 @@ interface CaseTabRow {
   builtIn: boolean
   /** Null when the tab is always shown. */
   shownWhen: string | null
-  fires: ActionCall[]
+  fires: ActionLink[]
   components: string[]
 }
 
+/** What CW calls for an action, linked to its Integrations card when it is defined. */
+type ActionLink = ActionCall & { href: string | null }
+
 export interface WorkflowPagesTab {
-  banner: { title: StoredText; buttons: ActionCall[]; summary: SummaryRow[] }
+  banner: { title: StoredText; buttons: ActionLink[]; summary: SummaryRow[] }
   tabs: CaseTabRow[]
 }
 
@@ -57,8 +61,18 @@ const toSummary = ({ summary = {} }: StoredBanner = {}): SummaryRow[] =>
     type: format ? `${type} (${format})` : type
   }))
 
+const toActionLink =
+  (integrationsHref: string) =>
+  (call: ActionCall): ActionLink => ({
+    ...call,
+    href:
+      call.kind === 'not-defined'
+        ? null
+        : toActionHref(integrationsHref, call.action.code)
+  })
+
 const toCaseTabRow =
-  (definition: WorkflowDefinition) =>
+  (definition: WorkflowDefinition, toLink: (call: ActionCall) => ActionLink) =>
   (
     { key, label, builtIn, renderIf, fires, components }: CaseTab,
     index: number
@@ -68,25 +82,29 @@ const toCaseTabRow =
     label,
     builtIn,
     shownWhen: renderIf,
-    fires: fires.map(({ actionCode }) => toActionCall(definition, actionCode)),
+    fires: fires.map(({ actionCode }) =>
+      toLink(toActionCall(definition, actionCode))
+    ),
     components
   })
 
 /** The case view CW builds from this workflow: its banner, then its tabs in order. */
 export const toWorkflowPagesTab = (
-  definition: WorkflowDefinition
+  definition: WorkflowDefinition,
+  integrationsHref: string
 ): WorkflowPagesTab => {
   const { workflow } = definition
   const { banner } = caseViewOf(workflow)
+  const toLink = toActionLink(integrationsHref)
 
   return {
     banner: {
       title: toStoredText(banner?.title?.text),
       buttons: toBannerButtons(workflow).map((action) =>
-        toCall(definition, action)
+        toLink(toCall(definition, action))
       ),
       summary: toSummary(banner)
     },
-    tabs: toCaseTabs(workflow).map(toCaseTabRow(definition))
+    tabs: toCaseTabs(workflow).map(toCaseTabRow(definition, toLink))
   }
 }

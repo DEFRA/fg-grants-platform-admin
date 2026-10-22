@@ -24,6 +24,8 @@ import {
 import type { Fact, RecordPageModel } from './record-page.view-model.ts'
 import { toVersionHeader, toVersionPath } from './version-header.ts'
 import type { VersionHeader } from './version-header.ts'
+import { toWorkflowIntegrations } from './workflow-integrations.ts'
+import type { WorkflowIntegrations } from './workflow-integrations.ts'
 import { toWorkflowPagesTab } from './workflow-pages-tab.ts'
 import type { WorkflowPagesTab } from './workflow-pages-tab.ts'
 import { toWorkflowHref, workflowType } from './workflows-page.view-model.ts'
@@ -35,6 +37,7 @@ export interface WorkflowPageModel extends RecordPageModel {
   /** The file the tab needs, while it is not stored. */
   notStored: WorkflowFileType | null
   pages: WorkflowPagesTab | null
+  integrations: WorkflowIntegrations | null
 }
 
 const toFacts = (
@@ -59,15 +62,27 @@ const toNotStored = (
 
 const toPagesTab = (
   { definition }: WorkflowVersionPage,
-  tab: WorkflowTabId
+  tab: WorkflowTabId,
+  integrationsHref: string
 ): WorkflowPagesTab | null =>
-  tab === 'pages' && definition ? toWorkflowPagesTab(definition) : null
+  tab === 'pages' && definition
+    ? toWorkflowPagesTab(definition, integrationsHref)
+    : null
+
+const toIntegrationsTab = (
+  { definition }: WorkflowVersionPage,
+  tab: WorkflowTabId,
+  pagesHref: string
+): WorkflowIntegrations | null =>
+  tab === 'integrations' && definition
+    ? toWorkflowIntegrations(definition, pagesHref)
+    : null
 
 export const toWorkflowPage = (
   page: WorkflowVersionPage,
   tab: WorkflowTabId,
   from: string,
-  { notice }: { notice?: DefinitionFetchFlash } = {},
+  { notice }: { notice?: DefinitionFetchFlash },
   now: Date = new Date()
 ): WorkflowPageModel => {
   const href = toWorkflowHref(page.header)
@@ -94,6 +109,7 @@ export const toWorkflowPage = (
       toVersionPath(workflowType, page.header)
     ),
     notStored: toNotStored(page.header, tab),
-    pages: toPagesTab(page, tab)
+    pages: toPagesTab(page, tab, toTabHref(href, 'integrations', from)),
+    integrations: toIntegrationsTab(page, tab, toTabHref(href, 'pages', from))
   }
 }

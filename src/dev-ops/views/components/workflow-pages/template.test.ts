@@ -4,10 +4,12 @@ import { woodlandDefinition } from '../../../use-cases/test-fixtures.ts'
 import { toWorkflowPagesTab } from '../../../view-models/workflow-pages-tab.ts'
 
 const testId = 'workflow-pages'
+const integrationsHref =
+  '/dev-ops/workflows/woodland-creation/1.2.0?tab=integrations&back=%2Fdev-ops%2Fworkflows'
 
 const renderTab = (definition: WorkflowDefinition = woodlandDefinition) =>
   render('workflow-pages', {
-    tab: toWorkflowPagesTab(definition),
+    tab: toWorkflowPagesTab(definition, integrationsHref),
     testId
   })
 
@@ -32,16 +34,18 @@ describe('workflow-pages component', () => {
     expect($('#tab-tasks')).toHaveLength(1)
   })
 
-  test('shows the banner title path and each button by name, as plain text, with the endpoint it calls', () => {
+  test('shows the banner title path and each button by name, linked to its Integrations card, with the endpoint it calls', () => {
     expect(flatten(part('title').text())).toBe('$.payload.answers.businessName')
     expect(part('title').find('span').attr('class')).toContain('font-mono')
 
     const $button = part('button')
 
     expect($button).toHaveLength(1)
-    expect($button.find('a')).toHaveLength(0)
-    expect($button.children('span').first().text()).toBe('Recalculate payment')
-    expect($button.children('span').first().attr('class')).toBeUndefined()
+    expect($button.children('a').text()).toBe('Recalculate payment')
+    expect($button.children('a').attr('href')).toBe(
+      `${integrationsHref}#action-RECALCULATE`
+    )
+    expect($button.children('a').attr('class')).toBe('link')
     expect(flatten($button.text())).toBe(
       'Recalculate payment POST /api/v1/calculate Not configured'
     )
@@ -166,6 +170,10 @@ describe('workflow-pages component', () => {
 
     expect(flatten($actions.eq(0).text())).toBe('MISSING Not defined')
     expect(flatten($actions.eq(1).text())).toBe('Bare action No endpoint')
+    expect($actions.eq(0).find('a')).toHaveLength(0)
+    expect($actions.eq(1).children('a').attr('href')).toBe(
+      `${integrationsHref}#action-BARE`
+    )
     expect(
       $actions.eq(1).find('[data-testid="do-status-dot"]').attr('class')
     ).toContain('status-warning')

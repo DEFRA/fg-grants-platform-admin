@@ -1,0 +1,109 @@
+{% from "icon/macro.njk" import icon %}
+{% from "service-address/macro.njk" import serviceAddress %}
+
+{# Tailwind only sees class names written literally in this file. #}
+{% set card = "card card-border mt-4 bg-base-100 first:mt-0" %}
+{% set mono = "font-mono text-sm leading-none break-words" %}
+{% set muted = "font-mono text-sm leading-none text-base-content/70" %}
+{% set small = "mt-1 font-mono text-xs text-base-content/60" %}
+{% set step = "min-w-0 flex-1 rounded-box border border-base-300 p-3" %}
+{% set stepLabel = "mb-1 text-xs font-medium uppercase tracking-wide text-base-content/60" %}
+{% set arrow = "hidden shrink-0 self-center text-base-content/40 lg:block" %}
+
+{% macro dash() %}<span class="{{ muted }}">—</span>{% endmacro %}
+
+{% macro arrowIcon(testId) %}
+  <div class="{{ arrow }}" data-testid="{{ testId }}-arrow">{{ icon({ name: 'arrow-right', class: 'size-4' }) }}</div>
+{% endmacro %}
+
+{%- set integrations = params.integrations -%}
+{%- set testId = params.testId -%}
+<div>
+  {% for action in integrations.cards %}
+    <section {% if action.anchor %}id="{{ action.anchor }}" {% endif %}class="scroll-mt-4 {{ card }}" data-testid="{{ testId }}">
+      <div class="card-body gap-3 p-5">
+        <h2 class="card-title text-base"><span class="font-mono">{{ action.code }}</span> <span class="font-normal text-base-content/70">{{ action.name }}</span></h2>
+        {% if action.description %}
+          <p class="text-sm text-base-content/70">{{ action.description }}</p>
+        {% endif %}
+        {% if action.problems | length %}
+          <div role="alert" class="alert alert-warning alert-soft text-sm" data-testid="{{ testId }}-problems">
+            {{ icon({ name: 'exclamation-triangle', class: 'size-4 shrink-0' }) }}
+            <span>{{ action.problems | join(" · ") }}</span>
+          </div>
+        {% endif %}
+        <div class="flex flex-col gap-2 lg:flex-row lg:items-stretch" data-testid="{{ testId }}-steps">
+          <div class="{{ step }}" data-testid="{{ testId }}-trigger">
+            <div class="{{ stepLabel }}">Trigger</div>
+            {% for trigger in action.triggers -%}
+              <div class="text-sm"><a class="link" href="{{ trigger.href }}">{{ trigger.label }}</a></div>
+            {%- else -%}
+              {{ dash() }}
+            {%- endfor -%}
+          </div>
+          {{ arrowIcon(testId) }}
+          <div class="{{ step }}" data-testid="{{ testId }}-call">
+            <div class="{{ stepLabel }}">Calls</div>
+            {% if action.call -%}
+              <div class="flex gap-2"><span class="{{ mono }}">{{ action.call.method }}</span><div class="min-w-0 break-all">{{ serviceAddress({ url: action.call.address.url, service: action.call.address.service, testId: testId ~ "-call" }) }}</div></div>
+              <div class="{{ small }}" data-testid="{{ testId }}-endpoint">{{ action.call.endpointCode }}</div>
+            {%- else -%}
+              {{ dash() }}
+            {%- endif -%}
+          </div>
+          {{ arrowIcon(testId) }}
+          <div class="{{ step }}" data-testid="{{ testId }}-sends">
+            <div class="{{ stepLabel }}">Sends</div>
+            {% if action.sends | length -%}
+              <div class="flex flex-col gap-1">
+                {%- for send in action.sends -%}
+                  <div class="break-all text-sm"><span class="font-mono text-xs text-base-content/60">{{ send.kind }}</span> <span class="font-mono">{{ send.name }}</span> <span class="text-base-content/40">←</span> <span class="font-mono">{{ send.expression if send.expression else '""' }}</span></div>
+                {%- endfor -%}
+              </div>
+            {%- else -%}
+              {{ dash() }}
+            {%- endif -%}
+          </div>
+          {{ arrowIcon(testId) }}
+          <div class="{{ step }}" data-testid="{{ testId }}-writes">
+            <div class="{{ stepLabel }}">Writes</div>
+            {% for write in action.writes -%}
+              {%- if not loop.first %}<div class="mt-1"></div>{% endif -%}
+              {%- if write.kind == "timeline" -%}
+                <div class="text-sm">Timeline event</div>
+              {%- else -%}
+                <div><span class="{{ mono }}">{{ write.path }}</span>{% if write.detail %}<div class="{{ small }}">{{ write.detail }}</div>{% endif %}</div>
+              {%- endif -%}
+            {%- else -%}
+              {{ dash() }}
+            {%- endfor -%}
+          </div>
+        </div>
+      </div>
+    </section>
+  {% else %}
+    <div class="{{ card }}" data-testid="{{ testId }}-empty">
+      <p class="px-4 py-10 text-center text-sm text-base-content/60">No external actions.</p>
+    </div>
+  {% endfor %}
+  {% if integrations.unusedEndpoints | length %}
+    <section class="{{ card }}" aria-labelledby="{{ testId }}-unused-title" data-testid="{{ testId }}-unused">
+      <div class="card-body gap-3 p-5">
+        <h2 class="card-title text-base" id="{{ testId }}-unused-title">Endpoints used by nothing</h2>
+        <div class="w-full overflow-x-auto">
+          <table class="table w-full table-fixed">
+            <colgroup><col class="w-[22%]"><col class="w-[12%]"><col class="w-[66%]"></colgroup>
+            <thead>
+              <tr><th scope="col">Code</th><th scope="col">Method</th><th scope="col">URL</th></tr>
+            </thead>
+            <tbody>
+              {% for endpoint in integrations.unusedEndpoints %}
+                <tr class="hover:bg-base-200"><td><span class="{{ mono }}">{{ endpoint.code }}</span></td><td><span class="{{ mono }}">{{ endpoint.method }}</span></td><td>{{ serviceAddress({ url: endpoint.address.url, service: endpoint.address.service, testId: testId ~ "-unused" }) }}</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  {% endif %}
+</div>
