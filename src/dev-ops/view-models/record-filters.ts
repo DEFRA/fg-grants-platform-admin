@@ -10,6 +10,13 @@ const slug = /^[a-z0-9-]+$/
 
 export const slugFilterSchema = Joi.string().max(refMax).pattern(slug)
 
+const workflowCodeMax = 128
+
+/** CW's spelling of a workflow code, capitals included. */
+export const workflowCodeSchema = Joi.string()
+  .max(workflowCodeMax)
+  .pattern(/^[a-zA-Z0-9-]+$/)
+
 const versionMax = 32
 
 /** A config version, as the config broker publishes it. */

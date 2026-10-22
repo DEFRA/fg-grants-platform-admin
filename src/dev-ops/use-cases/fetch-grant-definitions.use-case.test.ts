@@ -1,5 +1,6 @@
 import { logger } from '../../common/logger.ts'
-import type { DefinitionFetchFile } from '../repositories/grants.repository.ts'
+import type { DefinitionFetchFile } from '../repositories/config-versions.ts'
+import type { DefinitionFileType } from '../repositories/grants.repository.ts'
 import { fetchGrantDefinitions } from '../repositories/grants.repository.ts'
 import { fetchGrantDefinitionsUseCase } from './fetch-grant-definitions.use-case.ts'
 
@@ -8,7 +9,7 @@ vi.mock(import('../../common/logger.ts'))
 
 const ref = { code: 'woodland-creation', version: '2.0.0' }
 
-const files: DefinitionFetchFile[] = [
+const files: DefinitionFetchFile<DefinitionFileType>[] = [
   { file: 'grant', outcome: 'stored' },
   { file: 'payment', outcome: 'failed', reason: 'missing', message: null }
 ]
@@ -54,7 +55,7 @@ describe('fetchGrantDefinitionsUseCase', () => {
       files: []
     })
     expect(logger.warn).toHaveBeenCalledWith(
-      'Did not fetch definitions of grant woodland-creation@2.0.0: not-found'
+      'Did not fetch grant woodland-creation@2.0.0: not-found'
     )
     expect(logger.error).not.toHaveBeenCalled()
   })
@@ -82,7 +83,7 @@ describe('fetchGrantDefinitionsUseCase', () => {
     })
     expect(logger.error).toHaveBeenCalledWith(
       expect.stringContaining(
-        'Could not fetch definitions of grant woodland-creation@2.0.0 in fg-gas-backend: '
+        'Could not fetch grant woodland-creation@2.0.0 in fg-gas-backend: '
       )
     )
   })

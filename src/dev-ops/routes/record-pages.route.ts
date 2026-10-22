@@ -8,6 +8,8 @@ import { getApplicationPageUseCase } from '../use-cases/get-application-page.use
 import { getCasePageUseCase } from '../use-cases/get-case-page.use-case.ts'
 import { getGrantPageUseCase } from '../use-cases/get-grant-page.use-case.ts'
 import { getGrantVersionsUseCase } from '../use-cases/get-grant-versions.use-case.ts'
+import { getWorkflowPageUseCase } from '../use-cases/get-workflow-page.use-case.ts'
+import { getWorkflowVersionsUseCase } from '../use-cases/get-workflow-versions.use-case.ts'
 import type { HiddenTab, RecordResult } from '../use-cases/record-reads.ts'
 import { toApplicationPage } from '../view-models/application-page.view-model.ts'
 import { applicationType } from '../view-models/applications-page.view-model.ts'
@@ -25,12 +27,15 @@ import {
   recordParamsSchema,
   recordTabSchema,
   slugFilterSchema,
-  versionSchema
+  versionSchema,
+  workflowCodeSchema
 } from '../view-models/record-filters.ts'
 import { toTabHref } from '../view-models/record-page.view-model.ts'
 import type { RecordPageModel } from '../view-models/record-page.view-model.ts'
 import type { RecordType } from '../view-models/record-type.ts'
 import { toVersionPath } from '../view-models/version-header.ts'
+import { toWorkflowPage } from '../view-models/workflow-page.view-model.ts'
+import { workflowType } from '../view-models/workflows-page.view-model.ts'
 
 interface RecordPageRoute<K, P, T extends string, N> {
   record: RecordType
@@ -223,4 +228,18 @@ export const viewCurrentGrantRoute = currentVersionRoute({
   record: grantType,
   code: slugFilterSchema,
   read: getGrantVersionsUseCase
+})
+
+export const viewWorkflowRoute = recordPageRoute({
+  record: workflowType,
+  params: { code: workflowCodeSchema, version: versionSchema },
+  read: getWorkflowPageUseCase,
+  toPage: toWorkflowPage,
+  noticeKey: definitionFetchNoticeKey
+})
+
+export const viewCurrentWorkflowRoute = currentVersionRoute({
+  record: workflowType,
+  code: workflowCodeSchema,
+  read: getWorkflowVersionsUseCase
 })

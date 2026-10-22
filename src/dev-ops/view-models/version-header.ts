@@ -1,13 +1,25 @@
-import type { BadgeRole } from '../use-cases/get-event.use-case.ts'
 import type {
-  DefinitionFileType,
-  GrantVersionHeader,
-  GrantVersionRef,
-  GrantVersionSummary
-} from '../use-cases/get-grant-page.use-case.ts'
+  DefinitionFile,
+  VersionRef,
+  VersionSummary
+} from '../repositories/config-versions.ts'
+import type { BadgeRole } from '../use-cases/get-event.use-case.ts'
+import type { DefinitionFileType } from '../use-cases/get-grant-page.use-case.ts'
+import type { WorkflowFileType } from '../use-cases/get-workflow-page.use-case.ts'
 import { toDayClock, toValidDate } from './event-formats.ts'
 import { toTabHref } from './record-page.view-model.ts'
 import type { RecordType } from './record-type.ts'
+
+type VersionFileType = DefinitionFileType | WorkflowFileType
+
+/** A grant's or a workflow's version, as GAS heads either page. */
+interface VersionPageHeader extends VersionRef {
+  status: VersionSummary['status']
+  receivedAt: string
+  files: Partial<Record<VersionFileType, DefinitionFile>>
+  /** Newest first. */
+  versions: VersionSummary[]
+}
 
 interface StatusBadge {
   status: string
@@ -37,12 +49,17 @@ export interface VersionHeader {
   banner: { text: string; action: string; back: string; tab: string } | null
 }
 
-const statuses: Record<GrantVersionSummary['status'], StatusBadge> = {
+const statuses: Record<VersionSummary['status'], StatusBadge> = {
   active: { status: 'Active', role: 'success' },
   draft: { status: 'Draft', role: 'neutral' }
 }
 
-const fileOrder: DefinitionFileType[] = ['grant', 'agreement', 'payment']
+const fileOrder: VersionFileType[] = [
+  'grant',
+  'agreement',
+  'payment',
+  'workflow'
+]
 
 export const toAndList = (words: string[]): string =>
   words.length < 2
@@ -54,13 +71,13 @@ const capitalise = (text: string): string =>
 
 export const toVersionPath = (
   { path }: RecordType,
-  { code, version }: GrantVersionRef
+  { code, version }: VersionRef
 ): string =>
   `${path}/${encodeURIComponent(code)}/${encodeURIComponent(version)}`
 
 const toBanner = (
   record: RecordType,
-  header: GrantVersionHeader,
+  header: VersionPageHeader,
   tab: string,
   back: string
 ): VersionHeader['banner'] => {
@@ -93,7 +110,7 @@ const toReceived = (receivedAt: string): string => {
 
 export const toVersionHeader = (
   record: RecordType,
-  header: GrantVersionHeader,
+  header: VersionPageHeader,
   tab: string,
   from: string
 ): VersionHeader => ({

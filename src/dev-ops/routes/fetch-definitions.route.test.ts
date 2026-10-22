@@ -4,9 +4,12 @@ import type { Server } from '@hapi/hapi'
 import { statusCodes } from '../../common/status-codes.ts'
 import { createServer } from '../../server/index.ts'
 import { devOps } from '../index.ts'
-import type { DefinitionFetchResult } from '../use-cases/fetch-grant-definitions.use-case.ts'
+import type { DefinitionFetchResult } from '../use-cases/definition-fetches.ts'
 import { fetchGrantDefinitionsUseCase } from '../use-cases/fetch-grant-definitions.use-case.ts'
-import type { GrantVersionPage } from '../use-cases/get-grant-page.use-case.ts'
+import type {
+  DefinitionFileType,
+  GrantVersionPage
+} from '../use-cases/get-grant-page.use-case.ts'
 import { getGrantPageUseCase } from '../use-cases/get-grant-page.use-case.ts'
 
 vi.mock(import('../use-cases/get-catalogue.use-case.ts'))
@@ -50,7 +53,7 @@ const header: GrantVersionPage['header'] = {
   ]
 }
 
-const givenOutcome = (result: DefinitionFetchResult) =>
+const givenOutcome = (result: DefinitionFetchResult<DefinitionFileType>) =>
   vi.mocked(fetchGrantDefinitionsUseCase).mockResolvedValue(result)
 
 const givenFiles = (files: GrantVersionPage['header']['files']) =>
@@ -64,7 +67,7 @@ const givenFiles = (files: GrantVersionPage['header']['files']) =>
     }
   }))
 
-const allStored: DefinitionFetchResult = {
+const allStored: DefinitionFetchResult<DefinitionFileType> = {
   outcome: 'fetched',
   files: [
     { file: 'grant', outcome: 'stored' },

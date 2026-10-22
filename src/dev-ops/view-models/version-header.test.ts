@@ -1,5 +1,6 @@
 import type { GrantVersionHeader } from '../use-cases/get-grant-page.use-case.ts'
 import { grantType } from './grants-page.view-model.ts'
+import { workflowType } from './workflows-page.view-model.ts'
 import { toVersionHeader } from './version-header.ts'
 
 const header = (
@@ -178,4 +179,29 @@ describe('toVersionHeader', () => {
       tab: 'raw'
     })
   })
+
+  test.each([
+    ['pending', 'Workflow definition not stored.'],
+    [
+      'permanent_error',
+      "Workflow definition not stored. CW won't use this version."
+    ]
+  ] as const)(
+    'names a %s workflow not stored, posting the fetch to the workflow page',
+    (fetchStatus, text) => {
+      expect(
+        toVersionHeader(
+          workflowType,
+          { ...header(), files: { workflow: { stored: false, fetchStatus } } },
+          'raw',
+          ''
+        ).banner
+      ).toEqual({
+        text,
+        action: '/dev-ops/workflows/woodland-creation/1.2.0/fetch',
+        back: '',
+        tab: 'raw'
+      })
+    }
+  )
 })

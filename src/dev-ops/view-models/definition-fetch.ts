@@ -2,7 +2,7 @@ import type {
   DefinitionFetchFile,
   DefinitionFetchOutcome,
   DefinitionFetchResult
-} from '../use-cases/fetch-grant-definitions.use-case.ts'
+} from '../use-cases/definition-fetches.ts'
 import type { RecordType } from './record-type.ts'
 import { toAndList } from './version-header.ts'
 

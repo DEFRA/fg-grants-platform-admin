@@ -13,8 +13,7 @@ export type {
   GrantVersionHeader,
   GrantVersionOverview,
   GrantVersionPage,
-  GrantVersionRef,
-  GrantVersionSummary
+  GrantVersionRef
 } from '../repositories/grants.repository.ts'
 
 export type GrantPageResult = RecordResult<GrantVersionPage> | HiddenTab

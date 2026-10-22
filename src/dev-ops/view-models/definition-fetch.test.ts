@@ -1,4 +1,4 @@
-import type { DefinitionFetchFile } from '../use-cases/fetch-grant-definitions.use-case.ts'
+import type { DefinitionFetchFile } from '../use-cases/definition-fetches.ts'
 import { toDefinitionFetchNotices } from './definition-fetch.ts'
 import type { DefinitionFetchFlash } from './definition-fetch.ts'
 import { grantType } from './grants-page.view-model.ts'

@@ -1,43 +1,29 @@
 import { getFromGas, postToGas } from '../../common/gas.ts'
+import type {
+  ConfigVersions,
+  DefinitionFetch,
+  DefinitionFile,
+  VersionRef,
+  VersionSummary
+} from './config-versions.ts'
 import type { SourceError } from './events.repository.ts'
 import type { RecordSectionError, StoredDate } from './record-page.ts'
 
-export interface GrantVersionRef {
-  code: string
-  version: string
-}
+export type GrantVersionRef = VersionRef
 
 export type DefinitionFileType = 'grant' | 'agreement' | 'payment'
-
-export type FetchStatus =
-  | 'pending'
-  | 'fetched'
-  | 'transient_error'
-  | 'permanent_error'
-
-/** Whether GAS holds the file, and GAS's own fetch status for it. */
-export interface DefinitionFile {
-  stored: boolean
-  fetchStatus: FetchStatus
-}
-
-export interface GrantVersionSummary {
-  version: string
-  status: 'active' | 'draft'
-  receivedAt: string
-}
 
 export interface GrantVersionHeader {
   code: string
   version: string
-  status: GrantVersionSummary['status']
+  status: VersionSummary['status']
   receivedAt: string
   /** A file the version has no location for is absent. */
   files: { grant: DefinitionFile } & Partial<
     Record<Exclude<DefinitionFileType, 'grant'>, DefinitionFile>
   >
   /** Newest first. */
-  versions: GrantVersionSummary[]
+  versions: VersionSummary[]
 }
 
 /** Each is null while the grant file is not stored. */
@@ -63,37 +49,9 @@ export interface GrantVersionPage {
   sectionErrors: RecordSectionError[]
 }
 
-export interface GrantVersions {
-  code: string
-  /** The newest active version; null when there is none. */
-  current: string | null
-  versions: GrantVersionSummary[]
-}
+export type GrantVersions = ConfigVersions
 
 export type GrantRead = 'overview' | 'definition'
-
-export type DefinitionFetchReason =
-  | 'missing'
-  | 'forbidden'
-  | 'timeout'
-  | 'unparseable'
-  | 'invalid'
-
-/** What GAS did with one file it had not stored when the fetch began. */
-export type DefinitionFetchFile =
-  | { file: DefinitionFileType; outcome: 'stored' }
-  | {
-      file: DefinitionFileType
-      outcome: 'failed'
-      reason: DefinitionFetchReason
-      /** GAS's own words, only for an `invalid` file. */
-      message: string | null
-    }
-
-export interface DefinitionFetch {
-  /** In the order GAS tried them; empty when every file was already stored. */
-  files: DefinitionFetchFile[]
-}
 
 const grantPath = (code: string) =>
   `/grant-admin/grants/${encodeURIComponent(code)}/versions`
@@ -113,8 +71,8 @@ export const findGrantVersions = async (code: string): Promise<GrantVersions> =>
 export const fetchGrantDefinitions = async (
   { code, version }: GrantVersionRef,
   actor?: string
-): Promise<DefinitionFetch> =>
-  postToGas<DefinitionFetch>(
+): Promise<DefinitionFetch<DefinitionFileType>> =>
+  postToGas<DefinitionFetch<DefinitionFileType>>(
     `${grantPath(code)}/${encodeURIComponent(version)}/fetch`,
     { actor }
   )
