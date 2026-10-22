@@ -1,12 +1,14 @@
 import type {
   GrantVersionHeader,
   GrantVersionOverview,
-  GrantVersionPage
+  GrantVersionPage,
+  GrantVersionRef
 } from '../use-cases/get-grant-page.use-case.ts'
 import type { Catalogue } from '../use-cases/get-catalogue.use-case.ts'
 import { grantTabs, offersTab } from '../use-cases/grant-tabs.ts'
 import type { GrantTabId } from '../use-cases/grant-tabs.ts'
 import { toAdminHref } from '../../grant-ops/view-models/allow-list-page.view-model.ts'
+import { toVersionListHref } from './bucket-links.ts'
 import type { DefinitionFetchFlash } from './definition-fetch.ts'
 import { toUnavailableSources } from './event-row.ts'
 import { toGrantQuestions } from './grant-questions.ts'
@@ -61,6 +63,19 @@ export interface GrantPageQuery {
 const toAllowListHref = (code: string): string =>
   `${toAdminHref(code)}#who-can-apply`
 
+const applicationsBucket = 'gas.applications'
+
+const toApplicationsHref = (
+  catalogue: Catalogue | null,
+  { code, version }: GrantVersionRef
+): string | null =>
+  toVersionListHref(
+    catalogue,
+    applicationsBucket,
+    { codeFact: 'code', versionFact: 'currentConfigVersion' },
+    { code, version }
+  )
+
 const toFacts = (
   header: GrantVersionHeader,
   overview: GrantVersionOverview,
@@ -88,6 +103,12 @@ const toFacts = (
       workflowType,
       header.counterpart,
       toWorkflowHref(header)
+    ),
+    toLinkFact(
+      'applications',
+      'Applications',
+      'View applications',
+      toApplicationsHref(catalogue, header)
     ),
     toLinkFact(
       'who-can-apply',

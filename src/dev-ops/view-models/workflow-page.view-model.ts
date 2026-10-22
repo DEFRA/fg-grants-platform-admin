@@ -1,17 +1,20 @@
 import type {
   WorkflowVersionHeader,
   WorkflowPage,
-  WorkflowVersionOverview
+  WorkflowVersionOverview,
+  WorkflowVersionRef
 } from '../use-cases/get-workflow-page.use-case.ts'
 import type { Catalogue } from '../use-cases/get-catalogue.use-case.ts'
 import { workflowTabs } from '../use-cases/workflow-tabs.ts'
 import type { WorkflowTabId } from '../use-cases/workflow-tabs.ts'
+import { toVersionListHref } from './bucket-links.ts'
 import type { DefinitionFetchFlash } from './definition-fetch.ts'
 import { toUnavailableSources } from './event-row.ts'
 import { grantType, toGrantHref } from './grants-page.view-model.ts'
 import {
   toDateFact,
   toNoneFact,
+  toLinkFact,
   toReleaseCounterpartFacts,
   toSizeFact,
   toTabHref,
@@ -46,6 +49,17 @@ export interface WorkflowPageQuery {
   /** The selected status on Phases: a full position or a bare CW code. */
   status?: string
 }
+
+const toCasesHref = (
+  catalogue: Catalogue | null,
+  { code, version }: WorkflowVersionRef
+): string | null =>
+  toVersionListHref(
+    catalogue,
+    'cw.cases',
+    { codeFact: 'workflowCode', versionFact: 'currentConfigVersion' },
+    { code, version }
+  )
 
 const whoCanWork = 'Who can work cases'
 
@@ -87,6 +101,7 @@ const toFacts = (
       header.counterpart,
       toGrantHref(header)
     ),
+    toLinkFact('cases', 'Cases', 'View cases', toCasesHref(catalogue, header)),
     toTextFact('versions', 'Versions', String(header.versions.length)),
     toSizeFact(overview.storedBytes, 'Definition size')
   ]

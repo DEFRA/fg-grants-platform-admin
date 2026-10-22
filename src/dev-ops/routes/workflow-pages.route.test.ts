@@ -13,7 +13,10 @@ import type {
 } from '../use-cases/get-workflow-page.use-case.ts'
 import { getWorkflowPageUseCase } from '../use-cases/get-workflow-page.use-case.ts'
 import { getWorkflowVersionsUseCase } from '../use-cases/get-workflow-versions.use-case.ts'
+import { getCatalogueUseCase } from '../use-cases/get-catalogue.use-case.ts'
 import {
+  casesBucket,
+  catalogue,
   woodlandDefinition,
   woodlandPhases
 } from '../use-cases/test-fixtures.ts'
@@ -456,7 +459,7 @@ describe('the workflow Overview tab', () => {
         )
     ).toEqual([
       ['Scheme name', 'Received', 'Who can work cases', 'Definition'],
-      ['Grant', 'Versions', 'Definition size']
+      ['Grant', 'Cases', 'Versions', 'Definition size']
     ])
     expect(textOf($, 'workflow-scheme-name')).toBe('Woodland Creation Offer')
     expect(part($, 'workflow-received').attr('datetime')).toBe(
@@ -527,7 +530,42 @@ describe('the workflow Overview tab', () => {
     const { $ } = await viewPage()
 
     expect(part($, 'workflow-fact-grant')).toHaveLength(0)
-    expect(part($, 'workflow-fact-versions')).toHaveLength(1)
+    expect(part($, 'workflow-fact-cases')).toHaveLength(1)
+  })
+
+  test("links to the cases on this version, as the catalogue spells the list's filters", async () => {
+    const { $ } = await viewPage('/dev-ops/workflows/Casework-Smoke/1.0.0')
+
+    expect(part($, 'workflow-cases').attr('href')).toBe(
+      '/dev-ops/cases?workflow=Casework-Smoke&version=1.0.0'
+    )
+    expect(textOf($, 'workflow-cases')).toBe('View cases (opens in a new tab)')
+  })
+
+  test.each([
+    [
+      'does not filter cases by version',
+      {
+        ...catalogue,
+        buckets: [
+          {
+            ...casesBucket,
+            facts: casesBucket.facts.filter(
+              ({ name }) => name !== 'currentConfigVersion'
+            )
+          }
+        ]
+      }
+    ],
+    ['has no cases list', { ...catalogue, buckets: [] }],
+    ['could not be read', null]
+  ])('reads a dash for Cases when the catalogue %s', async (_, answer) => {
+    vi.mocked(getCatalogueUseCase).mockResolvedValueOnce(answer)
+
+    const { $ } = await viewPage()
+
+    expect(textOf($, 'workflow-cases-none')).toBe('—')
+    expect(part($, 'workflow-cases').attr('href')).toBeUndefined()
   })
 
   test('shows the version facts, and a dash for each definition fact, while the workflow is not stored', async () => {
@@ -547,9 +585,12 @@ describe('the workflow Overview tab', () => {
     expect(part($, 'workflow-received').attr('datetime')).toBe(
       '2026-10-10T16:25:00Z'
     )
-    expect(part($, 'workflow-grant').attr('href')).toBe(
-      '/dev-ops/grants/woodland-creation/1.2.0'
-    )
+    expect(
+      ['grant', 'cases'].map((id) => part($, `workflow-${id}`).attr('href'))
+    ).toEqual([
+      '/dev-ops/grants/woodland-creation/1.2.0',
+      '/dev-ops/cases?workflow=woodland-creation&version=1.2.0'
+    ])
   })
 
   test('says None for a workflow with no grant', async () => {
