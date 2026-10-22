@@ -16,9 +16,7 @@ import {
   toSafeFrom
 } from '../view-models/event-page.view-model.ts'
 import { toPayloadPage } from '../view-models/payload-edit-page.ts'
-
-/** Longer than any query this app builds for itself, and still bounded. */
-const fromMax = 2048
+import { fromMax } from '../view-models/record-filters.ts'
 
 /** As the save route bounds it. */
 const noteMax = 2000

@@ -119,4 +119,20 @@ describe('do-choice-menu', () => {
 
     expect(document.querySelector('select')!.name).toBe('ref-kind')
   })
+
+  test('opens on the chosen option, and moves between options with the arrow keys', async () => {
+    const { body, options } = await mountMenu()
+    const panel = part(body, 'panel')!
+    const toggle = new Event('toggle')
+
+    Element.prototype.scrollIntoView = () => undefined
+    Object.defineProperty(toggle, 'newState', { value: 'open' })
+    panel.dispatchEvent(toggle)
+
+    expect(document.activeElement).toBe(options[1])
+
+    panel.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown' }))
+
+    expect(document.activeElement).toBe(options[2])
+  })
 })

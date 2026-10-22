@@ -5,6 +5,7 @@ import { config } from '../common/config.ts'
 import { logoutPath } from '../server/plugins/auth/paths.ts'
 import { assets } from '../server/plugins/views/assets.ts'
 import { getCatalogueUseCase } from './use-cases/get-catalogue.use-case.ts'
+import { toCodeBreaks } from './view-models/code-text.ts'
 import { toHomeHref, toNavSections } from './view-models/bucket-nav.ts'
 import { toSignedInUser } from './view-models/signed-in-user.ts'
 import {
@@ -35,6 +36,8 @@ export const environment = new nunjucks.Environment(
     lstripBlocks: true
   }
 )
+
+environment.addFilter('codeBreaks', toCodeBreaks)
 
 /**
  * An operator with four tabs open needs the one they are about to redrive an

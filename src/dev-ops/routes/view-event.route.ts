@@ -13,9 +13,7 @@ import {
   toEventPage,
   toSafeFrom
 } from '../view-models/event-page.view-model.ts'
-
-/** Longer than any query this page builds for itself, and still bounded. */
-const fromMax = 2048
+import { fromMax } from '../view-models/record-filters.ts'
 
 export const viewEventRoute: ServerRoute = {
   method: 'GET',

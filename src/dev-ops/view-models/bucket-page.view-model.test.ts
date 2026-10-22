@@ -1,5 +1,6 @@
 import {
   applicationsBucket,
+  grantsBucket,
   outboxBucket,
   toggledBucket
 } from '../use-cases/test-fixtures.ts'
@@ -299,18 +300,20 @@ describe('toBucketPage', () => {
         name: 'Event',
         label: 'Filter by event',
         items: [
-          { value: null, label: 'All', href: path, active: true },
+          { value: null, label: 'All', href: path, active: true, hint: null },
           {
             value: 'UpdateCaseStatus',
             label: 'UpdateCaseStatus',
             href: `${path}?event=UpdateCaseStatus`,
-            active: false
+            active: false,
+            hint: null
           },
           {
             value: 'Unrecognised',
             label: 'Unrecognised',
             href: `${path}?event=Unrecognised`,
-            active: false
+            active: false,
+            hint: null
           }
         ]
       }
@@ -425,19 +428,22 @@ describe('toBucketPage', () => {
         value: null,
         label: 'All',
         href: '/dev-ops/applications',
-        active: false
+        active: false,
+        hint: null
       },
       {
         value: 'true',
         label: 'Archived',
         href: '/dev-ops/applications?archived=true',
-        active: true
+        active: true,
+        hint: null
       },
       {
         value: 'false',
         label: 'Current',
         href: '/dev-ops/applications?archived=false',
-        active: false
+        active: false,
+        hint: null
       }
     ])
   })
@@ -449,7 +455,8 @@ describe('toBucketPage', () => {
       value: 'RetiredType',
       label: 'RetiredType',
       href: `${path}?event=RetiredType`,
-      active: true
+      active: true,
+      hint: null
     })
   })
 
@@ -643,11 +650,24 @@ describe('toBucketPage', () => {
     expect(page(read(), {}, applicationsBucket).head).toEqual({
       title: 'Reference',
       columns: [
-        { label: 'Grant', format: 'mono', right: false },
-        { label: 'Status', format: 'position', right: false }
+        {
+          key: 'code',
+          label: 'Grant',
+          format: 'mono',
+          right: false,
+          phoneHidden: false
+        },
+        {
+          key: 'position',
+          label: 'Status',
+          format: 'position',
+          right: false,
+          phoneHidden: false
+        }
       ],
       time: 'Created',
-      even: true
+      even: true,
+      layout: null
     })
   })
 
@@ -659,17 +679,26 @@ describe('toBucketPage', () => {
       title: 'UpdateCaseStatus',
       eventName: { name: 'UpdateCaseStatus', spoken: 'Update case status' },
       mono: false,
+      spokenVersion: null,
       subtitle: '0b7c1d1e-0000-4000-8000-000000000001',
       cells: [
         {
           key: 'status',
           right: false,
+          phoneHidden: false,
           kind: 'badge',
           status: 'DEAD_LETTER',
           label: 'Dead letter',
-          role: 'error'
+          role: 'error',
+          title: 'Dead letter'
         },
-        { key: 'grantCode', right: false, kind: 'mono', text: 'example-grant' }
+        {
+          key: 'grantCode',
+          right: false,
+          phoneHidden: false,
+          kind: 'mono',
+          text: 'example-grant'
+        }
       ],
       time: {
         text: '6m ago',
@@ -762,10 +791,17 @@ describe('toBucketPage', () => {
         c1: '2026-10-09T09:00:00.000Z'
       })
     ).toEqual([
-      { key: 'c0', right: false, kind: 'text', text: 'agreement' },
+      {
+        key: 'c0',
+        right: false,
+        phoneHidden: false,
+        kind: 'text',
+        text: 'agreement'
+      },
       {
         key: 'c1',
         right: true,
+        phoneHidden: false,
         kind: 'time',
         time: expect.objectContaining({ text: '20m ago' })
       }
@@ -780,16 +816,28 @@ describe('toBucketPage', () => {
         c2: true
       })
     ).toEqual([
-      { key: 'c0', right: false, kind: 'text', text: 'up' },
-      { key: 'c1', right: false, kind: 'text', text: 'IN_REVIEW' },
-      { key: 'c2', right: false, kind: 'text', text: 'true' }
+      { key: 'c0', right: false, phoneHidden: false, kind: 'text', text: 'up' },
+      {
+        key: 'c1',
+        right: false,
+        phoneHidden: false,
+        kind: 'text',
+        text: 'IN_REVIEW'
+      },
+      {
+        key: 'c2',
+        right: false,
+        phoneHidden: false,
+        kind: 'text',
+        text: 'true'
+      }
     ])
   })
 
   test('draws a cell the row has not got, or holds as null, as none', () => {
     expect(cellsOf(columnsOf('mono', 'time'), { c0: null })).toEqual([
-      { key: 'c0', right: false, kind: 'none' },
-      { key: 'c1', right: true, kind: 'none' }
+      { key: 'c0', right: false, phoneHidden: false, kind: 'none' },
+      { key: 'c1', right: true, phoneHidden: false, kind: 'none' }
     ])
   })
 
@@ -849,5 +897,121 @@ describe('toBucketPage', () => {
     expect(drawn).toMatchObject({ unavailable: true, refused: null, rows: [] })
     expect(drawn.tiles?.items).toHaveLength(3)
     expect(drawn.menus).toHaveLength(1)
+  })
+
+  const versionRow = (cells: BucketRow['cells']): BucketRow =>
+    row({
+      title: 'woodland',
+      subtitle: null,
+      cells,
+      link: { kind: 'grant', code: 'woodland', version: '1.43.2' }
+    })
+
+  const versionPage = (cells: BucketRow['cells']) =>
+    page(read(exact({ rows: [versionRow(cells)] })), {}, grantsBucket)
+
+  test('says the version after a version row title, for a screen reader', () => {
+    const [drawn] = versionPage({
+      version: '1.43.2',
+      status: 'active',
+      definition: 'fetched'
+    }).rows
+
+    expect(drawn.spokenVersion).toBe('1.43.2')
+    expect(page().rows[0].spokenVersion).toBeNull()
+  })
+
+  test("titles a badge with its value's hint, and a draft row's other badges with the draft clause", () => {
+    const [drawn] = versionPage({
+      version: '2.0.0',
+      status: 'draft',
+      definition: 'permanent_error'
+    }).rows
+
+    expect(
+      drawn.cells.map((cell) => cell.kind === 'badge' && cell.title)
+    ).toEqual([
+      false,
+      "GAS refused at least one of this version's files and won't use it. Draft: GAS won't pick it for new work until it is published as active.",
+      'Not yet published as active.'
+    ])
+  })
+
+  test('says a version that is not Active beside it on phones, where Status is hidden', () => {
+    const [version] = versionPage({
+      version: '2.0.0',
+      status: 'draft',
+      definition: 'pending'
+    }).rows[0].cells
+
+    expect(version).toMatchObject({ key: 'version', phoneBadge: 'Draft' })
+    expect(
+      versionPage({ version: '1.0.0', status: 'active', definition: 'pending' })
+        .rows[0].cells[0]
+    ).not.toHaveProperty('phoneBadge')
+  })
+
+  test('hides Status below sm on the version lists only', () => {
+    const drawn = versionPage({
+      version: '1.0.0',
+      status: 'active',
+      definition: 'fetched'
+    })
+
+    expect(drawn.head.layout).toBe('versions')
+    expect(drawn.head.columns.map(({ phoneHidden }) => phoneHidden)).toEqual([
+      false,
+      false,
+      true
+    ])
+    expect(drawn.rows[0].cells.map(({ phoneHidden }) => phoneHidden)).toEqual([
+      false,
+      false,
+      true
+    ])
+  })
+
+  test('splits a code@version cell into its code and version', () => {
+    const [cell] = page(
+      read(
+        exact({ rows: [row({ cells: { code: 'frps-private-beta@1.4.2' } })] })
+      ),
+      {},
+      applicationsBucket
+    ).rows[0].cells
+
+    expect(cell).toMatchObject({
+      kind: 'versioned',
+      text: 'frps-private-beta@1.4.2',
+      code: 'frps-private-beta',
+      version: '1.4.2'
+    })
+  })
+
+  test('says which choices found nothing, by their labels', () => {
+    expect(
+      page(
+        read(exact({ rows: [], groups: [] })),
+        { status: 'draft' },
+        grantsBucket
+      ).emptyText
+    ).toBe('No grant versions whose Status is Draft.')
+    expect(
+      page(read(exact({ rows: [], groups: [] })), {}, grantsBucket).emptyText
+    ).toBe('No grant versions found.')
+  })
+
+  test('gives each menu value its hint', () => {
+    const definition = page(read(), {}, grantsBucket).menus.find(
+      ({ fact }) => fact === 'worstFetchStatus'
+    )
+
+    expect(definition?.items.map(({ hint }) => hint)).toEqual([
+      null,
+      'GAS has fetched every file of this version (grant, agreement, payment) itself.',
+      "At least one of this version's files (grant, agreement, payment) isn't fetched by GAS yet.",
+      "GAS's last fetch of at least one of this version's files from S3 failed.",
+      "GAS refused at least one of this version's files and won't use it."
+    ])
   })
 })
