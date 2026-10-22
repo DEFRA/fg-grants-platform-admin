@@ -1349,7 +1349,7 @@ describe('the grant page', () => {
     ])
   })
 
-  test('offers Overview and Raw, keeping the list it was opened from', async () => {
+  test('offers Overview, Payment and Raw, keeping the list it was opened from', async () => {
     const from = '/dev-ops/grants'
     const { $ } = await viewPage(
       `${grantPath}?tab=raw&back=${encodeURIComponent(from)}`
@@ -1361,6 +1361,7 @@ describe('the grant page', () => {
         .map((tab) => `${$(tab).text()} ${$(tab).attr('href')}`)
     ).toEqual([
       `Overview ${grantPath}?back=${encodeURIComponent(from)}`,
+      `Payment ${grantPath}?tab=payment&back=${encodeURIComponent(from)}`,
       `Raw ${grantPath}?tab=raw&back=${encodeURIComponent(from)}`
     ])
     expect(part($, 'grant-tabs').find('[aria-current="page"]').text()).toBe(
@@ -1776,6 +1777,370 @@ describe('the grant Raw tab', () => {
       'Definition could not be loaded'
     )
     expect(part($, 'grant-raw-too-large')).toHaveLength(0)
+  })
+})
+
+/** GAS `compose/seed/pigs-might-fly/1.0.0/gas/payment.json`. */
+const pigsMightFlyPayment = {
+  code: 'pigs-might-fly',
+  sbi: '$.agreement.identifiers.sbi',
+  frn: '$.agreement.identifiers.frn',
+  originalInvoiceNumber: '',
+  scheme: 'SFI',
+  sourceSystem: 'FPTT',
+  deliveryBody: 'RP00',
+  fesCode: 'FALS_FPTT',
+  ledger: 'AP',
+  totalAmountPence: '$.agreement.totalAmountPence',
+  currency: 'GBP',
+  marketingYear: 'jsonata:$substring($.execution.executedAt, 0, 4)',
+  payments: {
+    itemsRef: '$.agreement.paymentSchedule.instalments',
+    items: {
+      dueDate: '@.dueDate',
+      totalAmountPence: '@.totalAmountPence',
+      invoiceLines: {
+        itemsRef: '@.lineItems',
+        items: {
+          schemeCode: 'CMOR1',
+          description: 'jsonata:@.description',
+          amountPence: '@.amountPence',
+          accountCode: 'SOS710',
+          fundCode: 'DRD10',
+          deliveryBody: 'RP00',
+          marketingYear: 'jsonata:$substring($.execution.executedAt, 0, 4)'
+        }
+      }
+    }
+  }
+}
+
+/** GAS `compose/seed/woodland/1.39.1/gas/payment.json`, trimmed. */
+const woodlandPayment = {
+  code: 'woodland',
+  sbi: '$.claim.sbi',
+  payments: [
+    {
+      dueDate: 'jsonata:$substring($.execution.executedAt, 0, 10)',
+      totalAmountPence: '$.claim.totalAmountPence',
+      invoiceLines: [
+        {
+          schemeCode: 'WMP',
+          description: 'Woodland Management Plan Payment',
+          amountPence: '$.claim.totalAmountPence',
+          accountCode: 'SOS710',
+          fundCode: 'DRD10',
+          deliveryBody: 'RP10',
+          marketingYear: 'jsonata:$substring($.execution.executedAt, 0, 4)'
+        }
+      ]
+    }
+  ]
+}
+
+const paymentPath = `${grantPath}?tab=payment`
+
+const givenPayment = (payment: object | null, overrides = {}) =>
+  givenGrant({ overview: undefined, payment, ...overrides })
+
+const cellsOf = ($: CheerioAPI, testId: string) =>
+  part($, testId)
+    .toArray()
+    .map((row) =>
+      $(row)
+        .children('td')
+        .toArray()
+        .map((cell) => flatten($(cell).text()))
+    )
+
+describe('the grant Payment tab', () => {
+  test("reads GAS's payment read", async () => {
+    givenPayment(pigsMightFlyPayment)
+
+    await viewPage(paymentPath)
+
+    expect(getGrantPageUseCase).toHaveBeenCalledWith(
+      { code: 'woodland-creation', version: '1.2.0' },
+      'payment'
+    )
+  })
+
+  test('lists every request field with its value and kind, without code or payments', async () => {
+    givenPayment(pigsMightFlyPayment)
+
+    const { $ } = await viewPage(paymentPath)
+
+    expect(
+      textOf($, 'grant-payment-request').startsWith('Payment request')
+    ).toBe(true)
+    expect(cellsOf($, 'grant-payment-field')).toEqual([
+      ['sbi', '$.agreement.identifiers.sbi', 'reference'],
+      ['frn', '$.agreement.identifiers.frn', 'reference'],
+      ['originalInvoiceNumber', '""', 'literal'],
+      ['scheme', 'SFI', 'literal'],
+      ['sourceSystem', 'FPTT', 'literal'],
+      ['deliveryBody', 'RP00', 'literal'],
+      ['fesCode', 'FALS_FPTT', 'literal'],
+      ['ledger', 'AP', 'literal'],
+      ['totalAmountPence', '$.agreement.totalAmountPence', 'reference'],
+      ['currency', 'GBP', 'literal'],
+      [
+        'marketingYear',
+        'jsonata:$substring($.execution.executedAt, 0, 4)',
+        'expression'
+      ]
+    ])
+  })
+
+  test('shows the empty string muted, and every other value in mono', async () => {
+    givenPayment(pigsMightFlyPayment)
+
+    const { $ } = await viewPage(paymentPath)
+    const [sbi, , empty] = part($, 'grant-payment-field').toArray()
+
+    expect($(sbi).find('td').eq(1).children().attr('class')).toBe(
+      'font-mono text-sm leading-none break-words'
+    )
+    expect($(empty).find('td').eq(1).children().attr('class')).toContain(
+      'text-base-content/70'
+    )
+  })
+
+  test('gives a collection of due payments one card, saying what it repeats for', async () => {
+    givenPayment(pigsMightFlyPayment)
+
+    const { $ } = await viewPage(paymentPath)
+    const due = part($, 'grant-payment-due')
+
+    expect(due).toHaveLength(1)
+    expect(flatten(due.find('h2').text())).toBe('Due payments')
+    expect(textOf($, 'grant-payment-due-fact-for-each')).toBe(
+      'For each $.agreement.paymentSchedule.instalments'
+    )
+    expect(textOf($, 'grant-payment-due-fact-due-date')).toBe(
+      'Due date @.dueDate'
+    )
+    expect(textOf($, 'grant-payment-due-fact-total')).toBe(
+      'Total (pence) @.totalAmountPence'
+    )
+    expect(textOf($, 'grant-payment-for-each')).toBe(
+      'One line per row of @.lineItems'
+    )
+    expect(cellsOf($, 'grant-payment-line')).toEqual([
+      [
+        'CMOR1',
+        'jsonata:@.description',
+        '@.amountPence',
+        'SOS710',
+        'DRD10',
+        'RP00',
+        'jsonata:$substring($.execution.executedAt, 0, 4)'
+      ]
+    ])
+    expect(
+      part($, 'grant-payment-line').find('td').eq(1).children().attr('class')
+    ).toContain('font-mono')
+  })
+
+  test('gives each due payment of an array a numbered card, with a literal description as plain text', async () => {
+    givenPayment(woodlandPayment)
+
+    const { $ } = await viewPage(paymentPath)
+
+    expect(flatten(part($, 'grant-payment-due').find('h2').text())).toBe(
+      'Due payment 1'
+    )
+    expect(part($, 'grant-payment-due-fact-for-each')).toHaveLength(0)
+    expect(part($, 'grant-payment-for-each')).toHaveLength(0)
+    expect(
+      part($, 'grant-payment-line')
+        .find('td')
+        .eq(1)
+        .contents()
+        .toArray()
+        .map((node) => node.type)
+    ).toEqual(['text'])
+    expect(textOf($, 'grant-payment-line')).toContain(
+      'Woodland Management Plan Payment'
+    )
+  })
+
+  test('labels each card by its heading, and heads each table column', async () => {
+    givenPayment(woodlandPayment)
+
+    const { $ } = await viewPage(paymentPath)
+
+    for (const testId of ['grant-payment-request', 'grant-payment-due']) {
+      const card = part($, testId)
+
+      expect($(`#${card.attr('aria-labelledby')}`).is('h2')).toBe(true)
+    }
+    expect(
+      part($, 'grant-payment-lines')
+        .find('th')
+        .toArray()
+        .map((head) => `${$(head).attr('scope')} ${$(head).text()}`)
+    ).toEqual([
+      'col Scheme',
+      'col Description',
+      'col Amount (pence)',
+      'col Account',
+      'col Fund',
+      'col Delivery body',
+      'col Marketing year'
+    ])
+  })
+
+  test('says where due payments given as one mapping come from', async () => {
+    givenPayment({ code: 'woodland', payments: '$.agreement.payments' })
+
+    const { $ } = await viewPage(paymentPath)
+
+    expect(textOf($, 'grant-payment-from')).toBe(
+      'From $.agreement.payments reference'
+    )
+    expect(part($, 'grant-payment-lines')).toHaveLength(0)
+  })
+
+  test('says where invoice lines given as one mapping, or one line given as a mapping, come from', async () => {
+    givenPayment({
+      code: 'woodland',
+      payments: [
+        { dueDate: '@.dueDate', invoiceLines: '@.lines' },
+        { dueDate: '@.dueDate', invoiceLines: ['@.line'] }
+      ]
+    })
+
+    const { $ } = await viewPage(paymentPath)
+
+    expect(textOf($, 'grant-payment-lines-from')).toBe(
+      'Invoice lines from @.lines'
+    )
+    expect(textOf($, 'grant-payment-line-from')).toBe(
+      'Line from @.line reference'
+    )
+    expect(
+      part($, 'grant-payment-line-from').children('td').attr('colspan')
+    ).toBe('7')
+  })
+
+  test('shows a dash for each key a due payment has not got', async () => {
+    givenPayment({ code: 'woodland', payments: [{ invoiceLines: [] }] })
+
+    const { $ } = await viewPage(paymentPath)
+
+    expect(textOf($, 'grant-payment-due-fact-due-date')).toBe('Due date —')
+    expect(textOf($, 'grant-payment-due-fact-total')).toBe('Total (pence) —')
+  })
+
+  test('says when there are no due payments', async () => {
+    givenPayment({ code: 'woodland', payments: [] })
+
+    const { $ } = await viewPage(paymentPath)
+
+    expect(textOf($, 'grant-payment-no-due')).toBe('No due payments.')
+    expect(part($, 'grant-payment-due')).toHaveLength(0)
+  })
+
+  test('says when a due payment has no invoice lines, with no table', async () => {
+    givenPayment({
+      code: 'woodland',
+      payments: [{ dueDate: '@.dueDate', invoiceLines: [] }]
+    })
+
+    const { $ } = await viewPage(paymentPath)
+
+    expect(textOf($, 'grant-payment-no-lines')).toBe('No invoice lines.')
+    expect(part($, 'grant-payment-lines')).toHaveLength(0)
+  })
+
+  test('ends with the stored definition in a closed Raw panel', async () => {
+    givenPayment(woodlandPayment)
+
+    const { $ } = await viewPage(paymentPath)
+    const details = part($, 'grant-payment-raw-details')
+
+    expect(details.is('details')).toBe(true)
+    expect(details.attr('open')).toBeUndefined()
+    expect(details.prev().attr('data-testid')).toBe('grant-payment')
+    expect(textOf($, 'grant-payment-raw-summary')).toBe('Raw')
+    expect(part($, 'grant-payment-raw').attr('aria-label')).toBe(
+      'Payment definition'
+    )
+    expect(
+      part($, 'grant-payment-raw-line')
+        .toArray()
+        .map((line) => $(line).find('code').text())
+    ).toEqual(JSON.stringify(woodlandPayment, null, 2).split('\n'))
+  })
+
+  test('says the payment definition is not stored, and nothing else', async () => {
+    givenPayment(null, {
+      header: { ...grantHeader, files: { grant: fetched, payment: pending } }
+    })
+
+    const { $ } = await viewPage(paymentPath)
+
+    expect(textOf($, 'grant-not-stored')).toBe('Payment definition not stored.')
+    expect(part($, 'grant-payment')).toHaveLength(0)
+    expect(part($, 'grant-no-data')).toHaveLength(0)
+  })
+
+  test("says a stored definition over GAS's cap is too large to show", async () => {
+    givenPayment(null, {
+      sectionErrors: [{ section: 'payment', message: 'too large to show' }]
+    })
+
+    const { $ } = await viewPage(paymentPath)
+
+    expect(textOf($, 'grant-too-large')).toBe('Too large to show')
+    expect(part($, 'grant-payment')).toHaveLength(0)
+    expect(part($, 'grant-section-error')).toHaveLength(0)
+  })
+
+  test('says the definition could not be read on any other failure', async () => {
+    givenPayment(null, {
+      sectionErrors: [
+        { section: 'payment', message: 'Payment could not be loaded' }
+      ]
+    })
+
+    const { $ } = await viewPage(paymentPath)
+
+    expect(textOf($, 'grant-section-error')).toBe('Payment could not be loaded')
+    expect(part($, 'grant-payment')).toHaveLength(0)
+  })
+
+  test('says GAS sent nothing for a stored definition', async () => {
+    givenPayment(null)
+
+    const { $ } = await viewPage(paymentPath)
+
+    expect(textOf($, 'grant-no-data')).toBe('GAS returned no data for this tab')
+  })
+
+  test('opens Overview when GAS says the version has no payment file', async () => {
+    vi.mocked(getGrantPageUseCase).mockResolvedValue({
+      outcome: 'hidden',
+      page: null
+    })
+
+    const { statusCode, headers } = await viewPage(paymentPath)
+
+    expect(statusCode).toBe(statusCodes.found)
+    expect(headers.location).toBe(grantPath)
+  })
+
+  test('is not offered on a version with no payment file', async () => {
+    givenGrant({ header: { ...grantHeader, files: { grant: fetched } } })
+
+    const { $ } = await viewPage(grantPath)
+
+    expect(
+      part($, 'grant-tab')
+        .toArray()
+        .map((tab) => $(tab).text())
+    ).toEqual(['Overview', 'Raw'])
   })
 })
 

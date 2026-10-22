@@ -9,7 +9,7 @@ import type {
   BucketEntry,
   Catalogue
 } from '../use-cases/get-catalogue.use-case.ts'
-import { grantTabs } from '../use-cases/grant-tabs.ts'
+import { grantTabs, offersTab } from '../use-cases/grant-tabs.ts'
 import type { GrantTabId } from '../use-cases/grant-tabs.ts'
 import { toAdminHref } from '../../grant-ops/view-models/allow-list-page.view-model.ts'
 import { toBucketHref } from './bucket-links.ts'
@@ -20,17 +20,21 @@ import type {
 } from './definition-fetch.ts'
 import { toUnavailableSources } from './event-row.ts'
 import { grantType, toGrantHref } from './grants-page.view-model.ts'
+import { toPaymentDefinition } from './payment-definition.ts'
+import type { PaymentDefinitionView } from './payment-definition.ts'
 import {
   toDateFact,
   toLinkFact,
   toMonoFact,
   toReleaseCounterpartFacts,
+  toRaw,
   toSizeFact,
   toTabSection,
   toTabs,
   toTextFact
 } from './record-page.view-model.ts'
-import type { Fact, RecordPageModel } from './record-page.view-model.ts'
+import type { Fact, RawTab, RecordPageModel } from './record-page.view-model.ts'
+import type { RecordType } from './record-type.ts'
 import { toVersionHeader, toVersionPath } from './version-header.ts'
 import type { VersionHeader } from './version-header.ts'
 import { toWorkflowHref, workflowType } from './workflows-page.view-model.ts'
@@ -41,6 +45,7 @@ export interface GrantPageModel extends RecordPageModel {
   notices: DefinitionFetchNotice[]
   /** The file the tab needs, while it is not stored. */
   notStored: DefinitionFileType | null
+  payment: { view: PaymentDefinitionView | null; raw: RawTab } | null
 }
 
 const toAllowListHref = (code: string): string =>
@@ -99,6 +104,11 @@ const toFacts = (
   ]
 ]
 
+const toOfferedGrantType = (header: GrantVersionHeader): RecordType => ({
+  ...grantType,
+  tabs: grantType.tabs.filter(({ id }) => offersTab(header, id as GrantTabId))
+})
+
 const toNotStored = (
   { files }: GrantVersionHeader,
   tab: GrantTabId
@@ -107,6 +117,14 @@ const toNotStored = (
 
   return file && files[file]?.stored === false ? file : null
 }
+
+const toPaymentTab = ({
+  payment,
+  sectionErrors
+}: GrantVersionPage): GrantPageModel['payment'] => ({
+  view: payment ? toPaymentDefinition(payment) : null,
+  raw: toRaw(payment, sectionErrors, 'payment')
+})
 
 export const toGrantPage = (
   page: GrantVersionPage,
@@ -125,7 +143,12 @@ export const toGrantPage = (
     backHref: from,
     navActive: null,
     trail: [],
-    tabs: toTabs(grantType, toGrantHref(page.header), tab, from),
+    tabs: toTabs(
+      toOfferedGrantType(page.header),
+      toGrantHref(page.header),
+      tab,
+      from
+    ),
     tab,
     facts: page.overview
       ? toFacts(
@@ -145,6 +168,7 @@ export const toGrantPage = (
       notice,
       toVersionPath(grantType, page.header)
     ),
-    notStored: toNotStored(page.header, tab)
+    notStored: toNotStored(page.header, tab),
+    payment: tab === 'payment' ? toPaymentTab(page) : null
   }
 }

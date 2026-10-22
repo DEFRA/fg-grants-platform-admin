@@ -51,13 +51,15 @@ export interface GrantVersionPage {
   overview?: GrantVersionOverview | null
   /** Null when not stored or too large. */
   definition?: GrantDefinition | null
+  /** The stored payment definition as stored: never compiled here. Null when not stored or too large. */
+  payment?: object | null
   sourceErrors: SourceError[]
   sectionErrors: RecordSectionError[]
 }
 
 export type GrantVersions = ConfigVersions
 
-export type GrantRead = 'overview' | 'definition'
+export type GrantRead = 'overview' | 'definition' | 'payment'
 
 const grantPath = (code: string) =>
   `/grant-admin/grants/${encodeURIComponent(code)}/versions`
