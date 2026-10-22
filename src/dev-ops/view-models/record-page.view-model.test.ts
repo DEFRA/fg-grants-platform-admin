@@ -5,6 +5,7 @@ import {
   toRecordPage,
   toSectionError,
   toSeriesData,
+  toTabHref,
   toTooLarge
 } from './record-page.view-model.ts'
 import type { RecordPageData, SeriesMember } from './record-page.view-model.ts'
@@ -359,5 +360,25 @@ describe('toTooLarge', () => {
         'definition'
       )
     ).toBe(false)
+  })
+})
+
+describe('toTabHref', () => {
+  const href = '/dev-ops/grants/woodland/1.2.0'
+
+  test('leaves out the default tab and an empty back', () => {
+    expect(toTabHref(href, 'overview', '')).toBe(href)
+  })
+
+  test('keeps the tab and the list it came from', () => {
+    expect(toTabHref(href, 'raw', '/dev-ops/grants')).toBe(
+      `${href}?tab=raw&back=%2Fdev-ops%2Fgrants`
+    )
+  })
+
+  test('adds the extra params after the tab and back', () => {
+    expect(
+      toTabHref(href, 'phases', '/dev-ops/grants', { status: 'P:S:A' })
+    ).toBe(`${href}?tab=phases&back=%2Fdev-ops%2Fgrants&status=P%3AS%3AA`)
   })
 })

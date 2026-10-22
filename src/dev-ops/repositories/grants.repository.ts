@@ -54,11 +54,51 @@ export interface GrantDefinition {
   version: string
 }
 
+/** `PHASE:STAGE:STATUS`. */
+type LifecyclePosition = string
+
+interface LifecycleStage {
+  code: string
+  name: string | null
+  statuses: { code: string }[]
+}
+
+/** How an application reaches a position: a move, a validFrom entry nothing matches, or from any status. */
+export type WayIn = { to: LifecyclePosition; processes: string[] } & (
+  | { kind: 'move'; from: LifecyclePosition }
+  | { kind: 'unmatched'; code: string }
+  | { kind: 'any' }
+)
+
+export interface ExternalStatusMapping {
+  source: string
+  code: string
+  /** `PHASE:STAGE`, the stage the application must be in. */
+  whileIn: string
+  mappedTo: string
+  /** Not always a position on the map; null when GAS cannot read `mappedTo`. */
+  to: string | null
+}
+
+/** What can happen to an application of the grant, as GAS enforces it. */
+export interface GrantLifecycle {
+  phases: { code: string; name: string | null; stages: LifecycleStage[] }[]
+  initialPosition: LifecyclePosition
+  amendablePositions: string[]
+  waysIn: WayIn[]
+  externalMappings: ExternalStatusMapping[]
+  claimApproval: { from: LifecyclePosition; to: LifecyclePosition } | null
+}
+
 export interface GrantVersionPage {
   header: GrantVersionHeader
   overview?: GrantVersionOverview | null
   /** Null when not stored or too large. */
   definition?: GrantDefinition | null
+  /** Null when not stored, or when GAS cannot describe it. */
+  lifecycle?: GrantLifecycle | null
+  /** Why the stored grant has no lifecycle. */
+  problem?: string | null
   sourceErrors: SourceError[]
   sectionErrors: RecordSectionError[]
 }
@@ -70,7 +110,7 @@ export interface GrantVersions {
   versions: GrantVersionSummary[]
 }
 
-export type GrantRead = 'overview' | 'definition'
+export type GrantRead = 'overview' | 'definition' | 'phases'
 
 const grantPath = (code: string) =>
   `/grant-admin/grants/${encodeURIComponent(code)}/versions`
