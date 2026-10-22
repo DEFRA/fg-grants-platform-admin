@@ -10,7 +10,10 @@ import { toGasStatusCode } from './gas-status.ts'
 export type {
   DefinitionFetchFile,
   DefinitionFetchReason,
-  VersionRef
+  DefinitionFile,
+  FetchStatus,
+  VersionRef,
+  VersionSummary
 } from '../repositories/config-versions.ts'
 
 /**

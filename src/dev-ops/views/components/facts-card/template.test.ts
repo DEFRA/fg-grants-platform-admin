@@ -21,6 +21,28 @@ describe('facts-card component', () => {
     expect($('[data-testid="grant-fact-code"] dd').text()).toBe('WC')
   })
 
+  test('is a titled card named by its title, when given one', () => {
+    const $ = render('facts-card', {
+      facts: [[{ id: 'code', label: 'Code', kind: 'text', text: 'WC' }]],
+      title: 'Agreement definition',
+      testId: 'grant'
+    })
+    const section = $('[data-testid="grant-overview"]')
+
+    expect(section.attr('aria-label')).toBeUndefined()
+    expect(section.attr('aria-labelledby')).toBe('grant-facts-title')
+    expect($('#grant-facts-title').text()).toBe('Agreement definition')
+  })
+
+  test('says a fact of a kind it does not draw as plain text, with no caller', () => {
+    expect(
+      valueOf(
+        [[{ id: 'odd', label: 'Odd', kind: 'other', text: 'x' }]],
+        'odd'
+      ).text()
+    ).toBe('x')
+  })
+
   test('shows a mono fact in mono, with where it started', () => {
     const facts = [
       [
@@ -34,9 +56,11 @@ describe('facts-card component', () => {
       ]
     ]
 
-    expect(valueOf(facts, 'grant').attr('class')).toBe(
-      'font-mono text-sm leading-none break-all'
+    expect(valueOf(facts, 'grant').attr('class')).toBe('text-sm')
+    expect(valueOf(facts, 'grant').children().attr('class')).toBe(
+      'font-mono [overflow-wrap:anywhere]'
     )
+    expect(valueOf(facts, 'grant').find('wbr')).toHaveLength(0)
     expect(valueOf(facts, 'grant-from').text()).toBe('from 1.0.0')
   })
 

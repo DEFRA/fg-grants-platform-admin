@@ -4,7 +4,9 @@ import type {
   DefinitionFetchResult
 } from '../use-cases/definition-fetches.ts'
 import type { RecordType } from './record-type.ts'
-import { toAndList } from './version-header.ts'
+import type { VersionFiles, VersionFileType } from './version-banner.ts'
+import { toAndList, toDefinitionNoun } from './words.ts'
+import type { Words } from './words.ts'
 
 export const definitionFetchNoticeKey = 'definitionFetchOutcome'
 
@@ -13,12 +15,9 @@ export interface DefinitionFetchFlash extends DefinitionFetchResult {
   page: string
 }
 
-/** `reason` sits between `text` and `tail`, in mono. */
 export interface DefinitionFetchNotice {
   role: 'success' | 'warning' | 'error'
-  text: string
-  reason: string | null
-  tail: string
+  words: Words
 }
 
 type FailedFile = Extract<DefinitionFetchFile, { outcome: 'failed' }>
@@ -28,7 +27,7 @@ const reasonTexts = (
 ): Partial<Record<FailedFile['reason'], string>> => ({
   missing: 'Definition file missing',
   forbidden: `Definition file not readable by ${source}`,
-  timeout: 'S3 did not answer',
+  timeout: 'S3 could not return the file',
   unparseable: 'Definition file is not valid JSON'
 })
 
@@ -36,27 +35,51 @@ const reasonTexts = (
 const toReasonText = (
   { reason, message }: FailedFile,
   source: string
-): string =>
-  (reason === 'invalid' ? message : reasonTexts(source)[reason]) ?? reason
+): string => {
+  if (reason === 'invalid') {
+    return message ?? `${source} refused the definition and gave no reason`
+  }
 
-type CallNotice = (
+  return reasonTexts(source)[reason] ?? `${source} gave reason ${reason}`
+}
+
+const nextSteps = (
   source: string
-) => Pick<DefinitionFetchNotice, 'role' | 'text'>
+): Partial<Record<FailedFile['reason'], string>> => ({
+  missing: 'Pressing Fetch again fails the same way until the file is in S3.',
+  forbidden: `${source} can't read the bucket; check its S3 access.`,
+  unparseable: "This version's file will never load; publish a fixed version.",
+  invalid: "This version's file will never load; publish a fixed version."
+})
 
-/** Partial: a session written by another release may name an outcome this one has no words for. */
+/** A timeout stands for any other S3 error, and anything newer gets the same step. */
+const toNextStep = ({ reason }: FailedFile, source: string): string =>
+  nextSteps(source)[reason] ?? 'Try again.'
+
+type CallNotice = (source: string) => DefinitionFetchNotice
+
+const notice = (
+  role: DefinitionFetchNotice['role'],
+  text: string
+): DefinitionFetchNotice => ({ role, words: [text] })
+
+/** GPA calls GAS for every fetch, so a call that failed or went unanswered is GAS's, even on a workflow version. Partial: a session written by another release may name an outcome this one has no words for. */
 const callNotices: Partial<Record<string, CallNotice>> = {
-  'not-found': (source) => ({
-    role: 'error',
-    text: `Not fetched — ${source} no longer has this version. Nothing has changed.`
-  }),
-  unavailable: (source) => ({
-    role: 'error',
-    text: `Fetch failed — ${source} could not finish it. Refresh to see what was stored.`
-  }),
-  'timed-out': (source) => ({
-    role: 'warning',
-    text: `Fetch status unknown — ${source} did not answer in time. Refresh to check.`
-  })
+  'not-found': (source) =>
+    notice(
+      'error',
+      `Not fetched: ${source} no longer has this version. Nothing has changed.`
+    ),
+  unavailable: () =>
+    notice(
+      'error',
+      'Fetch failed: GAS could not finish it. Refresh to see what was stored.'
+    ),
+  'timed-out': () =>
+    notice(
+      'warning',
+      'Fetch status unknown: GAS did not answer in time. Refresh to check.'
+    )
 } satisfies Record<Exclude<DefinitionFetchOutcome, 'fetched'>, CallNotice>
 
 const toStoredNotice = (
@@ -64,23 +87,33 @@ const toStoredNotice = (
 ): DefinitionFetchNotice[] =>
   files.length
     ? [
-        {
-          role: 'success',
-          text: `Fetched — ${toAndList(files.map(({ file }) => file))} definition${files.length > 1 ? 's' : ''} stored.`,
-          reason: null,
-          tail: ''
-        }
+        notice(
+          'success',
+          `Stored: ${toAndList(files.map(({ file }) => file))} ${toDefinitionNoun(files.length)}.`
+        )
       ]
     : []
 
+/** Where the file is, from the page's own header; nothing when either part is unknown. */
+const toLocation = ({ s3Bucket, files }: VersionFiles, file: string): Words => {
+  const key = files[file as VersionFileType]?.s3Key
+
+  return s3Bucket && key ? [' from ', { code: `${s3Bucket}/${key}` }] : []
+}
+
 const toFailedNotice = (
   file: FailedFile,
-  source: string
+  source: string,
+  header: VersionFiles
 ): DefinitionFetchNotice => ({
   role: 'error',
-  text: `Not fetched — ${file.file} definition: `,
-  reason: toReasonText(file, source),
-  tail: '. Nothing has changed.'
+  words: [
+    `Couldn't fetch the ${file.file} definition`,
+    ...toLocation(header, file.file),
+    ': ',
+    { code: toReasonText(file, source) },
+    `. ${toNextStep(file, source)} Nothing has changed.`
+  ]
 })
 
 const toCallNotices = (
@@ -89,30 +122,32 @@ const toCallNotices = (
 ): DefinitionFetchNotice[] => {
   const callNotice = callNotices[outcome]?.(source)
 
-  return callNotice ? [{ ...callNotice, reason: null, tail: '' }] : []
+  return callNotice ? [callNotice] : []
 }
 
 const toFileNotices = (
   files: DefinitionFetchFile[],
-  source: string
+  source: string,
+  header: VersionFiles
 ): DefinitionFetchNotice[] => [
   ...toStoredNotice(files.filter(({ outcome }) => outcome === 'stored')),
   ...files
     .filter((file): file is FailedFile => file.outcome === 'failed')
-    .map((file) => toFailedNotice(file, source))
+    .map((file) => toFailedNotice(file, source, header))
 ]
 
 /** What the service said of the fetch that has just landed on `page`, as it said it. */
 export const toDefinitionFetchNotices = (
   { source }: RecordType,
-  notice: DefinitionFetchFlash | undefined,
-  page: string
+  flash: DefinitionFetchFlash | undefined,
+  page: string,
+  header: VersionFiles
 ): DefinitionFetchNotice[] => {
-  if (notice?.page !== page) {
+  if (flash?.page !== page) {
     return []
   }
 
-  return notice.outcome === 'fetched'
-    ? toFileNotices(notice.files, source)
-    : toCallNotices(notice.outcome, source)
+  return flash.outcome === 'fetched'
+    ? toFileNotices(flash.files, source, header)
+    : toCallNotices(flash.outcome, source)
 }

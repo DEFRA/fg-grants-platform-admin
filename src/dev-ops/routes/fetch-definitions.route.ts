@@ -23,7 +23,7 @@ import {
 import { toTabHref } from '../view-models/record-page.view-model.ts'
 import type { RecordType } from '../view-models/record-type.ts'
 import { seeOther } from '../view-models/see-other.ts'
-import { toVersionPath } from '../view-models/version-header.ts'
+import { toVersionPath } from '../view-models/record-type.ts'
 import { workflowType } from '../view-models/workflows-page.view-model.ts'
 
 interface FetchDefinitionsRoute {

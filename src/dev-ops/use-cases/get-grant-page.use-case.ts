@@ -25,6 +25,7 @@ export type {
   GrantVersionRef,
   HelpBlock,
   ProcessAddress,
+  ProcessEffect,
   TemplatePosition,
   WayIn
 } from '../repositories/grants.repository.ts'

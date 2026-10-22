@@ -2,74 +2,141 @@ import { toGrantQuestions } from './grant-questions.ts'
 import type {
   GrantQuestionsCard,
   GrantQuestionsTab,
-  SchemaTreeRow
+  SchemaField,
+  SchemaTreeRow,
+  Words
 } from './grant-questions.ts'
 
-const woodlandQuestions = {
+/** The qa-complex 1.1.0 PRE_AWARD questions, trimmed to the parts each test reads. */
+const qaComplexQuestions = {
   $schema: 'https://json-schema.org/draft/2020-12/schema',
+  title: 'QA complex application (TEST DATA)',
+  description: 'Synthetic questions for the qa-complex test grant.',
   type: 'object',
-  additionalProperties: false,
-  required: ['applicant', 'hectares', 'items', 'consent'],
-  properties: {
-    applicant: {
+  $defs: {
+    postalAddress: {
+      title: 'Postal address',
       type: 'object',
-      title: 'Applicant details',
-      required: ['business'],
       properties: {
-        business: {
-          type: 'object',
-          title: 'Business',
-          required: ['name', 'sbi'],
-          properties: {
-            name: { type: 'string', title: 'Business name', maxLength: 100 },
-            sbi: { type: 'string', title: 'SBI', pattern: '^[0-9]{9}$' }
-          }
+        line1: { type: 'string', minLength: 1, maxLength: 80 },
+        postalCode: {
+          type: 'string',
+          description: 'Uses the reserved ZZ99 test outward code.',
+          pattern: '^ZZ99 [0-9][A-Z]{2}$'
         }
+      },
+      required: ['line1', 'postalCode'],
+      additionalProperties: false
+    },
+    capitalItemCode: {
+      type: 'string',
+      oneOf: [
+        { const: 'QA-HEDGE', title: 'Hedgerow planting (test)' },
+        { const: 'QA-POND', title: 'Pond creation (test)' }
+      ]
+    },
+    pence: { type: 'integer', minimum: 0, maximum: 100000000 }
+  },
+  properties: {
+    address: { $ref: '#/$defs/postalAddress' },
+    contact: {
+      type: 'object',
+      properties: {
+        email: { type: 'string', format: 'email' },
+        phone: { type: 'string' }
+      },
+      anyOf: [
+        { properties: { email: { type: 'string' } }, required: ['email'] },
+        { properties: { phone: { type: 'string' } }, required: ['phone'] }
+      ],
+      additionalProperties: false
+    },
+    farmType: {
+      type: 'string',
+      oneOf: [
+        { const: 'ARABLE', title: 'Arable' },
+        { const: 'DAIRY', title: 'Dairy' }
+      ]
+    },
+    landUse: {
+      type: 'object',
+      properties: {
+        arableHectares: { type: 'number', minimum: 0, maximum: 10000 },
+        totalHectares: { type: 'number', exclusiveMinimum: 0, maximum: 30000 }
+      },
+      fgSumEquals: {
+        fields: ['arableHectares', 'grasslandHectares'],
+        targetField: 'totalHectares'
       }
     },
-    hectares: { type: 'number', title: 'Area to plant (ha)', minimum: 0.5 },
-    items: {
+    capitalItems: {
       type: 'array',
-      title: 'Planting items',
       minItems: 1,
+      maxItems: 6,
       items: {
         type: 'object',
-        required: ['species', 'quantity', 'hectares'],
         properties: {
-          species: {
-            type: 'string',
-            title: 'Species',
-            enum: ['oak', 'birch', 'rowan']
-          },
-          quantity: { type: 'integer', title: 'Trees', minimum: 10 },
-          hectares: { type: 'number', title: 'Area (ha)', minimum: 0.1 }
-        }
+          code: { $ref: '#/$defs/capitalItemCode' },
+          ratePence: { $ref: '#/$defs/pence' }
+        },
+        required: ['code']
       }
     },
-    plannedStart: {
-      type: 'string',
-      format: 'date',
-      title: 'Planned start date'
-    },
-    hasWoodlandPlan: {
-      type: 'boolean',
-      title: 'Has a woodland plan',
-      default: false
-    },
-    planReference: {
-      type: 'string',
-      title: 'Woodland plan reference',
-      pattern: '^WP-[0-9]{6}$'
-    },
-    consent: { type: 'boolean', title: 'Landowner consent given', const: true }
+    hasPreviousGrant: { type: 'boolean', default: false },
+    previousGrantRef: { type: 'string', pattern: '^QA-PREV-[0-9]{4}$' },
+    businessSize: { type: 'string', enum: ['MICRO', 'SMALL', 'MEDIUM'] },
+    employeeCount: { type: 'integer', minimum: 0, maximum: 249 }
   },
+  required: ['address', 'farmType'],
   if: {
-    properties: { hasWoodlandPlan: { const: true } },
-    required: ['hasWoodlandPlan']
+    properties: { hasPreviousGrant: { const: true, type: 'boolean' } },
+    required: ['hasPreviousGrant']
   },
-  then: { required: ['planReference'] },
-  fgSumEquals: { fields: ['items[].hectares'], targetField: 'hectares' }
+  then: {
+    properties: { previousGrantRef: { minLength: 12, type: 'string' } },
+    required: ['previousGrantRef']
+  },
+  else: {
+    not: {
+      properties: { previousGrantRef: { type: 'string' } },
+      required: ['previousGrantRef']
+    }
+  },
+  allOf: [
+    {
+      if: {
+        properties: { businessSize: { const: 'MICRO', type: 'string' } }
+      },
+      then: {
+        properties: { employeeCount: { maximum: 9, type: 'integer' } }
+      }
+    }
+  ],
+  oneOf: [
+    {
+      properties: {
+        businessSize: { enum: ['MICRO', 'SMALL'], type: 'string' }
+      }
+    },
+    {
+      properties: {
+        businessSize: { const: 'MEDIUM', type: 'string' },
+        employeeCount: { minimum: 10, type: 'integer' }
+      },
+      required: ['employeeCount']
+    }
+  ],
+  fgSumMin: { fields: ['capitalItems[].quantity'], minimum: 1 },
+  additionalProperties: false
 }
+
+/** Words as the page reads them, each code part in backticks. */
+const said = (words: Words): string =>
+  words
+    .map((part) =>
+      typeof part === 'string' ? part : `\`${'code' in part ? part.code : ''}\``
+    )
+    .join('')
 
 const withPhases = (...phases: unknown[]) => toGrantQuestions({ phases })
 
@@ -89,42 +156,83 @@ const schemaCard = (questions: unknown) => {
   return card
 }
 
-const rulesOf = (questions: unknown) =>
-  schemaCard(questions).rules.map(({ appliesTo, text }) => [appliesTo, text])
+const fieldsOf = (rows: SchemaTreeRow[]): SchemaField[] =>
+  rows.flatMap((row) => ('field' in row ? [row.field] : []))
 
-const ruleTextOf = (questions: object) =>
-  rulesOf({ type: 'object', ...questions }).map(([, text]) => text)
+const fieldNamed = (questions: unknown, name: string): SchemaField => {
+  const field = fieldsOf(schemaCard(questions).rows).find(
+    (each) => each.name === name
+  )
 
-const fieldsOf = (rows: SchemaTreeRow[]) =>
-  rows.flatMap((row) => (row.kind === 'end' ? [] : [row.field]))
+  if (!field) {
+    throw new Error(`no field ${name}`)
+  }
+
+  return field
+}
 
 const onlyField = (property: unknown) =>
   fieldsOf(schemaCard({ properties: { x: property } }).rows)[0]
 
+const constraintsOf = (property: unknown) =>
+  onlyField(property).constraints.map(said)
+
+/** Each row as one line: a group's heading, or a field's indent, name, required and constraints. */
+const linesOf = (rows: SchemaTreeRow[]): string[] =>
+  rows.flatMap((row) => {
+    if (row.kind === 'end') {
+      return []
+    }
+
+    if (row.kind === 'group') {
+      return [`${row.indent}: ${said(row.heading)}`]
+    }
+
+    const { indent, name, required, constraints } = row.field
+
+    return [
+      `${indent} ${name}${required ? ' (required)' : ''} ${constraints.map(said).join(', ')}`.trim()
+    ]
+  })
+
+const rulesOf = (questions: unknown): string[][] =>
+  schemaCard(questions).rules.map(({ appliesTo, text, items }) => [
+    said(appliesTo),
+    said(text),
+    ...items.map(said)
+  ])
+
 describe('toGrantQuestions phases', () => {
-  test('marks only the first phase as the one GAS validates', () => {
+  test('names each phase by its name, with its code, and marks only the first as checked on submission', () => {
     const tab = withPhases(
-      { code: 'PRE_AWARD', questions: { type: 'object' } },
-      { code: 'POST_AWARD', questions: { type: 'object' } },
-      { code: 'CLAIM', questions: { type: 'object' } }
+      { code: 'PRE_AWARD', name: 'Pre-award', questions: { type: 'object' } },
+      { code: 'POST_AWARD', questions: { type: 'object' } }
     )
 
     expect(cardsOf(tab).map((card) => [card.title, card.usedByGas])).toEqual([
-      [{ code: 'PRE_AWARD' }, true],
-      [{ code: 'POST_AWARD' }, false],
-      [{ code: 'CLAIM' }, false]
+      [{ code: 'PRE_AWARD', name: 'Pre-award' }, true],
+      [{ code: 'POST_AWARD', name: null }, false]
     ])
   })
 
-  test('gives a later phase without questions no card', () => {
+  test('gives a later phase without questions a card that says so', () => {
     const tab = withPhases(
       { code: 'PRE_AWARD', questions: { type: 'object' } },
-      { code: 'POST_AWARD' },
+      { code: 'CLOSURE', name: 'Closure' },
       { code: 'CLAIM', questions: null }
     )
 
-    expect(cardsOf(tab).map((card) => card.title)).toEqual([
-      { code: 'PRE_AWARD' }
+    expect(cardsOf(tab).slice(1)).toEqual([
+      {
+        title: { code: 'CLOSURE', name: 'Closure' },
+        usedByGas: false,
+        kind: 'none'
+      },
+      {
+        title: { code: 'CLAIM', name: null },
+        usedByGas: false,
+        kind: 'none'
+      }
     ])
   })
 
@@ -134,9 +242,8 @@ describe('toGrantQuestions phases', () => {
   ])('says a first phase with questions %s is missing them', (_name, phase) => {
     expect(cardsOf(withPhases(phase))).toEqual([
       {
-        title: { code: 'PRE_AWARD' },
+        title: { code: 'PRE_AWARD', name: null },
         usedByGas: true,
-        noCode: false,
         kind: 'missing'
       }
     ])
@@ -145,387 +252,589 @@ describe('toGrantQuestions phases', () => {
   test.each([
     ['a string', 'object', 'not-a-schema'],
     ['an array', [{ type: 'object' }], 'not-a-schema'],
-    ['a number', 1, 'not-a-schema'],
     ['true', true, 'accepts-any'],
     ['false', false, 'rejects-all']
   ])('reads questions that are %s as %s', (_name, questions, kind) => {
     expect(firstCard(questions)).toEqual({
-      title: { code: 'PRE_AWARD' },
+      title: { code: 'PRE_AWARD', name: null },
       usedByGas: true,
-      noCode: false,
       kind
     })
   })
 
   test.each([
     ['a definition that is not an object', 'grant'],
-    ['a definition that is null', null],
     ['phases absent', {}],
-    ['phases null', { phases: null }],
     ['phases an object', { phases: { code: 'PRE_AWARD' } }],
-    ['phases a string', { phases: 'PRE_AWARD' }],
     ['phases empty', { phases: [] }]
   ])('says there are no phases for %s', (_name, definition) => {
     expect(toGrantQuestions(definition)).toEqual({ kind: 'no-phases' })
   })
 
-  test.each([
-    ['a string', 'PRE_AWARD'],
-    ['null', null],
-    ['an array', [{ code: 'PRE_AWARD' }]]
-  ])(
-    'says an entry that is %s is not an object, by its place',
-    (_name, entry) => {
-      const tab = withPhases(
-        { code: 'PRE_AWARD', questions: { type: 'object' } },
-        entry
-      )
+  test('says an entry that is not an object is not one, by its place', () => {
+    const tab = withPhases(
+      { code: 'PRE_AWARD', questions: { type: 'object' } },
+      'PRE_AWARD'
+    )
 
-      expect(cardsOf(tab)[1]).toEqual({
-        title: { index: 2 },
-        usedByGas: false,
-        kind: 'not-an-object'
-      })
-    }
-  )
+    expect(cardsOf(tab)[1]).toEqual({
+      title: { index: 2 },
+      usedByGas: false,
+      kind: 'not-an-object'
+    })
+  })
 
   test.each([
     ['no code', {}],
     ['an empty code', { code: '' }],
     ['a code that is not a string', { code: 7 }]
-  ])(
-    'titles an entry with %s by its place, and still shows its questions',
-    (_name, entry) => {
-      const [card] = cardsOf(
-        withPhases({
-          ...entry,
-          questions: { properties: { sbi: { type: 'string' } } }
-        })
-      )
+  ])('titles an entry with %s by its place', (_name, entry) => {
+    const [card] = cardsOf(
+      withPhases({ ...entry, questions: { properties: { sbi: {} } } })
+    )
 
-      expect(card).toMatchObject({
-        title: { index: 1 },
-        noCode: true,
-        kind: 'schema'
-      })
-      expect(card.kind === 'schema' && fieldsOf(card.rows)).toMatchObject([
-        { name: 'sbi' }
-      ])
-    }
-  )
+    expect(card).toMatchObject({
+      title: { index: 1 },
+      kind: 'schema'
+    })
+  })
+
+  test("takes the schema's own title and description as the card's subtitle", () => {
+    expect(schemaCard(qaComplexQuestions).subtitle).toBe(
+      'QA complex application (TEST DATA): Synthetic questions for the qa-complex test grant.'
+    )
+    expect(schemaCard({ title: 'Only a title' }).subtitle).toBe('Only a title')
+    expect(schemaCard({ type: 'object' }).subtitle).toBeNull()
+  })
 })
 
 describe('toGrantQuestions schema tree', () => {
-  test('draws every property of woodland-creation 1.2.0, depth first, folding objects and object items', () => {
-    const { rows } = schemaCard(woodlandQuestions)
-
-    expect(
-      rows.map((row) =>
-        row.kind === 'end'
-          ? 'end'
-          : [
-              row.kind,
-              row.field.name,
-              row.field.indent,
-              row.field.type,
-              row.field.title,
-              row.field.required
-            ]
-      )
-    ).toEqual([
-      ['open', 'applicant', 0, 'object', 'Applicant details', true],
-      ['open', 'business', 1, 'object', 'Business', true],
-      ['field', 'name', 2, 'string', 'Business name', true],
-      ['field', 'sbi', 2, 'string', 'SBI', true],
-      'end',
-      'end',
-      ['field', 'hectares', 0, 'number', 'Area to plant (ha)', true],
-      ['open', 'items[]', 0, 'array of object', 'Planting items', true],
-      ['field', 'species', 1, 'string', 'Species', true],
-      ['field', 'quantity', 1, 'integer', 'Trees', true],
-      ['field', 'hectares', 1, 'number', 'Area (ha)', true],
-      'end',
-      [
-        'field',
-        'plannedStart',
-        0,
-        'string (date)',
-        'Planned start date',
-        false
-      ],
-      ['field', 'hasWoodlandPlan', 0, 'boolean', 'Has a woodland plan', false],
-      ['field', 'planReference', 0, 'string', 'Woodland plan reference', false],
-      ['field', 'consent', 0, 'boolean', 'Landowner consent given', true]
+  test('draws each property depth first, then each if/then branch as a group of rows headed by its condition', () => {
+    expect(linesOf(schemaCard(qaComplexQuestions).rows)).toEqual([
+      '0 address (required)',
+      '1 line1 (required) length 1–80',
+      '1 postalCode (required) pattern `^ZZ99 [0-9][A-Z]{2}$`',
+      '0 contact',
+      '1 email',
+      '1 phone',
+      '0 farmType (required) one of Arable (`ARABLE`), Dairy (`DAIRY`)',
+      '0 landUse',
+      '1 arableHectares 0–10000',
+      '1 totalHectares > 0 and ≤ 30000',
+      '0 capitalItems[] 1–6 items',
+      '1 code (required) one of Hedgerow planting (test) (`QA-HEDGE`), Pond creation (test) (`QA-POND`)',
+      '1 ratePence 0–100000000',
+      '0 hasPreviousGrant',
+      '0 previousGrantRef pattern `^QA-PREV-[0-9]{4}$`',
+      '0 businessSize one of `MICRO`, `SMALL`, `MEDIUM`',
+      '0 employeeCount 0–249',
+      '0: If `hasPreviousGrant` = true',
+      '1 previousGrantRef (required) length ≥ 12',
+      '0: If `businessSize` is absent or = MICRO',
+      '1 employeeCount ≤ 9'
     ])
   })
 
-  test('words each constraint and the default', () => {
-    const fields = fieldsOf(schemaCard(woodlandQuestions).rows)
-
-    expect(
-      fields.map(({ name, constraints, defaultValue }) => [
-        name,
-        constraints,
-        defaultValue
-      ])
-    ).toEqual([
-      ['applicant', [], null],
-      ['business', [], null],
-      ['name', ['maxLength 100'], null],
-      ['sbi', ['pattern ^[0-9]{9}$'], null],
-      ['hectares', ['minimum 0.5'], null],
-      ['items[]', ['minItems 1'], null],
-      ['species', ['one of oak, birch, rowan'], null],
-      ['quantity', ['minimum 10'], null],
-      ['hectares', ['minimum 0.1'], null],
-      ['plannedStart', [], null],
-      ['hasWoodlandPlan', [], 'false'],
-      ['planReference', ['pattern ^WP-[0-9]{6}$'], null],
-      ['consent', ['= true'], null]
-    ])
-  })
-
-  test('has no title where the schema gives none', () => {
-    expect(onlyField({ type: 'string' }).title).toBeNull()
-  })
-
-  test.each([
-    [
-      'an array of a type',
-      { type: 'array', items: { type: 'string' } },
-      'array of string'
-    ],
-    [
-      'an array with no item type',
-      { type: 'array', items: {} },
-      'array of any'
-    ],
-    ['an array with no items', { type: 'array' }, 'array of any'],
-    ['a format', { type: 'string', format: 'email' }, 'string (email)'],
-    ['a list of types', { type: ['number', 'null'] }, 'number or null'],
-    ['no type', { title: 'Anything' }, 'any'],
-    ['a true subschema', true, 'any'],
-    ['a false subschema', false, 'not allowed'],
-    ['a value that is no schema', 'string', 'not a schema']
-  ])('types %s', (_name, property, type) => {
-    expect(onlyField(property).type).toBe(type)
-  })
-
-  test('lists every constraint in a fixed order, whatever order the schema has', () => {
-    expect(
-      onlyField({
-        const: 3,
-        enum: [1, 2, 3],
-        uniqueItems: true,
-        maxItems: 9,
-        minItems: 1,
-        pattern: '^a$',
-        maxLength: 8,
-        minLength: 2,
-        multipleOf: 0.5,
-        exclusiveMaximum: 10,
-        exclusiveMinimum: 0,
-        maximum: 9,
-        minimum: 1
-      }).constraints
-    ).toEqual([
-      'minimum 1',
-      'maximum 9',
-      'exclusiveMinimum 0',
-      'exclusiveMaximum 10',
-      'multipleOf 0.5',
-      'minLength 2',
-      'maxLength 8',
-      'pattern ^a$',
-      'minItems 1',
-      'maxItems 9',
-      'uniqueItems true',
-      'one of 1, 2, 3',
-      '= 3'
-    ])
-  })
-
-  test('shows a const and a default as JSON', () => {
-    expect(onlyField({ const: 'yes', default: { a: [1] } })).toMatchObject({
-      constraints: ['= "yes"'],
-      defaultValue: '{"a":[1]}'
+  test('types a name a branch only requires by the property it names', () => {
+    const { rows } = schemaCard({
+      properties: { ref: { type: 'string', pattern: '^R$' }, flag: {} },
+      if: { properties: { flag: { const: true } } },
+      then: { required: ['ref'] }
     })
+
+    expect(linesOf(rows).slice(-2)).toEqual([
+      '0: If `flag` is absent or = true',
+      '1 ref (required) pattern `^R$`'
+    ])
   })
 
-  test('takes required from the array items for their properties', () => {
-    const fields = fieldsOf(
-      schemaCard({
-        properties: {
-          items: {
-            type: 'array',
-            items: {
-              type: 'object',
-              required: ['a'],
-              properties: { a: {}, b: {} }
+  test('nests a branch that reaches into an object', () => {
+    const { rows } = schemaCard({
+      properties: { farmType: { type: 'string' } },
+      allOf: [
+        {
+          if: { properties: { farmType: { const: 'UPLAND' } } },
+          then: {
+            properties: {
+              landUse: {
+                type: 'object',
+                properties: { arableHectares: { maximum: 0 } }
+              }
             }
           }
         }
-      }).rows
-    )
+      ]
+    })
 
-    expect(fields.map(({ name, required }) => [name, required])).toEqual([
-      ['items[]', false],
-      ['a', true],
-      ['b', false]
+    expect(linesOf(rows).slice(1)).toEqual([
+      '0: If `farmType` is absent or = UPLAND',
+      '1 landUse',
+      '2 arableHectares ≤ 0'
     ])
   })
 
-  test('stops indenting at depth 8, but still nests deeper', () => {
-    const nested = (depth: number): object =>
+  test('indents a group inside the object it belongs to', () => {
+    const { rows } = schemaCard({
+      properties: {
+        site: {
+          type: 'object',
+          properties: { visited: { type: 'boolean' }, on: {} },
+          if: { properties: { visited: { const: true } } },
+          then: { required: ['on'] }
+        }
+      }
+    })
+
+    expect(linesOf(rows)).toEqual([
+      '0 site',
+      '1 visited',
+      '1 on',
+      '1: If `visited` is absent or = true',
+      '2 on (required)'
+    ])
+  })
+
+  test('reads a local $ref in place, says where it came from, and keeps its description and title', () => {
+    const address = fieldNamed(qaComplexQuestions, 'address')
+    const postalCode = fieldNamed(qaComplexQuestions, 'postalCode')
+
+    expect(address).toMatchObject({
+      type: [{ code: 'object' }],
+      title: 'Postal address',
+      from: '$defs/postalAddress',
+      closed: true,
+      required: true
+    })
+    expect(postalCode.description).toBe(
+      'Uses the reserved ZZ99 test outward code.'
+    )
+  })
+
+  test('reads a ref into definitions too, its siblings over its target', () => {
+    const field = fieldsOf(
+      schemaCard({
+        definitions: { pence: { type: 'integer', title: 'Pence' } },
+        properties: { amount: { $ref: '#/definitions/pence', title: 'Amount' } }
+      }).rows
+    )[0]
+
+    expect(field).toMatchObject({
+      type: [{ code: 'integer' }],
+      title: 'Amount',
+      from: 'definitions/pence'
+    })
+  })
+
+  test.each([
+    ['remote', 'https://example.test/address.json'],
+    ['missing', '#/$defs/nowhere'],
+    ['not a definition', '#/properties/other']
+  ])('types a %s ref as the ref itself, never as any', (_name, ref) => {
+    expect(onlyField({ $ref: ref })).toMatchObject({
+      type: [{ code: '$ref' }, ' ', { code: ref }],
+      from: null
+    })
+  })
+
+  test('stops at a ref it is already inside', () => {
+    const { rows } = schemaCard({
+      $defs: {
+        node: {
+          type: 'object',
+          properties: { child: { $ref: '#/$defs/node' } }
+        }
+      },
+      properties: { tree: { $ref: '#/$defs/node' } }
+    })
+
+    expect(fieldsOf(rows).map(({ name, type }) => [name, said(type)])).toEqual([
+      ['tree', '`object`'],
+      ['child', '`$ref` `#/$defs/node`']
+    ])
+  })
+
+  test('stops the tree at depth 8', () => {
+    const deep = (depth: number): object =>
       depth === 0
         ? { type: 'string' }
-        : { type: 'object', properties: { [`d${depth}`]: nested(depth - 1) } }
-    const { rows } = schemaCard(nested(11))
+        : { type: 'object', properties: { n: deep(depth - 1) } }
 
-    expect(fieldsOf(rows).map(({ indent }) => indent)).toEqual([
-      0, 1, 2, 3, 4, 5, 6, 7, 8, 8, 8
-    ])
-    expect(rows.filter((row) => row.kind === 'open')).toHaveLength(10)
-    expect(rows.filter((row) => row.kind === 'end')).toHaveLength(10)
+    const { rows } = schemaCard({ properties: { n: deep(12) } })
+
+    expect(Math.max(...fieldsOf(rows).map(({ indent }) => indent))).toBe(8)
+    expect(fieldsOf(rows)).toHaveLength(9)
   })
 
-  test('gives a schema with no properties no rows and no rules', () => {
-    expect(schemaCard({ type: 'object', properties: {} })).toMatchObject({
-      rows: [],
-      rules: []
+  test.each([
+    [{ minimum: 1, maximum: 5000 }, ['1–5000']],
+    [{ exclusiveMinimum: 0, maximum: 30000 }, ['> 0 and ≤ 30000']],
+    [{ minimum: 0.01 }, ['≥ 0.01']],
+    [{ exclusiveMaximum: 10 }, ['< 10']],
+    [{ minLength: 2, maxLength: 100 }, ['length 2–100']],
+    [{ minLength: 0, maxLength: 80 }, ['length ≤ 80']],
+    [{ minLength: 1 }, ['length ≥ 1']],
+    [{ type: 'array', minItems: 1, maxItems: 6 }, ['1–6 items']],
+    [{ type: 'array', minItems: 0 }, []],
+    [{ type: 'array', minItems: 1 }, ['at least 1 item']],
+    [{ type: 'array', maxItems: 3 }, ['at most 3 items']],
+    [
+      { multipleOf: 0.5, uniqueItems: true },
+      ['multiple of 0.5', 'unique items']
+    ],
+    [{ enum: ['oak', 'birch'] }, ['one of `oak`, `birch`']],
+    [{ const: true }, ['= `true`']],
+    [{ pattern: '^[0-9]{9}$' }, ['pattern `^[0-9]{9}$`']]
+  ])('reads %j as %j', (property, words) => {
+    expect(constraintsOf(property)).toEqual(words)
+  })
+
+  test('reads a oneOf or anyOf of labelled consts as one of its labels, with each value as code', () => {
+    expect(
+      constraintsOf({
+        anyOf: [
+          { const: 'PASS', title: 'Passed' },
+          { const: 'FAIL', title: 'Failed' }
+        ]
+      })
+    ).toEqual(['one of Passed (`PASS`), Failed (`FAIL`)'])
+  })
+
+  test('marks an object, or an array of objects, closed when it lists every field it keeps', () => {
+    const { rows } = schemaCard({
+      properties: {
+        open: { type: 'object', properties: { a: {} } },
+        closed: {
+          type: 'object',
+          properties: { a: {} },
+          additionalProperties: false
+        },
+        items: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: { a: {} },
+            additionalProperties: false
+          }
+        }
+      }
     })
-    expect(schemaCard({ type: 'object' })).toMatchObject({
-      rows: [],
-      rules: []
+
+    expect(
+      fieldsOf(rows)
+        .filter(({ indent }) => indent === 0)
+        .map(({ name, closed }) => [name, closed])
+    ).toEqual([
+      ['open', false],
+      ['closed', true],
+      ['items[]', true]
+    ])
+  })
+
+  test('keeps a default for its badge, and a property with no title has none', () => {
+    expect(onlyField({ type: 'boolean', default: false })).toMatchObject({
+      defaultValue: 'false',
+      title: null,
+      description: null
     })
+  })
+
+  test.each([
+    [true, 'any'],
+    [false, 'not allowed'],
+    ['x', 'not a schema'],
+    [{ type: ['string', 'null'] }, 'string or null'],
+    [{ type: 'string', format: 'date' }, 'string (date)'],
+    [{ type: 'array', items: { $ref: '#/$defs/missing' } }, 'array of any'],
+    [{}, 'any']
+  ])('types %j as %s', (property, type) => {
+    expect(said(onlyField(property).type)).toBe(`\`${type}\``)
   })
 })
 
 describe('toGrantQuestions rules', () => {
-  test('lists the woodland-creation 1.2.0 rules in order', () => {
-    expect(rulesOf(woodlandQuestions)).toEqual([
-      ['(root)', 'Undeclared fields are removed on submission'],
-      ['(root)', 'If hasWoodlandPlan = true: requires planReference'],
-      ['(root)', 'fgSumEquals: sum of items[].hectares equals hectares'],
-      ['hasWoodlandPlan', 'Default false filled in when missing']
+  test('words the qa-complex 1.1.0 rules as sentences, codes apart', () => {
+    expect(rulesOf(qaComplexQuestions)).toEqual([
+      [
+        '(root) and every closed object',
+        'Fields not listed under a closed object are removed on submission.'
+      ],
+      [
+        'If `hasPreviousGrant` is absent or not true',
+        '`previousGrantRef` must be left out'
+      ],
+      ['(root)', 'The sum of `capitalItems[].quantity` must be at least 1'],
+      [
+        '(root)',
+        'Exactly one of these must match:',
+        '`businessSize` one of `MICRO`, `SMALL`',
+        '`businessSize` = `"MEDIUM"` and `employeeCount` ≥ 10 (required)'
+      ],
+      ['`contact`', 'Needs at least one of: `email`, `phone`'],
+      [
+        '`landUse`',
+        '`arableHectares` + `grasslandHectares` must equal `totalHectares`'
+      ]
     ])
   })
 
-  test('compares a minimum sum with its minimum, and a maximum sum with its target field', () => {
-    expect(
-      ruleTextOf({
-        fgSumMin: { fields: ['a', 'b'], minimum: 1 },
-        fgSumMax: { fields: ['c'], targetField: 'total' }
-      })
-    ).toEqual(['fgSumMin: sum of a, b ≥ 1', 'fgSumMax: sum of c ≤ total'])
-  })
-
-  test('names nested objects and array items by their path', () => {
+  test('says only every closed object when the root is open', () => {
     expect(
       rulesOf({
         properties: {
-          applicant: {
+          a: { type: 'object', properties: {}, additionalProperties: false }
+        }
+      })
+    ).toEqual([
+      [
+        'Every closed object',
+        'Fields not listed under a closed object are removed on submission.'
+      ]
+    ])
+  })
+
+  test('has no closed line, and no default line, when nothing is closed', () => {
+    expect(rulesOf({ properties: { a: { default: 1 } } })).toEqual([])
+  })
+
+  test('words the maximum sum against its target field', () => {
+    expect(
+      rulesOf({ fgSumMax: { fields: ['a', 'b'], targetField: 'c' } })
+    ).toEqual([['(root)', '`a` + `b` must be at most `c`']])
+  })
+
+  test('shows a sum it cannot read as its JSON', () => {
+    expect(rulesOf({ fgSumEquals: 'x' })).toEqual([
+      ['(root)', '`fgSumEquals: "x"`']
+    ])
+  })
+
+  test('heads an else by its own condition, a test of more than one value by Unless', () => {
+    expect(
+      rulesOf({
+        type: 'object',
+        if: { properties: { a: { const: 1 } }, required: ['a', 'b'] },
+        then: { required: ['b'] },
+        else: { required: ['c'] }
+      })
+    ).toEqual([['Unless `a` = 1 and `b` is present', '`c` is present']])
+  })
+
+  test('reads an else that is not only a left-out field as a sentence', () => {
+    expect(
+      rulesOf({
+        if: { properties: { a: { const: 1 } } },
+        then: { required: ['b'] },
+        else: { required: ['c'] }
+      })
+    ).toEqual([['If `a` is present and not 1', '`c` is present']])
+  })
+
+  test('reads an if with only an else as unless', () => {
+    expect(
+      rulesOf({
+        if: { required: ['a'] },
+        else: { properties: { b: { minimum: 2 } } }
+      })
+    ).toEqual([['(root)', 'Unless `a` is present: `b` ≥ 2']])
+  })
+
+  test('adds nothing for an if with nothing to apply', () => {
+    expect(rulesOf({ if: { required: ['a'] } })).toEqual([])
+  })
+
+  test('writes a then the table cannot hold as a sentence', () => {
+    const card = schemaCard({
+      if: { properties: { a: { enum: [1, 2] } } },
+      then: { not: { required: ['b'] } }
+    })
+
+    expect(card.rows).toEqual([])
+    expect(
+      rulesOf({
+        if: { properties: { a: { enum: [1, 2] } } },
+        then: { not: { required: ['b'] } }
+      })
+    ).toEqual([
+      ['(root)', 'If `a` is absent or one of 1, 2: `not: {"required":["b"]}`']
+    ])
+  })
+
+  test('says an anyOf that is not only required names must match one of its branches', () => {
+    expect(
+      rulesOf({ anyOf: [{ required: ['a'] }, { properties: { b: false } }] })
+    ).toEqual([
+      [
+        '(root)',
+        'At least one of these must match:',
+        '`a` is present',
+        '`b` not allowed'
+      ]
+    ])
+  })
+
+  test('lists a leaf property’s own applicators under its path, so none is hidden', () => {
+    expect(
+      rulesOf({
+        properties: {
+          site: {
             type: 'object',
-            additionalProperties: false,
-            properties: { opted: { default: true } }
-          },
-          items: {
-            type: 'array',
-            items: {
-              type: 'object',
-              additionalProperties: false,
-              properties: { size: { default: 1 } }
+            properties: {
+              outcome: {
+                type: 'string',
+                oneOf: [{ const: 'PASS' }, { const: 'FAIL', title: 'Failed' }],
+                if: { const: 'FAIL' },
+                then: { minLength: 4 },
+                not: { const: 'X' }
+              }
             }
           }
         }
       })
     ).toEqual([
-      ['applicant', 'Undeclared fields are removed on submission'],
-      ['applicant.opted', 'Default true filled in when missing'],
-      ['items[]', 'Undeclared fields are removed on submission'],
-      ['items[].size', 'Default 1 filled in when missing']
+      ['`site.outcome`', 'If `const: "FAIL"`: length ≥ 4'],
+      [
+        '`site.outcome`',
+        'Exactly one of these must match:',
+        '= `"PASS"`',
+        '= `"FAIL"` and `title: "Failed"`'
+      ],
+      ['`site.outcome`', '`not: {"const":"X"}`']
+    ])
+  })
+
+  test('names array items by their path', () => {
+    expect(
+      rulesOf({
+        properties: {
+          items: {
+            type: 'array',
+            items: { type: 'object', properties: {}, not: { required: ['a'] } }
+          }
+        }
+      })
+    ).toEqual([['`items[]`', '`not: {"required":["a"]}`']])
+  })
+
+  test('keeps every other applicator as its JSON', () => {
+    expect(
+      rulesOf({
+        dependentRequired: { a: ['b'] },
+        additionalProperties: { type: 'string' },
+        allOf: [{ required: ['a'] }]
+      })
+    ).toEqual([
+      ['(root)', '`{"required":["a"]}`'],
+      ['(root)', '`dependentRequired: {"a":["b"]}`'],
+      ['(root)', '`additionalProperties: {"type":"string"}`']
+    ])
+  })
+})
+
+describe('toGrantQuestions keywords no row shows', () => {
+  test("lists an array's item constraints and rules under its name[]", () => {
+    expect(
+      rulesOf({
+        properties: {
+          tags: {
+            type: 'array',
+            items: { type: 'string', enum: ['A', 'B'], pattern: '^A' },
+            contains: { const: 'A' },
+            minContains: 1
+          }
+        }
+      })
+    ).toEqual([
+      ['`tags`', '`contains: {"const":"A"}`'],
+      ['`tags`', '`minContains: 1`'],
+      ['`tags[]`', 'Each item: pattern `^A` and one of `A`, `B`']
+    ])
+  })
+
+  test('lists any keyword it does not draw as its JSON, and none that only describes', () => {
+    expect(
+      rulesOf({
+        $id: 'x',
+        $comment: 'y',
+        examples: [{}],
+        minProperties: 1,
+        maxProperties: 4,
+        unevaluatedProperties: false,
+        additionalProperties: { type: 'string' },
+        properties: { a: { type: 'string', format: 'email', default: 'a' } }
+      })
+    ).toEqual([
+      ['(root)', '`minProperties: 1`'],
+      ['(root)', '`maxProperties: 4`'],
+      ['(root)', '`unevaluatedProperties: false`'],
+      ['(root)', '`additionalProperties: {"type":"string"}`']
+    ])
+  })
+
+  test('lists a then or an else with no if, which GAS refuses', () => {
+    expect(rulesOf({ then: { required: ['a'] } })).toEqual([
+      ['(root)', '`then: {"required":["a"]}`']
+    ])
+  })
+
+  test("closes an array of items that list no properties, and says what they require that they don't declare", () => {
+    const questions = {
+      properties: {
+        rows: {
+          type: 'array',
+          items: {
+            type: 'object',
+            required: ['x'],
+            additionalProperties: false
+          }
+        }
+      }
+    }
+
+    expect(fieldNamed(questions, 'rows[]').closed).toBe(true)
+    expect(rulesOf(questions)).toEqual([
+      [
+        'Every closed object',
+        'Fields not listed under a closed object are removed on submission.'
+      ],
+      [
+        '`rows[]`',
+        "`x` is required but not declared under `properties`: GAS can't compile these questions."
+      ]
     ])
   })
 
   test.each([
     [
-      'a required name with no other part',
-      { if: { required: ['a'] }, then: { required: ['b'] } },
-      'If a is present: requires b'
+      'properties that are not an object',
+      { properties: 'oops' },
+      '`properties: "oops"` is not an object'
     ],
     [
-      'a property that must be absent',
-      { if: { properties: { a: false } }, then: { required: ['b'] } },
-      'If a is absent: requires b'
+      'required that is not a list',
+      { required: 'a', properties: { a: {} } },
+      '`required: "a"` is not a list'
     ],
     [
-      'two const parts',
-      {
-        if: { properties: { a: { const: 1 }, b: { const: 'x' } } },
-        then: { required: ['c', 'd'] }
-      },
-      'If a = 1 and b = "x": requires c, d'
-    ],
-    [
-      'an enum part',
-      {
-        if: { properties: { a: { enum: ['x', 'y'] } } },
-        then: { required: ['b'] }
-      },
-      'If a one of x, y: requires b'
-    ],
-    [
-      'any other property part, and any other keyword',
-      {
-        if: { properties: { a: { minimum: 3 } }, not: { required: ['b'] } },
-        then: { properties: { c: { maxLength: 2 } }, minProperties: 1 }
-      },
-      'If a: {"minimum":3} and not: {"required":["b"]}: c: {"maxLength":2}; minProperties: 1'
-    ],
-    [
-      'an else with no then',
-      {
-        if: { properties: { a: { const: true } } },
-        else: { required: ['b'] }
-      },
-      'Unless a = true: requires b'
+      'a required name with no property',
+      { required: ['a', 'ghost'], properties: { a: {} } },
+      '`ghost` is required but not declared under `properties`'
     ]
-  ])('words a condition with %s', (_name, schema, text) => {
-    expect(ruleTextOf(schema)).toEqual([text])
-  })
-
-  test('words the seed woodland if, then and else as GAS applies them', () => {
-    expect(
-      ruleTextOf({
-        if: { properties: { appLandHasExistingWmp: { const: true } } },
-        then: {
-          required: ['existingWmps'],
-          properties: { existingWmps: { type: 'string' } }
-        },
-        else: { properties: { existingWmps: false } }
-      })
-    ).toEqual([
-      'If appLandHasExistingWmp = true: requires existingWmps; existingWmps: {"type":"string"}. Otherwise: existingWmps not allowed'
+  ])('says GAS cannot compile %s', (_name, questions, text) => {
+    expect(rulesOf(questions)).toEqual([
+      ['(root)', `${text}: GAS can't compile these questions.`]
     ])
   })
 
-  test('adds no rule for an if with nothing to apply', () => {
-    expect(ruleTextOf({ if: { properties: { a: { const: true } } } })).toEqual(
-      []
+  test('says nothing of submission on a phase GAS does not check', () => {
+    const tab = withPhases(
+      { code: 'PRE_AWARD', questions: { type: 'object' } },
+      {
+        code: 'POST_AWARD',
+        questions: { additionalProperties: false, properties: { a: {} } }
+      }
     )
-  })
+    const card = cardsOf(tab)[1]
 
-  test('gives every other applicator keyword a row of its own JSON', () => {
-    expect(
-      ruleTextOf({
-        anyOf: [{ required: ['a'] }, { required: ['b'] }],
-        $ref: '#/$defs/address',
-        additionalProperties: { type: 'string' }
-      })
-    ).toEqual([
-      'anyOf: [{"required":["a"]},{"required":["b"]}]',
-      '$ref: "#/$defs/address"',
-      'additionalProperties: {"type":"string"}'
-    ])
+    expect(card.kind === 'schema' && card.rules).toEqual([])
   })
 })

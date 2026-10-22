@@ -1,22 +1,29 @@
-import type {
-  DefinitionFile,
-  VersionRef,
-  VersionSummary
-} from '../repositories/config-versions.ts'
+import type { VersionSummary } from '../use-cases/definition-fetches.ts'
 import type { BadgeRole } from '../use-cases/get-event.use-case.ts'
-import type { DefinitionFileType } from '../use-cases/get-grant-page.use-case.ts'
-import type { WorkflowFileType } from '../use-cases/get-workflow-page.use-case.ts'
-import { toDayClock, toValidDate } from './event-formats.ts'
+import type {
+  BucketFactValue,
+  Catalogue
+} from '../use-cases/get-catalogue.use-case.ts'
+import { toClock, toPreciseInstant, toValidDate } from './event-formats.ts'
 import { toTabHref } from './record-page.view-model.ts'
+import { toVersionPath } from './record-type.ts'
 import type { RecordType } from './record-type.ts'
-
-type VersionFileType = DefinitionFileType | WorkflowFileType
+import {
+  fileOrder,
+  toBannerLines,
+  toListValues,
+  toFetchLabel
+} from './version-banner.ts'
+import type {
+  BannerTone,
+  VersionFiles,
+  VersionFileType
+} from './version-banner.ts'
+import type { Words } from './words.ts'
 
 /** A grant's or a workflow's version, as GAS heads either page. */
-interface VersionPageHeader extends VersionRef {
-  status: VersionSummary['status']
+interface VersionPageHeader extends VersionFiles {
   receivedAt: string
-  files: Partial<Record<VersionFileType, DefinitionFile>>
   /** Newest first. */
   versions: VersionSummary[]
 }
@@ -24,13 +31,20 @@ interface VersionPageHeader extends VersionRef {
 interface StatusBadge {
   status: string
   role: BadgeRole
+  title?: string
 }
 
 /** The shared filter menu's link items, with no `value`: a version is a page, never a filter. */
 interface SwitcherItem {
   label: string
   status: StatusBadge
+  /** A draft's own badge, beside its Definition badge. */
+  secondary: StatusBadge | null
+  /** Said of a version whose files are all stored, which its badge cannot say. */
+  note: { text: string; title: string } | null
   aside: string
+  /** The exact instant, which the short `aside` drops. */
+  asideTitle: string | null
   href: string
   active: boolean
 }
@@ -45,8 +59,12 @@ export interface VersionHeader {
     panelId: string
     items: SwitcherItem[]
   }
-  /** The files not stored, while there are any, and the form that fetches them. */
-  banner: { text: string; action: string; back: string; tab: string } | null
+  /** What the page knows of its files that the list cannot say, and the form that fetches any not stored. */
+  banner: {
+    tone: BannerTone
+    lines: Words[]
+    fetch: { action: string; back: string; tab: string; label: string } | null
+  } | null
 }
 
 const statuses: Record<VersionSummary['status'], StatusBadge> = {
@@ -54,26 +72,51 @@ const statuses: Record<VersionSummary['status'], StatusBadge> = {
   draft: { status: 'Draft', role: 'neutral' }
 }
 
-const fileOrder: VersionFileType[] = [
-  'grant',
-  'agreement',
-  'payment',
-  'workflow'
-]
+const mainFiles: VersionFileType[] = ['grant', 'workflow']
 
-export const toAndList = (words: string[]): string =>
-  words.length < 2
-    ? words.join('')
-    : `${words.slice(0, -1).join(', ')} and ${words.at(-1)}`
+/** The grant or workflow file is stored, so no older version need be offered in its place. */
+const isMainStored = ({ files }: VersionPageHeader): boolean =>
+  mainFiles.some((type) => files[type]?.stored === true)
 
-const capitalise = (text: string): string =>
-  `${text.charAt(0).toUpperCase()}${text.slice(1)}`
+/** The newest version after this one, in the header's newest-first order, with every file stored. */
+const toOlderStored = (
+  header: VersionPageHeader
+): VersionSummary | undefined => {
+  const at = header.versions.findIndex(
+    ({ version }) => version === header.version
+  )
 
-export const toVersionPath = (
-  { path }: RecordType,
-  { code, version }: VersionRef
-): string =>
-  `${path}/${encodeURIComponent(code)}/${encodeURIComponent(version)}`
+  return at < 0
+    ? undefined
+    : header.versions.slice(at + 1).find(({ stored }) => stored)
+}
+
+/** An older version with every file stored, linked on the same tab, while this one's main file is not stored. */
+const toNewestStored = (
+  record: RecordType,
+  header: VersionPageHeader,
+  tab: string,
+  back: string
+): Words => {
+  const older = isMainStored(header) ? undefined : toOlderStored(header)
+
+  return older === undefined
+    ? []
+    : [
+        'Newest stored version: ',
+        {
+          link: `${older.version} ›`,
+          href: toTabHref(
+            toVersionPath(record, {
+              code: header.code,
+              version: older.version
+            }),
+            tab,
+            back
+          )
+        }
+      ]
+}
 
 const toBanner = (
   record: RecordType,
@@ -81,57 +124,153 @@ const toBanner = (
   tab: string,
   back: string
 ): VersionHeader['banner'] => {
-  const { files } = header
-  const missing = fileOrder.filter((type) => files[type]?.stored === false)
+  const said = toBannerLines(record, header)
 
-  if (!missing.length) {
+  if (said === null) {
     return null
   }
 
-  const unused = missing.some(
-    (type) => files[type]?.fetchStatus === 'permanent_error'
+  const newestStored = toNewestStored(record, header, tab, back)
+  const unstored = fileOrder.some(
+    (type) => header.files[type]?.stored === false
   )
-  const noun = missing.length > 1 ? 'definitions' : 'definition'
 
   return {
-    text: `${capitalise(toAndList(missing))} ${noun} not stored.${unused ? ` ${record.source} won't use this version.` : ''}`,
-    action: `${toVersionPath(record, header)}/fetch`,
-    back,
-    tab
+    tone: said.tone,
+    lines: newestStored.length ? [...said.lines, newestStored] : said.lines,
+    fetch: unstored
+      ? {
+          action: `${toVersionPath(record, header)}/fetch`,
+          back,
+          tab,
+          label: toFetchLabel(record)
+        }
+      : null
+  }
+}
+
+const draftClause = (record: RecordType): string =>
+  `Draft: ${record.source} won't pick it for new work until it is published as active.`
+
+/** The badge as the list draws it, titled by what the value means, and on a draft by the draft clause too. */
+const toListBadge = (
+  { label, tone = 'neutral', hint = label }: BucketFactValue,
+  draftOf: RecordType | null
+): StatusBadge => ({
+  status: label,
+  role: tone,
+  title: draftOf ? `${hint} ${draftClause(draftOf)}` : hint
+})
+
+const toDefinitionBadge = (
+  record: RecordType,
+  values: BucketFactValue[],
+  { fetchStatus, status }: VersionSummary
+): StatusBadge | null => {
+  const value = values.find((option) => option.value === fetchStatus)
+
+  return value ? toListBadge(value, status === 'draft' ? record : null) : null
+}
+
+const notLoadedStatuses = new Set<VersionSummary['fetchStatus']>([
+  'pending',
+  'transient_error'
+])
+
+const toStoredNote = (
+  record: RecordType,
+  { stored, fetchStatus }: VersionSummary
+): SwitcherItem['note'] =>
+  stored && notLoadedStatuses.has(fetchStatus)
+    ? {
+        text: `· stored, not loaded by ${record.source} yet`,
+        title: `Every file is stored. ${record.source} hasn't loaded it itself yet, so the list still shows its fetch status.`
+      }
+    : null
+
+/** The version's status as the list words it, titled by what it means; GPA's own word without the catalogue. */
+const toStatusBadge = (
+  values: BucketFactValue[],
+  status: VersionSummary['status']
+): StatusBadge => {
+  const value = values.find((option) => option.value === status)
+
+  return value ? toListBadge(value, null) : statuses[status]
+}
+
+interface ListValues {
+  definition: BucketFactValue[]
+  status: BucketFactValue[]
+}
+
+/** A version's Definition badge, as the list shows it, with its status beside it only while it is a draft. */
+const toBadges = (
+  record: RecordType,
+  values: ListValues,
+  summary: VersionSummary
+): Pick<SwitcherItem, 'status' | 'secondary' | 'note'> => {
+  const definition = toDefinitionBadge(record, values.definition, summary)
+  const status = toStatusBadge(values.status, summary.status)
+
+  if (definition === null) {
+    return { status, secondary: null, note: null }
+  }
+
+  return {
+    status: definition,
+    secondary: summary.status === 'active' ? null : status,
+    note: toStoredNote(record, summary)
   }
 }
 
 /** Anything but a date is shown as stored. */
-const toReceived = (receivedAt: string): string => {
+const toReceived = (
+  receivedAt: string,
+  now: Date
+): Pick<SwitcherItem, 'aside' | 'asideTitle'> => {
   const date = toValidDate(receivedAt)
 
-  return date ? toDayClock(date) : receivedAt
+  return date
+    ? { aside: toClock(date, now), asideTitle: toPreciseInstant(date) }
+    : { aside: receivedAt, asideTitle: null }
 }
 
 export const toVersionHeader = (
   record: RecordType,
   header: VersionPageHeader,
   tab: string,
-  from: string
-): VersionHeader => ({
-  status: statuses[header.status],
-  switcher: {
-    name: 'Version',
-    label: `Versions of ${header.code}`,
-    small: true,
-    testId: `${record.itemId}-switcher`,
-    panelId: `${record.itemId}-switcher-panel`,
-    items: header.versions.map(({ version, status, receivedAt }) => ({
-      label: version,
-      status: statuses[status],
-      aside: toReceived(receivedAt),
-      href: toTabHref(
-        toVersionPath(record, { code: header.code, version }),
-        tab,
-        from
-      ),
-      active: version === header.version
-    }))
-  },
-  banner: toBanner(record, header, tab, from)
-})
+  from: string,
+  catalogue: Catalogue | null = null,
+  now: Date = new Date()
+): VersionHeader => {
+  const values = {
+    definition: toListValues(record, catalogue, 'definition'),
+    status: toListValues(record, catalogue, 'status')
+  }
+
+  return {
+    status: toStatusBadge(values.status, header.status),
+    switcher: {
+      name: 'Version',
+      label: `Versions of ${header.code}`,
+      small: true,
+      testId: `${record.itemId}-switcher`,
+      panelId: `${record.itemId}-switcher-panel`,
+      items: header.versions.map((summary) => ({
+        label: summary.version,
+        ...toBadges(record, values, summary),
+        ...toReceived(summary.receivedAt, now),
+        href: toTabHref(
+          toVersionPath(record, {
+            code: header.code,
+            version: summary.version
+          }),
+          tab,
+          from
+        ),
+        active: summary.version === header.version
+      }))
+    },
+    banner: toBanner(record, header, tab, from)
+  }
+}

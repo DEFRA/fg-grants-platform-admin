@@ -15,7 +15,7 @@ import { toApplicationPage } from '../view-models/application-page.view-model.ts
 import { applicationType } from '../view-models/applications-page.view-model.ts'
 import { getCatalogueUseCase } from '../use-cases/get-catalogue.use-case.ts'
 import type { Catalogue } from '../use-cases/get-catalogue.use-case.ts'
-import { toBackBucket } from '../view-models/bucket-nav.ts'
+import { toBackBucket, toListAt } from '../view-models/bucket-nav.ts'
 import { toCasePage } from '../view-models/case-page.view-model.ts'
 import { caseType } from '../view-models/cases-page.view-model.ts'
 import { toSafeFrom } from '../view-models/event-page.view-model.ts'
@@ -28,6 +28,7 @@ import {
   recordParamsSchema,
   recordTabSchema,
   slugFilterSchema,
+  toBackLabel,
   statusSchema,
   versionSchema,
   workflowCodeSchema
@@ -35,7 +36,7 @@ import {
 import { toTabHref } from '../view-models/record-page.view-model.ts'
 import type { RecordPageModel } from '../view-models/record-page.view-model.ts'
 import type { RecordType } from '../view-models/record-type.ts'
-import { toVersionPath } from '../view-models/version-header.ts'
+import { toVersionPath } from '../view-models/record-type.ts'
 import { toWorkflowPage } from '../view-models/workflow-page.view-model.ts'
 import { workflowType } from '../view-models/workflows-page.view-model.ts'
 
@@ -54,6 +55,8 @@ interface RecordPageRoute<K, P, T extends string, N, Q> {
   ) => RecordPageModel
   /** Where a write leaves its outcome for the one render after it. */
   noticeKey?: keyof YarFlashes
+  /** Its URL names a config version, so a version the service has not got keeps the page's shell. */
+  versioned?: boolean
 }
 
 type RecordPageQuery<T> = {
@@ -67,6 +70,28 @@ const toNavActive = (
   from: string
 ): string | null => toBackBucket(catalogue, from)?.id ?? null
 
+/** What the Back link says: where `back` leads, else the record's own list. */
+const labelAt = (catalogue: Catalogue | null, href: string): string | null =>
+  toListAt(catalogue, href)?.label ?? null
+
+const toRecordBackLabel = (
+  catalogue: Catalogue | null,
+  record: RecordType,
+  from: string
+): string =>
+  toBackLabel(from, {
+    listLabel: labelAt(catalogue, from),
+    ownListLabel: labelAt(catalogue, record.path) ?? record.listId
+  })
+
+/** Without a list to go back to, a record sits under its own. */
+const withNav = <M extends { navActive: string | null }>(
+  model: M,
+  navActive: string | null
+): M => ({ ...model, navActive: navActive ?? model.navActive })
+
+const notFound = 404
+
 /** Taken before the read, so it is spent on this render whatever the read then says. */
 const takeNotice = <N>(
   request: Request,
@@ -74,25 +99,80 @@ const takeNotice = <N>(
 ): N | undefined =>
   key ? (request.yar.flash(key) as unknown as N[])[0] : undefined
 
+/** A record that could not be read keeps its shell; with no `back` it goes back to, and sits under, its own list. */
 const unavailableView = (
   h: ResponseToolkit,
   record: RecordType,
   ref: string,
   {
     from,
-    navActive,
+    catalogue,
     outcome
-  }: { from: string; navActive: string | null; outcome: string }
+  }: { from: string; catalogue: Catalogue | null; outcome: string }
 ) =>
   h.view(record.view, {
     pageTitle: record.title,
     record,
     ref,
-    backHref: from,
-    navActive,
+    backHref: from || record.path,
+    backLabel: toRecordBackLabel(catalogue, record, from),
+    navActive: toNavActive(catalogue, from || record.path),
     unavailable: true,
     timedOut: outcome === 'timed-out'
   })
+
+/** `tab` and `back` on every record page, then whatever else its tabs read. */
+const toQuerySchema = (
+  record: RecordType,
+  query: Record<string, Schema> = {}
+) =>
+  Joi.object({
+    tab: recordTabSchema(record).default('overview'),
+    back: backSchema,
+    ...query
+  })
+
+/** A version the service has no record of keeps the record's shell, and says where a rejected one went. */
+const missingVersionView = async (
+  h: ResponseToolkit,
+  record: RecordType,
+  { code, version }: { code: string; version: string },
+  from: string
+) => {
+  const catalogue = await getCatalogueUseCase()
+
+  return h
+    .view(record.view, {
+      pageTitle: record.title,
+      record,
+      ref: code,
+      backHref: from || record.path,
+      backLabel: toRecordBackLabel(catalogue, record, from),
+      navActive: toNavActive(catalogue, from || record.path),
+      missingVersion: { source: record.source, code, version }
+    })
+    .code(notFound)
+}
+
+/** A version the service has not got keeps the shell; any other record is GPA's own 404. */
+const notFoundView = (
+  h: ResponseToolkit,
+  record: RecordType,
+  versioned: boolean,
+  request: Request,
+  from: string
+) => {
+  if (!versioned) {
+    throw Boom.notFound()
+  }
+
+  return missingVersionView(
+    h,
+    record,
+    request.params as { code: string; version: string },
+    from
+  )
+}
 
 /**
  * One tab of one record per render. A record GAS has not got is GPA's own 404
@@ -104,7 +184,8 @@ const recordPageRoute = <K, P, T extends string, N = never, Q = object>({
   query,
   read,
   toPage,
-  noticeKey
+  noticeKey,
+  versioned = false
 }: RecordPageRoute<K, P, T, N, Q>): ServerRoute => ({
   method: 'GET',
   path: [record.path, ...Object.keys(params).map((name) => `{${name}}`)].join(
@@ -114,11 +195,7 @@ const recordPageRoute = <K, P, T extends string, N = never, Q = object>({
     cache: recordPageCache,
     validate: {
       params: recordParamsSchema(params),
-      query: Joi.object({
-        tab: recordTabSchema(record).default('overview'),
-        back: backSchema,
-        ...query
-      })
+      query: toQuerySchema(record, query)
     }
   },
   async handler(request: Request, h: ResponseToolkit) {
@@ -129,7 +206,7 @@ const recordPageRoute = <K, P, T extends string, N = never, Q = object>({
     const { outcome, page } = await read(key, tab)
 
     if (outcome === 'not-found') {
-      throw Boom.notFound()
+      return notFoundView(h, record, versioned, request, from)
     }
 
     if (outcome === 'hidden') {
@@ -137,27 +214,32 @@ const recordPageRoute = <K, P, T extends string, N = never, Q = object>({
     }
 
     const catalogue = await getCatalogueUseCase()
-    const navActive = toNavActive(catalogue, from)
 
     if (page === null) {
       return unavailableView(h, record, request.params[record.titleParam], {
         from,
-        navActive,
+        catalogue,
         outcome
       })
     }
 
+    const model = toPage(page, tab, from, {
+      notice,
+      query: extra as Q,
+      catalogue
+    })
+
     return h.view(record.view, {
       pageTitle: record.title,
-      ...toPage(page, tab, from, {
-        notice,
-        query: extra as Q,
-        catalogue
-      }),
-      navActive
+      ...withNav(model, toNavActive(catalogue, from)),
+      backLabel: toRecordBackLabel(catalogue, record, from)
     })
   }
 })
+
+/** The status a Phases link asked for, carried on to the version it opens. */
+const toStatusQuery = (status: unknown): Record<string, string> | undefined =>
+  status ? { status: String(status) } : undefined
 
 interface CurrentVersionRoute {
   record: RecordType
@@ -177,15 +259,13 @@ const currentVersionRoute = ({
     cache: recordPageCache,
     validate: {
       params: recordParamsSchema({ code }),
-      query: Joi.object({
-        tab: recordTabSchema(record).default('overview'),
-        back: backSchema
-      })
+      query: toQuerySchema(record, { status: statusSchema })
     }
   },
   async handler(request: Request, h: ResponseToolkit) {
     const { code: asked } = request.params
-    const { tab, back } = request.query as unknown as RecordPageQuery<string>
+    const { tab, back, status } =
+      request.query as unknown as RecordPageQuery<string>
     const from = toSafeFrom(back)
     const { outcome, page } = await read(asked)
 
@@ -196,7 +276,7 @@ const currentVersionRoute = ({
     if (page === null) {
       return unavailableView(h, record, asked, {
         from,
-        navActive: toNavActive(await getCatalogueUseCase(), from),
+        catalogue: await getCatalogueUseCase(),
         outcome
       })
     }
@@ -209,7 +289,8 @@ const currentVersionRoute = ({
       toTabHref(
         toVersionPath(record, { code: asked, version: page.current }),
         tab,
-        from
+        from,
+        toStatusQuery(status)
       )
     )
   }
@@ -235,7 +316,8 @@ export const viewGrantRoute = recordPageRoute({
   query: { status: statusSchema },
   read: getGrantPageUseCase,
   toPage: toGrantPage,
-  noticeKey: definitionFetchNoticeKey
+  noticeKey: definitionFetchNoticeKey,
+  versioned: true
 })
 
 export const viewCurrentGrantRoute = currentVersionRoute({
@@ -250,7 +332,8 @@ export const viewWorkflowRoute = recordPageRoute({
   query: { status: statusSchema },
   read: getWorkflowPageUseCase,
   toPage: toWorkflowPage,
-  noticeKey: definitionFetchNoticeKey
+  noticeKey: definitionFetchNoticeKey,
+  versioned: true
 })
 
 export const viewCurrentWorkflowRoute = currentVersionRoute({

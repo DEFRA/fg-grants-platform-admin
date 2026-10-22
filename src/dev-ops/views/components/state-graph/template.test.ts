@@ -12,9 +12,27 @@ const map: StateMap = {
           code: 'REVIEW',
           name: 'Review application',
           statuses: [
-            { code: 'IN_REVIEW', tone: 'info', flagged: false },
-            { code: 'ON_HOLD', tone: 'neutral', flagged: true },
-            { code: 'APPROVED', tone: null, flagged: false }
+            {
+              code: 'IN_REVIEW',
+              name: 'In review',
+              tone: 'info',
+              flagged: false,
+              chip: 'start'
+            },
+            {
+              code: 'ON_HOLD',
+              name: 'On hold',
+              tone: 'neutral',
+              flagged: true,
+              findings: ['dead end']
+            },
+            {
+              code: 'APPROVED',
+              name: 'Approved',
+              tone: null,
+              flagged: false,
+              chip: 'any status'
+            }
           ]
         }
       ]
@@ -26,7 +44,9 @@ const map: StateMap = {
         {
           code: 'AGREEMENT',
           name: null,
-          statuses: [{ code: 'OFFERED', tone: null, flagged: false }]
+          statuses: [
+            { code: 'OFFERED', name: 'Offered', tone: null, flagged: false }
+          ]
         }
       ]
     }
@@ -54,8 +74,8 @@ const map: StateMap = {
 }
 
 const legend = [
-  { kind: 'strong', label: 'Runs processes' },
-  { kind: 'dashed', label: 'GAS sends' },
+  { kind: 'strong', label: 'Runs a GAS process on the move' },
+  { kind: 'dashed', label: 'GAS may send' },
   { kind: 'other-phase', label: 'Other phase' }
 ]
 
@@ -89,8 +109,10 @@ const graph = (
 const node = ($: ReturnType<typeof graph>, position: string) =>
   $(`[data-testid="phases-node"][data-position="${position}"]`)
 
+const flatten = (text: string) => text.replace(/\s+/g, ' ').trim()
+
 describe('state-graph component', () => {
-  test('draws one card per phase, titled with its code and any name', () => {
+  test('draws one card per phase, titled with its name then its code muted, and an id to link to', () => {
     const $ = graph()
     const cards = $('[data-testid="phases-phase"]')
 
@@ -98,9 +120,22 @@ describe('state-graph component', () => {
       'PRE_AWARD',
       'POST_AWARD'
     ])
-    expect(cards.first().find('h2 .font-mono').text()).toBe('PRE_AWARD')
-    expect(cards.first().find('h2').text()).toBe('PRE_AWARD Pre-award')
-    expect(cards.last().find('h2').text()).toBe('POST_AWARD')
+    expect(cards.first().attr('id')).toBe('phase-PRE_AWARD')
+    expect(flatten(cards.first().find('h2').text())).toBe('Pre-award PRE_AWARD')
+    expect(cards.first().find('h2 [data-name]').text()).toBe('Pre-award')
+    expect(cards.first().find('h2').attr('class')).toContain('break-words')
+    expect(flatten(cards.last().find('h2').text())).toBe('POST_AWARD')
+  })
+
+  test('puts the legend in the first card only, beside its title', () => {
+    const $ = graph()
+    const cards = $('[data-testid="phases-phase"]')
+
+    expect(cards.first().find('[data-testid="phases-legend"]')).toHaveLength(1)
+    expect(cards.last().find('[data-testid="phases-legend"]')).toHaveLength(0)
+    expect(
+      cards.first().find('[data-testid="phases-legend"]').parent().attr('class')
+    ).toContain('justify-between')
   })
 
   test('sizes each graph at its natural size, with no inline style anywhere', () => {
@@ -112,7 +147,7 @@ describe('state-graph component', () => {
     expect(Number(width)).toBeGreaterThan(0)
     expect(svg.attr('viewBox')).toBe(`0 0 ${width} ${height}`)
     expect(svg.attr('role')).toBe('group')
-    expect(svg.attr('aria-label')).toBe('PRE_AWARD statuses')
+    expect(svg.attr('aria-label')).toBe('Pre-award statuses')
     expect($('[style]')).toHaveLength(0)
   })
 
@@ -126,11 +161,11 @@ describe('state-graph component', () => {
     expect(strong.find('title').text()).toBe(
       'IN_REVIEW → APPROVED: GENERATE_AGREEMENT'
     )
-    expect(dashed.attr('stroke-dasharray')).toBe('5 4')
+    expect(dashed.attr('stroke-dasharray')).toBe('4 3')
     expect(dashed.attr('marker-end')).toBe('url(#phases-phase-0-arrow)')
   })
 
-  test('draws an other-phase node dashed, with its stage above its status', () => {
+  test('draws an other-phase node dashed, with its name only and its position in the title', () => {
     const $ = graph()
     const other = node($, 'POST_AWARD:AGREEMENT:OFFERED').first()
 
@@ -140,35 +175,82 @@ describe('state-graph component', () => {
         .find('text')
         .map((_, text) => $(text).text())
         .get()
-    ).toEqual(['POST_AWARD:AGREEMENT', 'OFFERED'])
+    ).toEqual(['Offered'])
+    expect(other.find('text').attr('font-size')).toBe('11')
+    expect(other.find('title').text()).toBe(
+      'Offered (POST_AWARD:AGREEMENT:OFFERED)'
+    )
     expect(other.attr('href')).toBe(
       '/dev-ops/x?tab=phases&status=POST_AWARD:AGREEMENT:OFFERED'
     )
   })
 
-  test('marks the selected node current and outlines a flagged one', () => {
+  test('names a node on line 1 and gives its code muted on line 2', () => {
+    const $ = graph()
+    const approved = node($, 'PRE_AWARD:REVIEW:APPROVED')
+    const name = approved.find('[data-testid="phases-node-name"]')
+    const code = approved.find('[data-testid="phases-node-code"]')
+
+    expect(name.text()).toBe('Approved')
+    expect(name.attr('font-size')).toBe('13')
+    expect(name.attr('class')).toBe('fill-current')
+    expect(code.text()).toBe('APPROVED')
+    expect(code.attr('font-size')).toBe('10')
+    expect(code.attr('class')).toBe('fill-current font-mono opacity-70')
+    expect(approved.attr('class')).toContain('text-base-content')
+  })
+
+  test('marks the selected node current and outlines a flagged one, with a ⚠ and its finding named', () => {
     const $ = graph({ asked: 'IN_REVIEW' })
     const selected = node($, 'PRE_AWARD:REVIEW:IN_REVIEW')
     const flagged = node($, 'PRE_AWARD:REVIEW:ON_HOLD')
 
     expect(selected.attr('aria-current')).toBe('true')
-    expect(selected.attr('aria-label')).toBe('PRE_AWARD:REVIEW:IN_REVIEW')
+    expect(selected.attr('aria-label')).toBe(
+      'In review (PRE_AWARD:REVIEW:IN_REVIEW)'
+    )
     expect(selected.find('rect').attr('class')).toContain(
       'stroke-base-content '
     )
     expect(selected.find('rect').attr('stroke-width')).toBe('2')
     expect(flagged.attr('aria-current')).toBeUndefined()
+    expect(flagged.attr('aria-label')).toBe(
+      'On hold (PRE_AWARD:REVIEW:ON_HOLD), finding: dead end'
+    )
+    expect(flagged.find('title').text()).toBe(flagged.attr('aria-label'))
     expect(flagged.find('rect').attr('class')).toContain('stroke-warning')
+    expect(flagged.find('rect').attr('stroke-width')).toBe('2.5')
+    expect(flagged.find('[data-testid="phases-node-finding"]').text()).toBe('⚠')
     expect(
       node($, 'PRE_AWARD:REVIEW:APPROVED').find('rect').attr('class')
     ).toContain('stroke-base-content/25')
+  })
+
+  test('chips a starting status and one GAS accepts from any status under the node', () => {
+    const $ = graph()
+
+    expect(
+      node($, 'PRE_AWARD:REVIEW:IN_REVIEW')
+        .find('[data-testid="phases-node-chip"]')
+        .text()
+    ).toBe('start')
+    expect(
+      node($, 'PRE_AWARD:REVIEW:APPROVED')
+        .find('[data-testid="phases-node-chip"]')
+        .text()
+    ).toBe('↺ any status')
+    expect(
+      node($, 'PRE_AWARD:REVIEW:ON_HOLD').find(
+        '[data-testid="phases-node-chip"]'
+      )
+    ).toHaveLength(0)
   })
 
   test('gives each node link a visible focus ring', () => {
     const $ = graph()
     const link = node($, 'PRE_AWARD:REVIEW:APPROVED')
 
-    expect(link.attr('class')).toBe('group')
+    expect(link.attr('class')).toBe('group text-base-content')
     expect(link.find('rect').attr('class')).toContain(
       'group-focus-visible:[stroke-width:3]'
     )
@@ -191,13 +273,21 @@ describe('state-graph component', () => {
     )
   })
 
-  test('labels each stage band with its code and any name', () => {
+  test('outlines each stage band, and labels it with its name then its code, on a plate drawn over the edges', () => {
     const $ = graph()
     const band = $('[data-testid="phases-band"]').first()
+    const label = $('[data-testid="phases-band-label"]').first()
 
-    expect(band.find('rect').attr('class')).toBe('fill-base-200')
-    expect(band.find('tspan').first().text()).toBe('REVIEW')
-    expect(band.find('tspan').last().text()).toBe('Review application')
+    expect(band.attr('class')).toBe('fill-base-200 stroke-base-300')
+    expect(band.attr('stroke-width')).toBe('1')
+    expect(label.find('rect').attr('class')).toBe('fill-base-100')
+    expect(label.find('tspan').first().text()).toBe('Review application')
+    expect(label.find('tspan').first().attr('font-size')).toBe('12')
+    expect(label.find('tspan').last().text()).toBe('REVIEW')
+    expect(label.find('tspan').last().attr('font-size')).toBe('10')
+    expect(label.prevAll('[data-testid="phases-edge"]').length).toBeGreaterThan(
+      0
+    )
   })
 
   test('keeps marker ids unique across phases', () => {
@@ -218,20 +308,28 @@ describe('state-graph component', () => {
     const $ = graph({
       legend: [
         { kind: 'plain', label: 'Action' },
-        { kind: 'flagged', label: 'Finding' }
+        { kind: 'flagged', label: 'Finding' },
+        { kind: 'start', label: 'Start' },
+        {
+          kind: 'colour',
+          label: 'colour = how CW shows the status to caseworkers'
+        }
       ]
     })
     const items = $('[data-testid="phases-legend-item"]')
 
-    expect(items.map((_, item) => $(item).text().trim()).get()).toEqual([
+    expect(items.map((_, item) => flatten($(item).text())).get()).toEqual([
       'Action',
-      'Finding'
+      'Finding',
+      'startStart',
+      'colour = how CW shows the status to caseworkers'
     ])
     expect(items.first().find('line').attr('class')).toBe('stroke-current')
     expect(items.first().find('line').attr('stroke-dasharray')).toBeUndefined()
-    expect(items.last().find('span').attr('class')).toContain(
+    expect(items.eq(1).find('span').attr('class')).toContain(
       'border-2 border-warning'
     )
+    expect(items.eq(3).find('.status').attr('class')).toBe('status status-info')
   })
 
   test('draws the legend samples for strong, dashed and other-phase', () => {
@@ -240,29 +338,40 @@ describe('state-graph component', () => {
 
     expect(items.eq(0).find('line').attr('class')).toBe('stroke-info')
     expect(items.eq(0).find('line').attr('stroke-width')).toBe('2')
-    expect(items.eq(1).find('line').attr('stroke-dasharray')).toBe('5 4')
+    expect(items.eq(1).find('line').attr('stroke-dasharray')).toBe('4 3')
     expect(items.eq(2).find('span').attr('class')).toContain('border-dashed')
   })
 
-  test('scrolls each graph in a named region a keyboard can reach', () => {
+  test('scrolls each graph in a named region a keyboard can reach, fading at the right while it scrolls', () => {
     const region = graph()('[data-testid="phases-graph"]').first().parent()
 
     expect(region.attr('class')).toContain('overflow-x-auto')
+    expect(region.attr('class')).toContain(
+      'data-[fade-right]:[mask-image:linear-gradient(to_right,#000_92%,transparent)]'
+    )
+    expect(region.attr('data-graph-scroll')).toBe('')
     expect(region.attr('tabindex')).toBe('0')
     expect(region.attr('role')).toBe('region')
-    expect(region.attr('aria-label')).toBe('PRE_AWARD statuses')
+    expect(region.attr('aria-label')).toBe('Pre-award statuses')
   })
 
-  test('puts the sticky panel after the graphs, titled with the selected status, around the body', () => {
+  test('puts the panel first below lg and sticky beside the graphs from lg, titled with the selected status, around the body', () => {
     const $ = graph({ asked: 'PRE_AWARD:REVIEW:ON_HOLD' })
     const panel = $('[data-testid="phases-panel"]')
 
-    expect(panel.attr('class')).toContain('lg:sticky lg:top-4')
+    expect(panel.attr('class')).toContain(
+      'order-first self-start bg-base-100 lg:sticky lg:top-4 lg:order-none'
+    )
+    expect(panel.attr('id')).toBe('panel')
+    expect(panel.attr('tabindex')).toBe('-1')
     expect(panel.attr('aria-label')).toBe('Status')
     expect(panel.prev().find('[data-testid="phases-phase"]')).toHaveLength(2)
-    expect(panel.find('[data-testid="phases-panel-title"]').text()).toBe(
-      'ON_HOLD'
-    )
+    expect(
+      panel.find('[data-testid="phases-panel-title"] [data-name]').text()
+    ).toBe('On hold')
+    expect(
+      panel.find('[data-testid="phases-panel-title"] [data-code]').text()
+    ).toBe('ON_HOLD')
     expect(panel.find('[data-testid="body"]').text()).toBe('Panel body')
   })
 
@@ -291,8 +400,8 @@ describe('state-graph component', () => {
                 code: 'S',
                 name: null,
                 statuses: [
-                  { code: 'A', tone: null, flagged: false },
-                  { code: 'A', tone: null, flagged: false }
+                  { code: 'A', name: 'A', tone: null, flagged: false },
+                  { code: 'A', name: 'A', tone: null, flagged: false }
                 ]
               }
             ]
@@ -304,7 +413,7 @@ describe('state-graph component', () => {
     const alert = $('[data-testid="phases-duplicates"]')
 
     expect(alert.attr('role')).toBe('alert')
-    expect(alert.text().replace(/\s+/g, ' ').trim()).toBe(
+    expect(flatten(alert.text())).toBe(
       'P:S:A appears more than once in this definition. The graph shows it once, where it first appears.'
     )
   })
@@ -313,12 +422,12 @@ describe('state-graph component', () => {
     expect(graph()('[data-testid="phases-duplicates"]')).toHaveLength(0)
   })
 
-  test('draws the panel helpers inside the panel body', () => {
+  test('draws the panel helpers inside the panel body: names first, headings in sentence case', () => {
     const $ = graph(
       {},
       `{% from "state-graph/macro.njk" import stageFacts, statusPanelSection %}
       {{ stageFacts({ phase: { code: 'PRE_AWARD', name: 'Pre-award' }, stage: { code: 'REVIEW', name: null }, testId: 'facts' }) }}
-      {% call statusPanelSection({ title: 'Moves to', testId: 'moves' }) %}<p>→ APPROVED</p>{% endcall %}`
+      {% call statusPanelSection({ title: 'Ways out', testId: 'moves' }) %}<p>→ APPROVED</p>{% endcall %}`
     )
     const panel = $('[data-testid="phases-panel"]')
     const facts = panel.find('[data-testid="facts"]')
@@ -330,10 +439,11 @@ describe('state-graph component', () => {
         .map((_, dt) => $(dt).text())
         .get()
     ).toEqual(['Phase', 'Stage'])
-    expect(facts.find('dd').first().text()).toBe('PRE_AWARD Pre-award')
-    expect(facts.find('dd').last().text()).toBe('REVIEW')
-    expect(section.find('h3').text()).toBe('Moves to')
-    expect(section.find('h3').attr('class')).toContain('uppercase')
+    expect(flatten(facts.find('dd').first().text())).toBe('Pre-award PRE_AWARD')
+    expect(flatten(facts.find('dd').last().text())).toBe('REVIEW')
+    expect(section.find('h3').text()).toBe('Ways out')
+    expect(section.find('h3').attr('class')).toBe('mb-1 text-sm font-semibold')
+    expect(section.find('h3').next().attr('class')).toBe('space-y-3')
     expect(section.find('p').text()).toBe('→ APPROVED')
   })
 })

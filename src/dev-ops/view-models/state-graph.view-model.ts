@@ -2,9 +2,15 @@ import type { BadgeRole } from '../use-cases/get-event.use-case.ts'
 
 export interface StateStatus {
   code: string
+  /** Line 1 of the node; the code is line 2. */
+  name: string
   /** No dot when null. */
   tone: BadgeRole | null
   flagged: boolean
+  /** Each finding on the status, as said to a screen reader. */
+  findings?: string[]
+  /** Drawn as a chip under the node. */
+  chip?: 'any status' | 'start'
 }
 
 export interface StateStage {
@@ -19,7 +25,7 @@ export interface StatePhase {
   stages: StateStage[]
 }
 
-export type MoveKind = 'plain' | 'strong' | 'dashed'
+export type MoveKind = 'plain' | 'strong' | 'dashed' | 'dotted'
 
 /** One edge, between full `PHASE:STAGE:STATUS` positions. */
 export interface StateMove {
@@ -48,18 +54,39 @@ export interface GraphBand {
   height: number
   code: string
   name: string | null
+  /** The label's plate, drawn over the edges. */
+  labelWidth: number
 }
 
 export type GraphNode = {
   x: number
   y: number
   width: number
+  height: number
+  /** Where the node's text starts. */
+  textX: number
   position: string
   href: string
   state: 'selected' | 'flagged' | 'plain'
+  name: string
+  /** The node's accessible name and `<title>`. */
+  label: string
 } & (
-  | { kind: 'status'; code: string; tone: BadgeRole | null }
-  | { kind: 'other-phase'; stageKey: string; code: string }
+  | {
+      kind: 'status'
+      code: string
+      tone: BadgeRole | null
+      chip: StateStatus['chip'] | null
+      flagged: boolean
+      /** Null without a tone. */
+      dot: { x: number; y: number } | null
+      nameY: number
+      codeY: number
+      /** Where the finding's ⚠ sits. */
+      findingX: number
+      chipY: number
+    }
+  | { kind: 'other-phase'; textY: number }
 )
 
 export interface GraphEdge {
@@ -96,9 +123,9 @@ export class UnknownPositionError extends Error {
   }
 }
 
-const nodeHeight = 38
+const nodeHeight = 40
 const columnGap = 44
-const rowPitch = 48
+const rowPitch = 56
 const padding = 12
 const bandHead = 26
 const bandInset = 8
@@ -146,11 +173,14 @@ const placesOf = (map: StateMap): Place[] =>
     )
   )
 
-const firstPlaces = (places: Place[]) =>
-  places.reduce(
-    (first, place) =>
-      first.has(place.position) ? first : first.set(place.position, place),
-    new Map<string, Place>()
+/** The first copy of each position, as GAS and CW both take it. */
+export const firstByPosition = <T extends { position: string }>(
+  items: T[]
+): Map<string, T> =>
+  items.reduce(
+    (first, item) =>
+      first.has(item.position) ? first : first.set(item.position, item),
+    new Map<string, T>()
   )
 
 const duplicatesOf = (places: Place[], first: Map<string, Place>) => [
@@ -176,9 +206,16 @@ const bareMatch = (positions: string[], asked: string | undefined) =>
     ? positions.find((position) => position.endsWith(`:${asked}`))
     : undefined
 
+/** `PHASE:STAGE` selects the stage's first status. */
+const stageMatch = (positions: string[], asked: string | undefined) =>
+  asked?.split(':').length === 2
+    ? positions.find((position) => position.startsWith(`${asked}:`))
+    : undefined
+
 const pickPosition = (positions: string[], asked: string | undefined) =>
   positions.find((position) => position === asked) ??
   bareMatch(positions, asked) ??
+  stageMatch(positions, asked) ??
   positions[0]
 
 const toSelected = ({
@@ -194,29 +231,46 @@ const sum = (values: number[]) => values.reduce((total, x) => total + x, 0)
 
 const mean = (values: number[]) => sum(values) / values.length
 
-const stageKeyOf = (position: string) =>
-  position.split(':').slice(0, 2).join(':')
+/** Rough widths of a character: the name in 13px sans, the code in 10px mono, a band's name in 12px sans. */
+const nameChar = 7.4
+const codeChar = 6.1
+const ghostChar = 6.3
+const bandNameChar = 6.8
 
-const statusCodeOf = (position: string) => position.split(':')[2]
+const dotInset = 14
+const findingWidth = 18
 
-const statusWidth = ({ code, tone }: StateStatus) =>
-  Math.max(minNodeWidth, Math.ceil(code.length * 7.2 + (tone ? 38 : 26)))
+/** The text starts after the dot, when there is one. */
+const textInset = (tone: BadgeRole | null) => (tone ? 26 : 12)
 
-const otherPhaseWidth = (position: string) =>
-  Math.ceil(
-    Math.max(
-      stageKeyOf(position).length * 5.4,
-      statusCodeOf(position).length * 7.2
-    ) + 20
+/** Room for the dot, the text's margins, and the finding's ⚠ at the right. */
+const statusInset = ({ tone, flagged }: StateStatus) =>
+  (tone ? 38 : 26) + (flagged ? findingWidth : 0)
+
+/** A ghost node for a position in another phase, at the side its move comes in or goes out. */
+const ghostKey = (side: 'in' | 'out', position: string): Key =>
+  `${side}\n${position}`
+
+/** A band's rank goes before any slot in it; no band holds this many. */
+const slotsPerBand = 1000
+
+const statusWidth = (status: StateStatus) =>
+  Math.max(
+    minNodeWidth,
+    Math.ceil(
+      Math.max(status.name.length * nameChar, status.code.length * codeChar) +
+        statusInset(status)
+    )
   )
 
-const vertexWidth = (vertex: Vertex) => {
-  if (vertex.kind === 'status') {
-    return statusWidth(vertex.place.status)
-  }
+const otherPhaseWidth = (name: string) =>
+  Math.ceil(name.length * ghostChar + 20)
 
-  return vertex.kind === 'other-phase' ? otherPhaseWidth(vertex.position) : 0
-}
+/** The band's name, then its code. */
+const bandLabelWidth = ({ code, name }: StateStage) =>
+  Math.ceil(
+    (name ? name.length * bandNameChar + 6 : 0) + code.length * codeChar + 16
+  )
 
 const curve = (x1: number, y1: number, x2: number, y2: number) => {
   const k = (x2 - x1) / 2
@@ -242,14 +296,16 @@ const runningTotals = (sizes: number[], start: number) =>
   )
 
 /**
- * One phase's layered layout: columns by distance from the phase's entry
- * statuses, one band per stage, long moves bent round placeholders, and each
- * cell ordered by its neighbours' barycentre so edges cross as little as they can.
+ * One phase's layered layout: one band per stage, stacked top to bottom, each
+ * band's statuses left to right by their distance from the phase's entry
+ * statuses, long moves inside a band bent round placeholders, and each cell
+ * ordered by its neighbours' barycentre so edges cross as little as they can.
  */
 class PhaseLayout {
   readonly #own: Map<string, Place>
   readonly #stages: StateStage[]
   readonly #moves: StateMove[]
+  readonly #nameOf: (position: string) => string
   readonly #vertices: Record<Key, Vertex> = {}
   readonly #col: Record<Key, number> = {}
   readonly #band: Record<Key, number> = {}
@@ -262,11 +318,18 @@ class PhaseLayout {
   #bandY: number[] = []
   #rows: number[] = []
 
-  constructor(own: Place[], stages: StateStage[], moves: StateMove[]) {
+  constructor(
+    own: Place[],
+    stages: StateStage[],
+    moves: StateMove[],
+    nameOf: (position: string) => string
+  ) {
     this.#own = new Map(own.map((place) => [place.position, place]))
     this.#stages = stages
     this.#moves = moves
+    this.#nameOf = nameOf
     this.#columns()
+    this.#compress()
     this.#otherPhaseNodes()
     this.#fillCells()
     this.#chainMoves()
@@ -346,6 +409,24 @@ class PhaseLayout {
     }
   }
 
+  /** Each band's columns from the first, so stages stack instead of running on diagonally. */
+  #compress() {
+    const shift = this.#incoming.length ? 1 : 0
+
+    this.#stages.forEach((_stage, band) => {
+      const keys = [...this.#own.keys()].filter(
+        (key) => this.#bandOf(key) === band
+      )
+      const cols = unique(keys.map((key) => String(this.#colOf(key))))
+        .map(Number)
+        .sort((a, b) => a - b)
+
+      keys.forEach((key) => {
+        this.#col[key] = shift + cols.indexOf(this.#colOf(key))
+      })
+    })
+  }
+
   #otherPhaseNodes() {
     this.#own.forEach((place, position) => {
       this.#vertices[position] = { kind: 'status', place }
@@ -354,20 +435,22 @@ class PhaseLayout {
       Math.max(...[...this.#own.keys()].map((k) => this.#colOf(k))) + 1
 
     this.#incoming.forEach((position) => {
-      const [move] = this.#moves.filter(({ from }) => from === position)
+      const move = this.#moves.find(
+        ({ from }) => from === position
+      ) as StateMove
 
       this.#place(
-        `in\n${position}`,
+        ghostKey('in', position),
         { kind: 'other-phase', position },
         0,
         this.#bandOf(move.to)
       )
     })
     this.#outgoing.forEach((position) => {
-      const [move] = this.#moves.filter(({ to }) => to === position)
+      const move = this.#moves.find(({ to }) => to === position) as StateMove
 
       this.#place(
-        `out\n${position}`,
+        ghostKey('out', position),
         { kind: 'other-phase', position },
         last,
         this.#bandOf(move.from)
@@ -387,9 +470,9 @@ class PhaseLayout {
     )
     this.#offsets = this.#stages.map(() => Array<number>(count).fill(0))
     const keys = [
-      ...this.#incoming.map((position) => `in\n${position}`),
+      ...this.#incoming.map((position) => ghostKey('in', position)),
       ...this.#own.keys(),
-      ...this.#outgoing.map((position) => `out\n${position}`)
+      ...this.#outgoing.map((position) => ghostKey('out', position))
     ]
 
     keys.forEach((key) => this.#cellOf(key).push(key))
@@ -400,7 +483,7 @@ class PhaseLayout {
   }
 
   #keyOf(position: string, side: 'in' | 'out') {
-    return this.#own.has(position) ? position : `${side}\n${position}`
+    return this.#own.has(position) ? position : ghostKey(side, position)
   }
 
   #chainMoves() {
@@ -415,7 +498,12 @@ class PhaseLayout {
     })
   }
 
+  /** Only a move inside one band is bent round its cells; one between bands runs straight. */
   #placeholders(index: number, from: Key, to: Key) {
+    if (this.#bandOf(from) !== this.#bandOf(to)) {
+      return []
+    }
+
     const start = this.#colOf(from)
     const end = this.#colOf(to)
     const step = end > start ? 1 : -1
@@ -457,7 +545,7 @@ class PhaseLayout {
   }
 
   #rank(key: Key) {
-    return this.#bandOf(key) * 1000 + this.#slot(key)
+    return this.#bandOf(key) * slotsPerBand + this.#slot(key)
   }
 
   #order() {
@@ -530,7 +618,7 @@ class PhaseLayout {
       Math.max(
         ...this.#cells
           .flatMap((row) => row[col])
-          .map((key) => vertexWidth(this.#vertexOf(key)))
+          .map((key) => this.#vertexWidth(this.#vertexOf(key)))
       )
     )
     this.#columnX = runningTotals(
@@ -557,6 +645,16 @@ class PhaseLayout {
     return this.#vertices[key]
   }
 
+  #vertexWidth(vertex: Vertex) {
+    if (vertex.kind === 'status') {
+      return statusWidth(vertex.place.status)
+    }
+
+    return vertex.kind === 'other-phase'
+      ? otherPhaseWidth(this.#nameOf(vertex.position))
+      : 0
+  }
+
   #bandHeight(rows: number) {
     return bandHead + (rows - 1) * rowPitch + nodeHeight + bandInset
   }
@@ -576,11 +674,12 @@ class PhaseLayout {
   }
 
   get width() {
-    return (
+    return Math.max(
       this.#columnX[this.#columnX.length - 1] +
-      this.#columnWidth[this.#columnWidth.length - 1] +
-      bandInset +
-      padding
+        this.#columnWidth[this.#columnWidth.length - 1] +
+        bandInset +
+        padding,
+      ...this.bands().map(({ x, width }) => x + width + padding)
     )
   }
 
@@ -708,14 +807,19 @@ class PhaseLayout {
       const first = cols.length ? Math.min(...cols) : 0
       const last = cols.length ? Math.max(...cols) : 0
       const x = this.#columnX[first] - bandInset
+      const labelWidth = bandLabelWidth(stage)
 
       return {
         x,
         y: this.#bandY[band],
-        width: this.#columnX[last] + this.#columnWidth[last] + bandInset - x,
+        width: Math.max(
+          labelWidth + 8,
+          this.#columnX[last] + this.#columnWidth[last] + bandInset - x
+        ),
         height: this.#bandHeight(this.#rows[band]),
         code: stage.code,
-        name: stage.name
+        name: stage.name,
+        labelWidth
       }
     })
   }
@@ -725,35 +829,69 @@ class PhaseLayout {
       nodeState(position === selected, flagged)
     const other = (key: Key, position: string): GraphNode => ({
       ...this.#box(key),
+      textX: this.#x(key) + 10,
+      textY: this.#y(key) + 24,
       kind: 'other-phase',
       position,
       href: hrefOf(position),
       state: stateOf(position, false),
-      stageKey: stageKeyOf(position),
-      code: statusCodeOf(position)
+      name: this.#nameOf(position),
+      label: `${this.#nameOf(position)} (${position})`
     })
 
     return [
       ...[...this.#own.values()].map(
         ({ position, status }): GraphNode => ({
           ...this.#box(position),
+          ...this.#statusText(position, status),
           kind: 'status',
           position,
           href: hrefOf(position),
           state: stateOf(position, status.flagged),
+          name: status.name,
+          label: toNodeLabel(status, position),
           code: status.code,
-          tone: status.tone
+          tone: status.tone,
+          chip: status.chip ?? null,
+          flagged: status.flagged
         })
       ),
-      ...this.#incoming.map((position) => other(`in\n${position}`, position)),
-      ...this.#outgoing.map((position) => other(`out\n${position}`, position))
+      ...this.#incoming.map((position) =>
+        other(ghostKey('in', position), position)
+      ),
+      ...this.#outgoing.map((position) =>
+        other(ghostKey('out', position), position)
+      )
     ]
   }
 
   #box(key: Key) {
-    return { x: this.#x(key), y: this.#y(key), width: this.#width(key) }
+    return {
+      x: this.#x(key),
+      y: this.#y(key),
+      width: this.#width(key),
+      height: nodeHeight
+    }
+  }
+
+  #statusText(key: Key, { tone }: StateStatus) {
+    const x = this.#x(key)
+    const y = this.#y(key)
+
+    return {
+      textX: x + textInset(tone),
+      dot: tone ? { x: x + dotInset, y: y + nodeHeight / 2 } : null,
+      nameY: y + 17,
+      codeY: y + 31,
+      findingX: x + this.#width(key) - findingWidth,
+      chipY: y + 52
+    }
   }
 }
+
+/** `Approve (PRE_AWARD:REVIEW:APPROVED), finding: unreachable, dead end`. */
+const toNodeLabel = ({ name, findings }: StateStatus, position: string) =>
+  `${name} (${position})${findings?.length ? `, finding: ${findings.join(', ')}` : ''}`
 
 const emptyGraph = { width: 0, height: 0, bands: [], nodes: [], edges: [] }
 
@@ -762,7 +900,11 @@ const toPhaseGraph = (
   index: number,
   own: Place[],
   moves: StateMove[],
-  selection: { position: string | undefined; hrefOf: (p: string) => string }
+  selection: {
+    position: string | undefined
+    hrefOf: (p: string) => string
+    nameOf: (p: string) => string
+  }
 ): PhaseGraph => {
   const head = { id: `phase-${index}`, code: phase.code, name: phase.name }
 
@@ -770,7 +912,7 @@ const toPhaseGraph = (
     return { ...head, ...emptyGraph }
   }
 
-  const layout = new PhaseLayout(own, phase.stages, moves)
+  const layout = new PhaseLayout(own, phase.stages, moves, selection.nameOf)
 
   return {
     ...head,
@@ -794,7 +936,7 @@ export const toStateGraphs = (
   hrefOf: (position: string) => string
 ): StateGraphs => {
   const places = placesOf(map)
-  const first = firstPlaces(places)
+  const first = firstByPosition(places)
   const ends = map.moves.map((move) => ({
     move,
     from: placeOf(first, move.from).phaseIndex,
@@ -814,7 +956,8 @@ export const toStateGraphs = (
     phases: map.phases.map((phase, index) =>
       toPhaseGraph(phase, index, ownOf(index), movesOf(index), {
         position,
-        hrefOf
+        hrefOf,
+        nameOf: (at) => placeOf(first, at).status.name
       })
     ),
     duplicated: duplicatesOf(places, first)

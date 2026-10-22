@@ -23,6 +23,8 @@ export interface WorkflowVersionHeader {
   status: VersionSummary['status']
   receivedAt: string
   files: Record<WorkflowFileType, DefinitionFile>
+  /** Where its files are in S3; older backends leave it out. */
+  s3Bucket?: string | null
   /** Newest first. */
   versions: VersionSummary[]
   /** The grant version of the same code and version; read on the Overview alone. */
@@ -133,11 +135,17 @@ export interface StoredInput {
   integer?: boolean
 }
 
+/** Text for caseworkers, or the components CW draws it from. */
+export type StoredDescription = string | Record<string, unknown>[]
+
 /** Either `valueOptions` or `input`; CW tells them apart by whether `input` is set. */
 export type StoredTask = {
   code: string
   name: string
   mandatory: boolean
+  description?: StoredDescription | null
+  /** A path or `jsonata:` expression CW tests once, when the case enters the stage. */
+  conditional?: string | null
   comment?: StoredComment | null
   requiredRoles?: { allOf: string[]; anyOf: string[] } | null
 } & (
@@ -148,6 +156,7 @@ export type StoredTask = {
 export interface StoredTaskGroup {
   code: string
   name: string
+  description?: StoredDescription | null
   tasks: StoredTask[]
 }
 

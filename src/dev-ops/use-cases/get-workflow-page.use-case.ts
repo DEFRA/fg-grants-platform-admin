@@ -17,6 +17,7 @@ export type {
   StoredCaseTab,
   StoredCaseView,
   StoredComment,
+  StoredDescription,
   StoredEndpoint,
   StoredExternalAction,
   StoredInput,
@@ -39,7 +40,8 @@ export type {
 export type { GrantStatusMap } from './grant-status-map.ts'
 export type {
   ExternalStatusMapping,
-  GrantLifecycle
+  GrantLifecycle,
+  ProcessEffect
 } from '../repositories/grants.repository.ts'
 
 export interface WorkflowPage extends WorkflowVersionPage {

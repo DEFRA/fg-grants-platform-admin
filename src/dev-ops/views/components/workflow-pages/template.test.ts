@@ -10,6 +10,7 @@ const integrationsHref =
 const renderTab = (definition: WorkflowDefinition = woodlandDefinition) =>
   render('workflow-pages', {
     tab: toWorkflowPagesTab(definition, integrationsHref),
+    environment: 'dev',
     testId
   })
 
@@ -47,7 +48,10 @@ describe('workflow-pages component', () => {
     )
     expect($button.children('a').attr('class')).toBe('link')
     expect(flatten($button.text())).toBe(
-      'Recalculate payment POST /api/v1/calculate Not configured'
+      'Recalculate payment POST /api/v1/calculate PAYMENT_CALC · no usable URL in CW on dev (PAYMENT_CALC_URL unset or invalid)'
+    )
+    expect(flatten(part('buttons-who').text())).toBe(
+      "Shown to caseworkers with ReadWrite and the workflow's roles."
     )
   })
 
@@ -86,7 +90,9 @@ describe('workflow-pages component', () => {
   test('marks no buttons with a dash', () => {
     const definition = withWorkflow({ externalActions: [] })
 
-    expect(flatten(part('buttons', definition).text())).toBe('—')
+    expect(
+      flatten(part('buttons', definition).children('span').first().text())
+    ).toBe('—')
   })
 
   test('lists the case tabs in order, with when each shows, what it fires and its components', () => {
@@ -97,12 +103,12 @@ describe('workflow-pages component', () => {
         .toArray()
         .map((row) => flatten($(row).text()))
     ).toEqual([
-      '1 Tasks built in always — —',
-      '2 Application built in always — summary-list',
-      '3 Land always Refresh land parcels GET https://land-data.example/api/v2/parcels/{sbi} table',
-      '4 Timeline built in always — —',
-      '5 Notes built in always — —',
-      '6 Agreement $.supplementaryData.agreements — table'
+      '1 Tasks built in Always — —',
+      '2 Application built in Always — 1 component',
+      '3 Land Always Refresh land parcels GET https://land-data.example/api/v2/parcels/{sbi} LAND_DATA every time the tab opens · result not stored 1 component',
+      '4 Timeline built in Always — —',
+      '5 Notes built in Always — —',
+      '6 Agreement when $.supplementaryData.agreements is set and not null, false, 0 or "" (an empty list or object counts as set) — 1 component'
     ])
     expect(
       $('#tab-land-parcels [data-testid="workflow-pages-built-in"]')
@@ -112,28 +118,21 @@ describe('workflow-pages component', () => {
     ).toHaveLength(1)
   })
 
-  test('writes codes, paths and components in mono, and always and dashes muted', () => {
+  test('writes paths in mono through the code break, and Always in sans', () => {
     const $ = renderTab()
-    const $land = $('#tab-land-parcels')
 
-    expect($land.find('td').eq(4).find('span').attr('class')).toContain(
-      'font-mono'
-    )
     expect(
-      $land
-        .find('[data-testid="workflow-pages-action"] .break-all span')
-        .first()
-        .attr('class')
-    ).toContain('font-mono')
-    expect($land.find('td').eq(2).find('span').attr('class')).toContain(
-      'text-base-content/70'
-    )
-    expect($('#tab-tasks td').eq(3).find('span').attr('class')).toContain(
-      'text-base-content/70'
-    )
+      $('[data-testid="workflow-pages-shown-when"] .font-mono').first().text()
+    ).toBe('$.supplementaryData.agreements')
+    expect(
+      $('#tab-land-parcels [data-testid="workflow-pages-shown-when"] span')
+    ).toHaveLength(0)
+    expect(
+      $('#tab-tasks [data-testid="workflow-pages-built-in"]').attr('class')
+    ).toBe('badge badge-ghost badge-sm ml-1.5')
   })
 
-  test('joins several components with a quiet comma', () => {
+  test('counts components, listing them in a title', () => {
     const definition = withWorkflow({
       pages: {
         cases: {
@@ -143,10 +142,23 @@ describe('workflow-pages component', () => {
         }
       }
     })
-
-    expect(flatten(renderTab(definition)('#tab-land td').eq(4).text())).toBe(
-      'table, text'
+    const $count = renderTab(definition)(
+      '#tab-land [data-testid="workflow-pages-components"] span'
     )
+
+    expect($count.text()).toBe('2 components')
+    expect($count.attr('title')).toBe('table, text')
+  })
+
+  test('heads the banner Heading from, Buttons and Summary', () => {
+    const $ = renderTab()
+
+    expect(
+      $('#banner dt')
+        .toArray()
+        .map((dt) => $(dt).text())
+    ).toEqual(['Heading from', 'Buttons', 'Summary'])
+    expect(part('summary').attr('class')).toContain('max-w-3xl')
   })
 
   test('warns of an action that is not defined, and of one with no endpoint', () => {

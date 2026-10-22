@@ -2,6 +2,7 @@ import type {
   ExternalStatusMapping,
   GrantLifecycle,
   GrantStatusMap,
+  StoredTaskGroup,
   StoredTransition,
   StoredWorkflowPhase,
   StoredWorkflowStatus
@@ -11,7 +12,10 @@ import { toWorkflowPhases } from './workflow-phases.view-model.ts'
 
 const links = {
   status: (position: string) => `status:${position}`,
-  grantStatus: (position: string) => `grant:${position}`
+  grantStatus: (position: string, selected: string) =>
+    `grant:${position}<${selected}`,
+  grant: (selected: string) => `grant-page<${selected}`,
+  tasks: (stage: string) => `tasks#stage-${stage}`
 }
 
 const cwMapping = (
@@ -101,7 +105,7 @@ const tabFor = (
   asked: string | undefined,
   grant: GrantStatusMap = found,
   phases: StoredWorkflowPhase[] = woodlandPhases
-) => toWorkflowPhases(phases, grant, asked, links)
+) => toWorkflowPhases(phases, grant, asked, links, '1.2.0')
 
 const panelFor = (
   asked: string,
@@ -137,24 +141,43 @@ const gas = (targetPosition: string, checkTasks = false): StoredTransition => ({
   action: null
 })
 
-const action = (targetPosition: string, code: string): StoredTransition => ({
+const action = (
+  targetPosition: string,
+  code: string,
+  checkTasks = false
+): StoredTransition => ({
   targetPosition,
   checkTasks: false,
-  action: { code, name: code, checkTasks: false, comment: null }
+  action: { code, name: code, checkTasks, comment: null }
 })
 
 const onePhase = (
-  ...stages: [string, StoredWorkflowStatus[]][]
+  ...stages: [string, StoredWorkflowStatus[], StoredTaskGroup[]?][]
 ): StoredWorkflowPhase[] => [
   {
     code: 'P',
     name: 'Phase',
-    stages: stages.map(([code, statuses]) => ({
+    stages: stages.map(([code, statuses, taskGroups = []]) => ({
       code,
       name: code,
       statuses,
-      taskGroups: []
+      taskGroups
     }))
+  }
+]
+
+const tasksOf = (mandatory: boolean): StoredTaskGroup[] => [
+  {
+    code: 'G',
+    name: 'Group',
+    tasks: [
+      {
+        code: 'T',
+        name: 'Task',
+        mandatory,
+        valueOptions: [{ code: 'Y', name: 'Yes', completes: true }]
+      }
+    ]
   }
 ]
 
@@ -164,42 +187,123 @@ const flaggedNodes = (asked?: string, phases?: StoredWorkflowPhase[]) =>
     .filter(({ kind, state }) => kind === 'status' && state === 'flagged')
     .map(({ position }) => position)
 
+const ref = (
+  name: string,
+  position: string,
+  code: string,
+  stageName: string | null = null
+) => ({ name, stageName, code, position, href: `status:${position}#panel` })
+
+/** GAS-16's read of the grant: what each process does on a move. */
+const withEffects = (
+  waysIn: GrantLifecycle['waysIn'],
+  externalMappings = lifecycle.externalMappings
+): GrantStatusMap => ({
+  outcome: 'found',
+  lifecycle: { ...lifecycle, waysIn, externalMappings }
+})
+
 describe('toWorkflowPhases', () => {
   test('finds the statuses nothing reaches, and those a case never leaves', () => {
-    expect(panelFor('WITHDRAWN').findings).toEqual(['No ways in'])
-    expect(panelFor('ACCEPTED').findings).toEqual(['No ways in'])
+    expect(panelFor('WITHDRAWN').findings).toEqual([{ kind: 'unreachable' }])
+    expect(panelFor('ACCEPTED').findings).toEqual([{ kind: 'unreachable' }])
     expect(panelFor('AWAITING_ACCEPTANCE').findings).toEqual([
-      'No ways out and does not close the case'
+      { kind: 'dead end' }
     ])
     expect(panelFor('AWAITING_REVIEW').findings).toEqual([])
     expect(panelFor('REJECTED').findings).toEqual([])
   })
 
-  test('outlines each status with a finding, and adds Finding to the legend', () => {
+  test('outlines each status with a finding, names it for a screen reader, and keys the legend', () => {
+    const nodes = tabFor('IN_REVIEW').graphs.phases.flatMap(
+      ({ nodes }) => nodes
+    )
+
     expect(flaggedNodes('IN_REVIEW')).toEqual([
       'PRE_AWARD:REVIEW:WITHDRAWN',
       'POST_AWARD:AGREEMENT:AWAITING_ACCEPTANCE',
       'POST_AWARD:AGREEMENT:ACCEPTED'
     ])
+    expect(
+      nodes.find(({ position }) => position.endsWith('WITHDRAWN'))
+    ).toMatchObject({
+      name: 'Withdrawn',
+      label: 'Withdrawn (PRE_AWARD:REVIEW:WITHDRAWN), finding: unreachable'
+    })
     expect(tabFor(undefined).legend).toEqual([
       { kind: 'plain', label: 'Action' },
-      { kind: 'dashed', label: 'GAS sends' },
+      { kind: 'dashed', label: 'GAS may send' },
       { kind: 'flagged', label: 'Finding' },
+      { kind: 'start', label: 'Start' },
+      {
+        kind: 'colour',
+        label: 'colour = how CW shows the status to caseworkers'
+      },
       { kind: 'other-phase', label: 'Other phase' }
     ])
   })
 
-  test('has no Finding in the legend without a finding', () => {
+  test('sums up the findings, each linking to its status, and says nothing without one', () => {
+    expect(tabFor(undefined).findings).toEqual({
+      count: 3,
+      groups: [
+        {
+          kind: 'dead end',
+          statuses: [
+            {
+              code: 'AWAITING_ACCEPTANCE',
+              href: 'status:POST_AWARD:AGREEMENT:AWAITING_ACCEPTANCE#panel'
+            }
+          ]
+        },
+        {
+          kind: 'unreachable',
+          statuses: [
+            {
+              code: 'WITHDRAWN',
+              href: 'status:PRE_AWARD:REVIEW:WITHDRAWN#panel'
+            },
+            {
+              code: 'ACCEPTED',
+              href: 'status:POST_AWARD:AGREEMENT:ACCEPTED#panel'
+            }
+          ]
+        }
+      ]
+    })
+
     const phases = onePhase([
       'S',
       [status('A', [action('P:S:B', 'GO')]), status('B', [], { closes: true })]
     ])
 
-    expect(tabFor(undefined, found, phases).legend).toEqual([
-      { kind: 'plain', label: 'Action' },
-      { kind: 'dashed', label: 'GAS sends' },
-      { kind: 'other-phase', label: 'Other phase' }
-    ])
+    expect(tabFor(undefined, found, phases).findings).toBeNull()
+    expect(
+      tabFor(undefined, found, phases).legend.map(({ kind }) => kind)
+    ).not.toContain('flagged')
+  })
+
+  test('marks the starting status on the graph and in the panel, and leaves out the ways in of an unreachable one', () => {
+    const start = tabFor(undefined).graphs.phases[0].nodes[0]
+
+    expect(start).toMatchObject({
+      position: 'PRE_AWARD:REVIEW:AWAITING_REVIEW',
+      chip: 'start'
+    })
+    expect(panelFor('AWAITING_REVIEW')).toMatchObject({
+      startsHere: true,
+      waysIn: [],
+      flags: [
+        { label: 'start', title: 'New cases start here' },
+        {
+          label: 'tasks read-only',
+          title:
+            "Caseworkers can't change tasks in this status (interactive: false)"
+        }
+      ],
+      tellsGas: { kind: 'text', text: 'start' }
+    })
+    expect(panelFor('WITHDRAWN').waysIn).toBeNull()
   })
 
   test('has no initial status when the first stage is empty, as CW cannot start a case', () => {
@@ -214,11 +318,13 @@ describe('toWorkflowPhases', () => {
       ]
     )
 
-    expect(panelFor('A', found, phases).findings).toEqual(['No ways in'])
+    expect(panelFor('A', found, phases).findings).toEqual([
+      { kind: 'unreachable' }
+    ])
     expect(panelFor('B', found, phases).findings).toEqual([])
   })
 
-  test('draws an action as a solid move and a move GAS sends as a dashed one', () => {
+  test('draws an action as a solid move and a move GAS may send as a dashed one', () => {
     const edges = tabFor(undefined).graphs.phases[0].edges
 
     expect(edges.find(({ title }) => title === 'Approve (APPROVE)')?.kind).toBe(
@@ -226,7 +332,7 @@ describe('toWorkflowPhases', () => {
     )
     expect(
       edges.filter(({ kind }) => kind === 'dashed').map(({ title }) => title)
-    ).toEqual(['GAS sends', 'GAS sends'])
+    ).toEqual(['GAS may send', 'GAS may send'])
   })
 
   test('draws no move to a target not on the map, and lists it as it is stored', () => {
@@ -241,87 +347,101 @@ describe('toWorkflowPhases', () => {
 
     expect(tab.graphs.phases[0].edges).toEqual([])
     expect(tab.panel?.waysOut.map(({ to }) => to)).toEqual([
-      { text: 'P:S:GONE', href: null },
-      { text: '::B', href: null }
-    ])
-    expect(panelFor('B', found, phases).waysIn).toEqual([])
-  })
-
-  test('lists a move to itself both ways', () => {
-    const phases = onePhase(['S', [status('A', [gas('P:S:A')])]])
-    const panel = panelFor('A', found, phases)
-
-    expect(panel.waysIn).toEqual([
-      { from: { text: 'A', href: 'status:P:S:A' }, via: { kind: 'gas' } }
-    ])
-    expect(panel.waysOut).toEqual([
       {
-        to: { text: 'A', href: 'status:P:S:A' },
-        move: { kind: 'gas', badges: [] }
-      }
+        name: 'P:S:GONE',
+        stageName: null,
+        code: 'P:S:GONE',
+        position: 'P:S:GONE',
+        href: null
+      },
+      { name: '::B', stageName: null, code: '::B', position: '::B', href: null }
     ])
   })
 
-  test('badges the actions out of a status, and the moves GAS sends by their own checkTasks', () => {
+  test('names the moves out of a status, with their action and its badges', () => {
     expect(panelFor('IN_REVIEW').waysOut).toEqual([
       {
-        to: { text: 'APPROVED', href: 'status:PRE_AWARD:REVIEW:APPROVED' },
+        to: ref('Approved', 'PRE_AWARD:REVIEW:APPROVED', 'APPROVED'),
         move: {
           kind: 'action',
           name: 'Approve',
           code: 'APPROVE',
           badges: ['comment', 'confirm']
-        }
+        },
+        tasks: null
       },
       {
-        to: { text: 'REJECTED', href: 'status:PRE_AWARD:REVIEW:REJECTED' },
+        to: ref('Rejected', 'PRE_AWARD:REVIEW:REJECTED', 'REJECTED'),
         move: {
           kind: 'action',
           name: 'Reject',
           code: 'REJECT',
           badges: ['comment required', 'confirm']
-        }
+        },
+        tasks: null
       },
       {
-        to: { text: 'ON_HOLD', href: 'status:PRE_AWARD:REVIEW:ON_HOLD' },
+        to: ref('On hold', 'PRE_AWARD:REVIEW:ON_HOLD', 'ON_HOLD'),
         move: {
           kind: 'action',
           name: 'Put on hold',
           code: 'PUT_ON_HOLD',
           badges: ['comment required']
-        }
+        },
+        tasks: null
       },
       {
-        to: { text: 'RFI_SENT', href: 'status:PRE_AWARD:REVIEW:RFI_SENT' },
+        to: ref(
+          'Information requested',
+          'PRE_AWARD:REVIEW:RFI_SENT',
+          'RFI_SENT'
+        ),
         move: {
           kind: 'action',
           name: 'Request information',
           code: 'SEND_RFI',
           badges: ['comment required']
-        }
+        },
+        tasks: null
       }
     ])
   })
 
-  test('badges tasks done on the action and on a move GAS sends', () => {
+  test('says an action waits for the mandatory tasks, and a move GAS sends dead-letters while they are open', () => {
     const phases = onePhase([
       'S',
       [
-        status('A', [
-          {
-            targetPosition: 'P:S:B',
-            checkTasks: false,
-            action: { code: 'GO', name: 'Go', checkTasks: true, comment: null }
-          },
-          gas('P:S:B', true)
-        ]),
+        status('A', [action('P:S:B', 'GO', true), gas('P:S:B', true)]),
         status('B', [], { closes: true })
-      ]
+      ],
+      tasksOf(true)
     ])
 
     expect(
-      panelFor('A', found, phases).waysOut.map(({ move }) => move.badges)
-    ).toEqual([['tasks done'], ['tasks done']])
+      panelFor('A', found, phases).waysOut.map(({ tasks }) => tasks)
+    ).toEqual([
+      { kind: 'needs-tasks', stageName: 'S', href: 'tasks#stage-S' },
+      {
+        kind: 'gas-blocked',
+        stageName: 'S',
+        href: '/dev-ops/events/cw/inbox?status=DEAD_LETTER'
+      }
+    ])
+  })
+
+  test('says a move that checks tasks never blocks in a stage with no mandatory task', () => {
+    const phases = onePhase([
+      'S',
+      [
+        status('A', [action('P:S:B', 'GO', true)]),
+        status('B', [], { closes: true })
+      ],
+      tasksOf(false)
+    ])
+
+    expect(panelFor('A', found, phases).waysOut[0].tasks).toEqual({
+      kind: 'none-in-stage'
+    })
   })
 
   test('says a status with no way out closes the case', () => {
@@ -332,40 +452,52 @@ describe('toWorkflowPhases', () => {
     })
   })
 
-  test('shortens positions within the selected status stage, in both lists', () => {
+  test('names each way in by its status, naming the stage outside this one, and its action', () => {
     expect(panelFor('IN_REVIEW').waysIn).toEqual([
       {
-        from: {
-          text: 'AWAITING_REVIEW',
-          href: 'status:PRE_AWARD:REVIEW:AWAITING_REVIEW'
-        },
-        via: { kind: 'action', code: 'START_REVIEW' }
+        from: ref(
+          'Awaiting review',
+          'PRE_AWARD:REVIEW:AWAITING_REVIEW',
+          'AWAITING_REVIEW'
+        ),
+        via: { kind: 'action', name: 'Start review', code: 'START_REVIEW' }
       },
       {
-        from: { text: 'ON_HOLD', href: 'status:PRE_AWARD:REVIEW:ON_HOLD' },
-        via: { kind: 'action', code: 'RESUME' }
+        from: ref('On hold', 'PRE_AWARD:REVIEW:ON_HOLD', 'ON_HOLD'),
+        via: { kind: 'action', name: 'Resume review', code: 'RESUME' }
       },
       {
-        from: { text: 'RFI_SENT', href: 'status:PRE_AWARD:REVIEW:RFI_SENT' },
+        from: ref(
+          'Information requested',
+          'PRE_AWARD:REVIEW:RFI_SENT',
+          'RFI_SENT'
+        ),
         via: { kind: 'gas' }
       }
     ])
-    expect(panelFor('APPROVED').waysOut[0].to).toEqual({
-      text: 'POST_AWARD:AGREEMENT:AWAITING_ACCEPTANCE',
-      href: 'status:POST_AWARD:AGREEMENT:AWAITING_ACCEPTANCE'
-    })
-    expect(panelFor('AWAITING_ACCEPTANCE').waysIn[0].from).toEqual({
-      text: 'PRE_AWARD:REVIEW:APPROVED',
-      href: 'status:PRE_AWARD:REVIEW:APPROVED'
-    })
+    expect(panelFor('APPROVED').waysOut[0].to).toEqual(
+      ref(
+        'Awaiting acceptance',
+        'POST_AWARD:AGREEMENT:AWAITING_ACCEPTANCE',
+        'POST_AWARD:AGREEMENT:AWAITING_ACCEPTANCE',
+        'Agreement'
+      )
+    )
   })
 
-  test('names the status, its theme and phase and stage, and its flags in order', () => {
+  test('names the status, its theme and phase and stage, and its flags in order, each explained', () => {
     expect(panelFor('WITHDRAWN')).toMatchObject({
       code: 'WITHDRAWN',
       name: 'Withdrawn',
       role: 'neutral',
-      flags: ['tasks read-only', 'closes case', 'hides tasks'],
+      flags: [
+        { label: 'tasks read-only' },
+        { label: 'closes case', title: 'CW marks the case closed here' },
+        {
+          label: 'hides tasks',
+          title: 'The case page hides the task list in this status'
+        }
+      ],
       phase: { code: 'PRE_AWARD', name: 'Pre-award' },
       stage: { code: 'REVIEW', name: 'Review application' }
     })
@@ -383,108 +515,95 @@ describe('toWorkflowPhases', () => {
     expect(tab.graphs.phases[0].nodes[0]).toMatchObject({ tone: 'neutral' })
   })
 
-  test('Tells GAS nothing with no ways in', () => {
-    expect(panelFor('WITHDRAWN').tellsGas).toEqual({ kind: 'none' })
+  test('Tells GAS what it does for an unreachable status too', () => {
+    expect(panelFor('WITHDRAWN').tellsGas).toEqual({ kind: 'ignored' })
   })
 
   test('Tells GAS it sends nothing when only GAS moves into the status', () => {
     expect(panelFor('AWAITING_ACCEPTANCE').tellsGas).toEqual({
       kind: 'text',
-      text: 'Not sent (GAS moves only)'
+      text: 'gas-only'
     })
   })
 
-  test.each([
-    ['no-grant', 'No grant'],
-    ['not-stored', 'Grant definition not stored'],
-    ['unreadable', 'Grant definition cannot be read'],
-    ['unavailable', 'Grant could not be read from fg-gas-backend'],
-    ['timed-out', 'Grant could not be read from fg-gas-backend']
-  ] as const)('Tells GAS, for a grant read that is %s, %j', (outcome, text) => {
-    expect(panelFor('IN_REVIEW', { outcome }).tellsGas).toEqual({
-      kind: 'text',
-      text
+  test.each(['no-grant', 'unreadable', 'unavailable', 'timed-out'] as const)(
+    'Tells GAS, for a grant read that is %s, so',
+    (outcome) => {
+      expect(panelFor('IN_REVIEW', { outcome }).tellsGas).toEqual({
+        kind: 'text',
+        text: outcome
+      })
+    }
+  )
+
+  test('Tells GAS to open the grant version while its definition is not stored', () => {
+    expect(panelFor('IN_REVIEW', { outcome: 'not-stored' }).tellsGas).toEqual({
+      kind: 'not-stored',
+      version: '1.2.0',
+      href: 'grant-page<PRE_AWARD:REVIEW:IN_REVIEW'
     })
   })
 
-  test('Tells GAS Not mapped when no CW mapping names the full position', () => {
-    expect(panelFor('REJECTED').tellsGas).toEqual({ kind: 'not-mapped' })
-    expect(panelFor('ON_HOLD', withMappings([])).tellsGas).toEqual({
-      kind: 'not-mapped'
-    })
+  test('Tells GAS it ignores a status no CW mapping names by its full position', () => {
+    expect(panelFor('REJECTED').tellsGas).toEqual({ kind: 'ignored' })
+    expect(
+      panelFor(
+        'IN_REVIEW',
+        withMappings([
+          cwMapping(
+            'IN_REVIEW',
+            'PRE_AWARD:REVIEW',
+            'PRE_AWARD:REVIEW:IN_REVIEW'
+          )
+        ])
+      ).tellsGas
+    ).toEqual({ kind: 'ignored' })
   })
 
-  test('Tells GAS by the full position only, as CW publishes it', () => {
-    const bare = withMappings([
-      cwMapping('IN_REVIEW', 'PRE_AWARD:REVIEW', 'PRE_AWARD:REVIEW:IN_REVIEW')
-    ])
-
-    expect(panelFor('IN_REVIEW', bare).tellsGas).toEqual({
-      kind: 'not-mapped'
-    })
-  })
-
-  test('Tells GAS the grant status, linked, within the keyed stage', () => {
-    expect(panelFor('APPROVED').tellsGas).toEqual({
+  test('Tells GAS the grant status it moves to, named, with the keyed stage and phase', () => {
+    expect(
+      panelFor(
+        'ON_HOLD',
+        withMappings([
+          cwMapping(
+            'PRE_AWARD:REVIEW:ON_HOLD',
+            'PRE_AWARD:REVIEW',
+            'PRE_AWARD:APPLICATION:AMEND'
+          )
+        ])
+      ).tellsGas
+    ).toEqual({
       kind: 'mapped',
       lines: [
         {
-          keyedOn: 'PRE_AWARD:REVIEW',
-          to: { text: 'APPROVED', href: 'grant:PRE_AWARD:REVIEW:APPROVED' }
-        }
-      ]
-    })
-  })
-
-  test('Tells GAS a target in the keyed phase to its stage and status, and gives one line per keyed stage', () => {
-    const twoStages = withMappings([
-      cwMapping(
-        'PRE_AWARD:REVIEW:ON_HOLD',
-        'PRE_AWARD:REVIEW',
-        'PRE_AWARD:APPLICATION:AMEND'
-      ),
-      cwMapping(
-        'PRE_AWARD:REVIEW:ON_HOLD',
-        'POST_AWARD:AGREEMENT',
-        'PRE_AWARD:REVIEW:IN_REVIEW'
-      )
-    ])
-
-    expect(panelFor('ON_HOLD', twoStages).tellsGas).toEqual({
-      kind: 'mapped',
-      lines: [
-        {
-          keyedOn: 'PRE_AWARD:REVIEW',
+          stage: { code: 'REVIEW', name: 'Review' },
+          phase: { code: 'PRE_AWARD', name: 'Pre award' },
+          mappedTo: 'PRE_AWARD:APPLICATION:AMEND',
           to: {
-            text: 'APPLICATION:AMEND',
-            href: 'grant:PRE_AWARD:APPLICATION:AMEND'
-          }
-        },
-        {
-          keyedOn: 'POST_AWARD:AGREEMENT',
-          to: {
-            text: 'PRE_AWARD:REVIEW:IN_REVIEW',
-            href: 'grant:PRE_AWARD:REVIEW:IN_REVIEW'
+            name: 'Amend',
+            position: 'PRE_AWARD:APPLICATION:AMEND',
+            href: 'grant:PRE_AWARD:APPLICATION:AMEND<PRE_AWARD:REVIEW:ON_HOLD'
           }
         }
       ]
     })
   })
 
-  test('Tells GAS a target off the grant map, or one GAS cannot read, as text', () => {
+  test('Tells GAS a target off the grant map as text, and one GAS cannot read as ignored', () => {
     const offMap = withMappings([
       cwMapping('PRE_AWARD:REVIEW:ON_HOLD', 'PRE_AWARD:REVIEW', 'P::X', 'P::X'),
       cwMapping('PRE_AWARD:REVIEW:ON_HOLD', 'POST_AWARD:AGREEMENT', null, 'A:B')
     ])
 
-    expect(panelFor('ON_HOLD', offMap).tellsGas).toEqual({
+    expect(panelFor('ON_HOLD', offMap).tellsGas).toMatchObject({
       kind: 'mapped',
       lines: [
-        { keyedOn: 'PRE_AWARD:REVIEW', to: { text: 'P::X', href: null } },
-        { keyedOn: 'POST_AWARD:AGREEMENT', to: { text: 'A:B', href: null } }
+        { to: { name: 'X', position: 'P::X', href: null } },
+        { mappedTo: 'A:B', to: null }
       ]
     })
   })
+
   test('counts only the first copy of a status held twice', () => {
     const phases = onePhase([
       'S',
@@ -502,8 +621,8 @@ describe('toWorkflowPhases', () => {
     ])
     expect(panelFor('B', found, phases).waysIn).toEqual([
       {
-        from: { text: 'A', href: 'status:P:S:A' },
-        via: { kind: 'action', code: 'FIRST' }
+        from: ref('A', 'P:S:A', 'A'),
+        via: { kind: 'action', name: 'FIRST', code: 'FIRST' }
       }
     ])
   })
@@ -518,9 +637,206 @@ describe('toWorkflowPhases', () => {
     expect(panelFor('junk').code).toBe('AWAITING_REVIEW')
   })
 
-  test('links each status by its full position', () => {
+  test('links each status by its full position, to the panel', () => {
     expect(
       tabFor(undefined).graphs.phases[1].nodes.map(({ href }) => href)
-    ).toContain('status:POST_AWARD:AGREEMENT:ACCEPTED')
+    ).toContain('status:POST_AWARD:AGREEMENT:ACCEPTED#panel')
+  })
+})
+
+describe('toWorkflowPhases: a status GAS may send that CW has no move to', () => {
+  const generating = 'PRE_AWARD:REVIEW:APPROVED'
+  const drafted = 'POST_AWARD:AGREEMENT:OFFERED'
+  const withdrawn = 'PRE_AWARD:REVIEW:WITHDRAWN'
+
+  const tellsCw = (
+    process: string,
+    setsStatus: string | null = null,
+    onlyWhen: string | null = null
+  ) => ({ process, setsStatus, tellsCw: true, onlyWhen })
+
+  const into = (
+    effects: ReturnType<typeof tellsCw>[] = []
+  ): GrantLifecycle['waysIn'][number] => ({
+    to: generating,
+    kind: 'move',
+    from: 'PRE_AWARD:REVIEW:IN_REVIEW',
+    processes: effects.map(({ process }) => process),
+    processEffects: effects
+  })
+
+  const storeCase: GrantLifecycle['waysIn'][number] = {
+    to: drafted,
+    kind: 'move',
+    from: generating,
+    processes: ['STORE_AGREEMENT_CASE'],
+    processEffects: [tellsCw('STORE_AGREEMENT_CASE')]
+  }
+
+  const agreementsOffered: ExternalStatusMapping = {
+    source: 'AS',
+    code: 'offered',
+    whileIn: 'PRE_AWARD:REVIEW',
+    mappedTo: drafted,
+    to: drafted
+  }
+
+  const mismatchOf = (
+    sends: { name: string; position: string },
+    when: object
+  ) => ({
+    kind: 'mismatch',
+    version: '1.2.0',
+    at: { name: 'Approved', position: generating },
+    sends,
+    when
+  })
+
+  test('is found when another service then moves GAS on through a process that tells CW', () => {
+    const grant = withEffects(
+      [into(), storeCase],
+      [...lifecycle.externalMappings, agreementsOffered]
+    )
+
+    expect(panelFor('IN_REVIEW', grant).findings).toEqual([])
+    expect(panelFor('APPROVED', grant).findings).toEqual([
+      mismatchOf(
+        { name: 'Offered', position: drafted },
+        { kind: 'sends', source: 'Agreements', code: 'offered' }
+      )
+    ])
+    expect(
+      tabFor(undefined, grant).graphs.phases[0].nodes.find(
+        ({ position }) => position === generating
+      )
+    ).toMatchObject({ flagged: true })
+    expect(tabFor(undefined, grant).findings?.groups).toContainEqual({
+      kind: 'mismatch',
+      statuses: [
+        { code: 'APPROVED', href: 'status:PRE_AWARD:REVIEW:APPROVED#panel' }
+      ]
+    })
+  })
+
+  test('is not found for a way out CW triggers, or one nothing in this version triggers', () => {
+    const byCw: ExternalStatusMapping = {
+      ...agreementsOffered,
+      source: 'CW',
+      code: 'PRE_AWARD:REVIEW:ON_HOLD'
+    }
+
+    expect(
+      panelFor(
+        'APPROVED',
+        withEffects([into(), storeCase], [...lifecycle.externalMappings, byCw])
+      ).findings
+    ).toEqual([])
+    expect(
+      panelFor('APPROVED', withEffects([into(), storeCase])).findings
+    ).toEqual([])
+  })
+
+  test("is found for what the move CW's message makes tells CW itself", () => {
+    expect(
+      panelFor(
+        'APPROVED',
+        withEffects([into([tellsCw('REQUEST_WITHDRAWAL', 'WITHDRAWN')])])
+      ).findings
+    ).toEqual([
+      mismatchOf({ name: 'Withdrawn', position: withdrawn }, { kind: 'move' })
+    ])
+  })
+
+  test("is not found for a move into the status from outside the stage CW's message is keyed on", () => {
+    const fromElsewhere = {
+      ...into([tellsCw('REQUEST_WITHDRAWAL', 'WITHDRAWN')]),
+      from: 'PRE_AWARD:APPLICATION:RECEIVED'
+    }
+
+    expect(panelFor('APPROVED', withEffects([fromElsewhere])).findings).toEqual(
+      []
+    )
+  })
+
+  test('is found for a move into the status from any status', () => {
+    const fromAny: GrantLifecycle['waysIn'][number] = {
+      to: generating,
+      kind: 'any',
+      processes: ['REQUEST_WITHDRAWAL'],
+      processEffects: [tellsCw('REQUEST_WITHDRAWAL', 'WITHDRAWN')]
+    }
+
+    expect(panelFor('APPROVED', withEffects([fromAny])).findings).toEqual([
+      mismatchOf({ name: 'Withdrawn', position: withdrawn }, { kind: 'move' })
+    ])
+  })
+
+  test('is found when another service moves GAS on by a way from any status', () => {
+    const storeFromAny: GrantLifecycle['waysIn'][number] = {
+      to: drafted,
+      kind: 'any',
+      processes: ['STORE_AGREEMENT_CASE'],
+      processEffects: [tellsCw('STORE_AGREEMENT_CASE')]
+    }
+    const grant = withEffects(
+      [into(), storeFromAny],
+      [...lifecycle.externalMappings, agreementsOffered]
+    )
+
+    expect(panelFor('APPROVED', grant).findings).toEqual([
+      mismatchOf(
+        { name: 'Offered', position: drafted },
+        { kind: 'sends', source: 'Agreements', code: 'offered' }
+      )
+    ])
+  })
+
+  test('is found for the claim move GAS tells CW about', () => {
+    const grant: GrantStatusMap = {
+      outcome: 'found',
+      lifecycle: {
+        ...lifecycle,
+        waysIn: [into()],
+        claimApproval: { from: generating, to: drafted, tellsCw: true }
+      }
+    }
+
+    expect(panelFor('APPROVED', grant).findings).toEqual([
+      mismatchOf({ name: 'Offered', position: drafted }, { kind: 'claim' })
+    ])
+  })
+
+  test('says only quietly what GAS sends under a condition it cannot decide here', () => {
+    const panel = panelFor(
+      'APPROVED',
+      withEffects([
+        into([
+          tellsCw(
+            'REQUEST_APPLICATION_WITHDRAWAL',
+            'WITHDRAWN',
+            'no agreement is on offer'
+          )
+        ])
+      ])
+    )
+
+    expect(panel.findings).toEqual([])
+    expect(panel.maySend).toEqual([
+      {
+        onlyWhen: 'no agreement is on offer',
+        sends: { name: 'Withdrawn', position: withdrawn }
+      }
+    ])
+  })
+
+  test('is not looked for without what GAS processes do', () => {
+    expect(
+      panelFor(
+        'ON_HOLD',
+        withMappings([
+          cwMapping('PRE_AWARD:REVIEW:ON_HOLD', 'PRE_AWARD:REVIEW', generating)
+        ])
+      ).findings
+    ).toEqual([])
   })
 })

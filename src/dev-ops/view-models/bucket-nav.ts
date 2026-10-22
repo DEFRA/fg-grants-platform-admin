@@ -79,6 +79,12 @@ const listAt = (buckets: BucketEntry[], href: string): BucketEntry | null =>
     ? null
     : (buckets.find((bucket) => toBucketPath(bucket) === pathOf(href)) ?? null)
 
+/** The list a `back` is, itself; null for any other page. */
+export const toListAt = (
+  catalogue: Catalogue | null,
+  back: string
+): BucketEntry | null => listAt(catalogue?.buckets ?? [], back)
+
 /** The list a `back` leads to, directly or by way of a record's page: the list a detail page belongs under. */
 export const toBackBucket = (
   catalogue: Catalogue | null,

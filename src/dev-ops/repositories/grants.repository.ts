@@ -27,6 +27,8 @@ export interface GrantVersionHeader {
   files: { grant: DefinitionFile } & Partial<
     Record<Exclude<DefinitionFileType, 'grant'>, DefinitionFile>
   >
+  /** Where its files are in S3; older backends leave it out. */
+  s3Bucket?: string | null
   /** Newest first. */
   versions: VersionSummary[]
   /** Null while the workflow link is unknown, and on a tab that does not show it. */
@@ -65,21 +67,50 @@ export interface ProcessAddress {
 interface AgreementTransition {
   target: string
   page?: string
-  validation?: { required: unknown[] }
+  validation?: {
+    required: {
+      name?: unknown
+      value?: unknown
+      href?: unknown
+      message?: unknown
+    }[]
+  }
   processes?: string[]
+  /** What the move writes to the agreement. */
+  values?: Record<string, unknown>
+}
+
+/** A page component, as stored: only the keys the tab walks are typed. */
+export interface AgreementComponent {
+  component: string
+  [key: string]: unknown
 }
 
 interface AgreementPage {
   title: string
   layout?: string
-  sections?: { id: string }[]
-  components: { component: string }[]
+  contents?: boolean
+  print?: boolean
+  watermarks?: Record<string, string>
+  backLink?: { text?: string; href?: unknown }
+  sections?: {
+    id: string
+    condition?: string
+    components?: AgreementComponent[]
+  }[]
+  components: AgreementComponent[]
+}
+
+interface AgreementEndpoint {
+  method: string
+  service: string
+  path: string
 }
 
 type AgreementProcess =
   | {
       type: 'endpoint'
-      endpoint: { method: string; service: string; path: string }
+      endpoint: AgreementEndpoint
       request: { body: Record<string, unknown> }
       output: Record<string, unknown>
     }
@@ -89,8 +120,18 @@ type AgreementProcess =
 export interface AgreementDefinition {
   code: string
   agreementNumberPrefix: string
-  create: { target: string; application: unknown; processes?: string[] }
-  templates?: Record<string, Record<string, unknown>>
+  create: {
+    target: string
+    application: unknown
+    processes?: string[]
+    values?: Record<string, unknown>
+  }
+  /** Each text template is a key under a group, with the components it draws. */
+  templates?: Record<
+    string,
+    Record<string, { content?: AgreementComponent[] } | unknown>
+  >
+  endpoints?: ({ code: string } & AgreementEndpoint)[]
   states: Record<
     string,
     {
@@ -103,11 +144,22 @@ export interface AgreementDefinition {
   processDefinitions?: Record<string, AgreementProcess>
 }
 
+/** A root endpoint's Service Address; null when the environment has no URL for its service. */
+export interface EndpointAddress {
+  code: string
+  service: string
+  url: string | null
+}
+
 /** `problem` is why GAS cannot load the definition; then it has no addresses. */
 export interface GrantAgreement {
   definition: AgreementDefinition
   addresses: ProcessAddress[]
   problem: string | null
+  /** The `{SERVICE}_URL` names GAS would find unset on loading it; absent from an older GAS. */
+  missingServiceUrls?: string[]
+  /** Absent from an older GAS; empty when `problem` is set. */
+  endpointAddresses?: EndpointAddress[]
 }
 
 /** `PHASE:STAGE:STATUS`. */
@@ -116,13 +168,31 @@ type LifecyclePosition = string
 interface LifecycleStage {
   code: string
   name: string | null
-  statuses: { code: string }[]
+  /** `name` is absent from an older GAS, and null when the definition gives none. */
+  statuses: { code: string; name?: string | null }[]
 }
 
-/** How an application reaches a position: a move, a validFrom entry nothing matches, or from any status. */
-export type WayIn = { to: LifecyclePosition; processes: string[] } & (
-  | { kind: 'move'; from: LifecyclePosition }
-  | { kind: 'unmatched'; code: string }
+/** What one GAS process does on a move, as GAS's own process registry declares it. */
+export interface ProcessEffect {
+  process: string
+  /** The status GAS then sets itself, in the move target's stage. */
+  setsStatus: string | null
+  tellsCw: boolean
+  /** When it does so, in GAS's words; null when always. */
+  onlyWhen: string | null
+}
+
+/** How a `validFrom` entry matched: as a full position, or as a bare status code in any stage of any phase. */
+export type MatchedBy = 'position' | 'status'
+
+/** How an application reaches a position: a move, a validFrom entry nothing matches, or from any status. `processEffects` and `matchedBy` are absent from an older GAS. */
+export type WayIn = {
+  to: LifecyclePosition
+  processes: string[]
+  processEffects?: ProcessEffect[]
+} & (
+  | { kind: 'move'; from: LifecyclePosition; matchedBy?: MatchedBy }
+  | { kind: 'unmatched'; code: string; matchedBy?: MatchedBy }
   | { kind: 'any' }
 )
 
@@ -140,10 +210,15 @@ export interface ExternalStatusMapping {
 export interface GrantLifecycle {
   phases: { code: string; name: string | null; stages: LifecycleStage[] }[]
   initialPosition: LifecyclePosition
-  amendablePositions: string[]
+  amendablePositions: LifecyclePosition[]
   waysIn: WayIn[]
   externalMappings: ExternalStatusMapping[]
-  claimApproval: { from: LifecyclePosition; to: LifecyclePosition } | null
+  /** `tellsCw` is absent from an older GAS. */
+  claimApproval: {
+    from: LifecyclePosition
+    to: LifecyclePosition
+    tellsCw?: boolean
+  } | null
 }
 
 /** A template position may stop at the phase or the stage, and then matches every position under it. */
@@ -198,7 +273,9 @@ export interface GrantEntitlements {
     requiredRoles?: { allOf?: string[]; anyOf?: string[] }
   } | null
   /** The stored payment definition, as stored; null when there is no payment file or it is not stored. */
-  payment: object | null
+  payment: Record<string, unknown> | null
+  /** Each named status of the stored grant, by its full position; an older GAS leaves it out. */
+  statusNames?: Record<string, string>
 }
 
 export interface GrantVersionPage {
@@ -211,7 +288,7 @@ export interface GrantVersionPage {
   /** Why the stored grant has no lifecycle. */
   problem?: string | null
   /** The stored payment definition as stored: never compiled here. Null when not stored or too large. */
-  payment?: object | null
+  payment?: Record<string, unknown> | null
   /** Null when not stored or too large. */
   agreement?: GrantAgreement | null
   events?: RecordEvents | null

@@ -405,8 +405,7 @@ describe('toTextFact', () => {
     expect(toTextFact('description', 'Description', null)).toEqual({
       id: 'description',
       label: 'Description',
-      kind: 'text',
-      text: '—'
+      kind: 'none'
     })
   })
 })
@@ -430,8 +429,7 @@ describe('toLinkFact', () => {
     ).toEqual({
       id: 'applications',
       label: 'Applications',
-      kind: 'text',
-      text: '—'
+      kind: 'none'
     })
   })
 })
@@ -504,7 +502,7 @@ describe('toVersionLinkOf', () => {
     )
   })
 
-  test('leads back to the bare record when its own way back would not fit', () => {
+  test("shortens the record's own way back when it would not fit", () => {
     const from = `/dev-ops/applications?grant=${'a'.repeat(2048)}`
 
     expect(
@@ -516,7 +514,7 @@ describe('toVersionLinkOf', () => {
         from
       )
     ).toBe(
-      '/dev-ops/grants/woodland-creation/1.2.0?back=%2Fdev-ops%2Fapplications%2Fwoodland-creation%2Fa7c'
+      '/dev-ops/grants/woodland-creation/1.2.0?back=%2Fdev-ops%2Fapplications%2Fwoodland-creation%2Fa7c%3Fback%3D%252Fdev-ops%252Fapplications'
     )
   })
 
@@ -550,8 +548,7 @@ describe('toCodesFact', () => {
     expect(toCodesFact('roles', 'Roles', codes)).toEqual({
       id: 'roles',
       label: 'Roles',
-      kind: 'text',
-      text: '—'
+      kind: 'none'
     })
   })
 })

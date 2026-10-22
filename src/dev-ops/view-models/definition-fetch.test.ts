@@ -2,20 +2,58 @@ import type { DefinitionFetchFile } from '../use-cases/definition-fetches.ts'
 import { toDefinitionFetchNotices } from './definition-fetch.ts'
 import type { DefinitionFetchFlash } from './definition-fetch.ts'
 import { grantType } from './grants-page.view-model.ts'
+import type { VersionFiles } from './version-banner.ts'
+import { workflowType } from './workflows-page.view-model.ts'
 
 const page = '/dev-ops/grants/woodland-creation/2.0.0'
+
+const header: VersionFiles = {
+  code: 'woodland-creation',
+  version: '2.0.0',
+  status: 'active',
+  s3Bucket: 'config-broker',
+  files: {
+    grant: {
+      stored: false,
+      fetchStatus: 'pending',
+      s3Key: 'woodland-creation/2.0.0/gas/gas.json'
+    },
+    payment: { stored: false, fetchStatus: 'pending' }
+  }
+}
 
 const stored = (file: DefinitionFetchFile['file']): DefinitionFetchFile => ({
   file,
   outcome: 'stored'
 })
 
-const fetched = (files: DefinitionFetchFile[]) =>
-  toDefinitionFetchNotices(grantType, { outcome: 'fetched', files, page }, page)
+const failed = (
+  file: string,
+  reason: Extract<DefinitionFetchFile, { outcome: 'failed' }>['reason'],
+  message: string | null = null
+): DefinitionFetchFile => ({ file, outcome: 'failed', reason, message })
+
+const fetched = (files: DefinitionFetchFile[], on: VersionFiles = header) =>
+  toDefinitionFetchNotices(
+    grantType,
+    { outcome: 'fetched', files, page },
+    page,
+    on
+  )
+
+/** A notice as the page reads it, each code part in backticks. */
+const said = ({ words }: { words: unknown[] }) =>
+  words
+    .map((part) =>
+      typeof part === 'string' ? part : `\`${(part as { code: string }).code}\``
+    )
+    .join('')
 
 describe('toDefinitionFetchNotices', () => {
   test('says nothing on a page no fetch has just landed on', () => {
-    expect(toDefinitionFetchNotices(grantType, undefined, page)).toEqual([])
+    expect(
+      toDefinitionFetchNotices(grantType, undefined, page, header)
+    ).toEqual([])
   })
 
   test("drops a fetch's outcome that was meant for another version", () => {
@@ -23,7 +61,8 @@ describe('toDefinitionFetchNotices', () => {
       toDefinitionFetchNotices(
         grantType,
         { outcome: 'fetched', files: [stored('grant')], page },
-        '/dev-ops/grants/woodland-creation/1.2.0'
+        '/dev-ops/grants/woodland-creation/1.2.0',
+        header
       )
     ).toEqual([])
   })
@@ -34,21 +73,14 @@ describe('toDefinitionFetchNotices', () => {
     ).toEqual([
       {
         role: 'success',
-        text: 'Fetched — grant, agreement and payment definitions stored.',
-        reason: null,
-        tail: ''
+        words: ['Stored: grant, agreement and payment definitions.']
       }
     ])
   })
 
   test('says definition of one file stored', () => {
-    expect(fetched([stored('payment')])).toEqual([
-      {
-        role: 'success',
-        text: 'Fetched — payment definition stored.',
-        reason: null,
-        tail: ''
-      }
+    expect(fetched([stored('payment')]).map(said)).toEqual([
+      'Stored: payment definition.'
     ])
   })
 
@@ -57,93 +89,118 @@ describe('toDefinitionFetchNotices', () => {
   })
 
   test.each([
-    ['missing', 'Definition file missing'],
-    ['forbidden', 'Definition file not readable by GAS'],
-    ['timeout', 'S3 did not answer'],
-    ['unparseable', 'Definition file is not valid JSON']
-  ] as const)('names a file that failed as %s', (reason, text) => {
-    expect(
-      fetched([{ file: 'payment', outcome: 'failed', reason, message: null }])
-    ).toEqual([
-      {
-        role: 'error',
-        text: 'Not fetched — payment definition: ',
-        reason: text,
-        tail: '. Nothing has changed.'
-      }
-    ])
+    [
+      'missing',
+      '`Definition file missing`. Pressing Fetch again fails the same way until the file is in S3.'
+    ],
+    [
+      'forbidden',
+      "`Definition file not readable by GAS`. GAS can't read the bucket; check its S3 access."
+    ],
+    ['timeout', '`S3 could not return the file`. Try again.'],
+    [
+      'unparseable',
+      "`Definition file is not valid JSON`. This version's file will never load; publish a fixed version."
+    ]
+  ] as const)(
+    'says where a file that failed as %s is, why, and what to do next',
+    (reason, tail) => {
+      const [notice] = fetched([failed('grant', reason)])
+
+      expect(notice.role).toBe('error')
+      expect(said(notice)).toBe(
+        `Couldn't fetch the grant definition from \`config-broker/woodland-creation/2.0.0/gas/gas.json\`: ${tail} Nothing has changed.`
+      )
+    }
+  )
+
+  test("names an invalid file in GAS's own words, and leaves out a location it does not know", () => {
+    const message = 'Definition is for "frps-private-beta", not "farm-payments"'
+
+    expect(said(fetched([failed('payment', 'invalid', message)])[0])).toBe(
+      `Couldn't fetch the payment definition: \`${message}\`. This version's file will never load; publish a fixed version. Nothing has changed.`
+    )
   })
 
-  test("names an invalid file in GAS's own words", () => {
-    const message = 'Agreement definition is missing "processes"'
-
-    expect(
-      fetched([
-        { file: 'agreement', outcome: 'failed', reason: 'invalid', message }
-      ])
-    ).toEqual([
-      {
-        role: 'error',
-        text: 'Not fetched — agreement definition: ',
-        reason: message,
-        tail: '. Nothing has changed.'
-      }
-    ])
+  test('says GAS gave no reason for an invalid file without a message', () => {
+    expect(said(fetched([failed('payment', 'invalid')])[0])).toContain(
+      ': `GAS refused the definition and gave no reason`.'
+    )
   })
 
-  test('shows what was stored first, then one alert per file that failed', () => {
+  test('names a reason it has no words for as the service gave it, and says to try again', () => {
+    expect(
+      said(
+        fetched([
+          failed('grant', 'throttled' as 'timeout'),
+          failed('grant', 'timeout')
+        ])[0]
+      )
+    ).toContain('`GAS gave reason throttled`. Try again.')
+  })
+
+  test('shows what was stored first, then one notice per file that failed', () => {
     expect(
       fetched([
         stored('grant'),
-        {
-          file: 'agreement',
-          outcome: 'failed',
-          reason: 'forbidden',
-          message: null
-        },
-        { file: 'payment', outcome: 'failed', reason: 'missing', message: null }
-      ]).map(({ role, text }) => `${role}: ${text}`)
+        failed('agreement', 'forbidden'),
+        failed('payment', 'missing')
+      ]).map(({ role, words }) => `${role}: ${String(words[0])}`)
     ).toEqual([
-      'success: Fetched — grant definition stored.',
-      'error: Not fetched — agreement definition: ',
-      'error: Not fetched — payment definition: '
+      'success: Stored: grant definition.',
+      "error: Couldn't fetch the agreement definition",
+      "error: Couldn't fetch the payment definition"
     ])
+  })
+
+  test('names CW for a workflow', () => {
+    expect(
+      said(
+        toDefinitionFetchNotices(
+          workflowType,
+          {
+            outcome: 'fetched',
+            files: [failed('workflow', 'forbidden')],
+            page
+          },
+          page,
+          { ...header, files: {} }
+        )[0]
+      )
+    ).toBe(
+      "Couldn't fetch the workflow definition: `Definition file not readable by CW`. CW can't read the bucket; check its S3 access. Nothing has changed."
+    )
   })
 
   test.each([
     [
       'not-found',
       'error',
-      'Not fetched — GAS no longer has this version. Nothing has changed.'
+      'Not fetched: GAS no longer has this version. Nothing has changed.'
     ],
     [
       'unavailable',
       'error',
-      'Fetch failed — GAS could not finish it. Refresh to see what was stored.'
+      'Fetch failed: GAS could not finish it. Refresh to see what was stored.'
     ],
     [
       'timed-out',
       'warning',
-      'Fetch status unknown — GAS did not answer in time. Refresh to check.'
+      'Fetch status unknown: GAS did not answer in time. Refresh to check.'
     ]
   ] as const)(
     'says what a %s fetch means for what is stored',
     (outcome, role, text) => {
       expect(
-        toDefinitionFetchNotices(grantType, { outcome, files: [], page }, page)
-      ).toEqual([{ role, text, reason: null, tail: '' }])
+        toDefinitionFetchNotices(
+          grantType,
+          { outcome, files: [], page },
+          page,
+          header
+        )
+      ).toEqual([{ role, words: [text] }])
     }
   )
-
-  test('names the service the record comes from', () => {
-    expect(
-      toDefinitionFetchNotices(
-        { ...grantType, source: 'CW' },
-        { outcome: 'not-found', files: [], page },
-        page
-      )[0].text
-    ).toBe('Not fetched — CW no longer has this version. Nothing has changed.')
-  })
 
   test('says nothing of an outcome this release has no words for', () => {
     expect(
@@ -154,7 +211,8 @@ describe('toDefinitionFetchNotices', () => {
           files: [],
           page
         },
-        page
+        page,
+        header
       )
     ).toEqual([])
   })

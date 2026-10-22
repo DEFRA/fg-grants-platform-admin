@@ -2,7 +2,6 @@ import type {
   StoredBanner,
   WorkflowDefinition
 } from '../use-cases/get-workflow-page.use-case.ts'
-import { none } from './event-formats.ts'
 import {
   caseViewOf,
   toActionCall,
@@ -14,10 +13,7 @@ import {
 import type { ActionCall, CaseTab } from './workflow-external-actions.ts'
 
 /** A stored path: an empty one is shown as such, so it never reads as missing. */
-interface StoredText {
-  kind: 'value' | 'empty' | 'none'
-  text: string
-}
+type StoredText = { kind: 'value' | 'empty'; text: string } | { kind: 'none' }
 
 interface SummaryRow {
   key: string
@@ -47,7 +43,7 @@ export interface WorkflowPagesTab {
 
 const toStoredText = (text: string | undefined): StoredText => {
   if (text === undefined) {
-    return { kind: 'none', text: none }
+    return { kind: 'none' }
   }
 
   return text === '' ? { kind: 'empty', text: '""' } : { kind: 'value', text }

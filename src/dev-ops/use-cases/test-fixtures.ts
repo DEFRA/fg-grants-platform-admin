@@ -195,18 +195,49 @@ const versionStatusFact: BucketFact = {
   param: 'status',
   label: 'Status',
   values: [
-    { value: 'active', label: 'Active', tone: 'success' },
-    { value: 'draft', label: 'Draft', tone: 'neutral' }
+    {
+      value: 'active',
+      label: 'Active',
+      tone: 'success',
+      hint: 'Published by the config broker.'
+    },
+    {
+      value: 'draft',
+      label: 'Draft',
+      tone: 'neutral',
+      hint: 'Not yet published as active.'
+    }
   ],
   toggle: null,
   within: null
 }
 
+/** As GAS declares them for a grant version's files. */
 const fetchStatusValues: BucketFact['values'] = [
-  { value: 'fetched', label: 'Fetched', tone: 'success' },
-  { value: 'pending', label: 'Not fetched', tone: 'info' },
-  { value: 'transient_error', label: 'Retrying', tone: 'warning' },
-  { value: 'permanent_error', label: 'Failed', tone: 'error' }
+  {
+    value: 'fetched',
+    label: 'Stored',
+    tone: 'success',
+    hint: 'GAS has fetched every file of this version (grant, agreement, payment) itself.'
+  },
+  {
+    value: 'pending',
+    label: 'Not stored yet',
+    tone: 'neutral',
+    hint: "At least one of this version's files (grant, agreement, payment) isn't fetched by GAS yet."
+  },
+  {
+    value: 'transient_error',
+    label: 'Fetch error',
+    tone: 'warning',
+    hint: "GAS's last fetch of at least one of this version's files from S3 failed."
+  },
+  {
+    value: 'permanent_error',
+    label: 'Failed',
+    tone: 'error',
+    hint: "GAS refused at least one of this version's files and won't use it."
+  }
 ]
 
 /** Config versions as GAS lists them: one row per grant code and version. */
@@ -234,7 +265,7 @@ export const grantsBucket: BucketEntry = {
     },
     versionStatusFact,
     {
-      name: 'definitions.grant.fetchStatus',
+      name: 'worstFetchStatus',
       param: 'definition',
       label: 'Definition',
       values: fetchStatusValues,
@@ -245,20 +276,20 @@ export const grantsBucket: BucketEntry = {
   refs: [],
   indexes: [
     [],
-    ['grantCode', 'status', 'definitions.grant.fetchStatus'],
-    ['status', 'definitions.grant.fetchStatus']
+    ['grantCode', 'status', 'worstFetchStatus'],
+    ['status', 'worstFetchStatus']
   ],
   groupings: [],
   title: { label: 'Grant', format: 'mono' },
   columns: [
     { key: 'version', label: 'Version', format: 'mono' },
-    { key: 'status', label: 'Status', format: 'badge', fact: 'status' },
     {
       key: 'definition',
       label: 'Definition',
       format: 'badge',
-      fact: 'definitions.grant.fetchStatus'
-    }
+      fact: 'worstFetchStatus'
+    },
+    { key: 'status', label: 'Status', format: 'badge', fact: 'status' }
   ],
   audited: false,
   timeline: false,
@@ -302,6 +333,34 @@ export const casesBucket: BucketEntry = {
   ]
 }
 
+/** As CW declares them for a workflow version's one file. */
+const workflowFetchStatusValues: BucketFact['values'] = [
+  {
+    value: 'fetched',
+    label: 'Stored',
+    tone: 'success',
+    hint: "CW has loaded this version's workflow definition."
+  },
+  {
+    value: 'pending',
+    label: 'Not stored yet',
+    tone: 'neutral',
+    hint: "This version's workflow definition isn't fetched by CW yet. CW fetches it from S3 when it first needs it, and only uses the newest usable Active version in each major, so an older version may never be fetched; that is normal. A workflow definition stored with Fetch definition shows here until CW loads it itself."
+  },
+  {
+    value: 'transient_error',
+    label: 'Fetch error',
+    tone: 'warning',
+    hint: "CW's last fetch of this version's workflow definition from S3 failed. CW tries again the next time it needs it; after 5 failed fetches it stops trying and marks it Failed the next time it needs this version. Open the version for the error."
+  },
+  {
+    value: 'permanent_error',
+    label: 'Failed',
+    tone: 'error',
+    hint: "CW couldn't fetch or read this version's workflow definition, or stopped after 5 failed fetches, and won't use it. Open the version to see why and what it affects; publish a fixed version."
+  }
+]
+
 /** Config versions as CW lists them, through GAS; CW keeps one fetch status per version. */
 export const workflowsBucket: BucketEntry = {
   ...grantsBucket,
@@ -327,26 +386,25 @@ export const workflowsBucket: BucketEntry = {
       name: 'fetchStatus',
       param: 'definition',
       label: 'Definition',
-      values: fetchStatusValues,
+      values: workflowFetchStatusValues,
       toggle: null,
       within: null
     }
   ],
   indexes: [
-    [],
     ['grantCode', 'status', 'fetchStatus'],
     ['status', 'fetchStatus']
   ],
   title: { label: 'Workflow', format: 'mono' },
   columns: [
     { key: 'version', label: 'Version', format: 'mono' },
-    { key: 'status', label: 'Status', format: 'badge', fact: 'status' },
     {
       key: 'definition',
       label: 'Definition',
       format: 'badge',
       fact: 'fetchStatus'
-    }
+    },
+    { key: 'status', label: 'Status', format: 'badge', fact: 'status' }
   ]
 }
 

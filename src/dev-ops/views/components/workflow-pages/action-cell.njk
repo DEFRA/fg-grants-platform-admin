@@ -1,22 +1,19 @@
+{% from "code-text/macro.njk" import codeText %}
+{% from "service-address/macro.njk" import serviceAddress %}
 {% from "status-badge/macro.njk" import statusBadge %}
 
-{# Tailwind only sees class names written literally in this file. #}
-{% set mono = "font-mono text-sm leading-none break-words" %}
-
 {# One external action by name, linked to its Integrations card, with what CW calls for it. #}
-{% macro actionCell(call, testId) %}
+{% macro actionCell(call, testId, environment) %}
 <div class="mb-1.5" data-testid="{{ testId }}">
   {%- if call.kind == "not-defined" -%}
-    <span class="{{ mono }}">{{ call.code }}</span> {{ statusBadge({ status: "Not defined", role: "warning" }) }}
+    {{ codeText(call.code, "text-sm") }} {{ statusBadge({ status: "Not defined", role: "warning" }) }}
   {%- else -%}
     <a class="link" href="{{ call.href }}">{{ call.action.name }}</a>
-    <div class="mt-0.5 break-all">
+    <div class="mt-0.5">
       {%- if call.kind == "no-endpoint" -%}
         {{ statusBadge({ status: "No endpoint", role: "warning" }) }}
-      {%- elif call.address.url -%}
-        <span class="{{ mono }}">{{ call.endpoint.method }}</span> <span class="{{ mono }}">{{ call.address.url }}</span>
       {%- else -%}
-        <span class="{{ mono }}">{{ call.endpoint.method }}</span> <span class="{{ mono }}">{{ call.endpoint.path }}</span> {{ statusBadge({ status: "Not configured", role: "warning" }) }}
+        {{ serviceAddress({ method: call.endpoint.method, path: call.endpoint.path, url: call.address.url, service: call.address.service, source: "CW", unset: false, environment: environment, testId: testId ~ "-address" }) }}
       {%- endif -%}
     </div>
   {%- endif -%}

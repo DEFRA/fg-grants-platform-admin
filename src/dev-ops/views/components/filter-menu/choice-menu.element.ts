@@ -1,3 +1,5 @@
+import { keepMenuKeys } from './menu-keys.ts'
+
 export class ChoiceMenu extends HTMLElement {
   #enhanced = false
 
@@ -67,6 +69,12 @@ export class ChoiceMenu extends HTMLElement {
     fallback.remove()
     value.disabled = false
     trigger.hidden = false
+    keepMenuKeys(
+      panel,
+      () => this.#options(),
+      () =>
+        this.#options().find((option) => option.dataset.value === value.value)
+    )
 
     panel.addEventListener('click', (event) => {
       const option = (event.target as Element).closest<HTMLButtonElement>(

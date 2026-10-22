@@ -140,10 +140,7 @@ describe('toWorkflowPagesTab', () => {
     )
 
     expect(tab.banner.title).toEqual({ kind: 'empty', text: '""' })
-    expect(tab.banner.summary[0].valueFrom).toEqual({
-      kind: 'none',
-      text: '—'
-    })
+    expect(tab.banner.summary[0].valueFrom).toEqual({ kind: 'none' })
   })
 
   test('has no title, buttons or fields without a banner', () => {
@@ -155,7 +152,7 @@ describe('toWorkflowPagesTab', () => {
     )
 
     expect(tab.banner).toEqual({
-      title: { kind: 'none', text: '—' },
+      title: { kind: 'none' },
       buttons: [],
       summary: []
     })

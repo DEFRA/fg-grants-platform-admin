@@ -216,16 +216,16 @@ describe('fetchGrantDefinitionsRoute', () => {
     expect(fetchGrantDefinitionsUseCase).not.toHaveBeenCalled()
   })
 
-  test('names every file stored, once, in a soft success notice with a tick', async () => {
+  test('names every file stored, once, in a solid success notice with a ticked circle', async () => {
     const { cookie, notices, banner } = await fetchAndFollow()
 
     expect(notices).toEqual([
       {
         role: 'status',
-        className: expect.stringContaining('alert-success alert-soft'),
-        text: 'Fetched — grant, agreement and payment definitions stored.',
+        className: expect.stringMatching(/^(?!.*alert-soft).*alert-success$/),
+        text: 'Stored: grant, agreement and payment definitions.',
         mono: '',
-        icon: 'do-icon-check'
+        icon: 'do-icon-circle-check'
       }
     ])
     expect(banner).toBe('')
@@ -247,17 +247,19 @@ describe('fetchGrantDefinitionsRoute', () => {
     expect(notices).toEqual([
       expect.objectContaining({
         role: 'status',
-        text: 'Fetched — grant definition stored.'
+        text: 'Stored: grant definition.'
       }),
       {
         role: 'alert',
         className: expect.stringContaining('alert-soft alert-error'),
-        text: 'Not fetched — payment definition: Definition file missing. Nothing has changed.',
+        text: "Couldn't fetch the payment definition: Definition file missing. Pressing Fetch again fails the same way until the file is in S3. Nothing has changed.",
         mono: 'Definition file missing',
         icon: 'do-icon-exclamation-circle'
       }
     ])
-    expect(banner).toBe('Payment definition not stored. Fetch definitions')
+    expect(banner).toMatch(
+      / Payment definition not stored yet\. Fetch definitions$/
+    )
   })
 
   // An aliased grant's files are stored under the code they publish, so GAS
@@ -272,23 +274,25 @@ describe('fetchGrantDefinitionsRoute', () => {
     const { notices, banner } = await fetchAndFollow()
 
     expect(notices.map(({ text }) => text)).toEqual([
-      'Fetched — grant definition stored.'
+      'Stored: grant definition.'
     ])
-    expect(banner).toBe('Grant definition not stored. Fetch definitions')
+    expect(banner).toMatch(
+      / Grant definition not stored yet\. Fetch definitions$/
+    )
   })
 
   test.each([
     [
       'not-found',
-      'Not fetched — GAS no longer has this version. Nothing has changed.'
+      'Not fetched: GAS no longer has this version. Nothing has changed.'
     ],
     [
       'unavailable',
-      'Fetch failed — GAS could not finish it. Refresh to see what was stored.'
+      'Fetch failed: GAS could not finish it. Refresh to see what was stored.'
     ],
     [
       'timed-out',
-      'Fetch status unknown — GAS did not answer in time. Refresh to check.'
+      'Fetch status unknown: GAS did not answer in time. Refresh to check.'
     ]
   ] as const)('says what a %s fetch means', async (outcome, text) => {
     givenOutcome({ outcome, files: [] })

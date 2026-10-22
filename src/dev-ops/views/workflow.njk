@@ -1,9 +1,11 @@
 {% extends "record.njk" %}
 
-{% from "filter-menu/macro.njk" import filterMenu %}
+{% from "muted/macro.njk" import muted %}
+{% from "code-text/macro.njk" import codeText %}
 {% from "icon/macro.njk" import icon %}
 {% from "state-graph/macro.njk" import stateGraph %}
-{% from "status-badge/macro.njk" import statusBadge %}
+{% from "version-banner/macro.njk" import versionBanner %}
+{% from "version-status/macro.njk" import versionStatus %}
 {% from "workflow-integrations/macro.njk" import workflowIntegrations %}
 {% from "workflow-pages/macro.njk" import workflowPages %}
 {% from "workflow-tasks/macro.njk" import workflowTasks %}
@@ -11,42 +13,12 @@
 
 {% block recordHeader %}
   {% if versionHeader %}
-    <div class="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2 text-sm" data-testid="{{ record.itemId }}-version">
-      {{ statusBadge(versionHeader.status) }}
-      {{ filterMenu(versionHeader.switcher) }}
-    </div>
+    {{ versionStatus({ header: versionHeader, testId: record.itemId }) }}
   {% endif %}
 {% endblock %}
 
 {% block beforeTabs %}
-  {% set noticeAlerts = {
-    success: "alert-success alert-soft",
-    warning: "alert-soft alert-warning",
-    error: "alert-soft alert-error"
-  } %}
-  {% set noticeIcons = {
-    success: "check",
-    warning: "exclamation-triangle",
-    error: "exclamation-circle"
-  } %}
-  {% for notice in notices %}
-    <div role="{{ 'status' if notice.role == 'success' else 'alert' }}" class="alert {{ noticeAlerts[notice.role] }} mb-3 text-sm" data-testid="{{ record.itemId }}-notice">
-      {{ icon({ name: noticeIcons[notice.role], class: 'size-4 shrink-0' }) }}
-      <span>{{ notice.text }}{% if notice.reason %}<span class="font-mono">{{ notice.reason }}</span>{% endif %}{{ notice.tail }}</span>
-    </div>
-  {% endfor %}
-  {% if versionHeader.banner %}
-    {% set banner = versionHeader.banner %}
-    <div role="status" class="alert alert-soft mb-4 flex flex-wrap items-center gap-3 text-sm" data-testid="{{ record.itemId }}-banner">
-      {{ icon({ name: 'info', class: 'size-4 shrink-0' }) }}
-      <span class="min-w-0 flex-1">{{ banner.text }}</span>
-      <form method="post" action="{{ banner.action }}" class="shrink-0">
-        <input type="hidden" name="back" value="{{ banner.back }}">
-        <input type="hidden" name="tab" value="{{ banner.tab }}">
-        <button class="btn btn-sm" type="submit" data-testid="{{ record.itemId }}-fetch">Fetch definitions</button>
-      </form>
-    </div>
-  {% endif %}
+  {{ versionBanner({ notices: notices, banner: versionHeader.banner, testId: record.itemId }) }}
 {% endblock %}
 
 {% block tabBody %}
@@ -54,22 +26,30 @@
     {{ super() }}
   {% elif notStored %}
     <div class="card card-border bg-base-100" data-testid="{{ record.itemId }}-not-stored">
-      <p class="px-4 py-10 text-center text-sm text-base-content/60">{{ notStored | capitalize }} definition not stored.</p>
+      <p class="px-4 py-10 text-center text-sm {{ muted }}">{{ notStored.text }}</p>
     </div>
   {% elif tab == "phases" and phases %}
+    {% if phases.findings %}
+      <div role="status" class="alert alert-warning alert-soft mb-3 text-sm" data-testid="workflow-phases-findings">
+        {{ icon({ name: 'exclamation-triangle', class: 'size-4 shrink-0' }) }}
+        <p class="min-w-0 break-words">{{ phases.findings.count }} finding{{ "s" if phases.findings.count != 1 }}:
+          {%- for group in phases.findings.groups %}{% if not loop.first %} ·{% endif %} {{ group.kind }} {% for status in group.statuses %}<a class="link" href="{{ status.href }}" data-testid="workflow-phases-finding-link">{{ codeText(status.code) }}</a>{% if not loop.last %}, {% endif %}{% endfor %}{% endfor %}
+        </p>
+      </div>
+    {% endif %}
     {% call stateGraph({ graphs: phases.graphs, legend: phases.legend, testId: "workflow-phases" }) %}
       {% if phases.panel %}
         {{ workflowStatusPanel(phases.panel) }}
       {% else %}
-        <p class="text-base-content/60" data-testid="workflow-phases-no-statuses">No statuses.</p>
+        <p class="{{ muted }}" data-testid="workflow-phases-no-statuses">No statuses.</p>
       {% endif %}
     {% endcall %}
   {% elif tab == "tasks" and taskGroups %}
     {{ workflowTasks({ groups: taskGroups, testId: "workflow-tasks" }) }}
   {% elif tab == "pages" and pages %}
-    {{ workflowPages({ tab: pages, testId: "workflow-pages" }) }}
+    {{ workflowPages({ tab: pages, environment: environmentLabel, testId: "workflow-pages" }) }}
   {% elif tab == "integrations" and integrations %}
-    {{ workflowIntegrations({ integrations: integrations, testId: "workflow-integrations" }) }}
+    {{ workflowIntegrations({ integrations: integrations, environment: environmentLabel, testId: "workflow-integrations" }) }}
   {% else %}
     {{ super() }}
   {% endif %}

@@ -1,4 +1,6 @@
-import { contextRootsOf, toPaymentDefinition } from './payment-definition.ts'
+import { toMappingValue } from './mapping-table.ts'
+import { toPaymentDefinition } from './payment-definition.ts'
+import type { PaymentContext } from './payment-definition.ts'
 
 /** GAS `compose/seed/woodland/1.39.1/gas/payment.json`. */
 const woodland = {
@@ -71,13 +73,15 @@ const pigsMightFly = {
   }
 }
 
-const literal = (text: string) => ({ text, kind: 'literal', empty: false })
-const reference = (text: string) => ({ text, kind: 'reference', empty: false })
-const expression = (text: string) => ({
-  text,
-  kind: 'expression',
-  empty: false
-})
+const context: PaymentContext = {
+  version: '1.0.1',
+  hrefs: { entitlements: '/entitlements', agreement: '/agreement' }
+}
+
+const viewOf = (definition: Record<string, unknown>) =>
+  toPaymentDefinition(definition, context)
+
+const value = toMappingValue
 
 const duePayment = (overrides: object = {}) => ({
   dueDate: '@.dueDate',
@@ -87,55 +91,60 @@ const duePayment = (overrides: object = {}) => ({
 })
 
 const withPayments = (payments: unknown) =>
-  toPaymentDefinition({ code: 'woodland', payments })
+  viewOf({ code: 'woodland', payments })
 
-const valueOf = (value: unknown) =>
-  toPaymentDefinition({ code: 'woodland', currency: value }).request[0].value
+const noLine = {
+  schemeCode: null,
+  description: null,
+  amountPence: null,
+  accountCode: null,
+  fundCode: null,
+  deliveryBody: null,
+  marketingYear: null
+}
 
-describe('toPaymentDefinition', () => {
-  test.each([
-    ['a plain string', 'GBP', 'literal', 'GBP'],
-    [
-      'a string with a trailing space',
-      '$.claim.sbi ',
-      'literal',
-      '$.claim.sbi '
-    ],
-    ['a path that starts with a digit', '$.1abc', 'literal', '$.1abc'],
-    ['a $. path', '$.claim.sbi', 'reference', '$.claim.sbi'],
-    ['an @. path', '@.dueDate', 'reference', '@.dueDate'],
-    ['an index', '$.items[0].x', 'reference', '$.items[0].x'],
-    ['a wildcard', '$.items[*]', 'reference', '$.items[*]'],
-    [
-      'a jsonata: string',
-      'jsonata:$substring($.execution.executedAt, 0, 4)',
-      'expression',
-      'jsonata:$substring($.execution.executedAt, 0, 4)'
-    ],
-    ['a number', 12, 'literal', '12'],
-    ['a boolean', true, 'literal', 'true'],
-    ['null', null, 'literal', 'null'],
-    ['an array', ['$.a', 'b'], 'list', '["$.a","b"]'],
-    [
-      'an object with itemsRef',
-      { itemsRef: '$.rows', items: '@.x' },
-      'collection',
-      '{"itemsRef":"$.rows","items":"@.x"}'
-    ],
-    ['any other object', { a: 1 }, 'object', '{"a":1}']
-  ])(
-    'labels %s the way resolve-process-mapping.js resolves it',
-    (_name, value, kind, text) => {
-      expect(valueOf(value)).toEqual({ text, kind, empty: false })
-    }
-  )
+describe('toPaymentDefinition: when GAS requests it', () => {
+  test('says a claim payment is requested when a claim is submitted, reading the claim and when GAS ran it', () => {
+    const view = viewOf(woodland)
 
-  test('marks the empty string, a literal, as empty', () => {
-    expect(valueOf('')).toEqual({ text: '', kind: 'literal', empty: true })
+    expect(view.requestedWhen).toEqual({ claim: true, agreement: false })
+    expect(view.reads).toEqual(['claim', 'execution'])
+    expect(view.mixed).toBe(false)
+    expect(view.hrefs).toEqual(context.hrefs)
+    expect(view.version).toBe('1.0.1')
   })
 
+  test('says an agreement payment is requested by an agreement action, reading its rows', () => {
+    const view = viewOf(pigsMightFly)
+
+    expect(view.requestedWhen).toEqual({ claim: false, agreement: true })
+    expect(view.reads).toEqual(['agreement', 'execution', 'row'])
+    expect(view.readsAgreementRows).toBe(true)
+  })
+
+  test('says both, and that claims find no agreement, when it reads both', () => {
+    const view = viewOf({
+      code: 'qa-complex',
+      sbi: 'jsonata:$.claim.sbi ?? $.agreement.identifiers.sbi'
+    })
+
+    expect(view.requestedWhen).toEqual({ claim: true, agreement: true })
+    expect(view.mixed).toBe(true)
+  })
+
+  test('says either may request one that reads neither', () => {
+    const view = viewOf({ code: 'qa-complex', scheme: 'QA' })
+
+    expect(view.requestedWhen).toEqual({ claim: true, agreement: true })
+    expect(view.reads).toEqual([])
+    expect(view.mixed).toBe(false)
+    expect(view.readsAgreementRows).toBe(false)
+  })
+})
+
+describe('toPaymentDefinition', () => {
   test('lists every request field in stored order, without code or payments', () => {
-    const { request } = toPaymentDefinition(woodland)
+    const { request } = viewOf(woodland)
 
     expect(request.map(({ field }) => field)).toEqual([
       'sbi',
@@ -150,34 +159,38 @@ describe('toPaymentDefinition', () => {
       'currency',
       'marketingYear'
     ])
-    expect(request[0].value).toEqual(reference('$.claim.sbi'))
+    expect(request[0]).toEqual({
+      field: 'sbi',
+      depth: 0,
+      kind: 'value',
+      value: value('$.claim.sbi')
+    })
   })
 
-  test('gives an array of due payments a card each, with its invoice lines', () => {
-    expect(toPaymentDefinition(woodland).duePayments).toEqual([
+  test('titles the one due payment of an array, with its invoice lines and the fields GAS calculates', () => {
+    expect(viewOf(woodland).duePayments).toEqual([
       {
         kind: 'due',
-        title: 'Due payment 1',
+        title: { text: 'Due payment', forEach: null },
         forEach: null,
-        dueDate: expression(
-          'jsonata:$substring($.execution.executedAt, 0, 10)'
-        ),
-        totalAmountPence: reference('$.claim.totalAmountPence'),
+        dueDate: value('jsonata:$substring($.execution.executedAt, 0, 10)'),
+        totalAmountPence: value('$.claim.totalAmountPence'),
         lines: {
           kind: 'lines',
           forEach: null,
           rows: [
             {
               kind: 'line',
-              schemeCode: literal('WMP'),
-              description: literal('Woodland Management Plan Payment'),
-              amountPence: reference('$.claim.totalAmountPence'),
-              accountCode: literal('SOS710'),
-              fundCode: literal('DRD10'),
-              deliveryBody: literal('RP10'),
-              marketingYear: expression(
+              schemeCode: value('WMP'),
+              description: value('Woodland Management Plan Payment'),
+              amountPence: value('$.claim.totalAmountPence'),
+              accountCode: value('SOS710'),
+              fundCode: value('DRD10'),
+              deliveryBody: value('RP10'),
+              marketingYear: value(
                 'jsonata:$substring($.execution.executedAt, 0, 4)'
-              )
+              ),
+              calculated: ['marketingYear']
             }
           ]
         }
@@ -185,49 +198,59 @@ describe('toPaymentDefinition', () => {
     ])
   })
 
-  test('numbers each due payment of an array from 1', () => {
+  test('numbers each due payment of an array out of how many there are', () => {
     expect(
-      withPayments([duePayment(), duePayment()]).duePayments.map(
-        ({ title }) => title
+      withPayments([duePayment(), duePayment(), duePayment()]).duePayments.map(
+        ({ title }) => title.text
       )
-    ).toEqual(['Due payment 1', 'Due payment 2'])
+    ).toEqual([
+      'Due payment 1 of 3',
+      'Due payment 2 of 3',
+      'Due payment 3 of 3'
+    ])
   })
 
-  test('gives a collection of due payments one card, with the rows each repeats for', () => {
-    const [due] = toPaymentDefinition(pigsMightFly).duePayments
+  test('gives a collection of due payments one card, titled by what it repeats for', () => {
+    const [due] = viewOf(pigsMightFly).duePayments
 
     expect(due).toMatchObject({
       kind: 'due',
-      title: 'Due payments',
-      forEach: '$.agreement.paymentSchedule.instalments',
-      dueDate: reference('@.dueDate'),
-      lines: { kind: 'lines', forEach: '@.lineItems' }
+      title: {
+        text: 'Due payments',
+        forEach: '$.agreement.paymentSchedule.instalments'
+      },
+      forEach: value('$.agreement.paymentSchedule.instalments'),
+      dueDate: value('@.dueDate'),
+      lines: { kind: 'lines', forEach: value('@.lineItems') }
     })
     expect(due).toHaveProperty('lines.rows', [
       expect.objectContaining({
         kind: 'line',
-        schemeCode: literal('CMOR1'),
-        description: expression(pmfDescription)
+        schemeCode: value('CMOR1'),
+        description: value(pmfDescription),
+        calculated: ['description', 'marketingYear']
       })
     ])
+  })
+
+  test('leaves a calculated list out of the title, as too long for one', () => {
+    const [due] = withPayments({
+      itemsRef: 'jsonata:$exists($.claim) ? [$.claim] : $.agreement.rows',
+      items: duePayment()
+    }).duePayments
+
+    expect(due.title).toEqual({
+      text: 'Due payments (one per item of the list it calculates)',
+      forEach: null
+    })
   })
 
   test('shows due payments given as one mapping as where they come from', () => {
     expect(withPayments('$.agreement.payments').duePayments).toEqual([
       {
         kind: 'from',
-        title: 'Due payments',
-        value: reference('$.agreement.payments')
-      }
-    ])
-  })
-
-  test('shows a due payment of an array given as a mapping as where it comes from', () => {
-    expect(withPayments(['$.agreement.firstInstalment']).duePayments).toEqual([
-      {
-        kind: 'from',
-        title: 'Due payment 1',
-        value: reference('$.agreement.firstInstalment')
+        title: { text: 'Due payments', forEach: null },
+        value: value('$.agreement.payments')
       }
     ])
   })
@@ -237,64 +260,38 @@ describe('toPaymentDefinition', () => {
       withPayments({ itemsRef: '$.agreement.rows', items: '@.payment' })
         .duePayments
     ).toEqual([
-      { kind: 'from', title: 'Due payments', value: reference('@.payment') }
-    ])
-  })
-
-  test('gives each key a due payment has not got as null', () => {
-    const [due] = withPayments([{ totalAmountPence: '@.total' }]).duePayments
-
-    expect(due).toMatchObject({
-      kind: 'due',
-      dueDate: null,
-      lines: { kind: 'lines', forEach: null, rows: [] }
-    })
-  })
-
-  test('gives each key an invoice line has not got as null', () => {
-    const [due] = withPayments([
-      duePayment({ invoiceLines: [{ schemeCode: 'WMP' }] })
-    ]).duePayments
-
-    expect(due).toHaveProperty('lines.rows', [
       {
-        kind: 'line',
-        schemeCode: literal('WMP'),
-        description: null,
-        amountPence: null,
-        accountCode: null,
-        fundCode: null,
-        deliveryBody: null,
-        marketingYear: null
+        kind: 'from',
+        title: { text: 'Due payments', forEach: '$.agreement.rows' },
+        value: value('@.payment')
       }
     ])
   })
 
-  test('shows due payments given as null as where they come from', () => {
-    expect(withPayments(null).duePayments).toEqual([
-      { kind: 'from', title: 'Due payments', value: literal('null') }
+  test('gives each key a due payment or invoice line has not got as null', () => {
+    const [due] = withPayments([
+      { totalAmountPence: '@.total', invoiceLines: [{ schemeCode: 'WMP' }] }
+    ]).duePayments
+
+    expect(due).toMatchObject({ kind: 'due', dueDate: null })
+    expect(due).toHaveProperty('lines.rows', [
+      { kind: 'line', ...noLine, schemeCode: value('WMP'), calculated: [] }
     ])
   })
 
-  test('shows invoice lines given as null as where they come from', () => {
-    const [due] = withPayments([duePayment({ invoiceLines: null })]).duePayments
+  test.each([
+    ['null', null, value(null)],
+    ['one mapping', '@.lines', value('@.lines')]
+  ])(
+    'shows invoice lines given as %s as where they come from',
+    (_name, lines, from) => {
+      const [due] = withPayments([
+        duePayment({ invoiceLines: lines })
+      ]).duePayments
 
-    expect(due).toHaveProperty('lines', {
-      kind: 'from',
-      value: literal('null')
-    })
-  })
-
-  test('shows invoice lines given as one mapping as where they come from', () => {
-    const [due] = withPayments([
-      duePayment({ invoiceLines: '@.lines' })
-    ]).duePayments
-
-    expect(due).toHaveProperty('lines', {
-      kind: 'from',
-      value: reference('@.lines')
-    })
-  })
+      expect(due).toHaveProperty('lines', { kind: 'from', value: from })
+    }
+  )
 
   test('shows an invoice line given as a mapping as where it comes from', () => {
     const [due] = withPayments([
@@ -302,60 +299,41 @@ describe('toPaymentDefinition', () => {
     ]).duePayments
 
     expect(due).toHaveProperty('lines.rows', [
-      { kind: 'from', value: reference('@.line') }
+      { kind: 'from', value: value('@.line') }
     ])
   })
 
   test.each([
     ['an empty array', []],
-    ['a collection of nothing', { itemsRef: '$.rows', items: [] }],
     ['nothing at all', undefined]
   ])('gives no due payments for %s', (_name, payments) => {
     expect(withPayments(payments).duePayments).toEqual([])
   })
 
-  test('gives no invoice lines for an empty array', () => {
-    const [due] = withPayments([duePayment({ invoiceLines: [] })]).duePayments
-
-    expect(due).toHaveProperty('lines', {
-      kind: 'lines',
-      forEach: null,
-      rows: []
-    })
-  })
-})
-
-describe('contextRootsOf', () => {
-  const rootsOf = (value: unknown) => [...contextRootsOf({ value })]
-
   test.each([
-    ['a whole reference', '$.agreement.agreementNumber', ['agreement']],
     [
-      'a reference with a longer name',
-      '$.agreementNumber',
-      ['agreementNumber']
+      'a collection inside the array',
+      [{ itemsRef: '$.agreement.rows', items: duePayment() }]
     ],
-    ['a claim reference', '$.claim.frn', ['claim']],
-    ['a row reference', '@.dueDate', []],
-    ['a literal GAS does not resolve', '$.agreement.sbi ', []],
-    ['an expression', 'jsonata: $.agreement.x', ['agreement']],
-    ['an expression on the root', 'jsonata: $$.agreement.x', ['agreement']],
-    [
-      'an expression naming two roots',
-      'jsonata:$.claim.total ?? $substring($.execution.executedAt, 0, 4)',
-      ['claim', 'execution']
-    ],
-    ['a number', 12, []]
-  ])('reads %s', (_name, value, roots) => {
-    expect(rootsOf(value)).toEqual(roots)
-  })
+    ['an array inside the array', [[duePayment()]]],
+    ['a collection whose items are a list', { itemsRef: '$.rows', items: [] }]
+  ])(
+    'shows %s as where it comes from, since GAS resolves it to a nested list it rejects',
+    (_name, payments) => {
+      const [due] = withPayments(payments).duePayments
 
-  test('finds a reference nested in due payments and invoice lines', () => {
-    expect(
-      rootsOf({
-        payments: [{ invoiceLines: [{ amountPence: '$.agreement.total' }] }]
-      })
-    ).toEqual(['agreement'])
-    expect([...contextRootsOf(woodland)]).toEqual(['claim', 'execution'])
+      expect(due).toMatchObject({ kind: 'from' })
+    }
+  )
+
+  test('shows a collection inside the invoice lines as where its line comes from, not as a line', () => {
+    const nested = { itemsRef: '@.rows', items: { amountPence: '@.p' } }
+    const [due] = withPayments([
+      duePayment({ invoiceLines: [nested] })
+    ]).duePayments
+
+    expect(due).toHaveProperty('lines.rows', [
+      { kind: 'from', value: value(nested) }
+    ])
   })
 })

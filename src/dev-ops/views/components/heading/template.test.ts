@@ -14,6 +14,9 @@ describe('dev-ops heading component', () => {
     expect($heading('[data-testid="do-heading-caption"]').text().trim()).toBe(
       'fg-grants-platform-admin'
     )
+    expect($heading('[data-testid="do-heading-caption"]').attr('class')).toBe(
+      'text-sm text-base-content/70'
+    )
   })
 
   test('omits the caption when none is given', () => {

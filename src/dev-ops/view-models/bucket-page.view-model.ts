@@ -67,6 +67,7 @@ interface MenuItem {
   label: string
   href: string
   active: boolean
+  hint: string | null
 }
 
 interface FilterMenu {
@@ -112,10 +113,13 @@ interface SearchBox {
 }
 
 interface HeadColumn {
+  key: string
   label: string
   /** Sets the column's width, the same for every column of that format. */
   format: string
   right: boolean
+  /** Left out below `sm`. */
+  phoneHidden: boolean
 }
 
 interface Head {
@@ -124,17 +128,34 @@ interface Head {
   time: string
   /** Columns share the width evenly; a list titled by event keeps the events tables' proportions. */
   even: boolean
+  /** A layout of its own, drawn by name; null for the shared widths. */
+  layout: string | null
 }
 
-export type Cell = { key: string; right: boolean } & (
+export type Cell = { key: string; right: boolean; phoneHidden: boolean } & (
   | { kind: 'none' }
-  | { kind: 'badge'; status: string; label: string; role: BadgeRole }
-  | { kind: 'mono' | 'text'; text: string }
+  | {
+      kind: 'badge'
+      status: string
+      label: string
+      role: BadgeRole
+      /** The value's meaning, else its label. */
+      title: string
+    }
+  | {
+      kind: 'mono' | 'text'
+      text: string
+      /** Said beside it below `sm`, for a status hidden there. */
+      phoneBadge?: string
+    }
+  | { kind: 'versioned'; text: string; code: string; version: string }
   | { kind: 'position'; statusLabel: string | null; positionLabel: string }
   | { kind: 'time'; time: TimeCell }
 )
 
-type Drawn<C = Cell> = C extends Cell ? Omit<C, 'key' | 'right'> : never
+type Drawn<C = Cell> = C extends Cell
+  ? Omit<C, 'key' | 'right' | 'phoneHidden'>
+  : never
 
 interface RowModel {
   href: string | null
@@ -142,6 +163,8 @@ interface RowModel {
   /** An event type is drawn by its short name, with the spoken one for a screen reader. */
   eventName: EventName | null
   mono: boolean
+  /** Said after the title to a screen reader, so links to versions of one code differ. */
+  spokenVersion: string | null
   subtitle: string | null
   cells: Cell[]
   time: TimeCell
@@ -322,13 +345,15 @@ const toMenu =
           value: null,
           label: 'All',
           href: hrefWith(context, fact.name, undefined),
-          active: !chosen
+          active: !chosen,
+          hint: null
         },
         ...withChosen(offered, chosen).map((option) => ({
           value: String(option.value),
           label: option.label,
           href: hrefWith(context, fact.name, String(option.value)),
-          active: chosen === String(option.value)
+          active: chosen === String(option.value),
+          hint: option.hint ?? null
         }))
       ]
     }
@@ -474,15 +499,35 @@ const exact = 'exact'
 
 const rightAligned = new Set(['time'])
 
-const toHead = ({ title, columns, time }: BucketEntry): Head => ({
-  title: title.label,
-  columns: columns.map(({ label, format }) => ({
+interface Layout {
+  name: string
+  /** Columns left out below `sm`, so the rest fit a phone without a sideways scroll. */
+  phoneHidden: string[]
+}
+
+const versionListLayout: Layout = { name: 'versions', phoneHidden: ['status'] }
+
+/** Presentation only, keyed by list: the widths themselves are in `table-head`. */
+const layouts: Record<string, Layout> = {
+  'gas.grants': versionListLayout,
+  'cw.workflows': versionListLayout
+}
+
+const isPhoneHidden = ({ id }: BucketEntry, key: string): boolean =>
+  layouts[id]?.phoneHidden.includes(key) ?? false
+
+const toHead = (bucket: BucketEntry): Head => ({
+  title: bucket.title.label,
+  columns: bucket.columns.map(({ key, label, format }) => ({
+    key,
     label,
     format,
-    right: rightAligned.has(format)
+    right: rightAligned.has(format),
+    phoneHidden: isPhoneHidden(bucket, key)
   })),
-  time: time.label,
-  even: title.format !== 'eventType'
+  time: bucket.time.label,
+  even: bucket.title.format !== 'eventType',
+  layout: layouts[bucket.id]?.name ?? null
 })
 
 type Draw = (
@@ -493,7 +538,17 @@ type Draw = (
 
 const toText: Draw = (value) => ({ kind: 'text', text: String(value) })
 
-const toMono: Draw = (value) => ({ kind: 'mono', text: String(value) })
+/** `code@1.4.2`, as GAS and CW write a record's config version. */
+const versioned = /^(.+)@(\d+\.\d+\.\d+)$/
+
+const toMono: Draw = (value) => {
+  const text = String(value)
+  const match = versioned.exec(text)
+
+  return match
+    ? { kind: 'versioned', text, code: match[1], version: match[2] }
+    : { kind: 'mono', text }
+}
 
 const optionOf = (
   { facts }: BucketEntry,
@@ -505,13 +560,19 @@ const optionOf = (
     ?.values?.find((option) => option.value === value)
 
 const toBadge: Draw = (value, column, { bucket }) => {
-  const { label, tone } = {
+  const { label, tone, hint } = {
     label: String(value),
     tone: 'neutral' as const,
     ...optionOf(bucket, column, value)
   }
 
-  return { kind: 'badge', status: String(value), label, role: tone }
+  return {
+    kind: 'badge',
+    status: String(value),
+    label,
+    role: tone,
+    title: hint ?? label
+  }
 }
 
 const toPosition: Draw = (value, column, context) =>
@@ -541,7 +602,11 @@ const toCell =
   (column: BucketColumn): Cell => {
     const value = row.cells[column.key] ?? null
     const draw = draws.get(column.format) ?? toText
-    const cell = { key: column.key, right: rightAligned.has(column.format) }
+    const cell = {
+      key: column.key,
+      right: rightAligned.has(column.format),
+      phoneHidden: isPhoneHidden(context.bucket, column.key)
+    }
 
     return value === null
       ? { ...cell, kind: 'none' }
@@ -561,16 +626,72 @@ const toTitleName = (
 const isError = (cell: Cell): boolean =>
   cell.kind === 'badge' && cell.role === 'error'
 
+const versionLinks = new Set(['grant', 'workflow'])
+
+const toSpokenVersion = ({ link, cells }: BucketRow): string | null =>
+  link && versionLinks.has(link.kind) && typeof cells.version === 'string'
+    ? cells.version
+    : null
+
+/** A value's hint cannot know the row is a draft, so the row says so on every other badge. */
+const toDraftClause = (
+  { bucket }: Context,
+  { cells }: BucketRow
+): string | null =>
+  layouts[bucket.id] && cells.status === 'draft'
+    ? `Draft: ${bucket.service} won't pick it for new work until it is published as active.`
+    : null
+
+const withDraftClause = (cells: Cell[], clause: string | null): Cell[] =>
+  clause === null
+    ? cells
+    : cells.map((cell) =>
+        cell.kind === 'badge' && cell.key !== 'status'
+          ? { ...cell, title: `${cell.title} ${clause}` }
+          : cell
+      )
+
+const isPhoneStatus = (cell: Cell): boolean =>
+  cell.key === 'status' && cell.phoneHidden
+
+/** The label of a status hidden on phones, unless it is Active. */
+const phoneStatusOf = (cells: Cell[]): string | null => {
+  const status = cells.find(isPhoneStatus)
+
+  return status?.kind === 'badge' && status.status !== 'active'
+    ? status.label
+    : null
+}
+
+/** A status hidden on phones is said beside the version there, unless it is Active. */
+const withPhoneStatus = (cells: Cell[]): Cell[] => {
+  const label = phoneStatusOf(cells)
+
+  return label === null
+    ? cells
+    : cells.map((cell) =>
+        cell.key === 'version' && cell.kind === 'mono'
+          ? { ...cell, phoneBadge: label }
+          : cell
+      )
+}
+
 const toRow =
   (context: Context, from: string) =>
   (row: BucketRow): RowModel => {
-    const cells = context.bucket.columns.map(toCell(row, context))
+    const cells = withPhoneStatus(
+      withDraftClause(
+        context.bucket.columns.map(toCell(row, context)),
+        toDraftClause(context, row)
+      )
+    )
 
     return {
       href: toRowHref(row.link, from),
       title: row.title ?? none,
       eventName: toTitleName(context.bucket, row.title),
       mono: context.bucket.title.format === 'mono',
+      spokenVersion: toSpokenVersion(row),
       subtitle: row.subtitle,
       cells,
       time: toTimeCell(row.time, context.now),
@@ -618,9 +739,24 @@ const noPaging: BucketPaging = {
 const hasSearchedEverything = ({ plan, page }: BucketResult): boolean =>
   plan.kind !== exact && page.complete
 
+const toChoiceText = ({ label, values }: BucketFact, value: string): string => {
+  const option = values?.find((choice) => String(choice.value) === value)
+
+  return `${label} is ${option ? option.label : `"${value}"`}`
+}
+
+/** "No grant versions whose Status is Draft", or the plain "No … found" with nothing chosen. */
+const toNothingText = ({ bucket, filters }: Context): string => {
+  const chosen = bucket.facts.filter(({ name }) => filters[name])
+
+  return chosen.length
+    ? `No ${bucket.noun.many} whose ${chosen.map((fact) => toChoiceText(fact, filters[fact.name]!)).join(' and ')}.`
+    : `No ${bucket.noun.many} found.`
+}
+
 /** An empty read that searched the whole range says so on the same line, so the list ends in one place. */
 const toEmptyText = (
-  { noun }: BucketEntry,
+  context: Context,
   keepLooking: KeepLooking | null,
   searchedEverything: boolean
 ): string => {
@@ -628,9 +764,9 @@ const toEmptyText = (
     return 'No matches so far.'
   }
 
-  return searchedEverything
-    ? `No ${noun.many} found. Searched everything.`
-    : `No ${noun.many} found.`
+  const nothing = toNothingText(context)
+
+  return searchedEverything ? `${nothing} Searched everything.` : nothing
 }
 
 const toPaging = (context: Context, searchId: string | null) => {
@@ -643,7 +779,7 @@ const toPaging = (context: Context, searchId: string | null) => {
     nextHref: toCursorHref(context, page.next, searchId),
     keepLooking,
     searchedEverything,
-    emptyText: toEmptyText(context.bucket, keepLooking, searchedEverything)
+    emptyText: toEmptyText(context, keepLooking, searchedEverything)
   }
 }
 

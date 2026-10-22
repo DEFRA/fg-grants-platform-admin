@@ -16,21 +16,31 @@ const part = ($: CheerioAPI, name: string) =>
 const textOf = ($: CheerioAPI, name: string) => flatten(part($, name).text())
 
 const offered: Chip = {
-  parts: ['POST_AWARD', 'AGREEMENT', 'OFFERED'],
-  prefix: false,
+  label: 'OFFERED',
+  code: 'POST_AWARD:AGREEMENT:OFFERED',
+  any: null,
   href: '/phases?status=POST_AWARD:AGREEMENT:OFFERED'
 }
 
 const complete: Chip = {
-  parts: ['POST_AWARD', 'AGREEMENT', 'CLAIMS_COMPLETE'],
-  prefix: false,
+  label: 'CLAIMS_COMPLETE',
+  code: 'POST_AWARD:AGREEMENT:CLAIMS_COMPLETE',
+  any: null,
   href: '/phases?status=POST_AWARD:AGREEMENT:CLAIMS_COMPLETE'
 }
 
 const agreementStage: Chip = {
-  parts: ['POST_AWARD', 'AGREEMENT'],
-  prefix: true,
-  href: '/phases'
+  label: 'POST_AWARD:AGREEMENT',
+  code: 'POST_AWARD:AGREEMENT',
+  any: 'status',
+  href: '/phases#phase-POST_AWARD'
+}
+
+const claimPhase: Chip = {
+  label: 'CLAIM',
+  code: 'CLAIM',
+  any: 'stage-and-status',
+  href: '/phases#phase-CLAIM'
 }
 
 type TemplateCard = EntitlementsTab['templates'][number]
@@ -49,15 +59,17 @@ const template = (overrides: Partial<TemplateCard> = {}): TemplateCard => ({
     approval: false,
     evidence: true
   },
-  onSubmit: { label: 'Pays now', role: 'success', movesOnLastClaim: false },
+  onSubmit: { kind: 'requests-payment', payment: 'stored', move: null },
+  onSubmitRole: 'success',
+  warnings: [],
   fields: [],
   help: null,
   ...overrides
 })
 
 const tab = (overrides: Partial<EntitlementsTab> = {}): EntitlementsTab => ({
-  claims: { move: null, paymentHref: null, roles: null },
-  warnings: [],
+  nothing: false,
+  claims: { move: null, paymentHref: null, paymentLink: null, roles: null },
   templates: [template()],
   ...overrides
 })
@@ -65,274 +77,325 @@ const tab = (overrides: Partial<EntitlementsTab> = {}): EntitlementsTab => ({
 const renderTab = (overrides: Partial<EntitlementsTab> = {}) =>
   render('grant-entitlements', { view: tab(overrides), testId })
 
+const withTemplate = (overrides: Partial<TemplateCard>) =>
+  renderTab({ templates: [template(overrides)] })
+
 const factText = ($: CheerioAPI, id: string) =>
   flatten(part($, `fact-${id}`).find('dd').text())
 
 describe('grantEntitlements: the Claims card', () => {
-  test('shows the move on the last claim as two chips with an arrow between', () => {
+  test('is headed as applying to all templates', () => {
+    const $ = renderTab()
+
+    expect(part($, 'claims').find('h2').text()).toBe('Claims (all templates)')
+    expect(part($, 'claims').attr('aria-labelledby')).toBe(
+      part($, 'claims').find('h2').attr('id')
+    )
+  })
+
+  test('shows the move after the last claim on one row, saying it moves to', () => {
     const $ = renderTab({
       claims: {
         move: { from: offered, to: complete },
-        paymentHref: '/payment',
-        roles: { allOf: ['Grants.Claims.Read'], anyOf: [] }
+        paymentHref: null,
+        paymentLink: null,
+        roles: null
       }
     })
     const move = part($, 'move')
 
-    expect(part($, 'claims').attr('aria-label')).toBe('Claims')
-    expect(
-      move
-        .find('a')
-        .toArray()
-        .map((chip) => $(chip).attr('href'))
-    ).toEqual([offered.href, complete.href])
-    expect(move.find('svg')).toHaveLength(1)
+    expect(move.find('dt').text()).toBe('After the last claim')
+    expect(move.find('dd > span').attr('class')).toBe(
+      'inline-flex flex-wrap items-center gap-1'
+    )
+    expect(move.find('.sr-only').first().text()).toBe(', open in Phases')
     expect(flatten(move.find('dd').text())).toBe(
-      'POST_AWARD:AGREEMENT:OFFERED POST_AWARD:AGREEMENT:CLAIMS_COMPLETE'
+      'OFFERED, open in Phases moves to CLAIMS_COMPLETE, open in Phases'
     )
-    expect(part($, 'payment-file').find('a').attr('href')).toBe('/payment')
-    expect(flatten(part($, 'payment-file').find('dd').text())).toBe(
-      'Payment definition'
-    )
-    expect(flatten(part($, 'roles').find('dd').text())).toBe(
-      'Grants.Claims.Read'
-    )
-    expect(part($, 'roles').text()).not.toContain('any of')
   })
 
-  test('shows a dash for no move and no payment file, and any operator for no roles', () => {
+  test('shows a dash for no move and no payment definition, and any operator for no roles', () => {
     const $ = renderTab()
 
-    expect(flatten(part($, 'move').find('dd').text())).toBe('—')
-    expect(flatten(part($, 'payment-file').find('dd').text())).toBe('—')
+    expect(part($, 'move').find('dd').text().trim()).toBe('—')
+    expect(part($, 'payment-file').find('dt').text()).toBe('Payment definition')
+    expect(part($, 'payment-file').find('dd').text().trim()).toBe('—')
     expect(flatten(part($, 'roles').find('dd').text())).toBe('Any operator')
   })
 
-  test('shows the any of roles on a line of their own', () => {
+  test('says all of and any of for the roles', () => {
     const $ = renderTab({
       claims: {
         move: null,
-        paymentHref: null,
-        roles: { allOf: [], anyOf: ['Grants.Claims.Approve', 'Admin'] }
+        paymentHref: '/payment',
+        paymentLink: 'Not stored yet · Payment tab ›',
+        roles: { allOf: ['ROLE_A'], anyOf: ['ROLE_B', 'ROLE_C'] }
       }
     })
 
-    const roles = part($, 'roles').find('dd')
-
-    expect(flatten(roles.children('span').text())).toBe('—')
-    expect(flatten(roles.find('div').text())).toBe(
-      'any of Grants.Claims.Approve, Admin'
+    expect(part($, 'payment-file').find('a').text()).toBe(
+      'Not stored yet · Payment tab ›'
     )
-  })
-})
-
-describe('grantEntitlements: warnings', () => {
-  test('says each problem, with the code in mono and a link to the payment definition', () => {
-    const $ = renderTab({
-      warnings: [
-        { kind: 'materialised-claim', claimCode: 'CAPITAL' },
-        { kind: 'no-claimable-at', claimCode: 'SURVEY' },
-        {
-          kind: 'claim-payment-reads-agreement',
-          claimCode: 'MAINTENANCE',
-          paymentHref: '/payment'
-        }
-      ]
-    })
-    const warnings = part($, 'warning')
-
-    expect(warnings.toArray().map((w) => flatten($(w).text()))).toEqual([
-      'CAPITAL is materialised, so its claim block is never used.',
-      'SURVEY has no claimableAt: every claim is rejected.',
-      'MAINTENANCE pays on submit, but the payment definition reads $.agreement; claim payments carry only claim and execution.'
-    ])
-    expect(warnings.first().find('.font-mono').first().text()).toBe('CAPITAL')
-    expect(warnings.last().find('a').attr('href')).toBe('/payment')
-    expect(warnings.first().attr('role')).toBe('alert')
+    expect(
+      part($, 'roles')
+        .find('dd > div')
+        .toArray()
+        .map((line) => flatten($(line).text()))
+    ).toEqual(['all of: ROLE_A', 'any of: ROLE_B, ROLE_C'])
+    expect(part($, 'payment-file').find('a').attr('href')).toBe('/payment')
   })
 
-  test('shows none for a clean definition', () => {
-    expect(part(renderTab(), 'warning')).toHaveLength(0)
+  test('is the only card, saying so, when nothing can be claimed', () => {
+    const $ = renderTab({ nothing: true, templates: [] })
+
+    expect(textOf($, 'nothing')).toBe(
+      'Nothing can be claimed on this version: it has no entitlement templates.'
+    )
+    expect(part($, 'claims')).toHaveLength(0)
+    expect(part($, 'empty')).toHaveLength(0)
+  })
+
+  test('says there are no templates, still showing the Claims card', () => {
+    const $ = renderTab({ templates: [] })
+
+    expect(textOf($, 'empty')).toBe('No entitlement templates.')
+    expect(part($, 'claims')).toHaveLength(1)
   })
 })
 
 describe('grantEntitlements: a template card', () => {
-  test('titles the card with its claim code and name', () => {
+  test('titles the card with its claim code, the name stacking beneath on a phone', () => {
+    const $ = renderTab()
+    const title = part($, 'template-title')
+
+    expect(flatten(title.text())).toBe('MAINTENANCE Maintenance payment')
+    expect(title.attr('class')).toContain('flex-wrap')
+    expect(title.children('span').last().attr('class')).toContain(
+      'basis-full font-normal sm:basis-auto'
+    )
+    expect(textOf($, 'grant-ops')).toBe(
+      'Shown in Grant Ops as a claimable item.'
+    )
+  })
+
+  test('says no claimable item of a materialised template', () => {
+    const $ = withTemplate({ materialised: true })
+
+    expect(part($, 'grant-ops')).toHaveLength(0)
+    expect(factText($, 'created-by')).toBe(
+      "materialised: projected from the application's position and past claims. GAS doesn't derive these yet, so nothing can be claimed against them"
+    )
+  })
+
+  test('says how it is created, and where it can be claimed', () => {
     const $ = renderTab()
 
-    expect(textOf($, 'template-title')).toBe('MAINTENANCE Maintenance payment')
-    expect(part($, 'description')).toHaveLength(0)
+    expect(
+      part($, 'template')
+        .find('h3')
+        .toArray()
+        .map((head) => $(head).text())
+    ).toEqual(["How it's created", 'Claiming'])
+    expect(factText($, 'created-by')).toBe('an operator (claimable item)')
+    expect(part($, 'fact-max-entitlements').find('dt').text()).toBe(
+      'Max per application'
+    )
+    expect(part($, 'fact-available-at').find('dt').text()).toBe(
+      'Can be created at'
+    )
+    expect(factText($, 'claimable-at')).toBe(
+      'POST_AWARD:AGREEMENT any status, open in Phases'
+    )
   })
 
-  test('shows the description when there is one', () => {
-    const $ = renderTab({
-      templates: [template({ description: 'Paid yearly.' })]
-    })
+  test('draws a chip as a quiet badge naming its position, opening it in Phases', () => {
+    const $ = withTemplate({ availableAt: [offered, claimPhase] })
+    const [full, phase] = part($, 'fact-available-at')
+      .find('[data-testid="grant-entitlements-chip"]')
+      .toArray()
 
-    expect(textOf($, 'description')).toBe('Paid yearly.')
+    expect($(full).attr('class')).toContain('badge badge-ghost badge-sm')
+    expect($(full).attr('class')).toContain('w-fit')
+    expect($(full).attr('class')).toContain('border-base-300')
+    expect($(full).attr('title')).toBe(
+      'POST_AWARD:AGREEMENT:OFFERED: open in Phases'
+    )
+    expect($(full).attr('href')).toBe(offered.href)
+    expect(flatten($(phase).text())).toBe(
+      'CLAIM any stage, any status, open in Phases'
+    )
+    expect($(phase).attr('href')).toBe('/phases#phase-CLAIM')
   })
 
-  test('shows the Creation and Claiming rules', () => {
-    const $ = renderTab()
+  test('shows a dash for every Claiming rule when there is no claim', () => {
+    const $ = withTemplate({ claim: null })
 
-    expect(factText($, 'materialised')).toBe('No')
-    expect(factText($, 'max-entitlements')).toBe('10')
-    expect(factText($, 'available-at')).toBe('POST_AWARD:AGREEMENT:OFFERED')
-    expect(factText($, 'claimable-at')).toBe('POST_AWARD:AGREEMENT:*')
-    expect(factText($, 'max-claims')).toBe('10 per entitlement')
-    expect(factText($, 'partial')).toBe('No')
-    expect(factText($, 'approval')).toBe('No')
-    expect(factText($, 'evidence')).toBe('Yes')
-    expect(factText($, 'on-submit')).toBe('Pays now')
-  })
-
-  test('shows a dash for every Claiming rule but On submit when there is no claim', () => {
-    const $ = renderTab({
-      templates: [
-        template({
-          materialised: true,
-          claim: null,
-          onSubmit: {
-            label: 'Never claimable',
-            role: 'neutral',
-            movesOnLastClaim: false
-          }
-        })
-      ]
-    })
-
-    expect(factText($, 'materialised')).toBe('Yes')
     expect(
       ['claimable-at', 'max-claims', 'partial', 'approval', 'evidence'].map(
         (id) => factText($, id)
       )
     ).toEqual(['—', '—', '—', '—', '—'])
-    expect(factText($, 'on-submit')).toBe('Never claimable')
-  })
-
-  test('shows a dash for an empty claimableAt', () => {
-    const $ = renderTab({
-      templates: [
-        template({
-          claim: { ...template().claim!, claimableAt: [] }
-        })
-      ]
-    })
-
-    expect(factText($, 'claimable-at')).toBe('—')
   })
 
   test.each([
-    ['neutral', 'status bg-base-content/80'],
-    ['info', 'status status-info'],
-    ['success', 'status status-success'],
-    ['warning', 'status status-warning']
-  ] as const)(
-    'draws On submit with a %s dot that lets the text wrap',
-    (role, dot) => {
-      const $ = renderTab({
-        templates: [
-          template({
-            onSubmit: { label: 'Pays now', role, movesOnLastClaim: false }
-          })
-        ]
-      })
-      const onSubmit = part($, 'on-submit')
+    [
+      { kind: 'cant-claim', reason: 'materialised' },
+      "Can't be claimed (materialised: GAS doesn't derive these yet)"
+    ],
+    [
+      { kind: 'cant-claim', reason: 'no-claimable-at' },
+      "Can't be claimed (no Claimable at)"
+    ],
+    [
+      { kind: 'waits-for-approval' },
+      'Waits for approval · GAS has no approval step yet, so these claims stay awaiting: no payment, no move.'
+    ],
+    [
+      { kind: 'requests-payment', payment: 'stored', move: null },
+      'Requests payment'
+    ],
+    [{ kind: 'no-payment-file', move: null }, 'No payment file']
+  ] as const)('says on submit %j', (onSubmit, text) => {
+    const $ = withTemplate({ onSubmit })
 
-      expect(onSubmit.attr('class')).toContain('items-baseline')
-      expect(onSubmit.attr('class')).not.toContain('whitespace-nowrap')
-      expect(onSubmit.children().first().attr('class')).toContain(dot)
+    expect(textOf($, 'on-submit')).toBe(text)
+    expect(part($, 'summary').find('dt').text()).toBe('On submit')
+  })
+
+  test('says a payment definition not stored yet is fetched when first needed', () => {
+    const $ = withTemplate({
+      onSubmit: { kind: 'requests-payment', payment: 'not-stored', move: null }
+    })
+
+    expect(textOf($, 'payment-not-stored')).toBe(
+      'Payment definition not stored yet: GAS fetches it when it first needs it.'
+    )
+    expect(part($, 'payment-failed')).toHaveLength(0)
+  })
+
+  test('says claim payments fail when GAS has marked the payment definition failed', () => {
+    const $ = withTemplate({
+      onSubmit: { kind: 'requests-payment', payment: 'failed', move: null }
+    })
+
+    expect(textOf($, 'payment-failed')).toBe(
+      'Payment definition failed: these claim payments fail.'
+    )
+    expect(part($, 'payment-not-stored')).toHaveLength(0)
+  })
+
+  test('draws the On submit outcome as a status badge in its role', () => {
+    const $ = withTemplate({ onSubmitRole: 'warning' })
+
+    expect(
+      part($, 'on-submit').find('[data-testid="do-status-dot"]').attr('class')
+    ).toBe('status status-warning')
+  })
+
+  test('says where the last claim moves the application', () => {
+    const $ = withTemplate({
+      onSubmit: {
+        kind: 'requests-payment',
+        payment: 'stored',
+        move: { from: offered, to: complete }
+      }
+    })
+
+    expect(textOf($, 'moves')).toBe(
+      'Moves the application to CLAIMS_COMPLETE, open in Phases when the last claim is submitted at OFFERED, open in Phases'
+    )
+  })
+
+  test.each([
+    [
+      { kind: 'materialised-claim', claimCode: 'CAPITAL' },
+      "CAPITAL is materialised, which GAS doesn't derive yet, so its claim rules never apply."
+    ],
+    [
+      { kind: 'no-claimable-at', claimCode: 'ENT_CS_CAPITAL_PA3' },
+      'ENT_CS_CAPITAL_PA3 can\'t be claimed: its claim rules list no "Claimable at" status, so GAS rejects every claim (WRONG_POSITION). Publish a version that sets claim.claimableAt.'
+    ],
+    [
+      {
+        kind: 'claim-payment-reads-agreement',
+        claimCode: 'MAINTENANCE',
+        paymentHref: '/payment'
+      },
+      'MAINTENANCE requests payment on submit, but the payment definition reads $.agreement: claim payments can only read $.claim and $.execution, so these fields resolve empty and GAS refuses the payment.'
+    ]
+  ] as const)(
+    'warns at the top of the card, with no alert role: %j',
+    (warning, text) => {
+      const $ = withTemplate({ warnings: [warning] })
+      const shown = part($, 'warning')
+
+      expect(textOf($, 'warning')).toBe(text)
+      expect(shown.attr('role')).toBeUndefined()
+      expect(
+        shown.closest('[data-testid="grant-entitlements-template"]')
+      ).toHaveLength(1)
     }
   )
 
-  test('says it moves on the last claim, quietly', () => {
-    const $ = renderTab({
-      templates: [
-        template({
-          onSubmit: {
-            label: 'Pays now',
-            role: 'success',
-            movesOnLastClaim: true
-          }
-        })
+  test('says where each field comes from, with a fixed value in a code block', () => {
+    const $ = withTemplate({
+      fields: [
+        {
+          name: 'hectares',
+          source: 'Entered',
+          text: 'Area maintained',
+          unit: 'decimal (ha)',
+          bounds: ['min 0.1', '2 dp']
+        },
+        {
+          name: 'agreementRef',
+          source: 'From agreement',
+          text: '$.agreement.agreementNumber',
+          unit: 'string',
+          bounds: []
+        }
       ]
     })
+    const rows = part($, 'field')
+      .toArray()
+      .map((row) =>
+        $(row)
+          .children('td')
+          .toArray()
+          .map((cell) => flatten($(cell).text()))
+      )
 
-    const moves = part($, 'fact-on-submit').find('dd > div')
-
-    expect(textOf($, 'on-submit')).toBe('Pays now')
-    expect(flatten(moves.text())).toBe('Moves on the last claim')
-    expect(moves.children().attr('class')).toBe('text-base-content/60')
-  })
-})
-
-describe('grantEntitlements: fields', () => {
-  test('lists each field, with a fixed value in a code block', () => {
-    const $ = renderTab({
-      templates: [
-        template({
-          fields: [
-            {
-              name: 'hectares',
-              input: true,
-              text: 'Area maintained',
-              unit: 'decimal (ha)',
-              bounds: ['min 0.1', '2 dp']
-            },
-            {
-              name: 'rate',
-              input: false,
-              text: '120',
-              unit: 'string',
-              bounds: []
-            }
-          ]
-        })
+    expect(rows).toEqual([
+      [
+        'hectares',
+        'Entered',
+        'Area maintained',
+        'decimal (ha)',
+        'min 0.1, 2 dp'
+      ],
+      [
+        'agreementRef',
+        'From agreement',
+        '$.agreement.agreementNumber',
+        'string',
+        '—'
       ]
-    })
-
-    expect(
-      part($, 'fields')
-        .find('th')
-        .toArray()
-        .map((th) => $(th).text())
-    ).toEqual(['Field', 'Source', 'Label or value', 'Unit', 'Bounds'])
-    expect(
-      part($, 'field')
-        .toArray()
-        .map((row) =>
-          $(row)
-            .children('td')
-            .toArray()
-            .map((cell) => flatten($(cell).text()))
-        )
-    ).toEqual([
-      ['hectares', 'Input', 'Area maintained', 'decimal (ha)', 'min 0.1, 2 dp'],
-      ['rate', 'Fixed', '120', 'string', '—']
     ])
-    expect(part($, 'field').last().find('code').text()).toBe('120')
+    expect(part($, 'field').last().find('code')).toHaveLength(1)
+    expect(part($, 'fields').find('table').attr('class')).toContain(
+      'min-w-[40rem]'
+    )
   })
 
-  test('has no table when there are no fields', () => {
-    expect(part(renderTab(), 'fields')).toHaveLength(0)
-  })
-})
-
-describe('grantEntitlements', () => {
   test('shows help closed, with its paragraphs and bullets', () => {
-    const $ = renderTab({
-      templates: [
-        template({
-          help: {
-            summary: 'What counts',
-            content: [{ text: 'Mown once.' }, { items: ['Cut', 'Graze'] }]
-          }
-        })
-      ]
+    const $ = withTemplate({
+      help: {
+        summary: 'What counts',
+        content: [{ text: 'Mown once.' }, { items: ['Cut', 'Graze'] }]
+      }
     })
     const help = part($, 'help')
 
-    expect(help.is('details')).toBe(true)
     expect(help.attr('open')).toBeUndefined()
     expect(flatten(help.find('summary').text())).toBe('Help · What counts')
     expect(help.find('p').text()).toBe('Mown once.')
@@ -342,24 +405,5 @@ describe('grantEntitlements', () => {
         .toArray()
         .map((li) => $(li).text())
     ).toEqual(['Cut', 'Graze'])
-  })
-
-  test('breaks a chip between its parts, and marks a prefix', () => {
-    const $ = renderTab()
-    const [full, prefix] = part($, 'chip').toArray()
-
-    expect($(full).find('wbr')).toHaveLength(2)
-    expect($(full).text()).not.toContain(':*')
-    expect($(prefix).find('wbr')).toHaveLength(1)
-    expect($(prefix).find('.text-base-content\\/60').text()).toBe(':*')
-    expect($(prefix).attr('href')).toBe('/phases')
-  })
-
-  test('says there are no templates, still showing the Claims card', () => {
-    const $ = renderTab({ templates: [] })
-
-    expect(textOf($, 'empty')).toBe('No entitlement templates.')
-    expect(part($, 'claims')).toHaveLength(1)
-    expect(part($, 'template')).toHaveLength(0)
   })
 })

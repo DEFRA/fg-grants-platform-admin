@@ -71,6 +71,23 @@ describe('toVersionListHref', () => {
 })
 
 describe('toRowHref', () => {
+  test('shortens a way back too long for the page it opens to accept', () => {
+    const long = `/dev-ops/events/gas/outbox?back=${encodeURIComponent(`/dev-ops/grants?q=${'a'.repeat(2048)}`)}`
+    const href = toRowHref(
+      {
+        kind: 'event',
+        service: 'gas',
+        box: 'outbox',
+        id: '66f000000000000000000001'
+      },
+      long
+    )
+
+    expect(new URL(href ?? '', 'http://gpa').searchParams.get('back')).toBe(
+      '/dev-ops/events/gas/outbox'
+    )
+  })
+
   test('opens a CW event under cw, as its lists are', () => {
     expect(
       toRowHref(

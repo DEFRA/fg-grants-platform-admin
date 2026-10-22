@@ -20,7 +20,12 @@ const phase = (
   stages: Object.entries(stages).map(([stage, statuses]) => ({
     code: stage,
     name: null,
-    statuses: statuses.map((status) => ({ code: status, tone, flagged: false }))
+    statuses: statuses.map((status) => ({
+      code: status,
+      name: status,
+      tone,
+      flagged: false
+    }))
   }))
 })
 
@@ -102,13 +107,48 @@ const floodWorkflow: StateMap = {
           code: 'REVIEW',
           name: 'Review application',
           statuses: [
-            { code: 'AWAITING_REVIEW', tone: 'neutral', flagged: false },
-            { code: 'IN_REVIEW', tone: 'info', flagged: false },
-            { code: 'ON_HOLD', tone: 'warning', flagged: false },
-            { code: 'RFI_SENT', tone: 'warning', flagged: false },
-            { code: 'APPROVED', tone: 'success', flagged: false },
-            { code: 'REJECTED', tone: 'error', flagged: false },
-            { code: 'WITHDRAWN', tone: 'neutral', flagged: true }
+            {
+              code: 'AWAITING_REVIEW',
+              name: 'AWAITING_REVIEW',
+              tone: 'neutral',
+              flagged: false
+            },
+            {
+              code: 'IN_REVIEW',
+              name: 'IN_REVIEW',
+              tone: 'info',
+              flagged: false
+            },
+            {
+              code: 'ON_HOLD',
+              name: 'ON_HOLD',
+              tone: 'warning',
+              flagged: false
+            },
+            {
+              code: 'RFI_SENT',
+              name: 'RFI_SENT',
+              tone: 'warning',
+              flagged: false
+            },
+            {
+              code: 'APPROVED',
+              name: 'APPROVED',
+              tone: 'success',
+              flagged: false
+            },
+            {
+              code: 'REJECTED',
+              name: 'REJECTED',
+              tone: 'error',
+              flagged: false
+            },
+            {
+              code: 'WITHDRAWN',
+              name: 'WITHDRAWN',
+              tone: 'neutral',
+              flagged: true
+            }
           ]
         }
       ]
@@ -121,8 +161,18 @@ const floodWorkflow: StateMap = {
           code: 'AGREEMENT',
           name: 'Agreement',
           statuses: [
-            { code: 'AWAITING_ACCEPTANCE', tone: 'info', flagged: true },
-            { code: 'ACCEPTED', tone: 'success', flagged: true }
+            {
+              code: 'AWAITING_ACCEPTANCE',
+              name: 'AWAITING_ACCEPTANCE',
+              tone: 'info',
+              flagged: true
+            },
+            {
+              code: 'ACCEPTED',
+              name: 'ACCEPTED',
+              tone: 'success',
+              flagged: true
+            }
           ]
         }
       ]
@@ -148,79 +198,79 @@ describe('toStateGraphs', () => {
   test("places every node and edge of a grant's phases", () => {
     const [preAward, postAward] = graphsOf(woodlandGrant).phases
 
-    expect([preAward.width, preAward.height]).toEqual([612, 326])
+    expect([preAward.width, preAward.height]).toEqual([401, 354])
     expect(layoutOf(preAward)).toEqual({
       'PRE_AWARD:APPLICATION:RECEIVED': [20, 38, 104],
       'PRE_AWARD:APPLICATION:AMEND': [168, 38, 104],
-      'PRE_AWARD:REVIEW:IN_REVIEW': [168, 196, 104],
-      'PRE_AWARD:REVIEW:ON_HOLD': [316, 124, 104],
-      'PRE_AWARD:REVIEW:APPROVED': [316, 172, 104],
-      'PRE_AWARD:REVIEW:REJECTED': [316, 220, 104],
-      'PRE_AWARD:REVIEW:WITHDRAWN': [316, 268, 104],
-      'other-phase POST_AWARD:AGREEMENT:OFFERED': [464, 172, 128]
+      'PRE_AWARD:REVIEW:IN_REVIEW': [20, 210, 104],
+      'PRE_AWARD:REVIEW:ON_HOLD': [168, 126, 104],
+      'PRE_AWARD:REVIEW:APPROVED': [168, 182, 104],
+      'PRE_AWARD:REVIEW:REJECTED': [168, 238, 104],
+      'PRE_AWARD:REVIEW:WITHDRAWN': [168, 294, 104],
+      'other-phase POST_AWARD:AGREEMENT:OFFERED': [316, 182, 65]
     })
     expect(preAward.edges.map(({ d }) => d)).toEqual([
-      'M124 53.5C146 53.5 146 57 168 57',
-      'M316 139.5C294 139.5 294 57 272 57',
-      'M124 60.5C146 60.5 146 215 168 215',
-      'M272 204.5C294 204.5 294 146.5 316 146.5',
-      'M272 211.5C294 211.5 294 191 316 191',
-      'M272 218.5C294 218.5 294 239 316 239',
-      'M420 139.5 C458.4375 139.5 458.4375 239 420 239',
-      'M272 225.5C294 225.5 294 287 316 287',
-      'M420 146.5 C463.5625 146.5 463.5625 287 420 287',
-      'M420 191C442 191 442 191 464 191'
+      'M124 54.5C146 54.5 146 58 168 58',
+      'M272 139 C308.125 139 308.125 58 272 58',
+      'M124 61.5 C169.3125 61.5 169.3125 216 124 216',
+      'M124 223C146 223 146 146 168 146',
+      'M124 230C146 230 146 202 168 202',
+      'M124 237C146 237 146 258 168 258',
+      'M272 146 C312 146 312 258 272 258',
+      'M124 244C146 244 146 314 168 314',
+      'M272 153 C318.125 153 318.125 314 272 314',
+      'M272 202C294 202 294 202 316 202'
     ])
 
-    expect([postAward.width, postAward.height]).toEqual([621, 144])
+    expect([postAward.width, postAward.height]).toEqual([588, 154])
     expect(layoutOf(postAward)).toEqual({
-      'POST_AWARD:AGREEMENT:OFFERED': [171, 62, 104],
-      'POST_AWARD:AGREEMENT:ACCEPTED': [319, 38, 104],
-      'POST_AWARD:AGREEMENT:DECLINED': [319, 86, 104],
-      'POST_AWARD:AGREEMENT:CLAIMS_COMPLETE': [467, 38, 134],
-      'other-phase PRE_AWARD:REVIEW:APPROVED': [20, 62, 107]
+      'POST_AWARD:AGREEMENT:OFFERED': [135, 66, 104],
+      'POST_AWARD:AGREEMENT:ACCEPTED': [283, 38, 104],
+      'POST_AWARD:AGREEMENT:DECLINED': [283, 94, 104],
+      'POST_AWARD:AGREEMENT:CLAIMS_COMPLETE': [431, 38, 137],
+      'other-phase PRE_AWARD:REVIEW:APPROVED': [20, 66, 71]
     })
     expect(postAward.edges.map(({ d }) => d)).toEqual([
-      'M127 81C149 81 149 81 171 81',
-      'M275 77.5C297 77.5 297 57 319 57',
-      'M275 84.5C297 84.5 297 105 319 105',
-      'M423 57C445 57 445 57 467 57'
+      'M91 86C113 86 113 86 135 86',
+      'M239 82.5C261 82.5 261 58 283 58',
+      'M239 89.5C261 89.5 261 114 283 114',
+      'M387 58C409 58 409 58 431 58'
     ])
   })
 
   test("places every node and edge of a workflow's phases", () => {
     const [preAward, postAward] = graphsOf(floodWorkflow).phases
 
-    expect([preAward.width, preAward.height]).toEqual([683, 240])
+    expect([preAward.width, preAward.height]).toEqual([670, 266])
     expect(layoutOf(preAward)).toEqual({
-      'PRE_AWARD:REVIEW:AWAITING_REVIEW': [20, 110, 146],
-      'PRE_AWARD:REVIEW:IN_REVIEW': [210, 110, 104],
-      'PRE_AWARD:REVIEW:ON_HOLD': [358, 38, 104],
-      'PRE_AWARD:REVIEW:RFI_SENT': [358, 134, 104],
-      'PRE_AWARD:REVIEW:APPROVED': [358, 86, 104],
-      'PRE_AWARD:REVIEW:REJECTED': [358, 182, 104],
-      'PRE_AWARD:REVIEW:WITHDRAWN': [20, 158, 146],
-      'other-phase POST_AWARD:AGREEMENT:AWAITING_ACCEPTANCE': [506, 86, 157]
+      'PRE_AWARD:REVIEW:AWAITING_REVIEW': [20, 122, 149],
+      'PRE_AWARD:REVIEW:IN_REVIEW': [213, 122, 105],
+      'PRE_AWARD:REVIEW:ON_HOLD': [362, 38, 104],
+      'PRE_AWARD:REVIEW:RFI_SENT': [362, 150, 104],
+      'PRE_AWARD:REVIEW:APPROVED': [362, 94, 104],
+      'PRE_AWARD:REVIEW:REJECTED': [362, 206, 104],
+      'PRE_AWARD:REVIEW:WITHDRAWN': [20, 178, 149],
+      'other-phase POST_AWARD:AGREEMENT:AWAITING_ACCEPTANCE': [510, 94, 140]
     })
     expect(preAward.edges.map(({ d }) => d)).toEqual([
-      'M166 129C188 129 188 129 210 129',
-      'M314 126.4C336 126.4 336 105 358 105',
-      'M314 142C336 142 336 201 358 201',
-      'M314 116C336 116 336 60.5 358 60.5',
-      'M314 131.6C336 131.6 336 156.5 358 156.5',
-      'M358 53.5C336 53.5 336 121.2 314 121.2',
-      'M358 149.5C336 149.5 336 136.8 314 136.8',
-      'M462 105C484 105 484 105 506 105'
+      'M169 142C191 142 191 142 213 142',
+      'M318 139.2C340 139.2 340 114 362 114',
+      'M318 156C340 156 340 226 362 226',
+      'M318 128C340 128 340 61.5 362 61.5',
+      'M318 144.8C340 144.8 340 173.5 362 173.5',
+      'M362 54.5C340 54.5 340 133.6 318 133.6',
+      'M362 166.5C340 166.5 340 150.4 318 150.4',
+      'M466 114C488 114 488 114 510 114'
     ])
 
-    expect([postAward.width, postAward.height]).toEqual([366, 144])
+    expect([postAward.width, postAward.height]).toEqual([352, 154])
     expect(layoutOf(postAward)).toEqual({
-      'POST_AWARD:AGREEMENT:AWAITING_ACCEPTANCE': [171, 38, 175],
-      'POST_AWARD:AGREEMENT:ACCEPTED': [171, 86, 175],
-      'other-phase PRE_AWARD:REVIEW:APPROVED': [20, 38, 107]
+      'POST_AWARD:AGREEMENT:AWAITING_ACCEPTANCE': [135, 38, 197],
+      'POST_AWARD:AGREEMENT:ACCEPTED': [135, 94, 197],
+      'other-phase PRE_AWARD:REVIEW:APPROVED': [20, 38, 71]
     })
     expect(postAward.edges.map(({ d }) => d)).toEqual([
-      'M127 57C149 57 149 57 171 57'
+      'M91 58C113 58 113 58 135 58'
     ])
   })
 
@@ -258,12 +308,12 @@ describe('toStateGraphs', () => {
     expect(other).toMatchObject({
       kind: 'other-phase',
       x: 20,
-      stageKey: 'A:X',
-      code: 'ONE',
+      name: 'ONE',
+      label: 'ONE (A:X:ONE)',
       href: '?status=A:X:ONE'
     })
-    expect(nodeOf(graph, 'B:Y:THREE').x).toBe(106)
-    expect(nodeOf(graph, 'B:Y:TWO').x).toBe(106)
+    expect(nodeOf(graph, 'B:Y:THREE').x).toBe(103)
+    expect(nodeOf(graph, 'B:Y:TWO').x).toBe(103)
     expect(other.y).toBe(nodeOf(graph, 'B:Y:THREE').y)
   })
 
@@ -278,7 +328,7 @@ describe('toStateGraphs', () => {
     const graph = graphsOf(map).phases[0]
     const other = nodeOf(graph, 'B:Y:THREE')
 
-    expect(other).toMatchObject({ kind: 'other-phase', x: 316 })
+    expect(other).toMatchObject({ kind: 'other-phase', x: 168 })
     expect(other.y).toBe(nodeOf(graph, 'A:Z:TWO').y)
   })
 
@@ -295,15 +345,15 @@ describe('toStateGraphs', () => {
     const graph = graphsOf(map).phases[1]
 
     expect(graph.edges.map(({ d }) => d)).toEqual([
-      'M210 77.5C232 77.5 232 57 254 57',
-      'M358 57C380 57 380 98 402 98',
-      'M62 129C84 129 84 129 106 129 L210 129 C232 129 232 153 254 153 L358 153 C380 153 380 112 402 112',
-      'M402 105C380 105 380 105 358 105 L254 105 C232 105 232 84.5 210 84.5'
+      'M207 82.5C229 82.5 229 58 251 58',
+      'M355 58C377 58 377 107 399 107',
+      'M59 142C81 142 81 142 103 142 L207 142 C229 142 229 170 251 170 L355 170 C377 170 377 121 399 121',
+      'M399 114C377 114 377 114 355 114 L251 114 C229 114 229 89.5 207 89.5'
     ])
     expect(graph.nodes).toHaveLength(4)
   })
 
-  test('gives each stage one band, in order, as wide as its own columns', () => {
+  test('stacks each stage in a band under the last, each from the first column', () => {
     const map = {
       phases: [phase('P', { ONE: ['A'], TWO: ['B'] })],
       moves: [move('P:ONE:A', 'P:TWO:B')]
@@ -311,8 +361,24 @@ describe('toStateGraphs', () => {
     const { bands } = graphsOf(map).phases[0]
 
     expect(bands).toEqual([
-      { x: 12, y: 12, width: 120, height: 72, code: 'ONE', name: null },
-      { x: 160, y: 98, width: 120, height: 72, code: 'TWO', name: null }
+      {
+        x: 12,
+        y: 12,
+        width: 120,
+        height: 74,
+        code: 'ONE',
+        name: null,
+        labelWidth: 35
+      },
+      {
+        x: 12,
+        y: 100,
+        width: 120,
+        height: 74,
+        code: 'TWO',
+        name: null,
+        labelWidth: 35
+      }
     ])
   })
 
@@ -342,11 +408,11 @@ describe('toStateGraphs', () => {
       move('P:S:B', 'P:S:C')
     )
 
-    expect(self.edges[0].d).toBe('M124 50 C151.75 50 151.75 64 124 64')
-    expect(across.edges[2].d).toBe('M272 57 C304 57 304 105 272 105')
+    expect(self.edges[0].d).toBe('M124 51 C151.75 51 151.75 65 124 65')
+    expect(across.edges[2].d).toBe('M272 58 C305 58 305 114 272 114')
   })
 
-  test('sizes a node by its code, never below 104, and 12px wider with a dot', () => {
+  test('sizes a node by the longer of its name and code, never below 104, and 12px wider with a dot', () => {
     const plain = phase('P', { S: ['SHORT', 'A_RATHER_LONG_STATUS_CODE'] })
     const toned = phase('P', { S: ['A_RATHER_LONG_STATUS_CODE'] }, 'info')
     const widthOf = (p: StatePhase) =>
@@ -354,15 +420,30 @@ describe('toStateGraphs', () => {
         ({ width }) => width
       )
 
-    expect(widthOf(plain)).toEqual([206, 206])
-    expect(widthOf(toned)).toEqual([218])
+    expect(widthOf(plain)).toEqual([211, 211])
+    expect(widthOf(toned)).toEqual([223])
     expect(widthOf(phase('P', { S: ['A'] }))).toEqual([104])
+  })
+
+  test('gives each node its height, and where its dot and text sit, so the template draws what the layout sized', () => {
+    const nodeOf = (p: StatePhase) =>
+      graphsOf({ phases: [p], moves: [] }).phases[0].nodes[0]
+    const plain = nodeOf(phase('P', { S: ['A'] }))
+    const toned = nodeOf(phase('P', { S: ['A'] }, 'info'))
+
+    expect(plain).toMatchObject({ height: 40, dot: null })
+    expect(plain.textX - plain.x).toBe(12)
+    expect(toned).toMatchObject({
+      height: 40,
+      dot: { x: toned.x + 14, y: toned.y + 20 },
+      textX: toned.x + 26
+    })
   })
 
   test('includes padding in the natural size', () => {
     const graph = single()
 
-    expect([graph.width, graph.height]).toEqual([144, 240])
+    expect([graph.width, graph.height]).toEqual([144, 266])
   })
 
   test('selects a full position', () => {
@@ -383,6 +464,15 @@ describe('toStateGraphs', () => {
     }
 
     expect(graphsOf(map, 'TWO').selected?.position).toBe('A:X:TWO')
+  })
+
+  test("selects a stage's first status for a stage alone", () => {
+    const map = {
+      phases: [phase('A', { X: ['ONE'], Y: ['TWO', 'THREE'] })],
+      moves: []
+    }
+
+    expect(graphsOf(map, 'A:Y').selected?.position).toBe('A:Y:TWO')
   })
 
   test.each([
@@ -484,5 +574,78 @@ describe('toStateGraphs', () => {
 
   test('names no duplicates when there are none', () => {
     expect(graphsOf(woodlandGrant).duplicated).toEqual([])
+  })
+})
+
+describe('toStateGraphs: names and labels', () => {
+  const named: StateMap = {
+    phases: [
+      {
+        code: 'P',
+        name: 'Pre-award',
+        stages: [
+          {
+            code: 'S',
+            name: 'Review application',
+            statuses: [
+              {
+                code: 'A',
+                name: 'A rather long status name',
+                tone: null,
+                flagged: true,
+                findings: ['unreachable', 'dead end'],
+                chip: 'start'
+              },
+              { code: 'B', name: 'Bee', tone: null, flagged: false }
+            ]
+          }
+        ]
+      }
+    ],
+    moves: []
+  }
+
+  test('sizes a column by its longest name, with room for a finding', () => {
+    const widths = graphsOf(named).phases[0].nodes.map(({ width }) => width)
+
+    expect(widths).toEqual([
+      Math.ceil(25 * 7.4 + 26 + 18),
+      Math.ceil(25 * 7.4 + 26 + 18)
+    ])
+  })
+
+  test('names a node and its finding for a screen reader, and keeps its chip', () => {
+    const [node] = graphsOf(named).phases[0].nodes
+
+    expect(node).toMatchObject({
+      name: 'A rather long status name',
+      label:
+        'A rather long status name (P:S:A), finding: unreachable, dead end',
+      chip: 'start',
+      flagged: true
+    })
+  })
+
+  test("widens a band to its label, the stage's name then its code", () => {
+    const map: StateMap = {
+      phases: [
+        {
+          code: 'P',
+          name: null,
+          stages: [
+            {
+              code: 'CLAIM_COMPLETE',
+              name: 'Claim complete and paid in full',
+              statuses: [{ code: 'A', name: 'A', tone: null, flagged: false }]
+            }
+          ]
+        }
+      ],
+      moves: []
+    }
+    const [band] = graphsOf(map).phases[0].bands
+
+    expect(band.labelWidth).toBe(Math.ceil(31 * 6.8 + 6 + 14 * 6.1 + 16))
+    expect(band.width).toBe(band.labelWidth + 8)
   })
 })

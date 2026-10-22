@@ -15,12 +15,21 @@ export type FetchStatus =
 export interface DefinitionFile {
   stored: boolean
   fetchStatus: FetchStatus
+  /** Its last fetch's error, as the service kept it; older backends leave the rest out. */
+  fetchError?: string | null
+  /** Failed fetches in a row. */
+  fetchAttempts?: number
+  s3Key?: string | null
 }
 
 export interface VersionSummary {
   version: string
   status: 'active' | 'draft'
   receivedAt: string
+  /** The worst of the service's own fetch statuses across its files; older backends leave it out. */
+  fetchStatus?: FetchStatus | null
+  /** Every file the version has is stored, however it got there. */
+  stored?: boolean
 }
 
 export type DefinitionFetchReason =

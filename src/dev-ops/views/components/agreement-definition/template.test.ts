@@ -1,9 +1,13 @@
 import type { CheerioAPI } from 'cheerio'
 
 import { render } from '../../../test-utils.ts'
-import type { GrantAgreement } from '../../../use-cases/get-grant-page.use-case.ts'
+import type {
+  AgreementDefinition,
+  GrantAgreement
+} from '../../../use-cases/get-grant-page.use-case.ts'
 import { agreementDefinition } from '../../../use-cases/test-fixtures.ts'
 import { toAgreementTab } from '../../../view-models/grant-agreement.view-model.ts'
+import type { AgreementContext } from '../../../view-models/grant-agreement.view-model.ts'
 
 const addresses = [
   {
@@ -14,218 +18,467 @@ const addresses = [
   { process: 'FETCH_TERMS', service: 'AGREEMENT_DOCS', url: null }
 ]
 
-const tabOf = (overrides: Partial<GrantAgreement> = {}) =>
+const context: AgreementContext = {
+  version: '3.16.3',
+  fetchStatus: 'fetched',
+  hrefs: { phases: '/phases', payment: '/payment' }
+}
+
+const tabOf = (
+  overrides: Partial<GrantAgreement> = {},
+  given: AgreementContext = context
+) =>
   render('agreement-definition', {
-    tab: toAgreementTab({
-      definition: agreementDefinition,
-      addresses,
-      problem: null,
-      ...overrides
-    }),
+    tab: toAgreementTab(
+      {
+        definition: agreementDefinition,
+        addresses,
+        problem: null,
+        ...overrides
+      },
+      given
+    ),
+    environment: 'dev',
     testId: 'agreement'
   })
+
+const withDefinition = (changes: Partial<AgreementDefinition>) =>
+  tabOf({ definition: { ...agreementDefinition, ...changes } })
 
 const part = ($: CheerioAPI, testId: string) =>
   $(`[data-testid="agreement-${testId}"]`)
 
 const flatten = (text: string) => text.replaceAll(/\s+/g, ' ').trim()
 
+const textOf = ($: CheerioAPI, testId: string) =>
+  flatten(part($, testId).text())
+
 const headsOf = ($: CheerioAPI, testId: string) =>
   part($, testId)
-    .find('th')
+    .find('thead th')
     .toArray()
     .map((head) => $(head).text())
 
-const cellsOf = ($: CheerioAPI, testId: string) =>
-  part($, testId)
-    .toArray()
-    .map((row) =>
-      $(row)
-        .children('td')
-        .toArray()
-        .map((cell) => flatten($(cell).text()))
-    )
+const factText = ($: CheerioAPI, id: string) =>
+  flatten(part($, `fact-${id}`).find('dd').text())
 
-describe('agreement-definition component', () => {
-  test('starts with the facts card, labelled Agreement', () => {
+describe('agreement-definition component: facts', () => {
+  test('starts with the facts card, under a visible heading', () => {
     const $ = tabOf()
+    const card = part($, 'overview')
 
-    expect(part($, 'overview').attr('aria-label')).toBe('Agreement')
-    expect(flatten(part($, 'fact-templates').text())).toBe(
-      'Templates terms.standard, terms.welsh'
-    )
-  })
-
-  test('heads the cards in order, each labelled by its heading', () => {
-    const $ = tabOf()
-
+    expect(card.find('h2').text()).toBe('Agreement definition')
+    expect(card.attr('aria-labelledby')).toBe(card.find('h2').attr('id'))
     expect(
-      ['states', 'pages', 'processes'].map((testId) => {
-        const card = part($, testId)
-
-        return $(`#${card.attr('aria-labelledby')}`).text()
-      })
-    ).toEqual(['States', 'Pages', 'Processes'])
+      card
+        .find('dt')
+        .toArray()
+        .map((label) => $(label).text())
+    ).toEqual([
+      'Code',
+      'Number prefix',
+      'Reads application answers from',
+      'Created when',
+      'Runs on create',
+      'Text templates'
+    ])
   })
 
-  test('lists each state action as a row, with the state cells on its first row', () => {
+  test('says agreements are created when the grant runs GENERATE_OFFER, linking to Phases', () => {
     const $ = tabOf()
 
-    expect(headsOf($, 'states')).toEqual([
+    expect(factText($, 'created-when')).toBe(
+      'the grant runs GENERATE_OFFER on a Phases move · see Phases ›'
+    )
+    expect(part($, 'fact-created-when').find('a').attr('href')).toBe('/phases')
+  })
+
+  test("titles each text template with its template's words", () => {
+    const $ = withDefinition({
+      templates: {
+        capitalItems: {
+          'QA-HEDGE': {
+            content: [
+              { component: 'paragraph', text: 'Hedgerow: @.quantity @.unit' }
+            ]
+          }
+        }
+      }
+    })
+
+    expect(part($, 'fact-templates').find('[title]').attr('title')).toBe(
+      'Hedgerow: @.quantity @.unit'
+    )
+  })
+
+  test('lists root endpoints, saying which service has no URL here', () => {
+    const $ = tabOf({
+      definition: {
+        ...agreementDefinition,
+        endpoints: [
+          { code: 'qa-unset', method: 'POST', path: '/qa', service: 'QA_UNSET' }
+        ]
+      },
+      endpointAddresses: [{ code: 'qa-unset', service: 'QA_UNSET', url: null }],
+      missingServiceUrls: ['QA_UNSET_URL']
+    })
+
+    expect(textOf($, 'endpoint')).toBe(
+      'qa-unset· POST /qa QA_UNSET · not configured in GAS on dev (QA_UNSET_URL unset)'
+    )
+  })
+
+  test('says only that there is no usable URL when GAS lists the service as set', () => {
+    const $ = tabOf({
+      definition: {
+        ...agreementDefinition,
+        endpoints: [
+          { code: 'qa-bad', method: 'POST', path: '/qa', service: 'QA_BAD' }
+        ]
+      },
+      endpointAddresses: [{ code: 'qa-bad', service: 'QA_BAD', url: null }],
+      missingServiceUrls: []
+    })
+
+    expect(textOf($, 'endpoint')).toBe(
+      'qa-bad· POST /qa QA_BAD · no usable URL in GAS on dev (QA_BAD_URL unset or invalid)'
+    )
+  })
+
+  test('lists root endpoints with no word on their URL from an older GAS', () => {
+    const $ = withDefinition({
+      endpoints: [
+        { code: 'qa-unset', method: 'POST', path: '/qa', service: 'QA_UNSET' }
+      ]
+    })
+
+    expect(textOf($, 'endpoint')).toBe('qa-unset· POST /qa QA_UNSET')
+  })
+})
+
+describe('agreement-definition component: unset service URLs', () => {
+  test('warns above States that GAS will not load the definition here', () => {
+    const $ = tabOf({ missingServiceUrls: ['QA_COMPLEX_UNSET_URL'] })
+    const alert = part($, 'missing-urls')
+
+    expect(flatten(alert.text())).toBe(
+      "QA_COMPLEX_UNSET_URL is unset in GAS here, and GAS won't load this agreement definition while any service it names has no URL. On this environment, agreements that resolve to it can't be created, and while it is the newest usable 3.x definition, actions on 3.x agreements before acceptance fail too (see the States caption)."
+    )
+    expect(alert.next().attr('data-testid')).toBe('agreement-states')
+  })
+
+  test('names every unset URL', () => {
+    const $ = tabOf({ missingServiceUrls: ['A_URL', 'B_URL', 'C_URL'] })
+
+    expect(textOf($, 'missing-urls')).toMatch(
+      /^A_URL, B_URL and C_URL are unset in GAS here/
+    )
+  })
+
+  test('says nothing when GAS does not say, even for an address with no URL', () => {
+    expect(part(tabOf(), 'missing-urls')).toHaveLength(0)
+  })
+})
+
+describe('agreement-definition component: States', () => {
+  test('says which agreement definition GAS runs actions with', () => {
+    const $ = tabOf()
+
+    expect(textOf($, 'states-caption')).toBe(
+      'Until an agreement is accepted, GAS runs its actions with the newest usable 3.x agreement definition, which may not be this one. From accepted on, it stays on the version it was accepted under.'
+    )
+  })
+
+  test('heads the columns, with the page view column only when a state runs one', () => {
+    expect(headsOf(tabOf(), 'states-table')).toEqual([
       'State',
-      'Page',
-      'Page processes',
+      'Shows page',
+      'Runs on each page view',
       'Action',
       'Moves to',
-      'Action page',
-      'Checks',
+      'Requires',
       'Runs'
     ])
-    expect(cellsOf($, 'state-row')).toEqual([
-      [
-        'offered initial',
-        'offered',
-        '—',
-        'accept',
-        'accepted',
-        'accept',
-        '1 required',
-        'CREATE_AGREEMENT_PAYMENT'
-      ],
-      ['', '', '', 'withdraw', 'withdrawn', '—', '—', '—'],
-      ['', '', '', 'cancel', 'cancelled', '—', '—', '—'],
-      [
-        'accepted pins version',
-        'accepted',
-        'GENERATE_OFFER',
-        'terminate',
-        'terminated',
-        '—',
-        '—',
-        '—'
-      ],
-      ['withdrawn', 'withdrawn', '—', 'none', '', '', '', ''],
-      ['cancelled', 'none', '—', 'none', '', '', '', ''],
-      ['terminated', 'terminated', '—', 'none', '', '', '', '']
-    ])
+    expect(part(tabOf(), 'page-view-head').attr('title')).toBe(
+      'Runs every time the customer opens any page while the agreement is in this state; outputs are not saved.'
+    )
   })
 
-  test('marks the initial and version-pinning states with outline badges', () => {
+  test('spans each state over its actions, with a rule between states', () => {
+    const $ = tabOf()
+    const [offered] = part($, 'state').toArray()
+    const rows = $(offered).find('tr')
+
+    expect($(offered).attr('class')).toBe('border-t border-base-300')
+    expect(rows).toHaveLength(3)
+    expect(rows.first().find('th').attr('rowspan')).toBe('3')
+    expect(rows.eq(1).find('th')).toHaveLength(0)
+  })
+
+  test('marks the initial state and the one that locks the version with quiet badges', () => {
     const $ = tabOf()
 
     expect(part($, 'initial').attr('class')).toBe(
-      'badge badge-sm badge-outline'
+      'badge badge-ghost badge-sm ml-1.5'
     )
-    expect(part($, 'pins-version').attr('class')).toBe(
-      'badge badge-sm badge-outline'
+    expect(part($, 'locks-version').text()).toBe('locks version')
+    expect(part($, 'locks-version').attr('title')).toBe(
+      'Until an agreement is accepted, GAS runs its actions with the newest usable 3.x agreement definition, which may not be this one. From accepted on, it stays on the version it was accepted under.'
     )
-    expect(
-      part($, 'initial').closest('tr').find('td').first().text()
-    ).toContain('offered')
   })
 
-  test('lists each page with its layout, sections and component types', () => {
+  test('links each shown page to its row, and says what an action requires', () => {
     const $ = tabOf()
+    const first = part($, 'state-row').first()
 
-    expect(headsOf($, 'pages')).toEqual([
-      'Page',
-      'Title',
-      'Layout',
-      'Sections',
-      'Components'
-    ])
-    expect(cellsOf($, 'page-row')).toEqual([
-      [
-        'document',
-        'Agreement document',
-        'document',
-        'parties, actions, payments, terms',
-        'heading'
-      ],
-      [
-        'offered',
-        'Review your agreement offer',
-        '—',
-        '—',
-        'summary-list, button'
-      ],
-      ['accept', 'Accept your agreement offer', '—', '—', 'form']
-    ])
+    expect(first.find('a[href="#page-offered"]')).toHaveLength(1)
+    expect(textOf($, 'rule')).toBe(
+      'confirm = $.form.confirmConfirm you have read the terms'
+    )
+    expect(flatten(first.find('td').eq(2).text())).toBe(
+      'acceptopens page accept'
+    )
   })
 
-  test('lists each process with the address it calls, or Not configured, and the service beneath', () => {
-    const $ = tabOf()
+  test('says a move to its own state stays, and what a move sets', () => {
+    const $ = withDefinition({
+      states: {
+        offered: {
+          on: {
+            refresh: {
+              target: 'offered',
+              values: { totalAmountPence: '$.agreement.totalAmountPence' }
+            }
+          }
+        }
+      }
+    })
+    const cells = part($, 'state-row').find('td')
 
-    expect(headsOf($, 'processes')).toEqual([
-      'Process',
-      'Type',
-      'Calls',
-      'Outputs'
-    ])
-    expect(cellsOf($, 'process-row')).toEqual([
-      [
-        'GENERATE_OFFER',
-        'endpoint',
-        'POST https://land-data.example/api/v2/parcels/{sbi}LAND_DATA',
-        'offer, totalAmountPence'
-      ],
-      ['FETCH_TERMS', 'endpoint', 'GET Not configuredAGREEMENT_DOCS', 'terms'],
-      ['CREATE_AGREEMENT_PAYMENT', 'handler', '—', '—']
-    ])
+    expect(flatten(cells.eq(2).text())).toBe('stays offered')
+    expect(textOf($, 'sets')).toBe('Sets totalAmountPence')
+  })
+
+  test('says a state with no actions has none', () => {
+    const $ = tabOf()
+    const cancelled = part($, 'state-row').eq(5)
+
+    expect(flatten(cancelled.find('td').last().text())).toBe('No actions')
+    expect(cancelled.find('td').last().attr('colspan')).toBe('4')
+  })
+
+  test('below sm, draws each state as a small block instead of the table', () => {
+    const $ = tabOf()
+    const blocks = part($, 'state-block')
+
+    expect(part($, 'state-blocks').attr('class')).toContain('sm:hidden')
+    expect(part($, 'states-table').parent().attr('class')).toContain(
+      'hidden w-full overflow-x-auto sm:block'
+    )
     expect(
-      part($, 'process-service')
+      blocks
+        .first()
+        .children()
         .toArray()
-        .map((service) => $(service).is('div'))
-    ).toEqual([true, true])
+        .map((line) => flatten($(line).text()))
+    ).toEqual([
+      'offered initial · shows offered',
+      'accept → accepted · runs CREATE_AGREEMENT_PAYMENT',
+      'withdraw → withdrawn',
+      'cancel → cancelled'
+    ])
+  })
+})
+
+describe('agreement-definition component: Pages', () => {
+  test('gives each page a row to link to, its title and what else it shows', () => {
+    const $ = tabOf()
+    const document = part($, 'page-row').filter('#page-document')
+
+    expect(document).toHaveLength(1)
+    expect(headsOf($, 'pages-table')).toEqual(['Page', 'Title'])
     expect(
-      part($, 'process-not-configured')
-        .find('[data-testid="do-status-dot"]')
-        .attr('class')
-    ).toBe('status status-warning')
+      flatten(document.find('[data-testid="agreement-page-details"]').text())
+    ).toBe('layout document · parties · actions · payments · terms')
+    expect(
+      flatten(document.find('[data-testid="agreement-page-components"]').text())
+    ).toBe('Components: heading')
+  })
+
+  test('lists the buttons on a page, warning of one whose action has no page', () => {
+    const $ = withDefinition({
+      pages: {
+        accepted: {
+          title: 'Agreement accepted',
+          components: [
+            {
+              component: 'button',
+              text: 'End this agreement',
+              action: 'terminate'
+            }
+          ]
+        },
+        offered: {
+          title: 'Your offer',
+          components: [
+            { component: 'button', text: 'Review and accept', action: 'accept' }
+          ]
+        }
+      }
+    })
+    const buttons = part($, 'page-button')
+
+    expect(
+      buttons.toArray().map((button) => flatten($(button).text()))
+    ).toEqual([
+      'Review and accept → accept (page accept)',
+      '⚠ terminate has no page: this button returns an error'
+    ])
+    expect(buttons.last().attr('class')).toBe('text-warning')
+  })
+})
+
+describe('agreement-definition component: Created with', () => {
+  test('lists what the agreement is created with, as the Payment tab lists fields', () => {
+    const $ = withDefinition({
+      create: {
+        target: 'offered',
+        application: '$.input.answers',
+        values: { schemeCode: 'QA-COMPLEX' }
+      }
+    })
+
+    expect(part($, 'created-with').find('h2').text()).toBe('Created with')
+    expect(
+      $('[data-testid="agreement-created-with-fields-comes-from"]').text()
+    ).toBe('fixed')
+  })
+
+  test('is left out when the definition creates with no values', () => {
+    expect(part(tabOf(), 'created-with')).toHaveLength(0)
+  })
+})
+
+describe('agreement-definition component: Processes', () => {
+  test('names each type in words, linking the payment handler to the Payment tab', () => {
+    const $ = tabOf()
+
+    expect(
+      part($, 'process-type')
+        .toArray()
+        .map((cell) => flatten($(cell).text()))
+    ).toEqual([
+      'HTTP call',
+      'HTTP call',
+      'Built into GASrequests the agreement payment (see Payment ›)'
+    ])
+    expect(part($, 'process-type').last().find('a').attr('href')).toBe(
+      '/payment'
+    )
+  })
+
+  test('keeps the path of a call with no URL here, naming the unset variable', () => {
+    const $ = tabOf({ missingServiceUrls: ['AGREEMENT_DOCS_URL'] })
+    const terms = part($, 'process-row').eq(1)
+
+    expect(flatten(terms.find('td').eq(2).text())).toBe(
+      'GET /terms AGREEMENT_DOCS · not configured in GAS on dev (AGREEMENT_DOCS_URL unset)'
+    )
+  })
+
+  test('says what a call sends, and where its outputs land', () => {
+    const $ = withDefinition({
+      processDefinitions: {
+        LOOK_UP_SCHEME_NAME: {
+          type: 'endpoint',
+          endpoint: { method: 'GET', path: '/health', service: 'QA_HEALTH' },
+          request: {
+            body: {
+              probe: 'qa-complex',
+              farmType: '$.application.farmType',
+              limit: 5,
+              where: { sbi: '$.application.sbi' }
+            }
+          },
+          output: { name: "jsonata:'QA (' & $.response.message & ')'" }
+        }
+      },
+      create: {
+        target: 'offered',
+        application: '$.input.answers',
+        processes: ['LOOK_UP_SCHEME_NAME']
+      }
+    })
+
+    expect(textOf($, 'process-sends')).toBe(
+      'Sends (body sent with a GET)probe = qa-complexfarmType ← $.application.farmTypelimit = 5wheresbi ← $.application.sbi'
+    )
+    expect(
+      part($, 'process-sends')
+        .find('div')
+        .toArray()
+        .map((row) => $(row).attr('class'))
+    ).toEqual([
+      'text-sm pl-0',
+      'text-sm pl-0',
+      'text-sm pl-0',
+      'text-sm pl-0',
+      'text-sm pl-4'
+    ])
+    expect(textOf($, 'process-output')).toBe(
+      "name ← 'QA (' & $.response.message & ')'"
+    )
+    expect(textOf($, 'process-lands')).toBe('saved to the agreement')
   })
 
   test('says when there are no processes, with no table', () => {
-    const $ = tabOf({
-      definition: { ...agreementDefinition, processDefinitions: undefined }
-    })
+    const $ = withDefinition({ processDefinitions: undefined })
 
-    expect(flatten(part($, 'no-processes').text())).toBe('No processes.')
-    expect(part($, 'process-row')).toHaveLength(0)
+    expect(textOf($, 'no-processes')).toBe('No processes.')
+    expect(part($, 'processes-table')).toHaveLength(0)
   })
 
-  test('scrolls each table inside its card on a narrow screen', () => {
+  test('scrolls each table inside its card, with headers that never wrap', () => {
     const $ = tabOf()
 
-    expect(
-      ['states', 'pages', 'processes'].map((testId) => [
-        part($, `${testId}-table`).parent().attr('class'),
-        part($, `${testId}-table`).attr('class')
-      ])
-    ).toEqual([
-      ['w-full overflow-x-auto', 'table w-full min-w-[56rem] table-fixed'],
-      ['w-full overflow-x-auto', 'table w-full min-w-[40rem] table-fixed'],
-      ['w-full overflow-x-auto', 'table w-full min-w-[40rem] table-fixed']
-    ])
+    for (const name of ['states-table', 'pages-table', 'processes-table']) {
+      expect(part($, name).parent().attr('class')).toContain('overflow-x-auto')
+      expect(part($, name).attr('class')).toMatch(/min-w-\[/)
+      expect(part($, name).find('thead th').first().attr('class')).toBe(
+        'whitespace-nowrap'
+      )
+    }
   })
+})
 
-  test('shows only why GAS cannot load a definition, and no cards', () => {
+describe('agreement-definition component: a definition GAS cannot load', () => {
+  test('says why, what it stops and what to do, breaking the reason as a code', () => {
     const $ = tabOf({
-      addresses: [],
-      problem: 'Agreement definition code "other" does not match'
+      problem: 'Field "CREATE_AGREEMENT_PAYMENT.input" is unknown'
     })
+    const alert = part($, 'problem')
 
-    expect(part($, 'problem').attr('role')).toBe('alert')
-    expect(flatten(part($, 'problem').text())).toBe(
-      'GAS cannot load this agreement definition: Agreement definition code "other" does not match'
+    expect(flatten(alert.text())).toBe(
+      'GAS can\'t load this agreement definition, so agreements that resolve to it can\'t be created or progressed. Reason: Field "CREATE_AGREEMENT_PAYMENT.input" is unknown. Publish a corrected version.'
     )
+    expect(alert.find('span.break-words')).toHaveLength(1)
+    expect(alert.find('wbr').length).toBeGreaterThan(0)
     expect(part($, 'overview')).toHaveLength(0)
     expect(part($, 'states')).toHaveLength(0)
   })
 
-  test('treats an empty problem as a problem', () => {
-    const $ = tabOf({ addresses: [], problem: '' })
+  test('says what GAS uses instead once it has marked the file unusable', () => {
+    const $ = tabOf(
+      { problem: 'bad' },
+      { ...context, fetchStatus: 'permanent_error' }
+    )
 
-    expect(part($, 'problem')).toHaveLength(1)
-    expect(part($, 'states')).toHaveLength(0)
+    expect(textOf($, 'problem-failed')).toBe(
+      'GAS has marked this file unusable. New agreements use the newest usable 3.x agreement definition at or below 3.16.3; actions before acceptance use the newest usable 3.x one, which may be later.'
+    )
+  })
+
+  test('treats an empty problem as a problem', () => {
+    expect(part(tabOf({ problem: '' }), 'problem')).toHaveLength(1)
   })
 })

@@ -9,8 +9,8 @@ const rowsOf = (questions: object): SchemaTreeRow[] => {
   return card?.kind === 'schema' ? card.rows : []
 }
 
-const tree = (questions: object) =>
-  render('schema-tree', { rows: rowsOf(questions), testId: 'tree' })
+const tree = (questions: object, checked = true) =>
+  render('schema-tree', { rows: rowsOf(questions), checked, testId: 'tree' })
 
 const nested = {
   required: ['applicant'],
@@ -97,15 +97,28 @@ describe('schema-tree component', () => {
     ).toEqual(['Property', 'Type', 'Required', 'Constraints'])
   })
 
-  test('marks a required name for sight only, and says it in words', () => {
+  test('names the column heads for assistive technology', () => {
+    const head = tree(nested)('[data-testid="tree-head"]')
+
+    expect(head.attr('role')).toBe('row')
+    expect(
+      head
+        .children()
+        .toArray()
+        .map((cell) => head.find(cell).attr('role'))
+    ).toEqual(['columnheader', 'columnheader', 'columnheader', 'columnheader'])
+  })
+
+  test('says Required in words only, and Optional muted', () => {
     const $ = tree(nested)
     const row = $('[data-testid="tree-row"]').first()
 
-    expect(row.find('.text-error').attr('aria-hidden')).toBe('true')
+    expect(row.find('.text-error')).toHaveLength(0)
+    expect(row.text()).not.toContain('*')
     expect(row.find('[data-testid="tree-required"]').text()).toBe('Required')
-    expect($('[data-testid="tree-required"]').eq(1).text().trim()).toBe(
-      'Optional'
-    )
+    expect(
+      $('[data-testid="tree-required"]').eq(1).children().attr('class')
+    ).toBe('text-base-content/70')
   })
 
   test('shows the type, the title, the constraints and the default', () => {
@@ -121,12 +134,80 @@ describe('schema-tree component', () => {
 
     expect(flatten(0, 'name')).toBe('applicant')
     expect(rows.eq(0).text()).toContain('Applicant details')
-    expect(flatten(2, 'constraints')).toBe('maxLength 100')
+    expect(flatten(2, 'constraints')).toBe('length ≤ 100')
     expect(flatten(3, 'name')).toBe('items[]')
     expect(flatten(3, 'type')).toBe('array of object')
     expect(flatten(4, 'constraints')).toBe('one of oak, birch')
     expect(flatten(5, 'constraints')).toBe('default false')
     expect(flatten(0, 'constraints')).toBe('—')
+    expect(
+      rows.eq(4).find('[data-testid="tree-constraint"] .font-mono')
+    ).toHaveLength(2)
+    expect(rows.eq(5).find('[data-testid="tree-default"]').attr('title')).toBe(
+      'Filled in when missing'
+    )
+  })
+
+  test('says only what GAS would do on a phase it does not check', () => {
+    const $ = tree(
+      {
+        properties: {
+          a: { type: 'object', properties: {}, additionalProperties: false },
+          b: { type: 'string', default: 'x' }
+        }
+      },
+      false
+    )
+
+    expect($('[data-testid="tree-closed"]').attr('title')).toBe(
+      'Fields not listed under it would be removed on submission'
+    )
+    expect($('[data-testid="tree-default"]').attr('title')).toBe(
+      'Would be filled in when missing'
+    )
+  })
+
+  test('badges a closed object, says where a ref came from, and clamps a description to a line', () => {
+    const $ = tree({
+      $defs: {
+        address: {
+          type: 'object',
+          description: 'A made-up address.',
+          properties: { line1: { type: 'string' } },
+          additionalProperties: false
+        }
+      },
+      properties: { address: { $ref: '#/$defs/address' } }
+    })
+
+    expect($('[data-testid="tree-closed"]').text()).toBe('closed')
+    expect($('[data-testid="tree-closed"]').attr('class')).toBe(
+      'badge badge-ghost badge-sm'
+    )
+    expect($('[data-testid="tree-from"]').text()).toBe('from $defs/address')
+    expect($('[data-testid="tree-from"] .font-mono')).toHaveLength(1)
+    expect($('[data-testid="tree-description"]').attr('class')).toContain(
+      'truncate'
+    )
+    expect($('[data-testid="tree-description"]').attr('title')).toBe(
+      'A made-up address.'
+    )
+  })
+
+  test('heads each conditional group of rows with its condition, codes in mono', () => {
+    const $ = tree({
+      properties: { flag: { type: 'boolean' }, ref: { type: 'string' } },
+      if: { properties: { flag: { const: true } } },
+      then: { required: ['ref'] }
+    })
+    const group = $('[data-testid="tree-group"]')
+
+    expect(group.text()).toBe('If flag is absent or = true')
+    expect(group.find('.font-mono').text()).toBe('flag')
+    expect(group.attr('class')).toContain('pl-0')
+    expect($('[data-testid="tree-row"]').last().attr('class')).toContain(
+      'items-start'
+    )
   })
 
   test('escapes markup in a name, a title or a pattern', () => {

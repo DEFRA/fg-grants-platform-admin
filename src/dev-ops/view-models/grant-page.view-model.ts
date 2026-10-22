@@ -1,5 +1,4 @@
 import type {
-  DefinitionFileType,
   GrantVersionHeader,
   GrantVersionOverview,
   GrantVersionPage,
@@ -10,20 +9,16 @@ import { grantTabs, offersTab } from '../use-cases/grant-tabs.ts'
 import type { GrantTabId } from '../use-cases/grant-tabs.ts'
 import { toAdminHref } from '../../grant-ops/view-models/allow-list-page.view-model.ts'
 import { toVersionListHref } from './bucket-links.ts'
-import { toDefinitionFetchNotices } from './definition-fetch.ts'
-import type {
-  DefinitionFetchFlash,
-  DefinitionFetchNotice
-} from './definition-fetch.ts'
+import type { DefinitionFetchFlash } from './definition-fetch.ts'
 import { toUnavailableSources } from './event-row.ts'
 import { toGrantQuestions } from './grant-questions.ts'
 import type { GrantQuestionsTab } from './grant-questions.ts'
 import { toGrantActions } from './grant-actions.ts'
-import type { GrantActionRow } from './grant-actions.ts'
+import type { GrantActionsTab } from './grant-actions.ts'
 import { toAgreementTab } from './grant-agreement.view-model.ts'
 import type { AgreementTab } from './grant-agreement.view-model.ts'
 import { toEntitlementsTab } from './grant-entitlements.ts'
-import type { EntitlementsTab } from './grant-entitlements.ts'
+import type { EntitlementsTab, PaymentFileState } from './grant-entitlements.ts'
 import { toGrantPhases } from './grant-phases.view-model.ts'
 import type { GrantPhasesTab } from './grant-phases.view-model.ts'
 import { grantType, toGrantHref } from './grants-page.view-model.ts'
@@ -31,6 +26,7 @@ import { toPaymentDefinition } from './payment-definition.ts'
 import type { PaymentDefinitionView } from './payment-definition.ts'
 import {
   toDateFact,
+  toDayFact,
   toEvents,
   toLinkFact,
   toMonoFact,
@@ -44,18 +40,15 @@ import {
 } from './record-page.view-model.ts'
 import type { Fact, RawTab, RecordPageModel } from './record-page.view-model.ts'
 import type { RecordType } from './record-type.ts'
-import { toVersionHeader, toVersionPath } from './version-header.ts'
-import type { VersionHeader } from './version-header.ts'
+import { toFileLines } from './version-banner.ts'
+import { toNotStored, toVersionShell } from './version-page.ts'
+import type { NotStored, VersionShell } from './version-page.ts'
 import { toWorkflowHref, workflowType } from './workflows-page.view-model.ts'
 
-export interface GrantPageModel extends RecordPageModel {
-  versionHeader: VersionHeader
-  /** What the fetch that has just landed here did. */
-  notices: DefinitionFetchNotice[]
-  /** The file the tab needs, while it is not stored. */
-  notStored: DefinitionFileType | null
+export interface GrantPageModel extends RecordPageModel, VersionShell {
+  notStored: NotStored | null
   questions: GrantQuestionsTab | null
-  actions: GrantActionRow[] | null
+  actions: GrantActionsTab | null
   agreement: AgreementTab | null
   phases: GrantPhasesTab | null
   entitlements: EntitlementsTab | null
@@ -87,13 +80,24 @@ const toApplicationsHref = (
 const toFacts = (
   header: GrantVersionHeader,
   overview: GrantVersionOverview,
-  applicationsHref: string | null
+  catalogue: Catalogue | null
 ): Fact[][] => [
   [
-    toTextFact('description', 'Description', overview.description),
-    toDateFact('start-date', 'Start date', overview.startDate),
+    toTextFact('description', 'Name', overview.description),
+    toDayFact(
+      'start-date',
+      'Start date (metadata)',
+      overview.startDate,
+      'not used by GAS'
+    ),
     toDateFact('received', 'Received', header.receivedAt),
-    toMonoFact('admin-role', 'Admin role', overview.adminRole)
+    toMonoFact('admin-role', 'Admin role', overview.adminRole),
+    {
+      id: 'definitions',
+      label: 'Definitions',
+      kind: 'lines',
+      lines: toFileLines(grantType, header, catalogue)
+    }
   ],
   [
     ...toReleaseCounterpartFacts(
@@ -105,7 +109,7 @@ const toFacts = (
       'applications',
       'Applications',
       'View applications',
-      applicationsHref
+      toApplicationsHref(catalogue, header)
     ),
     toLinkFact(
       'who-can-apply',
@@ -114,7 +118,7 @@ const toFacts = (
       toAllowListHref(header.code)
     ),
     toTextFact('versions', 'Versions', String(header.versions.length)),
-    toSizeFact(overview.storedBytes)
+    toSizeFact(overview.storedBytes, 'Definition size')
   ]
 ]
 
@@ -122,15 +126,6 @@ const toOfferedGrantType = (header: GrantVersionHeader): RecordType => ({
   ...grantType,
   tabs: grantType.tabs.filter(({ id }) => offersTab(header, id as GrantTabId))
 })
-
-const toNotStored = (
-  { files }: GrantVersionHeader,
-  tab: GrantTabId
-): DefinitionFileType | null => {
-  const { file } = grantTabs[tab]
-
-  return file && files[file]?.stored === false ? file : null
-}
 
 const toEntitlementsHrefs = (href: string, from: string) => ({
   phases: (status: string | null) =>
@@ -145,6 +140,20 @@ const toWorkflowPhasesHref = (header: GrantVersionHeader) =>
         toTabHref(toWorkflowHref(header), 'phases', back, { status: cwStatus })
     : null
 
+const toPaymentFileState = ({
+  files
+}: GrantVersionHeader): PaymentFileState | null => {
+  if (!files.payment) {
+    return null
+  }
+
+  if (files.payment.fetchStatus === 'permanent_error') {
+    return 'failed'
+  }
+
+  return files.payment.stored ? 'stored' : 'not-stored'
+}
+
 const toEntitlements = (
   { header, entitlements }: GrantVersionPage,
   tab: GrantTabId,
@@ -153,27 +162,62 @@ const toEntitlements = (
 ): EntitlementsTab | null =>
   tab === 'entitlements' && entitlements
     ? toEntitlementsTab(
-        { entitlements, hasPaymentFile: header.files.payment !== undefined },
+        {
+          entitlements,
+          payment: toPaymentFileState(header)
+        },
         toEntitlementsHrefs(href, from)
       )
     : null
 
+/** A tab's link, or null when the version has no file for that tab, so it is not offered. */
+const toFileTabHref = (
+  { files }: GrantVersionHeader,
+  file: 'agreement' | 'payment',
+  href: string,
+  from: string
+): string | null => (files[file] ? toTabHref(href, file, from) : null)
+
 const toPaymentTab = (
-  { payment, sectionErrors }: GrantVersionPage,
-  tab: GrantTabId
+  { header, payment, sectionErrors }: GrantVersionPage,
+  tab: GrantTabId,
+  href: string,
+  from: string
 ): GrantPageModel['payment'] =>
   tab === 'payment'
     ? {
-        view: payment ? toPaymentDefinition(payment) : null,
+        view: payment
+          ? toPaymentDefinition(payment, {
+              version: header.version,
+              hrefs: {
+                entitlements: toTabHref(href, 'entitlements', from),
+                agreement: toFileTabHref(header, 'agreement', href, from)
+              }
+            })
+          : null,
         raw: toRaw(payment, sectionErrors, 'payment')
       }
     : null
 
+const agreementFetchStatus = ({ files }: GrantVersionHeader) =>
+  files.agreement?.fetchStatus ?? null
+
 const toAgreement = (
-  { agreement }: GrantVersionPage,
-  tab: GrantTabId
+  { header, agreement }: GrantVersionPage,
+  tab: GrantTabId,
+  href: string,
+  from: string
 ): AgreementTab | null =>
-  tab === 'agreement' && agreement ? toAgreementTab(agreement) : null
+  tab === 'agreement' && agreement
+    ? toAgreementTab(agreement, {
+        version: header.version,
+        fetchStatus: agreementFetchStatus(header),
+        hrefs: {
+          phases: toTabHref(href, 'phases', from),
+          payment: toFileTabHref(header, 'payment', href, from)
+        }
+      })
+    : null
 
 const toQuestions = (
   { definition }: GrantVersionPage,
@@ -184,7 +228,7 @@ const toQuestions = (
 const toActions = (
   { definition }: GrantVersionPage,
   tab: GrantTabId
-): GrantActionRow[] | null =>
+): GrantActionsTab | null =>
   tab === 'actions' && definition ? toGrantActions(definition.actions) : null
 
 const toPhases = (
@@ -206,10 +250,7 @@ const toPhases = (
 const toOverviewFacts = (
   { header, overview }: GrantVersionPage,
   catalogue: Catalogue | null
-): Fact[][] | null =>
-  overview
-    ? toFacts(header, overview, toApplicationsHref(catalogue, header))
-    : null
+): Fact[][] | null => (overview ? toFacts(header, overview, catalogue) : null)
 
 export const toGrantPage = (
   page: GrantVersionPage,
@@ -232,8 +273,6 @@ export const toGrantPage = (
   return {
     record: grantType,
     ref: page.header.code,
-    backHref: from,
-    navActive: null,
     trail: [],
     tabs: toTabs(toOfferedGrantType(page.header), href, tab, from),
     tab,
@@ -243,18 +282,17 @@ export const toGrantPage = (
     events: toEvents(page.events, now, toTabHref(href, 'events', from)),
     ...toTabSection(page.definition, page.sectionErrors, tab, read),
     unavailableSources: toUnavailableSources(page.sourceErrors),
-    versionHeader: toVersionHeader(grantType, page.header, tab, from),
-    notices: toDefinitionFetchNotices(
-      grantType,
+    ...toVersionShell(grantType, page.header, tab, from, {
       notice,
-      toVersionPath(grantType, page.header)
-    ),
-    notStored: toNotStored(page.header, tab),
+      catalogue,
+      now
+    }),
+    notStored: toNotStored(page.header, tab, grantTabs[tab].file),
     phases: toPhases(page, tab, query, href, from),
     questions: toQuestions(page, tab),
     actions: toActions(page, tab),
     entitlements: toEntitlements(page, tab, href, from),
-    agreement: toAgreement(page, tab),
-    payment: toPaymentTab(page, tab)
+    agreement: toAgreement(page, tab, href, from),
+    payment: toPaymentTab(page, tab, href, from)
   }
 }

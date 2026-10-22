@@ -1,27 +1,13 @@
-/**
- * How GAS resolves each mapping: `resolve-process-mapping.js`, whose test pins
- * the same cases as `payment-definition.test.ts`.
- */
-const jsonataPrefix = 'jsonata:'
-const rootReferencePattern =
-  /^\$\.[A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*|\[(?:\d+|\*)\])*$/
-const rowReferencePattern =
-  /^@\.[A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*|\[(?:\d+|\*)\])*$/
-
-export type MappingKind =
-  | 'literal'
-  | 'reference'
-  | 'expression'
-  | 'list'
-  | 'collection'
-  | 'object'
-
-export interface MappingValue {
-  text: string
-  kind: MappingKind
-  /** The literal `""`. */
-  empty: boolean
-}
+import {
+  contextRootsOf,
+  isCollection,
+  isObject,
+  reads,
+  readsRows,
+  toMappingRows,
+  toMappingValue
+} from './mapping-table.ts'
+import type { Mapping, MappingRow, MappingValue } from './mapping-table.ts'
 
 /** Null where the key is absent. */
 interface InvoiceLine {
@@ -35,110 +21,115 @@ interface InvoiceLine {
 }
 
 type InvoiceLineRow =
-  | ({ kind: 'line' } & InvoiceLine)
+  | ({
+      kind: 'line'
+      /** The fields GAS calculates, opened beneath the line in full. */
+      calculated: (keyof InvoiceLine)[]
+    } & InvoiceLine)
   | { kind: 'from'; value: MappingValue }
 
 type InvoiceLines =
-  | { kind: 'lines'; forEach: string | null; rows: InvoiceLineRow[] }
+  | { kind: 'lines'; forEach: MappingValue | null; rows: InvoiceLineRow[] }
   | { kind: 'from'; value: MappingValue }
+
+/** `forEach` names what a collection of due payments walks; its title then says so. */
+interface DueTitle {
+  text: string
+  forEach: string | null
+}
 
 type DuePayment =
   | {
       kind: 'due'
-      title: string
-      forEach: string | null
+      title: DueTitle
+      forEach: MappingValue | null
       dueDate: MappingValue | null
       totalAmountPence: MappingValue | null
       lines: InvoiceLines
     }
-  | { kind: 'from'; title: string; value: MappingValue }
+  | { kind: 'from'; title: DueTitle; value: MappingValue }
+
+/** The context a payment reads, as GAS hands it over. */
+type Root = 'claim' | 'agreement' | 'execution' | 'row'
 
 export interface PaymentDefinitionView {
-  request: { field: string; value: MappingValue }[]
+  /** When GAS requests this payment. */
+  requestedWhen: { claim: boolean; agreement: boolean }
+  /** The tabs that say more; null where that tab is not offered. */
+  hrefs: PaymentContext['hrefs']
+  reads: Root[]
+  /** Reads both a claim and an agreement: claim payments find no agreement. */
+  mixed: boolean
+  version: string
+  /** Reads the agreement's own rows, whose refs GAS has replaced with ids. */
+  readsAgreementRows: boolean
+  request: MappingRow[]
   duePayments: DuePayment[]
 }
 
-type Mapping = Record<string, unknown>
+export interface PaymentContext {
+  version: string
+  hrefs: { entitlements: string; agreement: string | null }
+}
 
 interface Item {
   value: unknown
-  forEach: string | null
+  forEach: MappingValue | null
 }
-
-const isObject = (value: unknown): value is Mapping =>
-  value !== null && typeof value === 'object' && !Array.isArray(value)
-
-const isCollection = (value: unknown): value is Mapping =>
-  isObject(value) && Object.hasOwn(value, 'itemsRef')
-
-const toStringKind = (value: string): MappingKind => {
-  if (value.startsWith(jsonataPrefix)) {
-    return 'expression'
-  }
-
-  return rootReferencePattern.test(value) || rowReferencePattern.test(value)
-    ? 'reference'
-    : 'literal'
-}
-
-const toObjectKind = (value: object): MappingKind => {
-  if (Array.isArray(value)) {
-    return 'list'
-  }
-
-  return isCollection(value) ? 'collection' : 'object'
-}
-
-const toKind = (value: unknown): MappingKind => {
-  if (typeof value === 'string') {
-    return toStringKind(value)
-  }
-
-  return value !== null && typeof value === 'object'
-    ? toObjectKind(value)
-    : 'literal'
-}
-
-const toMappingValue = (value: unknown): MappingValue => ({
-  text: typeof value === 'string' ? value : JSON.stringify(value),
-  kind: toKind(value),
-  empty: value === ''
-})
 
 const toField = (mapping: Mapping, key: string): MappingValue | null =>
   Object.hasOwn(mapping, key) ? toMappingValue(mapping[key]) : null
 
-const toForEach = (collection: Mapping): string =>
-  toMappingValue(collection.itemsRef).text
-
-/** Arrays and collections give their elements, as GAS walks them; anything else is one item. */
-const toItems = (value: unknown, forEach: string | null = null): Item[] => {
-  if (Array.isArray(value)) {
-    return value.flatMap((element) => toItems(element, forEach))
+/**
+ * A collection gives one item per row and an array its elements; a collection
+ * or array inside one resolves to a nested list, which GAS rejects, so it
+ * stays a single item.
+ */
+const toItems = (value: unknown): Item[] => {
+  if (isCollection(value)) {
+    return [{ value: value.items, forEach: toMappingValue(value.itemsRef) }]
   }
 
-  return isCollection(value)
-    ? toItems(value.items, toForEach(value))
-    : [{ value, forEach }]
+  return (Array.isArray(value) ? value : [value]).map((element) => ({
+    value: element,
+    forEach: null
+  }))
+}
+
+/** A plain mapping of fields: neither a list nor a collection. */
+const isFields = (value: unknown): value is Mapping =>
+  isObject(value) && !isCollection(value)
+
+const lineKeys: (keyof InvoiceLine)[] = [
+  'schemeCode',
+  'description',
+  'amountPence',
+  'accountCode',
+  'fundCode',
+  'deliveryBody',
+  'marketingYear'
+]
+
+const toLine = (mapping: Mapping): InvoiceLineRow => {
+  const line = Object.fromEntries(
+    lineKeys.map((key) => [key, toField(mapping, key)])
+  ) as unknown as InvoiceLine
+
+  return {
+    kind: 'line',
+    ...line,
+    calculated: lineKeys.filter((key) => line[key]?.kind === 'expression')
+  }
 }
 
 const toInvoiceLineRow = ({ value }: Item): InvoiceLineRow =>
-  isObject(value)
-    ? {
-        kind: 'line',
-        schemeCode: toField(value, 'schemeCode'),
-        description: toField(value, 'description'),
-        amountPence: toField(value, 'amountPence'),
-        accountCode: toField(value, 'accountCode'),
-        fundCode: toField(value, 'fundCode'),
-        deliveryBody: toField(value, 'deliveryBody'),
-        marketingYear: toField(value, 'marketingYear')
-      }
+  isFields(value)
+    ? toLine(value)
     : { kind: 'from', value: toMappingValue(value) }
 
 const toLines = (value: unknown): InvoiceLines => ({
   kind: 'lines',
-  forEach: isCollection(value) ? toForEach(value) : null,
+  forEach: isCollection(value) ? toMappingValue(value.itemsRef) : null,
   rows: toItems(value).map(toInvoiceLineRow)
 })
 
@@ -153,12 +144,37 @@ const toInvoiceLines = (value: unknown): InvoiceLines => {
     : { kind: 'from', value: toMappingValue(value) }
 }
 
-const toDuePayment =
-  (numbered: boolean) =>
-  ({ value, forEach }: Item, index: number): DuePayment => {
-    const title = numbered ? `Due payment ${index + 1}` : 'Due payments'
+/** A calculated list is too long for a title; its For each row gives it. */
+const toCollectionTitle = ({ kind, text }: MappingValue): DueTitle =>
+  kind === 'expression'
+    ? {
+        text: 'Due payments (one per item of the list it calculates)',
+        forEach: null
+      }
+    : { text: 'Due payments', forEach: text }
 
-    return isObject(value)
+/** "Due payment", "Due payment 2 of 3", or for a collection what it repeats for. */
+const toArrayTitle = (index: number, count: number): DueTitle =>
+  count > 1
+    ? { text: `Due payment ${index + 1} of ${count}`, forEach: null }
+    : { text: 'Due payment', forEach: null }
+
+const toTitle = (payments: unknown, index: number, count: number): DueTitle => {
+  if (isCollection(payments)) {
+    return toCollectionTitle(toMappingValue(payments.itemsRef))
+  }
+
+  return Array.isArray(payments)
+    ? toArrayTitle(index, count)
+    : { text: 'Due payments', forEach: null }
+}
+
+const toDuePayment =
+  (payments: unknown, count: number) =>
+  ({ value, forEach }: Item, index: number): DuePayment => {
+    const title = toTitle(payments, index, count)
+
+    return isFields(value)
       ? {
           kind: 'due',
           title,
@@ -170,37 +186,43 @@ const toDuePayment =
       : { kind: 'from', title, value: toMappingValue(value) }
   }
 
-/** Odd shapes show as they are, so the operator sees what GAS will resolve. */
-export const toPaymentDefinition = (
-  definition: object
-): PaymentDefinitionView => {
-  const { code: _code, payments, ...request } = definition as Mapping
+const knownRoots: Root[] = ['claim', 'agreement', 'execution']
+
+const agreementRows =
+  /\$\.agreement\.(?:actions|items|paymentSchedule\.instalments)/
+
+/** Neither root read: either trigger may request it, so both are said. */
+const toRequestedWhen = (
+  roots: ReadonlySet<string>
+): PaymentDefinitionView['requestedWhen'] => {
+  const either = !roots.has('claim') && !roots.has('agreement')
 
   return {
-    request: Object.entries(request).map(([field, value]) => ({
-      field,
-      value: toMappingValue(value)
-    })),
-    duePayments: toItems(payments === undefined ? [] : payments).map(
-      toDuePayment(Array.isArray(payments))
-    )
+    claim: either || roots.has('claim'),
+    agreement: either || roots.has('agreement')
   }
 }
 
-const rootPattern = /\$\.([A-Za-z_$][\w$]*)/g
+/** Odd shapes show as they are, so the operator sees what GAS will resolve. */
+export const toPaymentDefinition = (
+  definition: Mapping,
+  context: PaymentContext
+): PaymentDefinitionView => {
+  const { code: _code, payments, ...request } = definition
+  const roots = contextRootsOf(definition)
+  const items = toItems(payments === undefined ? [] : payments)
 
-const toRoots = (value: unknown): string[] => {
-  if (value !== null && typeof value === 'object') {
-    return Object.values(value).flatMap(toRoots)
+  return {
+    requestedWhen: toRequestedWhen(roots),
+    hrefs: context.hrefs,
+    reads: [
+      ...knownRoots.filter((root) => roots.has(root)),
+      ...(readsRows(definition) ? (['row'] as const) : [])
+    ],
+    mixed: roots.has('claim') && roots.has('agreement'),
+    version: context.version,
+    readsAgreementRows: reads(definition, agreementRows),
+    request: toMappingRows(request),
+    duePayments: items.map(toDuePayment(payments, items.length))
   }
-
-  const { text, kind } = toMappingValue(value)
-
-  return kind === 'literal'
-    ? []
-    : [...text.matchAll(rootPattern)].map(([, root]) => root)
 }
-
-/** The `$.` roots a payment definition reads. */
-export const contextRootsOf = (definition: object): ReadonlySet<string> =>
-  new Set(toRoots(definition))

@@ -1,9 +1,12 @@
 {% extends 'layouts/page.njk' %}
 
+{% from "muted/macro.njk" import muted %}
 {% from "back/macro.njk" import back %}
 {% from "event-row/macro.njk" import eventRow, eventsHead %}
 {% from "facts-card/macro.njk" import factsCard %}
+{% from "code-text/macro.njk" import codeText %}
 {% from "icon/macro.njk" import icon %}
+{% from "inbox-search/macro.njk" import inboxSearch %}
 {% from "json-viewer/macro.njk" import jsonViewer %}
 {% from "record-row/macro.njk" import recordItem, recordRow %}
 
@@ -17,10 +20,10 @@
 {% block pageTitle %}{{ record.title }} {{ ref }} | {{ serviceName }}{% endblock %}
 
 {% block content %}
-  {{ back({ href: backHref or homeHref, list: record.listId, navLabel: (record.listId | capitalize) ~ " list", testId: record.itemId }) }}
+  {{ back({ href: backHref or homeHref, list: record.listId, label: backLabel, navLabel: (record.listId | capitalize) ~ " list", testId: record.itemId }) }}
 
   <header class="mt-2 mb-5" data-testid="{{ record.itemId }}-header">
-    <h1 class="flex flex-wrap items-baseline gap-x-2 text-xl font-semibold break-words" data-testid="{{ record.itemId }}-title"><span>{{ record.title }}</span> <span class="font-mono text-sm font-normal break-all text-base-content/70 select-all" data-testid="{{ record.itemId }}-ref">{{ ref }}</span></h1>
+    <h1 class="flex flex-wrap items-baseline gap-x-2 text-xl font-semibold break-words" data-testid="{{ record.itemId }}-title"><span>{{ record.title }}</span> <span class="font-mono text-sm font-normal break-all {{ muted }} select-all" data-testid="{{ record.itemId }}-ref">{{ ref }}</span></h1>
     {% block recordHeader %}
     {% if trail | length %}
       <p class="mt-2 flex flex-wrap items-center gap-x-1.5 text-sm" data-testid="{{ record.itemId }}-position">
@@ -35,18 +38,27 @@
 
   {% block beforeTabs %}{% endblock %}
 
-  {% if unavailable %}
+  {% if missingVersion %}
+    <div role="alert" class="alert alert-warning alert-soft text-sm" data-testid="{{ record.itemId }}-missing-version">
+      {{ icon({ name: 'exclamation-triangle', class: 'size-4 shrink-0 self-start mt-0.5' }) }}
+      <div class="flex max-w-3xl flex-col gap-2">
+        <p>{{ missingVersion.source }} has no record of <strong>{{ missingVersion.code }} {{ missingVersion.version }}</strong>. Check the version. If it was published and {{ missingVersion.source }} rejected it on arrival, its message is in {{ missingVersion.source }}'s inbox as a dead letter, unless it has been purged.</p>
+        <div>{% call inboxSearch({ service: missingVersion.source, code: missingVersion.code, testId: record.itemId ~ "-missing-version-search" }) %}Search {{ missingVersion.source }}'s inbox for {{ codeText(missingVersion.code) }} ›{% endcall %}</div>
+      </div>
+    </div>
+  {% elif unavailable %}
     <div role="alert" class="alert alert-error alert-soft text-sm" data-testid="{{ record.itemId }}-error">
       {{ icon({ name: 'exclamation-circle', class: 'size-4 shrink-0' }) }}
       <span>{% if timedOut %}This {{ record.title | lower }} could not be loaded: {{ record.source }} timed out waiting for it. Refresh to try again.{% else %}This {{ record.title | lower }} could not be loaded from {{ record.source }}.{% endif %}</span>
     </div>
   {% else %}
     <nav class="mb-4" aria-label="Sections" data-testid="{{ record.itemId }}-tabs">
-      <div class="tabs tabs-border">
+      {# One row that scrolls on a phone, with the open tab brought into view. #}
+      <do-tab-strip class="tabs tabs-border flex-nowrap overflow-x-auto [scrollbar-gutter:stable]">
         {% for item in tabs %}
-          <a class="tab{% if item.active %} tab-active{% endif %}" href="{{ item.href }}"{% if item.active %} aria-current="page"{% endif %} data-testid="{{ record.itemId }}-tab">{{ item.label }}</a>
+          <a class="tab shrink-0{% if item.active %} tab-active{% endif %}" href="{{ item.href }}"{% if item.active %} aria-current="page"{% endif %} data-testid="{{ record.itemId }}-tab">{{ item.label }}</a>
         {% endfor %}
-      </div>
+      </do-tab-strip>
     </nav>
 
     {% block tabBody %}
@@ -101,8 +113,15 @@
           <span>Some event sources are unavailable: {{ unavailableSources }}. Showing the rest.</span>
         </div>
       {% endif %}
+      {% set versioned = versionEvents %}
       <div class="card card-border overflow-clip bg-base-100" data-testid="{{ record.itemId }}-events">
         {% if events.rows | length %}
+          {% if versioned %}
+            <div class="px-4 pt-3 text-sm {{ muted }}" data-testid="{{ record.itemId }}-events-caption">
+              <p>{{ codeText("ConfigVersionUpdated") }} events {{ versioned.source }} received for {{ versioned.code }} {{ versioned.version }}, newest first.</p>
+              <div>A version {{ versioned.source }} rejected has no page: {% call inboxSearch({ service: versioned.source, code: versioned.code, testId: record.itemId ~ "-events-search" }) %}search {{ versioned.source }}'s inbox for {{ codeText(versioned.code) }} ›{% endcall %}</div>
+            </div>
+          {% endif %}
           <div class="w-full overflow-x-auto">
             <table class="table w-full min-w-[64rem] table-fixed" data-testid="{{ record.itemId }}-events-table">
               {{ eventsHead({}) }}
@@ -112,10 +131,18 @@
             </table>
           </div>
           {% if events.more %}
-            <p class="border-t border-base-300 px-4 py-3 text-sm text-base-content/70" data-testid="{{ record.itemId }}-events-more">Showing the newest 50 from each {{ record.source }} queue.</p>
+            <p class="border-t border-base-300 px-4 py-3 text-sm {{ muted }}" data-testid="{{ record.itemId }}-events-more">{% if versioned %}Showing the newest 50 from {{ versioned.source }}'s inbox.{% else %}Showing the newest 50 from each {{ record.source }} queue.{% endif %}</p>
           {% endif %}
+        {% elif versioned %}
+          <div class="px-4 py-10 text-center text-sm {{ muted }}" data-testid="{{ record.itemId }}-events-empty">
+            {# An unread source cannot be said to hold nothing: the alert above says why the table is empty. #}
+            {% if not unavailableSources %}
+              <p class="mb-2">{{ versioned.source }} holds no config event for {{ versioned.code }} {{ versioned.version }}. Events {{ versioned.source }} no longer holds are not listed.</p>
+            {% endif %}
+            <div>{% call inboxSearch({ service: versioned.source, code: versioned.code, testId: record.itemId ~ "-events-search" }) %}Search {{ versioned.source }}'s inbox for {{ codeText(versioned.code) }} to see every version's events ›{% endcall %}</div>
+          </div>
         {% else %}
-          <p class="px-4 py-10 text-center text-sm text-base-content/60" data-testid="{{ record.itemId }}-events-empty">No events found.</p>
+          <p class="px-4 py-10 text-center text-sm {{ muted }}" data-testid="{{ record.itemId }}-events-empty">No events found.</p>
         {% endif %}
       </div>
     {% elif tab == "raw" and raw %}

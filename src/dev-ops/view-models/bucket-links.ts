@@ -12,6 +12,7 @@ import { toEventHref } from './event-formats.ts'
 import { toGrantHref } from './grants-page.view-model.ts'
 import { toFilterHref } from './list-filters.ts'
 import { toWorkflowHref } from './workflows-page.view-model.ts'
+import { toFittingBack } from './record-filters.ts'
 
 /** Everything a list's URL holds but its position: one key per filtered fact, and the time range. */
 export type BucketFilters = Record<string, string | undefined>
@@ -122,5 +123,7 @@ export const toRowHref = (
 ): string | null => {
   const href = link === null ? null : toPageHref(link)
 
-  return href === null ? null : `${href}?${backKey}=${encodeURIComponent(from)}`
+  return href === null
+    ? null
+    : `${href}?${backKey}=${encodeURIComponent(toFittingBack(from))}`
 }

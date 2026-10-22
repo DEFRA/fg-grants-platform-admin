@@ -1,5 +1,6 @@
 import type {
   ServiceAddress,
+  StoredEndpoint,
   StoredExternalAction,
   StoredWorkflow,
   WorkflowDefinition
@@ -16,27 +17,48 @@ import {
 } from './workflow-external-actions.ts'
 import type { ActionCall } from './workflow-external-actions.ts'
 
+/** Who runs the action in the case view, linked to where Pages shows it. */
 interface Trigger {
+  kind: 'button' | 'tab'
   label: string
   href: string
 }
 
 interface Call {
   method: string
+  path: string
   endpointCode: string
   address: ServiceAddress
 }
 
+/** A literal is sent as written; a `$.` path is read from the case; a `jsonata:` expression is computed. */
 interface Send {
-  kind: 'PATH' | 'BODY'
+  kind: 'PATH' | 'BODY' | 'HEADER'
   name: string
-  expression: string
+  source: 'fixed' | 'case' | 'computed'
+  text: string
 }
 
+/** How CW keeps the answer under a target: appended, or replacing what has the same key. */
+type TargetShape = 'list' | 'list-keyed' | 'object-keyed' | 'object-unkeyed'
+
 type Write =
-  | { kind: 'supplementary'; path: string; detail: string }
+  | {
+      kind: 'target'
+      path: string
+      shape: TargetShape
+      key: string | null
+      /** No button runs it, so it writes only when something else does. */
+      whenRun: boolean
+    }
   | { kind: 'timeline' }
-  | { kind: 'actionData'; path: string }
+  | { kind: 'actionData'; path: string; tabs: string[] }
+
+/** What the action writes when one trigger runs it; no trigger named when only one kind runs it. */
+interface WriteGroup {
+  trigger: 'pressed' | 'tab' | null
+  writes: Write[]
+}
 
 export interface IntegrationCard {
   code: string
@@ -45,15 +67,19 @@ export interface IntegrationCard {
   /** Null on a later action with the same code, which CW never runs. */
   anchor: string | null
   problems: string[]
+  /** Nothing in the case view runs it, though CW's page-action API still can. */
+  apiOnly: boolean
   triggers: Trigger[]
   call: Call | null
   sends: Send[]
-  writes: Write[]
+  /** The service whose `{SERVICE}_HEADERS` replace same-named headers, when the action sends any. */
+  headersService: string | null
+  writes: WriteGroup[]
 }
 
 export interface WorkflowIntegrations {
   cards: IntegrationCard[]
-  unusedEndpoints: { code: string; method: string; address: ServiceAddress }[]
+  unusedEndpoints: Call[]
 }
 
 /** One entry in a case tab's action map: CW runs the action each time the tab opens. */
@@ -64,23 +90,48 @@ interface TabFire {
   actionCode: unknown
 }
 
-const sentKinds = new Set(['PATH', 'BODY'])
+/** The parameter kinds CW's resolver sends, as each is named on a row. */
+const sentKinds = new Map<string, Send['kind']>([
+  ['PATH', 'PATH'],
+  ['BODY', 'BODY'],
+  ['HEADERS', 'HEADER']
+])
 
-const toExpression = (expression: unknown): string =>
-  typeof expression === 'string' ? expression : JSON.stringify(expression)
+const computedPrefix = 'jsonata:'
+
+const toSource = (value: unknown): Send['source'] => {
+  if (typeof value !== 'string') {
+    return 'fixed'
+  }
+
+  if (value.startsWith(computedPrefix)) {
+    return 'computed'
+  }
+
+  return value.startsWith('$') ? 'case' : 'fixed'
+}
+
+const toSend =
+  (kind: Send['kind']) =>
+  ([name, value]: [string, unknown]): Send => {
+    const source = toSource(value)
+
+    return {
+      kind,
+      name,
+      source,
+      text: source === 'fixed' ? JSON.stringify(value) : String(value)
+    }
+  }
 
 const toSends = ({ endpoint }: StoredExternalAction): Send[] =>
   Object.entries(
     (typeof endpoint === 'object' && endpoint?.endpointParams) || {}
-  )
-    .filter(([kind]) => sentKinds.has(kind))
-    .flatMap(([kind, params]) =>
-      Object.entries(params).map(([name, expression]) => ({
-        kind: kind as Send['kind'],
-        name,
-        expression: toExpression(expression)
-      }))
-    )
+  ).flatMap(([kind, params]) => {
+    const sent = sentKinds.get(kind)
+
+    return sent ? Object.entries(params).map(toSend(sent)) : []
+  })
 
 const toTabFires = (workflow: StoredWorkflow): TabFire[] =>
   toCaseTabs(workflow).flatMap(({ key: tabKey, label, fires }) =>
@@ -119,25 +170,49 @@ const toRuns = (
 }
 
 const toTriggers = (
+  action: StoredExternalAction,
   { onBanner, fires }: Runs,
   pagesHref: string
 ): Trigger[] => [
   ...(onBanner
-    ? [{ label: 'Banner button', href: `${pagesHref}#banner` }]
+    ? [
+        {
+          kind: 'button' as const,
+          label: action.name,
+          href: `${pagesHref}#banner`
+        }
+      ]
     : []),
   ...fires.map(({ label, tabKey }) => ({
-    label: `Tab: ${label}`,
+    kind: 'tab' as const,
+    label,
     href: `${pagesHref}#tab-${encodeURIComponent(tabKey)}`
   }))
 ]
 
-const toTargetWrites = ({ target }: StoredExternalAction): Write[] =>
+const toShape = (
+  dataType: 'ARRAY' | 'OBJECT',
+  key: string | null
+): TargetShape => {
+  if (dataType === 'OBJECT') {
+    return key ? 'object-keyed' : 'object-unkeyed'
+  }
+
+  return key ? 'list-keyed' : 'list'
+}
+
+const toTargetWrites = (
+  { target }: StoredExternalAction,
+  { onBanner }: Runs
+): Write[] =>
   target
     ? [
         {
-          kind: 'supplementary',
+          kind: 'target',
           path: `supplementaryData.${target.targetNode}`,
-          detail: `${target.dataType.toLowerCase()} · ${target.place}`
+          shape: toShape(target.dataType, target.key ?? null),
+          key: target.key ?? null,
+          whenRun: !onBanner
         }
       ]
     : []
@@ -145,39 +220,65 @@ const toTargetWrites = ({ target }: StoredExternalAction): Write[] =>
 const toTimelineWrites = ({ display }: StoredExternalAction): Write[] =>
   display === true ? [{ kind: 'timeline' }] : []
 
-/** A button writes the action's own effects; a tab keeps the answer under its key, unstored. */
-const toWrites = (
-  action: StoredExternalAction,
-  { onBanner, fires }: Runs
-): Write[] => [
-  ...(onBanner ? [...toTargetWrites(action), ...toTimelineWrites(action)] : []),
-  ...fires.map(
-    ({ key }): Write => ({
-      kind: 'actionData',
-      path: `actionData.${key}`
-    })
-  )
-]
+/** One row per key a tab keeps the answer under, naming every tab that does. */
+const toActionDataWrites = (fires: TabFire[]): Write[] =>
+  [...Map.groupBy(fires, ({ key }) => key)].map(([key, tabFires]) => ({
+    kind: 'actionData',
+    path: `actionData.${key}`,
+    tabs: [...new Set(tabFires.map(({ label }) => label))]
+  }))
+
+/** The action's own effects when pressed; a tab keeps the answer under its key, unstored. A button and a tab say which is which. */
+const toWrites = (action: StoredExternalAction, runs: Runs): WriteGroup[] => {
+  if (!runs.reachable) {
+    return []
+  }
+
+  const own = [...toTargetWrites(action, runs), ...toTimelineWrites(action)]
+  const shown = toActionDataWrites(runs.fires)
+
+  return runs.onBanner && shown.length
+    ? [
+        { trigger: 'pressed', writes: own },
+        { trigger: 'tab', writes: shown }
+      ]
+    : [{ trigger: null, writes: [...own, ...shown] }].filter(
+        ({ writes }) => writes.length
+      )
+}
+
+const toEndpointCall = (
+  endpoint: StoredEndpoint,
+  address: ServiceAddress
+): Call => ({
+  method: endpoint.method,
+  path: endpoint.path,
+  endpointCode: endpoint.code,
+  address
+})
 
 const toCallView = (call: ActionCall): Call | null =>
-  call.kind === 'call'
-    ? {
-        method: call.endpoint.method,
-        endpointCode: call.endpoint.code,
-        address: call.address
-      }
-    : null
+  call.kind === 'call' ? toEndpointCall(call.endpoint, call.address) : null
 
 const toProblems = (
   action: StoredExternalAction,
   call: ActionCall,
-  triggers: Trigger[]
+  { reachable }: Runs
 ): string[] => [
   ...(call.kind === 'call'
     ? []
     : [`Endpoint ${endpointCodeOf(action) ?? none} not defined`]),
-  ...(triggers.length ? [] : ['Not triggered: no button, no tab'])
+  ...(reachable
+    ? []
+    : [
+        `CW runs only the first action with code ${action.code}, so this one never runs`
+      ])
 ]
+
+const toHeadersService = (sends: Send[], call: Call | null): string | null =>
+  call && sends.some(({ kind }) => kind === 'HEADER')
+    ? call.address.service
+    : null
 
 /** An action with how CW reaches it and what it calls, each resolved once. */
 interface ResolvedAction {
@@ -188,18 +289,22 @@ interface ResolvedAction {
 
 const toCard =
   (pagesHref: string) =>
-  ({ action, runs, call }: ResolvedAction): IntegrationCard => {
-    const triggers = toTriggers(runs, pagesHref)
+  ({ action, runs, call: actionCall }: ResolvedAction): IntegrationCard => {
+    const triggers = toTriggers(action, runs, pagesHref)
+    const call = toCallView(actionCall)
+    const sends = toSends(action)
 
     return {
       code: action.code,
       name: action.name,
       description: action.description ?? null,
       anchor: runs.reachable ? toActionAnchor(action.code) : null,
-      problems: toProblems(action, call, triggers),
+      problems: toProblems(action, actionCall, runs),
+      apiOnly: runs.reachable && triggers.length === 0,
       triggers,
-      call: toCallView(call),
-      sends: toSends(action),
+      call,
+      sends,
+      headersService: toHeadersService(sends, call),
       writes: toWrites(action, runs)
     }
   }
@@ -225,10 +330,8 @@ export const toWorkflowIntegrations = (
     cards: resolved.map(toCard(pagesHref)),
     unusedEndpoints: (workflow.endpoints ?? [])
       .filter((endpoint) => !used.has(endpoint))
-      .map((endpoint) => ({
-        code: endpoint.code,
-        method: endpoint.method,
-        address: addressOf(definition, endpoint)
-      }))
+      .map((endpoint) =>
+        toEndpointCall(endpoint, addressOf(definition, endpoint))
+      )
   }
 }

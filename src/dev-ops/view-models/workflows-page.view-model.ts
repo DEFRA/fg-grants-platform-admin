@@ -1,5 +1,6 @@
 import type { WorkflowVersionRef } from '../use-cases/get-workflow-page.use-case.ts'
 import { workflowTabIds } from '../use-cases/workflow-tabs.ts'
+import { toVersionPath } from './record-type.ts'
 import type { RecordType } from './record-type.ts'
 
 const workflowsPath = '/dev-ops/workflows'
@@ -27,5 +28,5 @@ export const workflowType: RecordType = {
   titleParam: 'code'
 }
 
-export const toWorkflowHref = ({ code, version }: WorkflowVersionRef): string =>
-  `${workflowsPath}/${encodeURIComponent(code)}/${encodeURIComponent(version)}`
+export const toWorkflowHref = (ref: WorkflowVersionRef): string =>
+  toVersionPath(workflowType, ref)

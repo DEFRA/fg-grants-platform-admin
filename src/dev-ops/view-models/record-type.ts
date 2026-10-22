@@ -28,3 +28,10 @@ export const recordTabEntries: readonly RecordTabEntry[] = [
   { id: 'events', label: 'Events' },
   { id: 'raw', label: 'Raw' }
 ]
+
+/** A config version's own page: its record's path, then its code and version. */
+export const toVersionPath = (
+  { path }: Pick<RecordType, 'path'>,
+  { code, version }: { code: string; version: string }
+): string =>
+  `${path}/${encodeURIComponent(code)}/${encodeURIComponent(version)}`

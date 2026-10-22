@@ -1,3 +1,4 @@
+import { toHumanCode } from './position.ts'
 import type {
   EntitlementField,
   EntitlementTemplate,
@@ -5,26 +6,33 @@ import type {
   HelpBlock,
   TemplatePosition
 } from '../use-cases/get-grant-page.use-case.ts'
-import { contextRootsOf } from './payment-definition.ts'
+import type { BadgeRole } from '../use-cases/get-event.use-case.ts'
+import { contextRootsOf, toMappingValue } from './mapping-table.ts'
 
+/** A position, linked to it on Phases; one that stops at the phase or stage is every status under it. */
 export interface Chip {
-  parts: string[]
-  /** A phase, or a phase and stage: every status under it. */
-  prefix: boolean
+  /** The status's name in the grant, or the phase and stage of a prefix. */
+  label: string
+  /** The full position. */
+  code: string
+  any: 'status' | 'stage-and-status' | null
   href: string
 }
 
-type Role = 'neutral' | 'info' | 'success' | 'warning'
-
-interface OnSubmit {
-  label:
-    | 'Never claimable'
-    | 'Waits for approval: no payment, no move'
-    | 'Pays now'
-    | 'No payment file'
-  role: Role
-  movesOnLastClaim: boolean
+interface Move {
+  from: Chip
+  to: Chip
 }
+
+type OnSubmit =
+  | { kind: 'cant-claim'; reason: 'materialised' | 'no-claimable-at' }
+  | { kind: 'waits-for-approval' }
+  | {
+      kind: 'requests-payment'
+      payment: PaymentFileState
+      move: Move | null
+    }
+  | { kind: 'no-payment-file'; move: Move | null }
 
 type Warning =
   | { kind: 'materialised-claim' | 'no-claimable-at'; claimCode: string }
@@ -33,6 +41,11 @@ type Warning =
       claimCode: string
       paymentHref: string
     }
+
+/** GAS fetches a payment file it has not stored when it first needs it, and refuses one it has marked failed. */
+export type PaymentFileState = 'stored' | 'not-stored' | 'failed'
+
+type FieldSource = 'Entered' | 'Fixed' | 'From agreement'
 
 interface TemplateCard {
   claimCode: string
@@ -49,9 +62,11 @@ interface TemplateCard {
     evidence: boolean
   } | null
   onSubmit: OnSubmit
+  onSubmitRole: BadgeRole
+  warnings: Warning[]
   fields: {
     name: string
-    input: boolean
+    source: FieldSource
     text: string
     unit: string
     bounds: string[]
@@ -60,20 +75,32 @@ interface TemplateCard {
 }
 
 export interface EntitlementsTab {
+  /** No template and no claim rules: nothing to show but that. */
+  nothing: boolean
   claims: {
-    move: { from: Chip; to: Chip } | null
+    move: Move | null
     paymentHref: string | null
+    /** The payment file's state, said as the link to its tab. */
+    paymentLink: string | null
     roles: { allOf: string[]; anyOf: string[] } | null
   }
-  warnings: Warning[]
   templates: TemplateCard[]
 }
 
 interface EntitlementsSource {
   entitlements: GrantEntitlements
-  /** The version names a payment file, stored or not. */
-  hasPaymentFile: boolean
+  /** Null when the version names no payment file. */
+  payment: PaymentFileState | null
 }
+
+const paymentLinkWords: Record<PaymentFileState, string> = {
+  stored: 'Stored',
+  'not-stored': 'Not stored yet',
+  failed: 'Failed'
+}
+
+const toPaymentLink = ({ payment }: EntitlementsSource): string | null =>
+  payment ? `${paymentLinkWords[payment]} · Payment tab ›` : null
 
 interface EntitlementsHrefs {
   /** The Phases tab, with that status selected. */
@@ -96,61 +123,109 @@ const isClaimable = (template: EntitlementTemplate) =>
 const paysOnSubmit = (template: EntitlementTemplate) =>
   isClaimable(template) && !template.claim?.requiresApproval
 
-const neverClaimable: OnSubmit = {
-  label: 'Never claimable',
-  role: 'neutral',
-  movesOnLastClaim: false
-}
-
-const waitsForApproval: OnSubmit = {
-  label: 'Waits for approval: no payment, no move',
-  role: 'info',
-  movesOnLastClaim: false
-}
+const cantClaim = (template: EntitlementTemplate): OnSubmit => ({
+  kind: 'cant-claim',
+  reason: template.materialised ? 'materialised' : 'no-claimable-at'
+})
 
 /** GAS raises the payment when the version names a payment file, stored or not. */
 const toPaymentOutcome = (
-  hasPaymentFile: boolean
-): Omit<OnSubmit, 'movesOnLastClaim'> =>
-  hasPaymentFile
-    ? { label: 'Pays now', role: 'success' }
-    : { label: 'No payment file', role: 'warning' }
+  { payment }: EntitlementsSource,
+  move: Move | null
+): OnSubmit =>
+  payment
+    ? { kind: 'requests-payment', payment, move }
+    : { kind: 'no-payment-file', move }
+
+const onSubmitRoles: Record<OnSubmit['kind'], BadgeRole> = {
+  'cant-claim': 'neutral',
+  'waits-for-approval': 'info',
+  'requests-payment': 'success',
+  'no-payment-file': 'warning'
+}
+
+const matches = (part: string | undefined, actual: string | undefined) =>
+  part === undefined || part === actual
+
+/** A claimable-at entry covers every position under it. */
+const covers = (entry: TemplatePosition, position: TemplatePosition) =>
+  entry.phase === position.phase &&
+  matches(entry.stage, position.stage) &&
+  matches(entry.status, position.status)
+
+/** GAS moves only on a claim submitted exactly at the move's current position (`claimApprovalTransitionFor`). */
+const toTemplateMove = (
+  template: EntitlementTemplate,
+  claims: NonNullable<Claims>,
+  move: Move | null
+): Move | null => {
+  const current = claims.onClaimApproval?.currentPosition
+
+  return current &&
+    claimableAtOf(template).some((entry) => covers(entry, current))
+    ? move
+    : null
+}
 
 const toOnSubmit = (
   template: EntitlementTemplate,
-  hasPaymentFile: boolean,
-  movesOnLastClaim: boolean
+  source: EntitlementsSource,
+  move: Move | null
 ): OnSubmit => {
   if (!isClaimable(template)) {
-    return neverClaimable
+    return cantClaim(template)
   }
 
   if (template.claim?.requiresApproval) {
-    return waitsForApproval
+    return { kind: 'waits-for-approval' }
   }
 
-  return { ...toPaymentOutcome(hasPaymentFile), movesOnLastClaim }
+  return toPaymentOutcome(source, move)
 }
 
+/** A stage prefix selects the stage's first status; a phase-only one has no stage to select, so it opens the phase's card. */
+const toPrefixChip = (
+  { phase, stage }: TemplatePosition,
+  hrefs: EntitlementsHrefs
+): Chip => {
+  const code = stage ? `${phase}:${stage}` : phase
+
+  return {
+    label: code,
+    code,
+    any: stage ? 'status' : 'stage-and-status',
+    href: stage ? hrefs.phases(code) : `${hrefs.phases(null)}#phase-${phase}`
+  }
+}
+
+/** A status by its name in the grant, else its code made readable: never the bare code. */
+const toStatusName = (
+  names: Record<string, string> | undefined,
+  code: string,
+  status: string
+): string => names?.[code] ?? toHumanCode(status)
+
 const toChip =
-  (hrefs: EntitlementsHrefs): ToChip =>
-  ({ phase, stage, status }) => {
-    const parts = [phase, stage, status].filter(
-      (part): part is string => part !== undefined
-    )
-    const prefix = status === undefined
+  (hrefs: EntitlementsHrefs, names?: Record<string, string>): ToChip =>
+  (position) => {
+    if (!position.status || !position.stage) {
+      return toPrefixChip(position, hrefs)
+    }
+
+    const code = [position.phase, position.stage, position.status].join(':')
 
     return {
-      parts,
-      prefix,
-      href: hrefs.phases(prefix ? null : parts.join(':'))
+      label: toStatusName(names, code, position.status),
+      code,
+      any: null,
+      href: hrefs.phases(code)
     }
   }
 
 const toMove = (
   move: NonNullable<Claims>['onClaimApproval'],
   chip: ToChip
-): EntitlementsTab['claims']['move'] =>
+): Move | null =>
   move
     ? { from: chip(move.currentPosition), to: chip(move.targetPosition) }
     : null
@@ -178,8 +253,25 @@ const toBounds = (field: EntitlementField): string[] =>
       ]
   ).filter(isPresent)
 
-const toFieldText = ({ input, label, value }: EntitlementField): string =>
-  input ? (label ?? '') : String(value)
+const isFromAgreement = ({ value }: EntitlementField): boolean =>
+  toMappingValue(value).kind === 'expression'
+
+/** GAS resolves a `jsonata:` value against the agreement when it creates the entitlement. */
+const toSource = (field: EntitlementField): FieldSource => {
+  if (field.input) {
+    return 'Entered'
+  }
+
+  return isFromAgreement(field) ? 'From agreement' : 'Fixed'
+}
+
+const toFieldText = (field: EntitlementField): string => {
+  if (field.input) {
+    return field.label ?? ''
+  }
+
+  return toMappingValue(field.value).text
+}
 
 const toUnit = ({ unitType, unit }: EntitlementField): string =>
   unit ? `${unitType} (${unit})` : unitType
@@ -189,7 +281,7 @@ const toFields = (
 ): TemplateCard['fields'] =>
   Object.entries(fields).map(([name, field]) => ({
     name,
-    input: field.input,
+    source: toSource(field),
     text: toFieldText(field),
     unit: toUnit(field),
     bounds: toBounds(field)
@@ -239,30 +331,30 @@ const warningRules: WarningRule[] = [
 ]
 
 /** Claim payments carry only `claim` and `execution` (`handle-claim-payment-requested.js`). */
-const readsAgreement = (payment: object | null): boolean =>
+const readsAgreement = (payment: Record<string, unknown> | null): boolean =>
   payment !== null && contextRootsOf(payment).has('agreement')
 
+const hasClaimRules = (claims: NonNullable<Claims>): boolean =>
+  claims.onClaimApproval !== undefined || claims.requiredRoles !== undefined
+
 export const toEntitlementsTab = (
-  { entitlements, hasPaymentFile }: EntitlementsSource,
+  source: EntitlementsSource,
   hrefs: EntitlementsHrefs
 ): EntitlementsTab => {
-  const { entitlementTemplates, payment } = entitlements
-  const claims = entitlements.claims ?? {}
-  const chip = toChip(hrefs)
+  const { entitlementTemplates, payment } = source.entitlements
+  const claims = source.entitlements.claims ?? {}
+  const chip = toChip(hrefs, source.entitlements.statusNames)
+  const move = toMove(claims.onClaimApproval, chip)
   const paymentReadsAgreement = readsAgreement(payment)
 
-  return {
-    claims: {
-      move: toMove(claims.onClaimApproval, chip),
-      paymentHref: hasPaymentFile ? hrefs.payment : null,
-      roles: toRoles(claims.requiredRoles)
-    },
-    warnings: entitlementTemplates.flatMap((template) =>
-      warningRules
-        .filter(({ applies }) => applies(template, paymentReadsAgreement))
-        .map(({ warn }) => warn(template.claimCode, hrefs.payment))
-    ),
-    templates: entitlementTemplates.map((template) => ({
+  const toCard = (template: EntitlementTemplate): TemplateCard => {
+    const onSubmit = toOnSubmit(
+      template,
+      source,
+      toTemplateMove(template, claims, move)
+    )
+
+    return {
       claimCode: template.claimCode,
       name: template.name,
       description: template.description ?? null,
@@ -270,13 +362,24 @@ export const toEntitlementsTab = (
       maxEntitlements: template.maxEntitlements,
       availableAt: template.availableAt.map(chip),
       claim: toClaimRules(template, chip),
-      onSubmit: toOnSubmit(
-        template,
-        hasPaymentFile,
-        claims.onClaimApproval !== undefined
-      ),
+      onSubmit,
+      onSubmitRole: onSubmitRoles[onSubmit.kind],
+      warnings: warningRules
+        .filter(({ applies }) => applies(template, paymentReadsAgreement))
+        .map(({ warn }) => warn(template.claimCode, hrefs.payment)),
       fields: toFields(template.fields),
       help: template.help ?? null
-    }))
+    }
+  }
+
+  return {
+    nothing: entitlementTemplates.length === 0 && !hasClaimRules(claims),
+    claims: {
+      move,
+      paymentHref: source.payment ? hrefs.payment : null,
+      paymentLink: toPaymentLink(source),
+      roles: toRoles(claims.requiredRoles)
+    },
+    templates: entitlementTemplates.map(toCard)
   }
 }

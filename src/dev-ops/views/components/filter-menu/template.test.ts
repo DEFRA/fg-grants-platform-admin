@@ -121,6 +121,12 @@ describe('filter-menu component as links', () => {
     ).toEqual(['2.0.0', '1.2.0'])
   })
 
+  test('leaves its links in the tab order, for a page without script', () => {
+    const $menu = render('filter-menu', links)
+
+    expect(switcherPart($menu, 'chip').filter('[tabindex]')).toHaveLength(0)
+  })
+
   test('draws a small plain trigger when asked, naming the open item', () => {
     const $menu = render('filter-menu', { ...links, small: true })
     const button = switcherPart($menu, 'button')
@@ -151,7 +157,7 @@ describe('filter-menu component as links', () => {
     ).toBe(true)
     expect(switcherPart($menu, 'aside').last().text()).toBe('10 Oct 17:25')
     expect(switcherPart($menu, 'aside').last().attr('class')).toBe(
-      'ml-auto pl-4 text-base-content/60'
+      'ml-auto pl-4 text-base-content/70'
     )
   })
 })

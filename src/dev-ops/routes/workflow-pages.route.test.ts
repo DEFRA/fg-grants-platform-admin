@@ -297,7 +297,7 @@ describe('the workflow page', () => {
     const { $ } = await viewPage(`${path}?back=${encodeURIComponent(listed)}`)
 
     expect(part($, 'workflow-back').attr('href')).toBe(listed)
-    expect(textOf($, 'workflow-back')).toBe('Back to workflows')
+    expect(textOf($, 'workflow-back')).toBe('Back to Workflows')
     expect(
       $('[data-testid="do-nav"] [aria-current="page"]').text().trim()
     ).toBe('Workflows')
@@ -383,32 +383,44 @@ describe('the workflow not-stored banner', () => {
       const { $ } = await viewPage(`${path}${query}`)
       const banner = part($, 'workflow-banner')
 
-      expect(flatten(banner.children('span').text())).toBe(
-        'Workflow definition not stored.'
+      expect(flatten(part($, 'workflow-banner-line').last().text())).toBe(
+        'Workflow definition not stored yet.'
       )
       expect(banner.attr('role')).toBe('status')
       expect(banner.attr('class')).toContain('alert-soft')
       expect(banner.find('[data-testid="do-icon-info"]')).toHaveLength(1)
-      expect(banner.next().attr('data-testid')).toBe('workflow-tabs')
+      expect(part($, 'workflow-banner-region').next().attr('data-testid')).toBe(
+        'workflow-tabs'
+      )
     }
   })
 
-  test("says CW won't use the version only when its fetch has failed for good", async () => {
+  test('says what a Failed workflow file stops, with the error CW kept', async () => {
     givenWorkflow({
       header: {
         ...notStored,
-        files: { workflow: { stored: false, fetchStatus: 'permanent_error' } }
+        files: {
+          workflow: {
+            stored: false,
+            fetchStatus: 'permanent_error',
+            fetchError: 'Unexpected token'
+          }
+        }
       }
     })
 
     const { $ } = await viewPage()
 
-    expect(flatten(part($, 'workflow-banner').children('span').text())).toBe(
-      "Workflow definition not stored. CW won't use this version."
+    expect(flatten(part($, 'workflow-banner-line').last().text())).toBe(
+      "Workflow definition failed: Unexpected token. CW won't roll forward to this version: cases on 1.x use the newest usable 1.x version instead. Publish a fixed version."
     )
+    expect(part($, 'workflow-banner').attr('class')).toContain('alert-error')
+    expect(
+      part($, 'workflow-banner-line').last().find('.font-mono').text()
+    ).toBe('Unexpected token')
   })
 
-  test('offers Fetch definitions, posting back to the same tab and list', async () => {
+  test('offers Fetch definition, posting back to the same tab and list', async () => {
     givenWorkflow({ header: notStored, raw: null })
 
     const { $ } = await viewPage(
@@ -427,7 +439,7 @@ describe('the workflow not-stored banner', () => {
       ['back', listed],
       ['tab', 'raw']
     ])
-    expect(textOf($, 'workflow-fetch')).toBe('Fetch definitions')
+    expect(textOf($, 'workflow-fetch')).toBe('Fetch definition')
     expect(part($, 'workflow-fetch').attr('class')).toBe('btn btn-sm')
   })
 })
@@ -447,8 +459,8 @@ describe('the workflow Overview tab', () => {
             .map((label) => $(label).text())
         )
     ).toEqual([
-      ['Scheme name', 'Received', 'Roles, all of', 'Roles, any of'],
-      ['Grant', 'Cases', 'Versions', 'Size']
+      ['Scheme name', 'Received', 'Who can work cases', 'Definition'],
+      ['Grant', 'Cases', 'Versions', 'Definition size']
     ])
     expect(textOf($, 'workflow-scheme-name')).toBe('Woodland Creation Offer')
     expect(part($, 'workflow-received').attr('datetime')).toBe(
@@ -458,21 +470,24 @@ describe('the workflow Overview tab', () => {
     expect(textOf($, 'workflow-size')).toBe('14.2 KiB')
   })
 
-  test('shows each required role in mono, in order, separated by commas', async () => {
+  test('says who can work cases, all of and any of, each role in mono', async () => {
     const { $ } = await viewPage()
-    const roles = part($, 'workflow-roles-any-of').find('.font-mono')
+    const lines = part($, 'workflow-roles-line')
 
-    expect(roles.toArray().map((role) => $(role).text())).toEqual([
-      'Casework.ReadWrite',
-      'Casework.Admin'
+    expect(lines.toArray().map((line) => flatten($(line).text()))).toEqual([
+      'all of: Casework.Read',
+      'any of: Casework.ReadWrite, Casework.Admin'
     ])
-    expect(textOf($, 'workflow-roles-any-of')).toBe(
-      'Casework.ReadWrite, Casework.Admin'
-    )
-    expect(textOf($, 'workflow-roles-all-of')).toBe('Casework.Read')
+    expect(
+      lines
+        .eq(1)
+        .find('.font-mono')
+        .toArray()
+        .map((role) => $(role).text())
+    ).toEqual(['Casework.ReadWrite', 'Casework.Admin'])
   })
 
-  test('reads a dash for a role list the workflow leaves empty, and for no scheme name', async () => {
+  test('leaves out a role list the workflow leaves empty, and dashes no scheme name', async () => {
     givenWorkflow({
       overview: {
         ...overview,
@@ -483,9 +498,22 @@ describe('the workflow Overview tab', () => {
 
     const { $ } = await viewPage()
 
-    expect(textOf($, 'workflow-roles-all-of')).toBe('—')
-    expect(textOf($, 'workflow-roles-any-of')).toBe('Casework.Admin')
-    expect(textOf($, 'workflow-scheme-name')).toBe('—')
+    expect(
+      part($, 'workflow-roles-line')
+        .toArray()
+        .map((line) => flatten($(line).text()))
+    ).toEqual(['any of: Casework.Admin'])
+    expect(textOf($, 'workflow-scheme-name-none')).toBe('—')
+  })
+
+  test('says any caseworker can work cases when the workflow names no role', async () => {
+    givenWorkflow({
+      overview: { ...overview, requiredRoles: { allOf: [], anyOf: [] } }
+    })
+
+    const { $ } = await viewPage()
+
+    expect(textOf($, 'workflow-roles')).toBe('Any caseworker')
   })
 
   test('links to the grant of the same code and version, in a new tab', async () => {
@@ -537,7 +565,7 @@ describe('the workflow Overview tab', () => {
 
     const { $ } = await viewPage()
 
-    expect(textOf($, 'workflow-cases')).toBe('—')
+    expect(textOf($, 'workflow-cases-none')).toBe('—')
     expect(part($, 'workflow-cases').attr('href')).toBeUndefined()
   })
 
@@ -548,10 +576,13 @@ describe('the workflow Overview tab', () => {
 
     expect(part($, 'workflow-not-stored')).toHaveLength(0)
     expect(
-      ['scheme-name', 'roles-all-of', 'roles-any-of', 'size'].map((id) =>
-        textOf($, `workflow-${id}`)
+      ['scheme-name', 'roles', 'size'].map((id) =>
+        textOf($, `workflow-${id}-none`)
       )
-    ).toEqual(['—', '—', '—', '—'])
+    ).toEqual(['—', '—', '—'])
+    expect(flatten(textOf($, 'workflow-definition-line'))).toBe(
+      'Workflow · Not stored yet'
+    )
     expect(part($, 'workflow-received').attr('datetime')).toBe(
       '2026-10-10T16:25:00Z'
     )
@@ -630,7 +661,7 @@ describe('the workflow Raw tab', () => {
     const { $ } = await viewPage(`${path}?tab=raw`)
 
     expect(textOf($, 'workflow-not-stored')).toBe(
-      'Workflow definition not stored.'
+      'The stored workflow definition appears here once it is stored.'
     )
     expect(part($, 'workflow-banner')).toHaveLength(1)
     expect(part($, 'workflow-raw')).toHaveLength(0)
@@ -696,11 +727,10 @@ describe('the workflow Tasks tab', () => {
       part($, 'workflow-tasks-group-title')
         .toArray()
         .map((title) => flatten($(title).text()))
-    ).toEqual([
-      'Application checks Review application',
-      'Approval Review application'
-    ])
+    ).toEqual(['Application checks CHECKS', 'Approval APPROVAL'])
+    expect($('#stage-REVIEW')).toHaveLength(1)
     expect(part($, 'workflow-tasks-answer')).toHaveLength(8)
+    expect(part($, 'workflow-tasks-block')).toHaveLength(4)
     expect(part($, 'workflow-tabs').find('[aria-current="page"]').text()).toBe(
       'Tasks'
     )
@@ -735,7 +765,7 @@ describe('the workflow Tasks tab', () => {
     const { $ } = await viewPage(`${path}?tab=tasks`)
 
     expect(textOf($, 'workflow-not-stored')).toBe(
-      'Workflow definition not stored.'
+      'The task groups appear once the workflow definition is stored.'
     )
     expect(part($, 'workflow-banner')).toHaveLength(1)
     expect(part($, 'workflow-tasks')).toHaveLength(0)
@@ -813,7 +843,7 @@ describe('the workflow Pages tab', () => {
     const { $ } = await viewPage(`${path}?tab=pages`)
 
     expect(textOf($, 'workflow-not-stored')).toBe(
-      'Workflow definition not stored.'
+      'The case pages appear once the workflow definition is stored.'
     )
     expect(part($, 'workflow-banner')).toHaveLength(1)
     expect(part($, 'workflow-pages')).toHaveLength(0)
@@ -894,7 +924,7 @@ describe('the workflow Integrations tab', () => {
     const { $ } = await viewPage(`${path}?tab=integrations`)
 
     expect(textOf($, 'workflow-not-stored')).toBe(
-      'Workflow definition not stored.'
+      'The external actions appear once the workflow definition is stored.'
     )
     expect(part($, 'workflow-integrations')).toHaveLength(0)
     expect(part($, 'workflow-integrations-empty')).toHaveLength(0)
@@ -983,10 +1013,34 @@ describe('the workflow Phases tab', () => {
       part($, 'workflow-phases-legend-item')
         .toArray()
         .map((item) => flatten($(item).text()))
-    ).toEqual(['Action', 'GAS sends', 'Finding', 'Other phase'])
-    expect(textOf($, 'workflow-phases-panel-title')).toBe('AWAITING_REVIEW')
-    expect(textOf($, 'workflow-status-panel-badges')).toBe(
-      'Awaiting review tasks read-only'
+    ).toEqual([
+      'Action',
+      'GAS may send',
+      'Finding',
+      'startStart',
+      'colour = how CW shows the status to caseworkers',
+      'Other phase'
+    ])
+    expect(
+      part($, 'workflow-phases-panel-title').find('[data-code]').text()
+    ).toBe('AWAITING_REVIEW')
+    expect(
+      part($, 'workflow-status-panel-flag')
+        .toArray()
+        .map((flag) => $(flag).contents().first().text())
+    ).toEqual(['start', 'tasks read-only'])
+  })
+
+  test('sums up the findings above the graphs, each linking to its status', async () => {
+    givenPhases()
+
+    const { $ } = await viewPage(phasesPath)
+
+    expect(textOf($, 'workflow-phases-findings')).toBe(
+      '3 findings: dead end AWAITING_ACCEPTANCE · unreachable WITHDRAWN, ACCEPTED'
+    )
+    expect(part($, 'workflow-phases-finding-link').first().attr('href')).toBe(
+      `${path}?tab=phases&status=${encodeURIComponent('POST_AWARD:AGREEMENT:AWAITING_ACCEPTANCE')}#panel`
     )
   })
 
@@ -999,7 +1053,9 @@ describe('the workflow Phases tab', () => {
     const { $ } = await viewPage(`${phasesPath}&status=${status}`)
 
     expect(selected($)).toBe('PRE_AWARD:REVIEW:APPROVED')
-    expect(textOf($, 'workflow-phases-panel-title')).toBe('APPROVED')
+    expect(
+      part($, 'workflow-phases-panel-title').find('[data-code]').text()
+    ).toBe('APPROVED')
   })
 
   test('selects the first status for a status it cannot place', async () => {
@@ -1031,20 +1087,20 @@ describe('the workflow Phases tab', () => {
         .filter('[data-position="PRE_AWARD:REVIEW:ON_HOLD"]')
         .attr('href')
     ).toBe(
-      `${path}?tab=phases&back=${encodeURIComponent(listed)}&status=${encodeURIComponent('PRE_AWARD:REVIEW:ON_HOLD')}`
+      `${path}?tab=phases&back=${encodeURIComponent(listed)}&status=${encodeURIComponent('PRE_AWARD:REVIEW:ON_HOLD')}#panel`
     )
   })
 
-  test("tells what GAS does, linking the grant's Phases tab, which comes back here without nesting back", async () => {
+  test("tells what GAS does, linking the grant's Phases tab, which comes back to the selected status without nesting back", async () => {
     givenPhases()
 
     const { $ } = await viewPage(
       `${phasesPath}&status=APPROVED&back=${encodeURIComponent(listed)}`
     )
-    const self = `${path}?tab=phases&status=APPROVED`
+    const self = `${path}?tab=phases&status=${encodeURIComponent('PRE_AWARD:REVIEW:APPROVED')}`
 
     expect(textOf($, 'workflow-status-panel-tells-gas')).toBe(
-      'Tells GAS while in PRE_AWARD:REVIEW → APPROVED'
+      'Tells GAS CW tells GAS. If the application is at GAS stage Review REVIEW in Pre award PRE_AWARD, and in a status that move allows, GAS moves it to Approved (PRE_AWARD:REVIEW:APPROVED). Otherwise GAS ignores it.'
     )
     expect(
       part($, 'workflow-status-panel-tells-gas').find('a').attr('href')
@@ -1065,13 +1121,25 @@ describe('the workflow Phases tab', () => {
     expect(part($, 'workflow-phases-graph')).toHaveLength(2)
   })
 
+  test('links to the grant version while its definition is not stored, coming back here', async () => {
+    givenPhases({ grantStatusMap: { outcome: 'not-stored' } })
+
+    const { $ } = await viewPage(`${phasesPath}&status=APPROVED`)
+
+    expect(
+      part($, 'workflow-status-panel-not-stored').find('a').attr('href')
+    ).toBe(
+      `/dev-ops/grants/woodland-creation/1.2.0?back=${encodeURIComponent(`${path}?tab=phases&status=${encodeURIComponent('PRE_AWARD:REVIEW:APPROVED')}`)}`
+    )
+  })
+
   test('says the workflow definition is not stored, and draws nothing', async () => {
     givenDefinition({ header: notStored, definition: null })
 
     const { $ } = await viewPage(phasesPath)
 
     expect(textOf($, 'workflow-not-stored')).toBe(
-      'Workflow definition not stored.'
+      'The statuses and moves appear once the workflow definition is stored.'
     )
     expect(part($, 'workflow-phases-panel')).toHaveLength(0)
   })
@@ -1237,16 +1305,16 @@ describe('fetchWorkflowDefinitionRoute', () => {
     expect(fetchWorkflowDefinitionUseCase).not.toHaveBeenCalled()
   })
 
-  test('says the workflow was stored, once, in a soft success notice with a tick, and drops the banner', async () => {
+  test('says the workflow was stored, once, in a solid success notice with a ticked circle, and drops the banner', async () => {
     const { cookie, $ } = await fetchAndFollow()
 
     expect(noticesOf($)).toEqual([
       {
         role: 'status',
-        className: expect.stringContaining('alert-success alert-soft'),
-        text: 'Fetched — workflow definition stored.',
+        className: expect.stringMatching(/^(?!.*alert-soft).*alert-success$/),
+        text: 'Stored: workflow definition.',
         mono: '',
-        icon: 'do-icon-check'
+        icon: 'do-icon-circle-check'
       }
     ])
     expect(part($, 'workflow-banner')).toHaveLength(0)
@@ -1260,7 +1328,7 @@ describe('fetchWorkflowDefinitionRoute', () => {
 
     expect(part($, 'workflow-raw')).toHaveLength(1)
     expect(noticesOf($).map(({ text }) => text)).toEqual([
-      'Fetched — workflow definition stored.'
+      'Stored: workflow definition.'
     ])
     expect(noticesOf((await viewPage(`${path}?tab=raw`, cookie)).$)).toEqual([])
   })
@@ -1285,12 +1353,12 @@ describe('fetchWorkflowDefinitionRoute', () => {
       {
         role: 'alert',
         className: expect.stringContaining('alert-soft alert-error'),
-        text: 'Not fetched — workflow definition: phases[0].code is required. Nothing has changed.',
+        text: "Couldn't fetch the workflow definition: phases[0].code is required. This version's file will never load; publish a fixed version. Nothing has changed.",
         mono: 'phases[0].code is required',
         icon: 'do-icon-exclamation-circle'
       }
     ])
-    expect(textOf($, 'workflow-fetch')).toBe('Fetch definitions')
+    expect(textOf($, 'workflow-fetch')).toBe('Fetch definition')
     expect(noticesOf((await viewPage(path, cookie)).$)).toEqual([])
   })
 
@@ -1300,7 +1368,7 @@ describe('fetchWorkflowDefinitionRoute', () => {
     const { $ } = await fetchAndFollow()
 
     expect(noticesOf($).map(({ text }) => text)).toEqual([
-      'Fetched — workflow definition stored.'
+      'Stored: workflow definition.'
     ])
     expect(part($, 'workflow-banner')).toHaveLength(1)
   })
@@ -1308,15 +1376,15 @@ describe('fetchWorkflowDefinitionRoute', () => {
   test.each([
     [
       'not-found',
-      'Not fetched — CW no longer has this version. Nothing has changed.'
+      'Not fetched: CW no longer has this version. Nothing has changed.'
     ],
     [
       'unavailable',
-      'Fetch failed — CW could not finish it. Refresh to see what was stored.'
+      'Fetch failed: GAS could not finish it. Refresh to see what was stored.'
     ],
     [
       'timed-out',
-      'Fetch status unknown — CW did not answer in time. Refresh to check.'
+      'Fetch status unknown: GAS did not answer in time. Refresh to check.'
     ]
   ] as const)('says what a %s fetch means', async (outcome, text) => {
     givenOutcome({ outcome, files: [] })

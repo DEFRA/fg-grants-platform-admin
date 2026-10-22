@@ -9,6 +9,8 @@ export interface BucketFactValue {
   value: FactValue
   label: string
   tone?: BadgeRole
+  /** What the value means, for a badge's title and under it in a menu. */
+  hint?: string
   /** Left out of the list until the fact's toggle is switched on. */
   hidden?: boolean
 }
