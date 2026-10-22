@@ -2,6 +2,8 @@
 
 {% from "filter-menu/macro.njk" import filterMenu %}
 {% from "icon/macro.njk" import icon %}
+{% from "payment-definition/macro.njk" import paymentDefinition %}
+{% from "raw-details/macro.njk" import rawDetails %}
 {% from "status-badge/macro.njk" import statusBadge %}
 
 {% block recordHeader %}
@@ -29,6 +31,9 @@
     <div class="card card-border bg-base-100" data-testid="{{ record.itemId }}-not-stored">
       <p class="px-4 py-10 text-center text-sm text-base-content/60">{{ notStored | capitalize }} definition not stored.</p>
     </div>
+  {% elif tab == "payment" and payment.view %}
+    {{ paymentDefinition({ view: payment.view, testId: "grant-payment" }) }}
+    {{ rawDetails({ view: payment.raw.view, label: "Payment definition", testId: "grant-payment-raw" }) }}
   {% else %}
     {{ super() }}
   {% endif %}

@@ -77,7 +77,7 @@ export interface HiddenTab {
 }
 
 /** Only the backend's own miss is a missing record; a bare 404 is a route GAS has not got. */
-const isMissing = (error: unknown, reason: string): boolean =>
+export const isMissing = (error: unknown, reason: string): boolean =>
   toGasStatusCode(error) === statusCodes.notFound &&
   toGasErrorField(error, 'reason') === reason
 
