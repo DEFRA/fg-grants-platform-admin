@@ -9,7 +9,10 @@ import type { ApplicationPage } from '../use-cases/get-application-page.use-case
 import { getApplicationPageUseCase } from '../use-cases/get-application-page.use-case.ts'
 import type { CasePage } from '../use-cases/get-case-page.use-case.ts'
 import { getCasePageUseCase } from '../use-cases/get-case-page.use-case.ts'
-import type { GrantVersionPage } from '../use-cases/get-grant-page.use-case.ts'
+import type {
+  GrantLifecycle,
+  GrantVersionPage
+} from '../use-cases/get-grant-page.use-case.ts'
 import { getGrantPageUseCase } from '../use-cases/get-grant-page.use-case.ts'
 import { getGrantVersionsUseCase } from '../use-cases/get-grant-versions.use-case.ts'
 
@@ -1346,7 +1349,7 @@ describe('the grant page', () => {
     ])
   })
 
-  test('offers Overview, Payment and Raw, keeping the list it was opened from', async () => {
+  test('offers Overview, Phases, Payment and Raw, keeping the list it was opened from', async () => {
     const from = '/dev-ops/grants'
     const { $ } = await viewPage(
       `${grantPath}?tab=raw&back=${encodeURIComponent(from)}`
@@ -1358,6 +1361,7 @@ describe('the grant page', () => {
         .map((tab) => `${$(tab).text()} ${$(tab).attr('href')}`)
     ).toEqual([
       `Overview ${grantPath}?back=${encodeURIComponent(from)}`,
+      `Phases ${grantPath}?tab=phases&back=${encodeURIComponent(from)}`,
       `Payment ${grantPath}?tab=payment&back=${encodeURIComponent(from)}`,
       `Raw ${grantPath}?tab=raw&back=${encodeURIComponent(from)}`
     ])
@@ -2016,7 +2020,332 @@ describe('the grant Payment tab', () => {
       part($, 'grant-tab')
         .toArray()
         .map((tab) => $(tab).text())
-    ).toEqual(['Overview', 'Raw'])
+    ).toEqual(['Overview', 'Phases', 'Raw'])
+  })
+})
+
+const grantLifecycle: GrantLifecycle = {
+  phases: [
+    {
+      code: 'PRE_AWARD',
+      name: null,
+      stages: [
+        {
+          code: 'APPLICATION',
+          name: 'Application',
+          statuses: [{ code: 'RECEIVED' }, { code: 'AMEND' }]
+        },
+        { code: 'REVIEW', name: null, statuses: [{ code: 'IN_REVIEW' }] }
+      ]
+    },
+    {
+      code: 'POST_AWARD',
+      name: 'Post award',
+      stages: [
+        {
+          code: 'AGREEMENT',
+          name: null,
+          statuses: [{ code: 'OFFERED' }, { code: 'CLAIMS_COMPLETE' }]
+        }
+      ]
+    }
+  ],
+  initialPosition: 'PRE_AWARD:APPLICATION:RECEIVED',
+  amendablePositions: ['PRE_AWARD:APPLICATION:AMEND'],
+  waysIn: [
+    { to: 'PRE_AWARD:APPLICATION:RECEIVED', kind: 'any', processes: [] },
+    {
+      to: 'PRE_AWARD:APPLICATION:AMEND',
+      kind: 'move',
+      from: 'PRE_AWARD:APPLICATION:RECEIVED',
+      processes: []
+    },
+    {
+      to: 'PRE_AWARD:APPLICATION:AMEND',
+      kind: 'unmatched',
+      code: 'PRE_AWARD:REVIEW:ON_HOLD',
+      processes: []
+    },
+    {
+      to: 'PRE_AWARD:REVIEW:IN_REVIEW',
+      kind: 'move',
+      from: 'PRE_AWARD:APPLICATION:AMEND',
+      processes: ['NOTIFY', 'SCORE']
+    },
+    {
+      to: 'POST_AWARD:AGREEMENT:OFFERED',
+      kind: 'move',
+      from: 'PRE_AWARD:REVIEW:IN_REVIEW',
+      processes: []
+    },
+    {
+      to: 'POST_AWARD:AGREEMENT:CLAIMS_COMPLETE',
+      kind: 'any',
+      processes: ['PAY']
+    }
+  ],
+  externalMappings: [
+    {
+      source: 'CW',
+      code: 'RFI_SENT',
+      whileIn: 'PRE_AWARD:REVIEW',
+      mappedTo: '::AMEND',
+      to: 'PRE_AWARD:APPLICATION:AMEND'
+    },
+    {
+      source: 'AS',
+      code: 'offered',
+      whileIn: 'POST_AWARD:AGREEMENT',
+      mappedTo: 'OFFERED',
+      to: 'POST_AWARD:AGREEMENT:OFFERED'
+    }
+  ],
+  claimApproval: {
+    from: 'POST_AWARD:AGREEMENT:OFFERED',
+    to: 'POST_AWARD:AGREEMENT:CLAIMS_COMPLETE'
+  }
+}
+
+const givenPhases = (overrides: Partial<GrantVersionPage> = {}) =>
+  givenGrant({
+    overview: undefined,
+    lifecycle: grantLifecycle,
+    problem: null,
+    ...overrides
+  })
+
+const phasesPath = `${grantPath}?tab=phases`
+
+const sectionLines = ($: CheerioAPI, testId: string) =>
+  part($, testId)
+    .find('div')
+    .toArray()
+    .map((line) => flatten($(line).text()))
+
+const noneIn = ($: CheerioAPI, testId: string) =>
+  flatten(part($, testId).children().last().text())
+
+describe('the grant Phases tab', () => {
+  test("reads GAS's phases read", async () => {
+    givenPhases()
+
+    const { statusCode } = await viewPage(phasesPath)
+
+    expect(statusCode).toBe(statusCodes.ok)
+    expect(getGrantPageUseCase).toHaveBeenCalledWith(
+      { code: 'woodland-creation', version: '1.2.0' },
+      'phases'
+    )
+  })
+
+  test('draws the legend and one card per phase', async () => {
+    givenPhases()
+
+    const { $ } = await viewPage(phasesPath)
+
+    expect(
+      part($, 'grant-phases-legend-item')
+        .toArray()
+        .map((item) => flatten($(item).text()))
+    ).toEqual(['Runs processes', 'No processes', 'Other phase'])
+    expect(
+      part($, 'grant-phases-phase')
+        .toArray()
+        .map((card) => flatten($(card).find('h2').text()))
+    ).toEqual(['PRE_AWARD', 'POST_AWARD Post award'])
+    expect(
+      part($, 'grant-phases-edge')
+        .toArray()
+        .map((edge) => $(edge).attr('data-kind'))
+    ).toContain('strong')
+  })
+
+  test('describes the first status when none is selected', async () => {
+    givenPhases()
+
+    const { $ } = await viewPage(phasesPath)
+
+    expect(textOf($, 'grant-phases-panel-title')).toBe('RECEIVED')
+    expect(textOf($, 'grant-phases-badge')).toBe('initial')
+    expect(sectionLines($, 'grant-phases-reached-from')).toEqual(['Any status'])
+    expect(sectionLines($, 'grant-phases-moves-to')).toEqual(['→ AMEND'])
+    expect(noneIn($, 'grant-phases-set-by')).toBe('—')
+  })
+
+  test.each([
+    ['a full position', 'PRE_AWARD:REVIEW:IN_REVIEW', 'IN_REVIEW'],
+    ['a bare status code', 'IN_REVIEW', 'IN_REVIEW'],
+    ['anything else', 'NOT:A:STATUS', 'RECEIVED'],
+    ['nothing', '', 'RECEIVED']
+  ])('selects by %s', async (_, status, selected) => {
+    givenPhases()
+
+    const { $, statusCode } = await viewPage(
+      `${phasesPath}&status=${encodeURIComponent(status)}`
+    )
+
+    expect(statusCode).toBe(statusCodes.ok)
+    expect(textOf($, 'grant-phases-panel-title')).toBe(selected)
+  })
+
+  test('refuses a status longer than any position', async () => {
+    const { statusCode } = await viewPage(
+      `${phasesPath}&status=${'A'.repeat(513)}`
+    )
+
+    expect(statusCode).toBe(statusCodes.badRequest)
+  })
+
+  test('links each status to itself on the tab, keeping back', async () => {
+    givenPhases()
+    const from = '/dev-ops/grants'
+
+    const { $ } = await viewPage(
+      `${phasesPath}&back=${encodeURIComponent(from)}`
+    )
+
+    expect(
+      part($, 'grant-phases-node')
+        .filter('[data-position="PRE_AWARD:APPLICATION:AMEND"]')
+        .attr('href')
+    ).toBe(
+      `${grantPath}?tab=phases&back=${encodeURIComponent(from)}&status=${encodeURIComponent('PRE_AWARD:APPLICATION:AMEND')}`
+    )
+  })
+
+  test('lists where a status is reached from and moves to, with what each runs', async () => {
+    givenPhases()
+
+    const { $ } = await viewPage(
+      `${phasesPath}&status=PRE_AWARD:APPLICATION:AMEND`
+    )
+
+    expect(part($, 'grant-phases-badge').text()).toBe('amendable')
+    expect(sectionLines($, 'grant-phases-reached-from')).toEqual([
+      'RECEIVED',
+      'PRE_AWARD:REVIEW:ON_HOLD'
+    ])
+    expect(
+      part($, 'grant-phases-reached-from').find('a').first().attr('href')
+    ).toContain(
+      `status=${encodeURIComponent('PRE_AWARD:APPLICATION:RECEIVED')}`
+    )
+    expect(sectionLines($, 'grant-phases-moves-to')).toEqual([
+      '→ PRE_AWARD:REVIEW:IN_REVIEW runs NOTIFY, SCORE'
+    ])
+  })
+
+  test('shows CW and Agreements setters as plain text, keyed on their stage', async () => {
+    givenPhases()
+
+    const amend = await viewPage(
+      `${phasesPath}&status=PRE_AWARD:APPLICATION:AMEND`
+    )
+    const offered = await viewPage(
+      `${phasesPath}&status=POST_AWARD:AGREEMENT:OFFERED`
+    )
+
+    expect(sectionLines(amend.$, 'grant-phases-set-by')).toEqual([
+      'CW RFI_SENT while in PRE_AWARD:REVIEW'
+    ])
+    expect(part(amend.$, 'grant-phases-set-by').find('a')).toHaveLength(0)
+    expect(sectionLines(offered.$, 'grant-phases-set-by')).toEqual([
+      'Agreements offered while in POST_AWARD:AGREEMENT'
+    ])
+  })
+
+  test('sets a status by the last claim, with no moves out and the stage facts', async () => {
+    givenPhases()
+
+    const { $ } = await viewPage(
+      `${phasesPath}&status=POST_AWARD:AGREEMENT:CLAIMS_COMPLETE`
+    )
+
+    expect(sectionLines($, 'grant-phases-reached-from')).toEqual([
+      'Any status runs PAY'
+    ])
+    expect(noneIn($, 'grant-phases-moves-to')).toBe('—')
+    expect(sectionLines($, 'grant-phases-set-by')).toEqual([
+      'Last claim while at POST_AWARD:AGREEMENT:OFFERED'
+    ])
+    expect(
+      part($, 'grant-phases-panel')
+        .find('dd')
+        .toArray()
+        .map((fact) => flatten($(fact).text()))
+    ).toEqual(['POST_AWARD Post award', 'AGREEMENT'])
+  })
+
+  test("says why GAS cannot read the phases, keeping the page's header and tabs", async () => {
+    givenPhases({
+      lifecycle: null,
+      problem: 'Grant "woodland-creation" has no initial position'
+    })
+
+    const { $ } = await viewPage(phasesPath)
+
+    expect(textOf($, 'grant-phases-unreadable')).toBe(
+      'The grant definition\'s phases cannot be read: Grant "woodland-creation" has no initial position.'
+    )
+    expect(part($, 'grant-phases-unreadable').attr('role')).toBe('alert')
+    expect(part($, 'grant-phases-legend')).toHaveLength(0)
+    expect(part($, 'grant-version')).toHaveLength(1)
+    expect(part($, 'grant-tabs')).toHaveLength(1)
+  })
+
+  test('warns of a status the definition holds twice', async () => {
+    givenPhases({
+      lifecycle: {
+        ...grantLifecycle,
+        phases: [
+          {
+            code: 'P',
+            name: null,
+            stages: [
+              {
+                code: 'S',
+                name: null,
+                statuses: [{ code: 'A' }, { code: 'A' }]
+              }
+            ]
+          }
+        ],
+        initialPosition: 'P:S:A',
+        waysIn: [],
+        externalMappings: [],
+        claimApproval: null
+      }
+    })
+
+    const { $, statusCode } = await viewPage(phasesPath)
+
+    expect(statusCode).toBe(statusCodes.ok)
+    expect(part($, 'grant-phases-duplicates')).toHaveLength(1)
+  })
+
+  test('says the grant definition is not stored, with no graph', async () => {
+    givenPhases({ header: nothingStored, lifecycle: null, problem: null })
+
+    const { $ } = await viewPage(phasesPath)
+
+    expect(textOf($, 'grant-not-stored')).toBe('Grant definition not stored.')
+    expect(part($, 'grant-phases-legend')).toHaveLength(0)
+    expect(part($, 'grant-no-data')).toHaveLength(0)
+  })
+
+  test('says the phases could not be read on a section error', async () => {
+    givenPhases({
+      lifecycle: null,
+      problem: null,
+      sectionErrors: [
+        { section: 'phases', message: 'Phases could not be loaded' }
+      ]
+    })
+
+    const { $ } = await viewPage(phasesPath)
+
+    expect(textOf($, 'grant-section-error')).toBe('Phases could not be loaded')
+    expect(part($, 'grant-phases-legend')).toHaveLength(0)
   })
 })
 

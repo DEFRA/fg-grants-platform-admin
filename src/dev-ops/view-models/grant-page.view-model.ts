@@ -7,6 +7,8 @@ import type {
 import { grantTabs, offersTab } from '../use-cases/grant-tabs.ts'
 import type { GrantTabId } from '../use-cases/grant-tabs.ts'
 import { toUnavailableSources } from './event-row.ts'
+import { toGrantPhases } from './grant-phases.view-model.ts'
+import type { GrantPhasesTab } from './grant-phases.view-model.ts'
 import { grantType, toGrantHref } from './grants-page.view-model.ts'
 import { toPaymentDefinition } from './payment-definition.ts'
 import type { PaymentDefinitionView } from './payment-definition.ts'
@@ -28,7 +30,14 @@ export interface GrantPageModel extends RecordPageModel {
   versionHeader: VersionHeader
   /** The file the tab needs, while it is not stored. */
   notStored: DefinitionFileType | null
+  phases: GrantPhasesTab | null
   payment: { view: PaymentDefinitionView | null; raw: RawTab } | null
+}
+
+/** Query params the grant's tabs read. */
+export interface GrantPageQuery {
+  /** The selected status on Phases. */
+  status?: string
 }
 
 const toFacts = (
@@ -69,9 +78,11 @@ const toPaymentTab = ({
 export const toGrantPage = (
   page: GrantVersionPage,
   tab: GrantTabId,
-  from: string
+  from: string,
+  { query }: { query: GrantPageQuery }
 ): GrantPageModel => {
   const { read } = grantTabs[tab]
+  const href = toGrantHref(page.header)
 
   return {
     record: grantType,
@@ -79,12 +90,7 @@ export const toGrantPage = (
     backHref: from,
     navActive: null,
     trail: [],
-    tabs: toTabs(
-      toOfferedGrantType(page.header),
-      toGrantHref(page.header),
-      tab,
-      from
-    ),
+    tabs: toTabs(toOfferedGrantType(page.header), href, tab, from),
     tab,
     facts: page.overview ? toFacts(page.header, page.overview) : null,
     series: null,
@@ -94,6 +100,15 @@ export const toGrantPage = (
     unavailableSources: toUnavailableSources(page.sourceErrors),
     versionHeader: toVersionHeader(grantType, page.header, tab, from),
     notStored: toNotStored(page.header, tab),
+    phases:
+      tab === 'phases'
+        ? toGrantPhases(page, {
+            status: query.status,
+            href,
+            from,
+            workflowHref: null
+          })
+        : null,
     payment: tab === 'payment' ? toPaymentTab(page) : null
   }
 }

@@ -19,6 +19,7 @@ const responseError = (statusCode: number, body: object = {}) =>
 describe('getGrantPageUseCase', () => {
   test.each([
     ['overview', 'overview'],
+    ['phases', 'phases'],
     ['payment', 'payment'],
     ['raw', 'definition']
   ] as const)("reads the %s tab from GAS's %s read", async (tab, read) => {

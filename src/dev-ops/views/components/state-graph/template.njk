@@ -1,0 +1,109 @@
+{% from "icon/macro.njk" import icon %}
+
+{# Tailwind only sees class names written literally in this file. Colours are
+   classes, not inline styles, which the CSP blocks. #}
+{% set edgeStrokes = {
+  plain: "stroke-current",
+  strong: "stroke-info",
+  dashed: "stroke-current"
+} %}
+{% set nodeStrokes = {
+  selected: "stroke-base-content",
+  flagged: "stroke-warning",
+  plain: "stroke-base-content/25"
+} %}
+{# The neutral dot matches status-badge's. #}
+{% set dots = {
+  neutral: "fill-base-content/80",
+  info: "fill-info",
+  warning: "fill-warning",
+  success: "fill-success",
+  error: "fill-error"
+} %}
+{% set legendBoxes = {
+  flagged: "border-2 border-warning",
+  "other-phase": "border border-dashed border-base-content/40"
+} %}
+
+{%- set testId = params.testId -%}
+{%- set graphs = params.graphs -%}
+{% if graphs.duplicated | length %}
+  <div role="alert" class="alert alert-warning alert-soft mb-3 text-sm" data-testid="{{ testId }}-duplicates">
+    {{ icon({ name: 'exclamation-triangle', class: 'size-4 shrink-0' }) }}
+    <div>
+      {% for position in graphs.duplicated %}
+        <p><span class="font-mono">{{ position }}</span> appears more than once in this definition. The graph shows it once, where it first appears.</p>
+      {% endfor %}
+    </div>
+  </div>
+{% endif %}
+
+<div class="mb-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-base-content/70" data-testid="{{ testId }}-legend">
+  {% for item in params.legend %}
+    <span class="inline-flex items-center gap-1.5" data-testid="{{ testId }}-legend-item" data-kind="{{ item.kind }}">
+      {%- if legendBoxes[item.kind] -%}
+        <span class="inline-block h-3 w-5 rounded {{ legendBoxes[item.kind] }}" aria-hidden="true"></span>
+      {%- else -%}
+        <svg width="28" height="8" aria-hidden="true"><line x1="0" y1="4" x2="28" y2="4" class="{{ edgeStrokes[item.kind] }}" stroke-width="{{ 2 if item.kind == 'strong' else 1.5 }}"{% if item.kind == 'dashed' %} stroke-dasharray="5 4"{% endif %}/></svg>
+      {%- endif -%}
+      {{ item.label }}
+    </span>
+  {% endfor %}
+</div>
+
+<div class="grid grid-cols-1 items-start gap-4 lg:grid-cols-[minmax(0,1fr)_20rem]">
+  <div class="min-w-0">
+    {% for graph in graphs.phases %}
+      {% set markerId = testId ~ "-" ~ graph.id %}
+      <section class="card card-border mt-4 bg-base-100 first:mt-0" aria-labelledby="{{ markerId }}-title" data-testid="{{ testId }}-phase" data-phase="{{ graph.code }}">
+        <div class="card-body gap-3 p-5">
+          <h2 class="card-title text-base" id="{{ markerId }}-title"><span class="font-mono">{{ graph.code }}</span>{% if graph.name %} <span class="font-normal text-base-content/70">{{ graph.name }}</span>{% endif %}</h2>
+          {% if graph.nodes | length %}
+            <div class="overflow-x-auto focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-base-content" tabindex="0" role="region" aria-label="{{ graph.code }} statuses">
+              <svg width="{{ graph.width }}" height="{{ graph.height }}" viewBox="0 0 {{ graph.width }} {{ graph.height }}" class="block max-w-none text-base-content/70" role="group" aria-label="{{ graph.code }} statuses" data-testid="{{ testId }}-graph">
+                <defs>
+                  <marker id="{{ markerId }}-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="fill-current"/></marker>
+                  <marker id="{{ markerId }}-strong" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="fill-info"/></marker>
+                </defs>
+                {% for band in graph.bands %}
+                  <g data-testid="{{ testId }}-band">
+                    <rect x="{{ band.x }}" y="{{ band.y }}" width="{{ band.width }}" height="{{ band.height }}" rx="10" class="fill-base-200"/>
+                    <text x="{{ band.x + 10 }}" y="{{ band.y + 17 }}" font-size="11" class="fill-current"><tspan font-weight="600" class="font-mono">{{ band.code }}</tspan>{% if band.name %}<tspan dx="6" opacity="0.8">{{ band.name }}</tspan>{% endif %}</text>
+                  </g>
+                {% endfor %}
+                {% for edge in graph.edges %}
+                  <path d="{{ edge.d }}" fill="none" class="{{ edgeStrokes[edge.kind] }}" stroke-width="{{ 2 if edge.kind == 'strong' else 1.5 }}"{% if edge.kind == 'dashed' %} stroke-dasharray="5 4"{% endif %} marker-end="url(#{{ markerId }}-{{ 'strong' if edge.kind == 'strong' else 'arrow' }})" data-testid="{{ testId }}-edge" data-kind="{{ edge.kind }}"><title>{{ edge.title }}</title></path>
+                {% endfor %}
+                {% for node in graph.nodes %}
+                  <a href="{{ node.href }}" class="group" aria-label="{{ node.position }}"{% if node.state == 'selected' %} aria-current="true"{% endif %} data-testid="{{ testId }}-node" data-position="{{ node.position }}">
+                    <rect x="{{ node.x }}" y="{{ node.y }}" width="{{ node.width }}" height="38" rx="8" class="fill-base-100 {{ nodeStrokes[node.state] }} group-focus-visible:stroke-base-content group-focus-visible:[stroke-width:3]" stroke-width="{{ 1 if node.state == 'plain' else 2 }}"{% if node.kind == 'other-phase' %} stroke-dasharray="4 3"{% endif %}/>
+                    {%- if node.kind == 'other-phase' -%}
+                      <text x="{{ node.x + 10 }}" y="{{ node.y + 15 }}" font-size="9" opacity="0.7" class="fill-current font-mono">{{ node.stageKey }}</text>
+                      <text x="{{ node.x + 10 }}" y="{{ node.y + 29 }}" font-size="12" class="fill-current font-mono">{{ node.code }}</text>
+                    {%- else -%}
+                      {%- if node.tone -%}
+                        <circle cx="{{ node.x + 14 }}" cy="{{ node.y + 19 }}" r="4" class="{{ dots[node.tone] }}"/>
+                      {%- endif -%}
+                      <text x="{{ node.x + (26 if node.tone else 12) }}" y="{{ node.y + 23 }}" font-size="12" class="fill-current font-mono">{{ node.code }}</text>
+                    {%- endif -%}
+                    <title>{{ node.position }}</title>
+                  </a>
+                {% endfor %}
+              </svg>
+            </div>
+          {% else %}
+            <p class="text-sm text-base-content/60" data-testid="{{ testId }}-phase-empty">No statuses.</p>
+          {% endif %}
+        </div>
+      </section>
+    {% endfor %}
+  </div>
+  <section class="card card-border bg-base-100 lg:sticky lg:top-4" aria-label="Status" data-testid="{{ testId }}-panel">
+    <div class="card-body gap-3 p-5 text-sm">
+      {% if graphs.selected %}
+        <h2 class="card-title text-base" data-testid="{{ testId }}-panel-title"><span class="font-mono">{{ graphs.selected.status.code }}</span></h2>
+      {% endif %}
+      {{ caller() }}
+    </div>
+  </section>
+</div>

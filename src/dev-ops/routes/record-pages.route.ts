@@ -27,18 +27,25 @@ import type { RecordPageModel } from '../view-models/record-page.view-model.ts'
 import type { RecordType } from '../view-models/record-type.ts'
 import { toVersionPath } from '../view-models/version-header.ts'
 
-interface RecordPageRoute<K, P, T extends string> {
+interface RecordPageRoute<K, P, T extends string, Q> {
   record: RecordType
   /** Each URL param after the record's path, in order, with its schema. */
   params: Record<keyof K & string, Schema>
+  /** Query params the record's tabs read, besides `tab` and `back`. */
+  query?: Record<keyof Q & string, Schema>
   read: (key: K, tab: T) => Promise<RecordResult<P> | HiddenTab>
-  toPage: (page: P, tab: T, from: string) => RecordPageModel
+  toPage: (
+    page: P,
+    tab: T,
+    from: string,
+    options: { query: Q }
+  ) => RecordPageModel
 }
 
-interface RecordPageQuery<T> {
+type RecordPageQuery<T> = {
   tab: T
   back?: string
-}
+} & Record<string, unknown>
 
 /** The list a record's page sits under in the navigation: the one it goes back to. */
 const toNavActive = async (from: string): Promise<string | null> =>
@@ -49,6 +56,12 @@ const fromMax = 2048
 
 // Checked by `toSafeFrom`: a bad one falls back to the admin's root, not an error page.
 const backSchema = Joi.string().allow('').max(fromMax)
+
+/** Bounds the query; real positions are far shorter. */
+const positionMax = 512
+
+// Anything up to the bound that the state graph cannot place selects the first status.
+const statusSchema = Joi.string().allow('').max(positionMax)
 
 const tabSchema = ({ tabs }: RecordType) =>
   Joi.string().valid(...tabs.map(({ id }) => id))
@@ -84,12 +97,13 @@ const unavailableView = (
  * One tab of one record per render. A record GAS has not got is GPA's own 404
  * page; any other failure keeps the page, with the reason in place of the tab.
  */
-const recordPageRoute = <K, P, T extends string>({
+const recordPageRoute = <K, P, T extends string, Q = object>({
   record,
   params,
+  query,
   read,
   toPage
-}: RecordPageRoute<K, P, T>): ServerRoute => ({
+}: RecordPageRoute<K, P, T, Q>): ServerRoute => ({
   method: 'GET',
   path: [record.path, ...Object.keys(params).map((name) => `{${name}}`)].join(
     '/'
@@ -100,13 +114,14 @@ const recordPageRoute = <K, P, T extends string>({
       params: toParamsSchema(params),
       query: Joi.object({
         tab: tabSchema(record).default('overview'),
-        back: backSchema
+        back: backSchema,
+        ...query
       })
     }
   },
   async handler(request: Request, h: ResponseToolkit) {
     const key = request.params as unknown as K
-    const { tab, back } = request.query as unknown as RecordPageQuery<T>
+    const { tab, back, ...extra } = request.query as RecordPageQuery<T>
     const from = toSafeFrom(back)
     const { outcome, page } = await read(key, tab)
 
@@ -130,7 +145,7 @@ const recordPageRoute = <K, P, T extends string>({
 
     return h.view(record.view, {
       pageTitle: record.title,
-      ...toPage(page, tab, from),
+      ...toPage(page, tab, from, { query: extra as Q }),
       navActive
     })
   }
@@ -196,19 +211,20 @@ export const viewApplicationRoute = recordPageRoute({
   record: applicationType,
   params: { code: slugFilterSchema, clientRef: slugFilterSchema },
   read: getApplicationPageUseCase,
-  toPage: toApplicationPage
+  toPage: (page, tab, from) => toApplicationPage(page, tab, from)
 })
 
 export const viewCaseRoute = recordPageRoute({
   record: caseType,
   params: { workflowCode: slugFilterSchema, caseRef: slugFilterSchema },
   read: getCasePageUseCase,
-  toPage: toCasePage
+  toPage: (page, tab, from) => toCasePage(page, tab, from)
 })
 
 export const viewGrantRoute = recordPageRoute({
   record: grantType,
   params: { code: slugFilterSchema, version: versionSchema },
+  query: { status: statusSchema },
   read: getGrantPageUseCase,
   toPage: toGrantPage
 })
