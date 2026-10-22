@@ -186,3 +186,21 @@ export const toPaymentDefinition = (
     )
   }
 }
+
+const rootPattern = /\$\.([A-Za-z_$][\w$]*)/g
+
+const toRoots = (value: unknown): string[] => {
+  if (value !== null && typeof value === 'object') {
+    return Object.values(value).flatMap(toRoots)
+  }
+
+  const { text, kind } = toMappingValue(value)
+
+  return kind === 'literal'
+    ? []
+    : [...text.matchAll(rootPattern)].map(([, root]) => root)
+}
+
+/** The `$.` roots a payment definition reads. */
+export const contextRootsOf = (definition: object): ReadonlySet<string> =>
+  new Set(toRoots(definition))

@@ -11,18 +11,20 @@ import type { CasePage } from '../use-cases/get-case-page.use-case.ts'
 import { getCasePageUseCase } from '../use-cases/get-case-page.use-case.ts'
 import type {
   GrantDefinition,
+  GrantLifecycle,
   GrantVersionPage
 } from '../use-cases/get-grant-page.use-case.ts'
 import { getGrantPageUseCase } from '../use-cases/get-grant-page.use-case.ts'
 import { getGrantVersionsUseCase } from '../use-cases/get-grant-versions.use-case.ts'
 import { getCatalogueUseCase } from '../use-cases/get-catalogue.use-case.ts'
+import type { WorkflowVersionPage } from '../use-cases/get-workflow-page.use-case.ts'
+import { getWorkflowPageUseCase } from '../use-cases/get-workflow-page.use-case.ts'
 import {
   agreementDefinition,
   applicationsBucket,
-  catalogue
+  catalogue,
+  woodlandDefinition
 } from '../use-cases/test-fixtures.ts'
-import type { WorkflowVersionPage } from '../use-cases/get-workflow-page.use-case.ts'
-import { getWorkflowPageUseCase } from '../use-cases/get-workflow-page.use-case.ts'
 
 vi.mock(import('../use-cases/get-catalogue.use-case.ts'))
 vi.mock(import('../use-cases/get-application-page.use-case.ts'), async () => ({
@@ -44,7 +46,12 @@ vi.mock(import('../use-cases/get-grant-page.use-case.ts'), async () => ({
   getGrantPageUseCase: vi.fn()
 }))
 vi.mock(import('../use-cases/get-grant-versions.use-case.ts'))
-vi.mock(import('../use-cases/get-workflow-page.use-case.ts'))
+vi.mock(import('../use-cases/get-workflow-page.use-case.ts'), async () => ({
+  ...(await vi.importActual<
+    typeof import('../use-cases/get-workflow-page.use-case.ts')
+  >('../use-cases/get-workflow-page.use-case.ts')),
+  getWorkflowPageUseCase: vi.fn()
+}))
 vi.mock(import('../../common/config.ts'))
 
 const credentials = {
@@ -1411,7 +1418,7 @@ describe('the grant page', () => {
     ])
   })
 
-  test('offers Overview, Questions, Actions, Agreement, Payment, Events and Raw, keeping the list it was opened from', async () => {
+  test('offers every tab in order, keeping the list it was opened from', async () => {
     const from = '/dev-ops/grants'
     const { $ } = await viewPage(
       `${grantPath}?tab=raw&back=${encodeURIComponent(from)}`
@@ -1423,8 +1430,10 @@ describe('the grant page', () => {
         .map((tab) => `${$(tab).text()} ${$(tab).attr('href')}`)
     ).toEqual([
       `Overview ${grantPath}?back=${encodeURIComponent(from)}`,
+      `Phases ${grantPath}?tab=phases&back=${encodeURIComponent(from)}`,
       `Questions ${grantPath}?tab=questions&back=${encodeURIComponent(from)}`,
       `Actions ${grantPath}?tab=actions&back=${encodeURIComponent(from)}`,
+      `Entitlements ${grantPath}?tab=entitlements&back=${encodeURIComponent(from)}`,
       `Agreement ${grantPath}?tab=agreement&back=${encodeURIComponent(from)}`,
       `Payment ${grantPath}?tab=payment&back=${encodeURIComponent(from)}`,
       `Events ${grantPath}?tab=events&back=${encodeURIComponent(from)}`,
@@ -1878,8 +1887,10 @@ describe('the grant Questions tab', () => {
         .map((tab) => $(tab).text())
     ).toEqual([
       'Overview',
+      'Phases',
       'Questions',
       'Actions',
+      'Entitlements',
       'Agreement',
       'Payment',
       'Events',
@@ -2115,8 +2126,10 @@ describe('the grant Actions tab', () => {
         .map((tab) => $(tab).text())
     ).toEqual([
       'Overview',
+      'Phases',
       'Questions',
       'Actions',
+      'Entitlements',
       'Agreement',
       'Payment',
       'Events',
@@ -2621,7 +2634,15 @@ describe('the grant Payment tab', () => {
       part($, 'grant-tab')
         .toArray()
         .map((tab) => $(tab).text())
-    ).toEqual(['Overview', 'Questions', 'Actions', 'Events', 'Raw'])
+    ).toEqual([
+      'Overview',
+      'Phases',
+      'Questions',
+      'Actions',
+      'Entitlements',
+      'Events',
+      'Raw'
+    ])
   })
 })
 
@@ -2780,7 +2801,571 @@ describe('the grant Agreement tab', () => {
       part($, 'grant-tab')
         .toArray()
         .map((tab) => $(tab).text())
-    ).toEqual(['Overview', 'Questions', 'Actions', 'Payment', 'Events', 'Raw'])
+    ).toEqual([
+      'Overview',
+      'Phases',
+      'Questions',
+      'Actions',
+      'Entitlements',
+      'Payment',
+      'Events',
+      'Raw'
+    ])
+  })
+})
+
+const grantLifecycle: GrantLifecycle = {
+  phases: [
+    {
+      code: 'PRE_AWARD',
+      name: null,
+      stages: [
+        {
+          code: 'APPLICATION',
+          name: 'Application',
+          statuses: [{ code: 'RECEIVED' }, { code: 'AMEND' }]
+        },
+        { code: 'REVIEW', name: null, statuses: [{ code: 'IN_REVIEW' }] }
+      ]
+    },
+    {
+      code: 'POST_AWARD',
+      name: 'Post award',
+      stages: [
+        {
+          code: 'AGREEMENT',
+          name: null,
+          statuses: [{ code: 'OFFERED' }, { code: 'CLAIMS_COMPLETE' }]
+        }
+      ]
+    }
+  ],
+  initialPosition: 'PRE_AWARD:APPLICATION:RECEIVED',
+  amendablePositions: ['PRE_AWARD:APPLICATION:AMEND'],
+  waysIn: [
+    { to: 'PRE_AWARD:APPLICATION:RECEIVED', kind: 'any', processes: [] },
+    {
+      to: 'PRE_AWARD:APPLICATION:AMEND',
+      kind: 'move',
+      from: 'PRE_AWARD:APPLICATION:RECEIVED',
+      processes: []
+    },
+    {
+      to: 'PRE_AWARD:APPLICATION:AMEND',
+      kind: 'unmatched',
+      code: 'PRE_AWARD:REVIEW:ON_HOLD',
+      processes: []
+    },
+    {
+      to: 'PRE_AWARD:REVIEW:IN_REVIEW',
+      kind: 'move',
+      from: 'PRE_AWARD:APPLICATION:AMEND',
+      processes: ['NOTIFY', 'SCORE']
+    },
+    {
+      to: 'POST_AWARD:AGREEMENT:OFFERED',
+      kind: 'move',
+      from: 'PRE_AWARD:REVIEW:IN_REVIEW',
+      processes: []
+    },
+    {
+      to: 'POST_AWARD:AGREEMENT:CLAIMS_COMPLETE',
+      kind: 'any',
+      processes: ['PAY']
+    }
+  ],
+  externalMappings: [
+    {
+      source: 'CW',
+      code: 'RFI_SENT',
+      whileIn: 'PRE_AWARD:REVIEW',
+      mappedTo: '::AMEND',
+      to: 'PRE_AWARD:APPLICATION:AMEND'
+    },
+    {
+      source: 'AS',
+      code: 'offered',
+      whileIn: 'POST_AWARD:AGREEMENT',
+      mappedTo: 'OFFERED',
+      to: 'POST_AWARD:AGREEMENT:OFFERED'
+    }
+  ],
+  claimApproval: {
+    from: 'POST_AWARD:AGREEMENT:OFFERED',
+    to: 'POST_AWARD:AGREEMENT:CLAIMS_COMPLETE'
+  }
+}
+
+const givenPhases = (overrides: Partial<GrantVersionPage> = {}) =>
+  givenGrant({
+    overview: undefined,
+    lifecycle: grantLifecycle,
+    problem: null,
+    ...overrides
+  })
+
+const phasesPath = `${grantPath}?tab=phases`
+
+const sectionLines = ($: CheerioAPI, testId: string) =>
+  part($, testId)
+    .find('div')
+    .toArray()
+    .map((line) => flatten($(line).text()))
+
+const noneIn = ($: CheerioAPI, testId: string) =>
+  flatten(part($, testId).children().last().text())
+
+describe('the grant Phases tab', () => {
+  test("reads GAS's phases read", async () => {
+    givenPhases()
+
+    const { statusCode } = await viewPage(phasesPath)
+
+    expect(statusCode).toBe(statusCodes.ok)
+    expect(getGrantPageUseCase).toHaveBeenCalledWith(
+      { code: 'woodland-creation', version: '1.2.0' },
+      'phases'
+    )
+  })
+
+  test('draws the legend and one card per phase', async () => {
+    givenPhases()
+
+    const { $ } = await viewPage(phasesPath)
+
+    expect(
+      part($, 'grant-phases-legend-item')
+        .toArray()
+        .map((item) => flatten($(item).text()))
+    ).toEqual(['Runs processes', 'No processes', 'Other phase'])
+    expect(
+      part($, 'grant-phases-phase')
+        .toArray()
+        .map((card) => flatten($(card).find('h2').text()))
+    ).toEqual(['PRE_AWARD', 'POST_AWARD Post award'])
+    expect(
+      part($, 'grant-phases-edge')
+        .toArray()
+        .map((edge) => $(edge).attr('data-kind'))
+    ).toContain('strong')
+  })
+
+  test('describes the first status when none is selected', async () => {
+    givenPhases()
+
+    const { $ } = await viewPage(phasesPath)
+
+    expect(textOf($, 'grant-phases-panel-title')).toBe('RECEIVED')
+    expect(textOf($, 'grant-phases-badge')).toBe('initial')
+    expect(sectionLines($, 'grant-phases-reached-from')).toEqual(['Any status'])
+    expect(sectionLines($, 'grant-phases-moves-to')).toEqual(['→ AMEND'])
+    expect(noneIn($, 'grant-phases-set-by')).toBe('—')
+  })
+
+  test.each([
+    ['a full position', 'PRE_AWARD:REVIEW:IN_REVIEW', 'IN_REVIEW'],
+    ['a bare status code', 'IN_REVIEW', 'IN_REVIEW'],
+    ['anything else', 'NOT:A:STATUS', 'RECEIVED'],
+    ['nothing', '', 'RECEIVED']
+  ])('selects by %s', async (_, status, selected) => {
+    givenPhases()
+
+    const { $, statusCode } = await viewPage(
+      `${phasesPath}&status=${encodeURIComponent(status)}`
+    )
+
+    expect(statusCode).toBe(statusCodes.ok)
+    expect(textOf($, 'grant-phases-panel-title')).toBe(selected)
+  })
+
+  test('refuses a status longer than any position', async () => {
+    const { statusCode } = await viewPage(
+      `${phasesPath}&status=${'A'.repeat(513)}`
+    )
+
+    expect(statusCode).toBe(statusCodes.badRequest)
+  })
+
+  test('links each status to itself on the tab, keeping back', async () => {
+    givenPhases()
+    const from = '/dev-ops/grants'
+
+    const { $ } = await viewPage(
+      `${phasesPath}&back=${encodeURIComponent(from)}`
+    )
+
+    expect(
+      part($, 'grant-phases-node')
+        .filter('[data-position="PRE_AWARD:APPLICATION:AMEND"]')
+        .attr('href')
+    ).toBe(
+      `${grantPath}?tab=phases&back=${encodeURIComponent(from)}&status=${encodeURIComponent('PRE_AWARD:APPLICATION:AMEND')}`
+    )
+  })
+
+  test('lists where a status is reached from and moves to, with what each runs', async () => {
+    givenPhases()
+
+    const { $ } = await viewPage(
+      `${phasesPath}&status=PRE_AWARD:APPLICATION:AMEND`
+    )
+
+    expect(part($, 'grant-phases-badge').text()).toBe('amendable')
+    expect(sectionLines($, 'grant-phases-reached-from')).toEqual([
+      'RECEIVED',
+      'PRE_AWARD:REVIEW:ON_HOLD'
+    ])
+    expect(
+      part($, 'grant-phases-reached-from').find('a').first().attr('href')
+    ).toContain(
+      `status=${encodeURIComponent('PRE_AWARD:APPLICATION:RECEIVED')}`
+    )
+    expect(sectionLines($, 'grant-phases-moves-to')).toEqual([
+      '→ PRE_AWARD:REVIEW:IN_REVIEW runs NOTIFY, SCORE'
+    ])
+  })
+
+  test('links a CW setter to the workflow Phases tab with that status selected', async () => {
+    givenPhases()
+
+    const amend = await viewPage(
+      `${phasesPath}&status=PRE_AWARD:APPLICATION:AMEND`
+    )
+    const offered = await viewPage(
+      `${phasesPath}&status=POST_AWARD:AGREEMENT:OFFERED`
+    )
+
+    expect(sectionLines(amend.$, 'grant-phases-set-by')).toEqual([
+      'CW RFI_SENT while in PRE_AWARD:REVIEW'
+    ])
+    expect(part(amend.$, 'grant-phases-set-by').find('a').attr('href')).toBe(
+      `/dev-ops/workflows/woodland-creation/1.2.0?tab=phases&back=${encodeURIComponent(
+        `${phasesPath}&status=${encodeURIComponent('PRE_AWARD:APPLICATION:AMEND')}`
+      )}&status=RFI_SENT`
+    )
+    expect(sectionLines(offered.$, 'grant-phases-set-by')).toEqual([
+      'Agreements offered while in POST_AWARD:AGREEMENT'
+    ])
+    expect(part(offered.$, 'grant-phases-set-by').find('a')).toHaveLength(0)
+  })
+
+  test('opens the workflow Phases tab it links to, with that status selected', async () => {
+    givenPhases()
+    vi.mocked(getWorkflowPageUseCase).mockResolvedValue({
+      outcome: 'found',
+      page: {
+        header: {
+          code: 'woodland-creation',
+          version: '1.2.0',
+          status: 'active',
+          receivedAt: '2026-09-10T15:25:00.000Z',
+          files: { workflow: fetched },
+          versions: [],
+          counterpart: { exists: true }
+        },
+        definition: woodlandDefinition,
+        grantStatusMap: { outcome: 'no-grant' },
+        sourceErrors: [],
+        sectionErrors: []
+      }
+    })
+
+    const grant = await viewPage(
+      `${phasesPath}&status=PRE_AWARD:APPLICATION:AMEND`
+    )
+    const href = part(grant.$, 'grant-phases-set-by').find('a').attr('href')
+    const { $, statusCode } = await viewPage(href)
+
+    expect(statusCode).toBe(statusCodes.ok)
+    expect(
+      part($, 'workflow-phases-node')
+        .filter('[aria-current="true"]')
+        .attr('data-position')
+    ).toBe('PRE_AWARD:REVIEW:RFI_SENT')
+  })
+
+  test.each([
+    ['CW has no workflow of that version', { exists: false }],
+    ['CW could not say', null]
+  ])('shows a CW setter as plain text when %s', async (_, counterpart) => {
+    givenPhases({ header: { ...grantHeader, counterpart } })
+
+    const { $ } = await viewPage(
+      `${phasesPath}&status=PRE_AWARD:APPLICATION:AMEND`
+    )
+
+    expect(sectionLines($, 'grant-phases-set-by')).toEqual([
+      'CW RFI_SENT while in PRE_AWARD:REVIEW'
+    ])
+    expect(part($, 'grant-phases-set-by').find('a')).toHaveLength(0)
+  })
+
+  test('sets a status by the last claim, with no moves out and the stage facts', async () => {
+    givenPhases()
+
+    const { $ } = await viewPage(
+      `${phasesPath}&status=POST_AWARD:AGREEMENT:CLAIMS_COMPLETE`
+    )
+
+    expect(sectionLines($, 'grant-phases-reached-from')).toEqual([
+      'Any status runs PAY'
+    ])
+    expect(noneIn($, 'grant-phases-moves-to')).toBe('—')
+    expect(sectionLines($, 'grant-phases-set-by')).toEqual([
+      'Last claim while at POST_AWARD:AGREEMENT:OFFERED'
+    ])
+    expect(part($, 'grant-phases-set-by').find('a').attr('href')).toBe(
+      `${grantPath}?tab=entitlements`
+    )
+    expect(
+      part($, 'grant-phases-panel')
+        .find('dd')
+        .toArray()
+        .map((fact) => flatten($(fact).text()))
+    ).toEqual(['POST_AWARD Post award', 'AGREEMENT'])
+  })
+
+  test("says why GAS cannot read the phases, keeping the page's header and tabs", async () => {
+    givenPhases({
+      lifecycle: null,
+      problem: 'Grant "woodland-creation" has no initial position'
+    })
+
+    const { $ } = await viewPage(phasesPath)
+
+    expect(textOf($, 'grant-phases-unreadable')).toBe(
+      'The grant definition\'s phases cannot be read: Grant "woodland-creation" has no initial position.'
+    )
+    expect(part($, 'grant-phases-unreadable').attr('role')).toBe('alert')
+    expect(part($, 'grant-phases-legend')).toHaveLength(0)
+    expect(part($, 'grant-version')).toHaveLength(1)
+    expect(part($, 'grant-tabs')).toHaveLength(1)
+  })
+
+  test('warns of a status the definition holds twice', async () => {
+    givenPhases({
+      lifecycle: {
+        ...grantLifecycle,
+        phases: [
+          {
+            code: 'P',
+            name: null,
+            stages: [
+              {
+                code: 'S',
+                name: null,
+                statuses: [{ code: 'A' }, { code: 'A' }]
+              }
+            ]
+          }
+        ],
+        initialPosition: 'P:S:A',
+        waysIn: [],
+        externalMappings: [],
+        claimApproval: null
+      }
+    })
+
+    const { $, statusCode } = await viewPage(phasesPath)
+
+    expect(statusCode).toBe(statusCodes.ok)
+    expect(part($, 'grant-phases-duplicates')).toHaveLength(1)
+  })
+
+  test('says the grant definition is not stored, with no graph', async () => {
+    givenPhases({ header: nothingStored, lifecycle: null, problem: null })
+
+    const { $ } = await viewPage(phasesPath)
+
+    expect(textOf($, 'grant-not-stored')).toBe('Grant definition not stored.')
+    expect(part($, 'grant-phases-legend')).toHaveLength(0)
+    expect(part($, 'grant-no-data')).toHaveLength(0)
+  })
+
+  test('says the phases could not be read on a section error', async () => {
+    givenPhases({
+      lifecycle: null,
+      problem: null,
+      sectionErrors: [
+        { section: 'phases', message: 'Phases could not be loaded' }
+      ]
+    })
+
+    const { $ } = await viewPage(phasesPath)
+
+    expect(textOf($, 'grant-section-error')).toBe('Phases could not be loaded')
+    expect(part($, 'grant-phases-legend')).toHaveLength(0)
+  })
+})
+
+const offered = {
+  phase: 'POST_AWARD',
+  stage: 'AGREEMENT',
+  status: 'OFFERED'
+}
+
+const grantEntitlements: NonNullable<GrantVersionPage['entitlements']> = {
+  entitlementTemplates: [
+    {
+      claimCode: 'MAINTENANCE',
+      name: 'Maintenance payment',
+      materialised: false,
+      maxEntitlements: 10,
+      availableAt: [offered],
+      fields: {
+        hectares: {
+          input: true,
+          label: 'Area maintained this year',
+          unitType: 'decimal',
+          decimalPlaces: 2,
+          unit: 'ha',
+          minValue: 0.1,
+          maxValue: null
+        }
+      },
+      claim: {
+        claimableAt: [{ phase: 'POST_AWARD', stage: 'AGREEMENT' }],
+        limits: { maximumClaims: 10, allowsPartialClaims: false },
+        requiresApproval: false,
+        requiresEvidence: true
+      }
+    }
+  ],
+  claims: {
+    onClaimApproval: {
+      currentPosition: offered,
+      targetPosition: { ...offered, status: 'CLAIMS_COMPLETE' }
+    },
+    requiredRoles: { allOf: ['Grants.Claims.Read'], anyOf: [] }
+  },
+  payment: { code: 'woodland-creation', sbi: '$.agreement.identifiers.sbi' }
+}
+
+const givenEntitlements = (overrides: Partial<GrantVersionPage> = {}) =>
+  givenGrant({
+    overview: undefined,
+    entitlements: grantEntitlements,
+    ...overrides
+  })
+
+const entitlementsPath = `${grantPath}?tab=entitlements`
+
+describe('the grant Entitlements tab', () => {
+  test("reads GAS's entitlements read once and draws the tab", async () => {
+    givenEntitlements()
+
+    const { $, statusCode } = await viewPage(entitlementsPath)
+
+    expect(statusCode).toBe(statusCodes.ok)
+    expect(getGrantPageUseCase).toHaveBeenCalledTimes(1)
+    expect(getGrantPageUseCase).toHaveBeenCalledWith(
+      { code: 'woodland-creation', version: '1.2.0' },
+      'entitlements'
+    )
+    expect(textOf($, 'grant-entitlements-template-title')).toBe(
+      'MAINTENANCE Maintenance payment'
+    )
+    expect(textOf($, 'grant-entitlements-on-submit')).toBe('Pays now')
+    expect(
+      part($, 'grant-entitlements-warning')
+        .toArray()
+        .map((warning) => flatten($(warning).text()))
+    ).toEqual([
+      'MAINTENANCE pays on submit, but the payment definition reads $.agreement; claim payments carry only claim and execution.'
+    ])
+  })
+
+  test('keeps back on the chip and Payment links', async () => {
+    givenEntitlements()
+    const from = '/dev-ops/grants'
+    const back = `back=${encodeURIComponent(from)}`
+
+    const { $ } = await viewPage(`${entitlementsPath}&${back}`)
+
+    expect(
+      part($, 'grant-entitlements-move')
+        .find('a')
+        .toArray()
+        .map((chip) => $(chip).attr('href'))
+    ).toEqual([
+      `${grantPath}?tab=phases&${back}&status=${encodeURIComponent('POST_AWARD:AGREEMENT:OFFERED')}`,
+      `${grantPath}?tab=phases&${back}&status=${encodeURIComponent('POST_AWARD:AGREEMENT:CLAIMS_COMPLETE')}`
+    ])
+    expect(
+      part($, 'grant-entitlements-fact-claimable-at').find('a').attr('href')
+    ).toBe(`${grantPath}?tab=phases&${back}`)
+    expect(
+      part($, 'grant-entitlements-payment-file').find('a').attr('href')
+    ).toBe(`${grantPath}?tab=payment&${back}`)
+  })
+
+  test('says there is no payment file when the version has none', async () => {
+    givenEntitlements({
+      header: { ...grantHeader, files: { grant: fetched } },
+      entitlements: { ...grantEntitlements, payment: null }
+    })
+
+    const { $ } = await viewPage(entitlementsPath)
+
+    expect(textOf($, 'grant-entitlements-on-submit')).toBe('No payment file')
+    expect(
+      flatten(part($, 'grant-entitlements-payment-file').find('dd').text())
+    ).toBe('—')
+    expect(part($, 'grant-entitlements-warning')).toHaveLength(0)
+  })
+
+  test('says the grant definition is not stored, and nothing else', async () => {
+    givenEntitlements({ header: nothingStored, entitlements: null })
+
+    const { $ } = await viewPage(entitlementsPath)
+
+    expect(textOf($, 'grant-not-stored')).toBe('Grant definition not stored.')
+    expect(part($, 'grant-entitlements')).toHaveLength(0)
+  })
+
+  test('warns that the entitlements are too large to show', async () => {
+    givenEntitlements({
+      entitlements: null,
+      sectionErrors: [{ section: 'entitlements', message: 'too large to show' }]
+    })
+
+    const { $ } = await viewPage(entitlementsPath)
+
+    expect(textOf($, 'grant-too-large')).toBe('Too large to show')
+    expect(part($, 'grant-section-error')).toHaveLength(0)
+    expect(part($, 'grant-no-data')).toHaveLength(0)
+  })
+
+  test('says the entitlements could not be read on a section error', async () => {
+    givenEntitlements({
+      entitlements: null,
+      sectionErrors: [
+        {
+          section: 'entitlements',
+          message: 'Invalid entitlement template "MAINTENANCE"'
+        }
+      ]
+    })
+
+    const { $ } = await viewPage(entitlementsPath)
+
+    expect(textOf($, 'grant-section-error')).toBe(
+      'Invalid entitlement template "MAINTENANCE"'
+    )
+    expect(part($, 'grant-entitlements')).toHaveLength(0)
+  })
+
+  test('says GAS could not be reached', async () => {
+    vi.mocked(getGrantPageUseCase).mockResolvedValue({
+      outcome: 'unavailable',
+      page: null
+    })
+
+    const { $ } = await viewPage(entitlementsPath)
+
+    expect(textOf($, 'grant-error')).toBe(
+      'This grant could not be loaded from GAS.'
+    )
   })
 })
 

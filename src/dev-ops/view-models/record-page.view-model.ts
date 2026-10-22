@@ -121,10 +121,16 @@ export interface RecordPageModel {
 }
 
 /** Every tab keeps the list the record was opened from, so Back still returns to it. */
-export const toTabHref = (href: string, tab: string, from: string): string => {
+export const toTabHref = (
+  href: string,
+  tab: string,
+  from: string,
+  extra?: Record<string, string>
+): string => {
   const params = new URLSearchParams({
     ...(tab === 'overview' ? {} : { tab }),
-    ...(from === '' ? {} : { [backKey]: from })
+    ...(from === '' ? {} : { [backKey]: from }),
+    ...extra
   })
 
   return params.size ? `${href}?${params}` : href

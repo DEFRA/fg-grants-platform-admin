@@ -2,8 +2,10 @@
 
 {% from "filter-menu/macro.njk" import filterMenu %}
 {% from "agreement-definition/macro.njk" import agreementDefinition %}
+{% from "grant-entitlements/macro.njk" import grantEntitlements %}
 {% from "icon/macro.njk" import icon %}
 {% from "schema-tree/macro.njk" import schemaTree %}
+{% from "state-graph/macro.njk" import stateGraph, statusPanelSection, stageFacts %}
 {% from "payment-definition/macro.njk" import paymentDefinition %}
 {% from "raw-details/macro.njk" import rawDetails %}
 {% from "status-badge/macro.njk" import statusBadge %}
@@ -13,6 +15,16 @@
     {{ icon({ name: 'exclamation-circle', class: 'size-4 shrink-0' }) }}
     <span>{{ text }}</span>
   </div>
+{% endmacro %}
+
+{# Tailwind only sees class names written literally in this file. #}
+{% set mono = "font-mono text-sm leading-none break-words" %}
+{% set quiet = "text-base-content/60" %}
+
+{% macro noLines() %}<span class="font-mono text-sm leading-none text-base-content/70">—</span>{% endmacro %}
+
+{% macro runs(processes) %}
+  {%- if processes | length %} <span class="{{ quiet }}">runs</span> {% for process in processes %}<span class="{{ mono }}">{{ process }}</span>{% if not loop.last %}<span class="text-base-content/40">, </span>{% endif %}{% endfor %}{% endif -%}
 {% endmacro %}
 
 {% block recordHeader %}
@@ -62,6 +74,59 @@
     <div class="card card-border bg-base-100" data-testid="{{ record.itemId }}-not-stored">
       <p class="px-4 py-10 text-center text-sm text-base-content/60">{{ notStored | capitalize }} definition not stored.</p>
     </div>
+  {% elif tab == "phases" and phases.kind == "unreadable" %}
+    <div role="alert" class="alert alert-error alert-soft text-sm" data-testid="grant-phases-unreadable">
+      {{ icon({ name: 'exclamation-circle', class: 'size-4 shrink-0' }) }}
+      <span>The grant definition's phases cannot be read: {{ phases.problem }}.</span>
+    </div>
+  {% elif tab == "phases" and phases %}
+    {% call stateGraph({ graphs: phases.graphs, legend: phases.legend, testId: 'grant-phases' }) %}
+      {% set panel = phases.panel %}
+      {% if panel %}
+        {% if panel.badges | length %}
+          <div class="flex flex-wrap items-center gap-2">
+            {% for badge in panel.badges %}<span class="badge badge-sm badge-outline" data-testid="grant-phases-badge">{{ badge }}</span>{% endfor %}
+          </div>
+        {% endif %}
+        {{ stageFacts({ phase: panel.phase, stage: panel.stage }) }}
+        {% call statusPanelSection({ title: 'Reached from', testId: 'grant-phases-reached-from' }) %}
+          {% for way in panel.reachedFrom %}
+            <div class="mb-1.5">
+              {%- if way.kind == "link" -%}
+                <a class="link break-words font-mono text-sm" href="{{ way.href }}">{{ way.text }}</a>
+              {%- elif way.kind == "code" -%}
+                <span class="{{ mono }}">{{ way.text }}</span>
+              {%- else -%}
+                <span>Any status</span>
+              {%- endif -%}
+              {{ runs(way.processes) }}
+            </div>
+          {% else %}
+            {{ noLines() }}
+          {% endfor %}
+        {% endcall %}
+        {% call statusPanelSection({ title: 'Moves to', testId: 'grant-phases-moves-to' }) %}
+          {% for move in panel.movesTo %}
+            <div class="mb-1.5">→ <a class="link break-words font-mono text-sm" href="{{ move.href }}">{{ move.text }}</a>{{ runs(move.processes) }}</div>
+          {% else %}
+            {{ noLines() }}
+          {% endfor %}
+        {% endcall %}
+        {% call statusPanelSection({ title: 'Set by', testId: 'grant-phases-set-by' }) %}
+          {% for setter in panel.setBy %}
+            <div class="mb-1.5">
+              {%- if setter.kind == "last-claim" -%}
+                <a class="link text-sm" href="{{ setter.href }}">Last claim</a> <span class="{{ quiet }}">while at</span> <span class="{{ mono }}">{{ setter.from }}</span>
+              {%- else -%}
+                {% if setter.href %}<a class="link font-mono text-sm" href="{{ setter.href }}">{{ setter.label }}</a>{% else %}<span class="font-mono text-sm">{{ setter.label }}</span>{% endif %} <span class="{{ quiet }}">while in</span> <span class="{{ mono }}">{{ setter.whileIn }}</span>
+              {%- endif -%}
+            </div>
+          {% else %}
+            {{ noLines() }}
+          {% endfor %}
+        {% endcall %}
+      {% endif %}
+    {% endcall %}
   {% elif tab == "questions" and questions.kind == "no-phases" %}
     {{ errorAlert("The grant definition has no phases: every submission throws.", "grant-questions-no-phases") }}
   {% elif tab == "questions" and questions %}
@@ -132,6 +197,8 @@
         <p class="px-4 py-10 text-center text-sm text-base-content/60" data-testid="grant-actions-empty">No actions.</p>
       {% endif %}
     </section>
+  {% elif tab == "entitlements" and entitlements %}
+    {{ grantEntitlements({ view: entitlements, testId: "grant-entitlements" }) }}
   {% elif tab == "agreement" and agreement %}
     {{ agreementDefinition({ tab: agreement, testId: "grant-agreement" }) }}
     {{ rawDetails({ view: agreement.raw, label: "Agreement definition", testId: "grant-agreement-raw" }) }}

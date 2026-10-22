@@ -28,6 +28,7 @@ import {
   recordParamsSchema,
   recordTabSchema,
   slugFilterSchema,
+  statusSchema,
   versionSchema,
   workflowCodeSchema
 } from '../view-models/record-filters.ts'
@@ -38,25 +39,27 @@ import { toVersionPath } from '../view-models/version-header.ts'
 import { toWorkflowPage } from '../view-models/workflow-page.view-model.ts'
 import { workflowType } from '../view-models/workflows-page.view-model.ts'
 
-interface RecordPageRoute<K, P, T extends string, N> {
+interface RecordPageRoute<K, P, T extends string, N, Q> {
   record: RecordType
   /** Each URL param after the record's path, in order, with its schema. */
   params: Record<keyof K & string, Schema>
+  /** Query params the record's tabs read, besides `tab` and `back`. */
+  query?: Record<keyof Q & string, Schema>
   read: (key: K, tab: T) => Promise<RecordResult<P> | HiddenTab>
   toPage: (
     page: P,
     tab: T,
     from: string,
-    options: { notice?: N; catalogue: Catalogue | null }
+    options: { notice?: N; query: Q; catalogue: Catalogue | null }
   ) => RecordPageModel
   /** Where a write leaves its outcome for the one render after it. */
   noticeKey?: keyof YarFlashes
 }
 
-interface RecordPageQuery<T> {
+type RecordPageQuery<T> = {
   tab: T
   back?: string
-}
+} & Record<string, unknown>
 
 /** The list a record's page sits under in the navigation: the one it goes back to. */
 const toNavActive = (
@@ -95,13 +98,14 @@ const unavailableView = (
  * One tab of one record per render. A record GAS has not got is GPA's own 404
  * page; any other failure keeps the page, with the reason in place of the tab.
  */
-const recordPageRoute = <K, P, T extends string, N = never>({
+const recordPageRoute = <K, P, T extends string, N = never, Q = object>({
   record,
   params,
+  query,
   read,
   toPage,
   noticeKey
-}: RecordPageRoute<K, P, T, N>): ServerRoute => ({
+}: RecordPageRoute<K, P, T, N, Q>): ServerRoute => ({
   method: 'GET',
   path: [record.path, ...Object.keys(params).map((name) => `{${name}}`)].join(
     '/'
@@ -112,13 +116,14 @@ const recordPageRoute = <K, P, T extends string, N = never>({
       params: recordParamsSchema(params),
       query: Joi.object({
         tab: recordTabSchema(record).default('overview'),
-        back: backSchema
+        back: backSchema,
+        ...query
       })
     }
   },
   async handler(request: Request, h: ResponseToolkit) {
     const key = request.params as unknown as K
-    const { tab, back } = request.query as unknown as RecordPageQuery<T>
+    const { tab, back, ...extra } = request.query as RecordPageQuery<T>
     const from = toSafeFrom(back)
     const notice = takeNotice<N>(request, noticeKey)
     const { outcome, page } = await read(key, tab)
@@ -144,7 +149,7 @@ const recordPageRoute = <K, P, T extends string, N = never>({
 
     return h.view(record.view, {
       pageTitle: record.title,
-      ...toPage(page, tab, from, { notice, catalogue }),
+      ...toPage(page, tab, from, { notice, query: extra as Q, catalogue }),
       navActive
     })
   }
@@ -223,6 +228,7 @@ export const viewCaseRoute = recordPageRoute({
 export const viewGrantRoute = recordPageRoute({
   record: grantType,
   params: { code: slugFilterSchema, version: versionSchema },
+  query: { status: statusSchema },
   read: getGrantPageUseCase,
   toPage: toGrantPage,
   noticeKey: definitionFetchNoticeKey
@@ -237,6 +243,7 @@ export const viewCurrentGrantRoute = currentVersionRoute({
 export const viewWorkflowRoute = recordPageRoute({
   record: workflowType,
   params: { code: workflowCodeSchema, version: versionSchema },
+  query: { status: statusSchema },
   read: getWorkflowPageUseCase,
   toPage: toWorkflowPage,
   noticeKey: definitionFetchNoticeKey

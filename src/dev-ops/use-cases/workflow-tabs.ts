@@ -11,6 +11,7 @@ interface WorkflowTab {
 
 export const workflowTabs = {
   overview: { read: 'overview', file: null },
+  phases: { read: 'definition', file: 'workflow' },
   pages: { read: 'definition', file: 'workflow' },
   integrations: { read: 'definition', file: 'workflow' },
   events: { read: 'events', file: null },

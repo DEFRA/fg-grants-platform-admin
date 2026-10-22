@@ -6,12 +6,20 @@ import { createServer } from '../../server/index.ts'
 import { devOps } from '../index.ts'
 import type { DefinitionFetchResult } from '../use-cases/definition-fetches.ts'
 import { fetchWorkflowDefinitionUseCase } from '../use-cases/fetch-workflow-definition.use-case.ts'
-import type { WorkflowVersionPage } from '../use-cases/get-workflow-page.use-case.ts'
+import type {
+  GrantStatusMap,
+  WorkflowPage,
+  WorkflowVersionPage
+} from '../use-cases/get-workflow-page.use-case.ts'
 import { getWorkflowPageUseCase } from '../use-cases/get-workflow-page.use-case.ts'
 import { getWorkflowVersionsUseCase } from '../use-cases/get-workflow-versions.use-case.ts'
 import { getCatalogueUseCase } from '../use-cases/get-catalogue.use-case.ts'
-import { casesBucket, catalogue } from '../use-cases/test-fixtures.ts'
-import { woodlandDefinition } from '../use-cases/test-fixtures.ts'
+import {
+  casesBucket,
+  catalogue,
+  woodlandDefinition,
+  woodlandPhases
+} from '../use-cases/test-fixtures.ts'
 
 vi.mock(import('../use-cases/get-catalogue.use-case.ts'))
 vi.mock(import('../use-cases/get-workflow-page.use-case.ts'))
@@ -90,7 +98,7 @@ const document = {
 }
 
 /** Whatever version the URL names, with the same files and facts. */
-const givenWorkflow = (overrides: Partial<WorkflowVersionPage> = {}) =>
+const givenWorkflow = (overrides: Partial<WorkflowPage> = {}) =>
   vi
     .mocked(getWorkflowPageUseCase)
     .mockImplementation(async ({ code, version }) => ({
@@ -112,7 +120,7 @@ const givenRaw = (overrides: Partial<WorkflowVersionPage> = {}) =>
     ...overrides
   })
 
-const givenDefinition = (overrides: Partial<WorkflowVersionPage> = {}) =>
+const givenDefinition = (overrides: Partial<WorkflowPage> = {}) =>
   givenWorkflow({
     overview: undefined,
     definition: woodlandDefinition,
@@ -262,7 +270,7 @@ describe('the workflow page', () => {
     ])
   })
 
-  test('offers Overview, Pages, Integrations, Events and Raw, keeping the list it was opened from', async () => {
+  test('offers Overview, Phases, Pages, Integrations, Events and Raw, keeping the list it was opened from', async () => {
     const { $ } = await viewPage(
       `${path}?tab=raw&back=${encodeURIComponent(listed)}`
     )
@@ -273,6 +281,7 @@ describe('the workflow page', () => {
         .map((tab) => `${$(tab).text()} ${$(tab).attr('href')}`)
     ).toEqual([
       `Overview ${path}?back=${encodeURIComponent(listed)}`,
+      `Phases ${path}?tab=phases&back=${encodeURIComponent(listed)}`,
       `Pages ${path}?tab=pages&back=${encodeURIComponent(listed)}`,
       `Integrations ${path}?tab=integrations&back=${encodeURIComponent(listed)}`,
       `Events ${path}?tab=events&back=${encodeURIComponent(listed)}`,
@@ -294,7 +303,7 @@ describe('the workflow page', () => {
   })
 
   test.each([
-    ['a tab it has not got', `${path}?tab=phases`],
+    ['a tab it has not got', `${path}?tab=questions`],
     ['a version with no patch', '/dev-ops/workflows/woodland-creation/1.2'],
     [
       'a code CW would never store',
@@ -824,6 +833,212 @@ describe('the workflow Integrations tab', () => {
   })
 })
 
+describe('the workflow Phases tab', () => {
+  const phasesPath = `${path}?tab=phases`
+
+  const grantMap: GrantStatusMap = {
+    outcome: 'found',
+    lifecycle: {
+      phases: [
+        {
+          code: 'PRE_AWARD',
+          name: null,
+          stages: [
+            { code: 'REVIEW', name: null, statuses: [{ code: 'APPROVED' }] }
+          ]
+        }
+      ],
+      initialPosition: 'PRE_AWARD:REVIEW:APPROVED',
+      amendablePositions: [],
+      waysIn: [],
+      externalMappings: [
+        {
+          source: 'CW',
+          code: 'PRE_AWARD:REVIEW:APPROVED',
+          whileIn: 'PRE_AWARD:REVIEW',
+          mappedTo: '::APPROVED',
+          to: 'PRE_AWARD:REVIEW:APPROVED'
+        }
+      ],
+      claimApproval: null
+    }
+  }
+
+  const givenPhases = (overrides: Partial<WorkflowPage> = {}) =>
+    givenDefinition({ grantStatusMap: grantMap, ...overrides })
+
+  const selected = ($: CheerioAPI) =>
+    part($, 'workflow-phases-node')
+      .filter('[aria-current="true"]')
+      .attr('data-position')
+
+  test("reads the Phases tab from the workflow's definition read", async () => {
+    givenPhases()
+
+    const { statusCode } = await viewPage(phasesPath)
+
+    expect(statusCode).toBe(statusCodes.ok)
+    expect(getWorkflowPageUseCase).toHaveBeenCalledWith(
+      { code: 'woodland-creation', version: '1.2.0' },
+      'phases'
+    )
+  })
+
+  test('draws a graph per phase, the legend and the panel for the first status', async () => {
+    givenPhases()
+
+    const { $ } = await viewPage(phasesPath)
+
+    expect(
+      part($, 'workflow-phases-phase')
+        .toArray()
+        .map((phase) => $(phase).attr('data-phase'))
+    ).toEqual(['PRE_AWARD', 'POST_AWARD'])
+    expect(part($, 'workflow-phases-graph')).toHaveLength(2)
+    expect(
+      part($, 'workflow-phases-legend-item')
+        .toArray()
+        .map((item) => flatten($(item).text()))
+    ).toEqual(['Action', 'GAS sends', 'Finding', 'Other phase'])
+    expect(textOf($, 'workflow-phases-panel-title')).toBe('AWAITING_REVIEW')
+    expect(textOf($, 'workflow-status-panel-badges')).toBe(
+      'Awaiting review tasks read-only'
+    )
+  })
+
+  test.each([
+    ['a full position', 'PRE_AWARD:REVIEW:APPROVED'],
+    ['a bare CW code', 'APPROVED']
+  ])('selects the status by %s', async (_name, status) => {
+    givenPhases()
+
+    const { $ } = await viewPage(`${phasesPath}&status=${status}`)
+
+    expect(selected($)).toBe('PRE_AWARD:REVIEW:APPROVED')
+    expect(textOf($, 'workflow-phases-panel-title')).toBe('APPROVED')
+  })
+
+  test('selects the first status for a status it cannot place', async () => {
+    givenPhases()
+
+    const { $, statusCode } = await viewPage(`${phasesPath}&status=junk`)
+
+    expect(statusCode).toBe(statusCodes.ok)
+    expect(selected($)).toBe('PRE_AWARD:REVIEW:AWAITING_REVIEW')
+  })
+
+  test('refuses a status longer than any position', async () => {
+    const { statusCode } = await viewPage(
+      `${phasesPath}&status=${'A'.repeat(513)}`
+    )
+
+    expect(statusCode).toBe(statusCodes.badRequest)
+  })
+
+  test('links each status to this tab, keeping the list it was opened from', async () => {
+    givenPhases()
+
+    const { $ } = await viewPage(
+      `${phasesPath}&back=${encodeURIComponent(listed)}`
+    )
+
+    expect(
+      part($, 'workflow-phases-node')
+        .filter('[data-position="PRE_AWARD:REVIEW:ON_HOLD"]')
+        .attr('href')
+    ).toBe(
+      `${path}?tab=phases&back=${encodeURIComponent(listed)}&status=${encodeURIComponent('PRE_AWARD:REVIEW:ON_HOLD')}`
+    )
+  })
+
+  test("tells what GAS does, linking the grant's Phases tab, which comes back here without nesting back", async () => {
+    givenPhases()
+
+    const { $ } = await viewPage(
+      `${phasesPath}&status=APPROVED&back=${encodeURIComponent(listed)}`
+    )
+    const self = `${path}?tab=phases&status=APPROVED`
+
+    expect(textOf($, 'workflow-status-panel-tells-gas')).toBe(
+      'Tells GAS while in PRE_AWARD:REVIEW → APPROVED'
+    )
+    expect(
+      part($, 'workflow-status-panel-tells-gas').find('a').attr('href')
+    ).toBe(
+      `/dev-ops/grants/woodland-creation/1.2.0?tab=phases&back=${encodeURIComponent(self)}&status=${encodeURIComponent('PRE_AWARD:REVIEW:APPROVED')}`
+    )
+  })
+
+  test('says the grant could not be read, and shows the rest of the tab', async () => {
+    givenPhases({ grantStatusMap: { outcome: 'unavailable' } })
+
+    const { $, statusCode } = await viewPage(`${phasesPath}&status=APPROVED`)
+
+    expect(statusCode).toBe(statusCodes.ok)
+    expect(textOf($, 'workflow-status-panel-tells-gas')).toBe(
+      'Tells GAS Grant could not be read from fg-gas-backend'
+    )
+    expect(part($, 'workflow-phases-graph')).toHaveLength(2)
+  })
+
+  test('says the workflow definition is not stored, and draws nothing', async () => {
+    givenDefinition({ header: notStored, definition: null })
+
+    const { $ } = await viewPage(phasesPath)
+
+    expect(textOf($, 'workflow-not-stored')).toBe(
+      'Workflow definition not stored.'
+    )
+    expect(part($, 'workflow-phases-panel')).toHaveLength(0)
+  })
+
+  test('warns of a position held twice', async () => {
+    const [phase] = woodlandPhases
+    const [stage] = phase.stages
+
+    givenPhases({
+      definition: {
+        ...woodlandDefinition,
+        workflow: {
+          ...woodlandDefinition.workflow,
+          phases: [
+            {
+              ...phase,
+              stages: [
+                { ...stage, statuses: [...stage.statuses, stage.statuses[0]] }
+              ]
+            }
+          ]
+        }
+      }
+    })
+
+    const { $, statusCode } = await viewPage(phasesPath)
+
+    expect(statusCode).toBe(statusCodes.ok)
+    expect(textOf($, 'workflow-phases-duplicates')).toContain(
+      'PRE_AWARD:REVIEW:AWAITING_REVIEW appears more than once'
+    )
+  })
+
+  test('says a workflow with no statuses has none', async () => {
+    givenPhases({
+      definition: {
+        ...woodlandDefinition,
+        workflow: {
+          ...woodlandDefinition.workflow,
+          phases: [{ code: 'PRE_AWARD', name: 'Pre-award', stages: [] }]
+        }
+      }
+    })
+
+    const { $ } = await viewPage(phasesPath)
+
+    expect(textOf($, 'workflow-phases-no-statuses')).toBe('No statuses.')
+    expect(part($, 'workflow-phases-panel-title')).toHaveLength(0)
+  })
+})
+
 describe('the bare workflow URL', () => {
   const versions = {
     code: 'woodland-creation',
@@ -932,7 +1147,7 @@ describe('fetchWorkflowDefinitionRoute', () => {
   })
 
   test('refuses a tab the workflow page has not got', async () => {
-    const { statusCode } = await post({ tab: 'phases' })
+    const { statusCode } = await post({ tab: 'questions' })
 
     expect(statusCode).toBe(statusCodes.badRequest)
     expect(fetchWorkflowDefinitionUseCase).not.toHaveBeenCalled()

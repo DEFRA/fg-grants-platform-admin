@@ -1,0 +1,184 @@
+{% from "icon/macro.njk" import icon %}
+
+{# Tailwind only sees class names written literally in this file. #}
+{% set card = "card card-border mt-4 bg-base-100 first:mt-0" %}
+{% set mono = "font-mono text-sm leading-none break-words" %}
+{% set muted = "font-mono text-sm leading-none text-base-content/70" %}
+{% set quiet = "text-base-content/60" %}
+{% set factLabel = "text-sm font-medium text-base-content/70" %}
+{% set factList = "grid grid-cols-1 content-start gap-x-6 gap-y-3 sm:grid-cols-[8rem_minmax(0,1fr)]" %}
+{% set ruleList = "grid grid-cols-1 content-start gap-x-6 gap-y-3 text-sm sm:grid-cols-[9rem_minmax(0,1fr)]" %}
+{% set dots = {
+  neutral: "status bg-base-content/80",
+  info: "status status-info",
+  success: "status status-success",
+  warning: "status status-warning"
+} %}
+
+{% macro dash() %}<span class="{{ muted }}">—</span>{% endmacro %}
+
+{% macro yesNo(value) %}{% if value %}Yes{% else %}<span class="{{ quiet }}">No</span>{% endif %}{% endmacro %}
+
+{% macro codes(list) %}
+  {%- for code in list -%}
+    <span class="{{ mono }}">{{ code }}</span>{% if not loop.last %}<span class="text-base-content/40">, </span>{% endif %}
+  {%- else -%}
+    {{ dash() }}
+  {%- endfor -%}
+{% endmacro %}
+
+{% macro chip(position, testId) %}
+  <a class="badge badge-sm badge-outline h-auto max-w-full whitespace-normal py-0.5 text-left font-mono no-underline" href="{{ position.href }}" data-testid="{{ testId }}-chip"><span>
+    {%- for part in position.parts %}{{ part }}{% if not loop.last %}:<wbr>{% endif %}{% endfor -%}
+    {%- if position.prefix %}<span class="text-base-content/60">:*</span>{% endif -%}
+  </span></a>
+{% endmacro %}
+
+{% macro chips(positions, testId) %}
+  {%- if positions | length -%}
+    <div class="flex flex-wrap gap-1">{% for position in positions %}{{ chip(position, testId) }}{% endfor %}</div>
+  {%- else -%}
+    {{ dash() }}
+  {%- endif -%}
+{% endmacro %}
+
+{% macro fact(label, id) %}
+  <div class="contents" data-testid="{{ id }}">
+    <dt class="{{ factLabel }}">{{ label }}</dt>
+    <dd class="min-w-0">{{ caller() }}</dd>
+  </div>
+{% endmacro %}
+
+{% macro onSubmit(value, testId) %}
+  <span class="inline-flex items-baseline gap-1.5" data-testid="{{ testId }}-on-submit"><span class="{{ dots[value.role] }} shrink-0 translate-y-[-1px]" aria-hidden="true"></span><span>{{ value.label }}</span></span>
+  {%- if value.movesOnLastClaim %}<div class="mt-1"><span class="{{ quiet }}">Moves on the last claim</span></div>{% endif %}
+{% endmacro %}
+
+{%- set view = params.view -%}
+{%- set testId = params.testId -%}
+<div data-testid="{{ testId }}">
+  <section class="card card-border bg-base-100" aria-label="Claims" data-testid="{{ testId }}-claims">
+    <div class="card-body p-5">
+      <div class="grid gap-x-6 gap-y-3 text-sm lg:grid-cols-2">
+        <dl class="{{ factList }}">
+          {% call fact("On the last claim", testId ~ "-move") %}
+            {%- if view.claims.move -%}
+              <div class="flex flex-wrap items-center gap-1.5">{{ chip(view.claims.move.from, testId) }}{{ icon({ name: 'arrow-right', class: 'size-3.5 shrink-0 text-base-content/40' }) }}{{ chip(view.claims.move.to, testId) }}</div>
+            {%- else -%}
+              {{ dash() }}
+            {%- endif -%}
+          {% endcall %}
+        </dl>
+        <dl class="{{ factList }}">
+          {% call fact("Payment file", testId ~ "-payment-file") %}
+            {%- if view.claims.paymentHref -%}
+              <a class="link" href="{{ view.claims.paymentHref }}">Payment definition</a>
+            {%- else -%}
+              {{ dash() }}
+            {%- endif -%}
+          {% endcall %}
+          {% call fact("Claim roles", testId ~ "-roles") %}
+            {%- if view.claims.roles -%}
+              {{ codes(view.claims.roles.allOf) }}
+              {%- if view.claims.roles.anyOf | length %}<div class="mt-1"><span class="{{ quiet }}">any of</span> {{ codes(view.claims.roles.anyOf) }}</div>{% endif -%}
+            {%- else -%}
+              <span class="{{ quiet }}">Any operator</span>
+            {%- endif -%}
+          {% endcall %}
+        </dl>
+      </div>
+    </div>
+  </section>
+
+  {% if view.warnings | length %}
+    <div class="mt-4 flex flex-col gap-2">
+      {% for warning in view.warnings %}
+        <div role="alert" class="alert alert-warning alert-soft text-sm" data-testid="{{ testId }}-warning">
+          {{ icon({ name: 'exclamation-triangle', class: 'size-4 shrink-0' }) }}
+          <span>
+            {%- if warning.kind == "materialised-claim" -%}
+              <span class="{{ mono }}">{{ warning.claimCode }}</span> is materialised, so its <span class="{{ mono }}">claim</span> block is never used.
+            {%- elif warning.kind == "no-claimable-at" -%}
+              <span class="{{ mono }}">{{ warning.claimCode }}</span> has no <span class="{{ mono }}">claimableAt</span>: every claim is rejected.
+            {%- else -%}
+              <span class="{{ mono }}">{{ warning.claimCode }}</span> pays on submit, but the <a class="link" href="{{ warning.paymentHref }}">payment definition</a> reads <span class="{{ mono }}">$.agreement</span>; claim payments carry only <span class="{{ mono }}">claim</span> and <span class="{{ mono }}">execution</span>.
+            {%- endif -%}
+          </span>
+        </div>
+      {% endfor %}
+    </div>
+  {% endif %}
+
+  <div class="mt-4">
+    {% set factId = testId ~ "-fact-" %}
+    {% for template in view.templates %}
+      <section class="{{ card }}" data-testid="{{ testId }}-template">
+        <div class="card-body gap-3 p-5">
+          <h2 class="card-title text-base" data-testid="{{ testId }}-template-title"><span class="font-mono">{{ template.claimCode }}</span> <span class="font-normal text-base-content/70">{{ template.name }}</span></h2>
+          {% if template.description %}<p class="text-sm text-base-content/70" data-testid="{{ testId }}-description">{{ template.description }}</p>{% endif %}
+          <div class="grid gap-x-6 gap-y-4 lg:grid-cols-2">
+            <div>
+              <h3 class="mb-2 text-sm font-semibold">Creation</h3>
+              <dl class="{{ ruleList }}">
+                {% call fact("Materialised", factId ~ "materialised") %}{{ yesNo(template.materialised) }}{% endcall %}
+                {% call fact("Max entitlements", factId ~ "max-entitlements") %}{{ template.maxEntitlements }}{% endcall %}
+                {% call fact("Available at", factId ~ "available-at") %}{{ chips(template.availableAt, testId) }}{% endcall %}
+              </dl>
+            </div>
+            <div>
+              <h3 class="mb-2 text-sm font-semibold">Claiming</h3>
+              <dl class="{{ ruleList }}">
+                {% call fact("Claimable at", factId ~ "claimable-at") %}{% if template.claim %}{{ chips(template.claim.claimableAt, testId) }}{% else %}{{ dash() }}{% endif %}{% endcall %}
+                {% call fact("Max claims", factId ~ "max-claims") %}{% if template.claim %}{{ template.claim.maximumClaims }} <span class="{{ quiet }}">per entitlement</span>{% else %}{{ dash() }}{% endif %}{% endcall %}
+                {% call fact("Partial", factId ~ "partial") %}{% if template.claim %}{{ yesNo(template.claim.partial) }}{% else %}{{ dash() }}{% endif %}{% endcall %}
+                {% call fact("Approval", factId ~ "approval") %}{% if template.claim %}{{ yesNo(template.claim.approval) }}{% else %}{{ dash() }}{% endif %}{% endcall %}
+                {% call fact("Evidence", factId ~ "evidence") %}{% if template.claim %}{{ yesNo(template.claim.evidence) }}{% else %}{{ dash() }}{% endif %}{% endcall %}
+                {% call fact("On submit", factId ~ "on-submit") %}{{ onSubmit(template.onSubmit, testId) }}{% endcall %}
+              </dl>
+            </div>
+          </div>
+          {% if template.fields | length %}
+            <h3 class="mt-2 text-sm font-semibold">Fields</h3>
+            <div class="w-full overflow-x-auto" data-testid="{{ testId }}-fields">
+              <table class="table w-full min-w-[40rem] table-fixed">
+                <colgroup><col class="w-[16%]"><col class="w-[10%]"><col class="w-[34%]"><col class="w-[18%]"><col class="w-[22%]"></colgroup>
+                <thead>
+                  <tr><th scope="col">Field</th><th scope="col">Source</th><th scope="col">Label or value</th><th scope="col">Unit</th><th scope="col">Bounds</th></tr>
+                </thead>
+                <tbody>
+                  {% for field in template.fields %}
+                    <tr class="hover:bg-base-200" data-testid="{{ testId }}-field">
+                      <td><span class="{{ mono }}">{{ field.name }}</span></td>
+                      <td>{% if field.input %}Input{% else %}<span class="{{ quiet }}">Fixed</span>{% endif %}</td>
+                      <td>{% if field.input %}{{ field.text }}{% else %}<code class="block whitespace-pre-wrap break-all font-mono text-sm">{{ field.text }}</code>{% endif %}</td>
+                      <td><span class="{{ mono }}">{{ field.unit }}</span></td>
+                      <td>{{ codes(field.bounds) }}</td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          {% endif %}
+          {% if template.help %}
+            <details class="collapse collapse-arrow rounded-box border border-base-300" data-testid="{{ testId }}-help">
+              <summary class="collapse-title text-sm font-medium">Help · {{ template.help.summary }}</summary>
+              <div class="collapse-content text-sm">
+                {% for block in template.help.content %}
+                  {% if block.items %}
+                    <ul class="ml-5 list-disc">{% for item in block.items %}<li>{{ item }}</li>{% endfor %}</ul>
+                  {% else %}
+                    <p>{{ block.text }}</p>
+                  {% endif %}
+                {% endfor %}
+              </div>
+            </details>
+          {% endif %}
+        </div>
+      </section>
+    {% else %}
+      <div class="card card-border bg-base-100" data-testid="{{ testId }}-empty">
+        <p class="px-4 py-10 text-center text-sm text-base-content/60">No entitlement templates.</p>
+      </div>
+    {% endfor %}
+  </div>
+</div>

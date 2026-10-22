@@ -19,8 +19,10 @@ const responseError = (statusCode: number, body: object = {}) =>
 describe('getGrantPageUseCase', () => {
   test.each([
     ['overview', 'overview'],
+    ['phases', 'phases'],
     ['questions', 'definition'],
     ['actions', 'definition'],
+    ['entitlements', 'entitlements'],
     ['agreement', 'agreement'],
     ['payment', 'payment'],
     ['events', 'events'],

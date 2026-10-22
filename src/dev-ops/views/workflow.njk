@@ -2,9 +2,11 @@
 
 {% from "filter-menu/macro.njk" import filterMenu %}
 {% from "icon/macro.njk" import icon %}
+{% from "state-graph/macro.njk" import stateGraph %}
 {% from "status-badge/macro.njk" import statusBadge %}
 {% from "workflow-integrations/macro.njk" import workflowIntegrations %}
 {% from "workflow-pages/macro.njk" import workflowPages %}
+{% from "workflow-status-panel/macro.njk" import workflowStatusPanel %}
 
 {% block recordHeader %}
   {% if versionHeader %}
@@ -53,6 +55,14 @@
     <div class="card card-border bg-base-100" data-testid="{{ record.itemId }}-not-stored">
       <p class="px-4 py-10 text-center text-sm text-base-content/60">{{ notStored | capitalize }} definition not stored.</p>
     </div>
+  {% elif tab == "phases" and phases %}
+    {% call stateGraph({ graphs: phases.graphs, legend: phases.legend, testId: "workflow-phases" }) %}
+      {% if phases.panel %}
+        {{ workflowStatusPanel(phases.panel) }}
+      {% else %}
+        <p class="text-base-content/60" data-testid="workflow-phases-no-statuses">No statuses.</p>
+      {% endif %}
+    {% endcall %}
   {% elif tab == "pages" and pages %}
     {{ workflowPages({ tab: pages, testId: "workflow-pages" }) }}
   {% elif tab == "integrations" and integrations %}

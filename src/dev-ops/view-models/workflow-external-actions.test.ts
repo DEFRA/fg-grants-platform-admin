@@ -39,6 +39,7 @@ const endpoint = (
 })
 
 const withTabs = (tabs: Record<string, StoredCaseTab>): StoredWorkflow => ({
+  phases: [],
   pages: { cases: { details: { tabs } } }
 })
 
@@ -177,8 +178,8 @@ describe('toCaseTabs', () => {
   })
 
   test.each([
-    ['no pages', {}],
-    ['no tabs', { pages: { cases: { details: {} } } }]
+    ['no pages', { phases: [] }],
+    ['no tabs', { phases: [], pages: { cases: { details: {} } } }]
   ])('lists the built-ins alone with %s', (_name, workflow) => {
     expect(keysOf(workflow)).toEqual([
       'tasks',
@@ -190,7 +191,7 @@ describe('toCaseTabs', () => {
 })
 
 describe('toBannerButtons', () => {
-  const banner = { pages: { cases: { details: { banner: {} } } } }
+  const banner = { phases: [], pages: { cases: { details: { banner: {} } } } }
 
   test('lists the actions shown on the banner, in definition order', () => {
     const workflow: StoredWorkflow = {
@@ -219,7 +220,10 @@ describe('toBannerButtons', () => {
 
   test('has none without a banner, where CW adds no buttons', () => {
     expect(
-      toBannerButtons({ externalActions: [action('A', { display: true })] })
+      toBannerButtons({
+        phases: [],
+        externalActions: [action('A', { display: true })]
+      })
     ).toEqual([])
   })
 
@@ -232,6 +236,7 @@ describe('findExternalAction and findEndpoint', () => {
   test('take the first of a duplicated code, as CW does', () => {
     const first = action('A', { name: 'First', endpoint: { code: 'e' } })
     const workflow: StoredWorkflow = {
+      phases: [],
       externalActions: [first, action('A', { name: 'Second' })],
       endpoints: [endpoint('e', { path: '/first' }), endpoint('e')]
     }
@@ -288,6 +293,7 @@ describe('toActionCall', () => {
     ['no endpoints at all', { endpoint: { code: 'e' } }, undefined]
   ])('has no endpoint with %s', (_name, overrides, endpoints) => {
     const workflow: StoredWorkflow = {
+      phases: [],
       externalActions: [action('A', overrides)],
       ...(endpoints && { endpoints })
     }
@@ -300,6 +306,7 @@ describe('toActionCall', () => {
 
   test('finds the address by position, so endpoints sharing a code keep their own', () => {
     const workflow: StoredWorkflow = {
+      phases: [],
       externalActions: [action('A', { endpoint: { code: 'e' } })],
       endpoints: [
         endpoint('e', { service: 'FIRST' }),

@@ -1,8 +1,8 @@
 import type {
   WorkflowFileType,
   WorkflowVersionHeader,
+  WorkflowPage,
   WorkflowVersionOverview,
-  WorkflowVersionPage,
   WorkflowVersionRef
 } from '../use-cases/get-workflow-page.use-case.ts'
 import type { Catalogue } from '../use-cases/get-catalogue.use-case.ts'
@@ -35,6 +35,8 @@ import { toWorkflowIntegrations } from './workflow-integrations.ts'
 import type { WorkflowIntegrations } from './workflow-integrations.ts'
 import { toWorkflowPagesTab } from './workflow-pages-tab.ts'
 import type { WorkflowPagesTab } from './workflow-pages-tab.ts'
+import { toWorkflowPhases } from './workflow-phases.view-model.ts'
+import type { WorkflowPhasesTab } from './workflow-phases.view-model.ts'
 import { toWorkflowHref, workflowType } from './workflows-page.view-model.ts'
 
 export interface WorkflowPageModel extends RecordPageModel {
@@ -43,8 +45,15 @@ export interface WorkflowPageModel extends RecordPageModel {
   notices: DefinitionFetchNotice[]
   /** The file the tab needs, while it is not stored. */
   notStored: WorkflowFileType | null
+  phases: WorkflowPhasesTab | null
   pages: WorkflowPagesTab | null
   integrations: WorkflowIntegrations | null
+}
+
+/** Query params the workflow's tabs read. */
+export interface WorkflowPageQuery {
+  /** The selected status on Phases: a full position or a bare CW code. */
+  status?: string
 }
 
 const toCasesHref = (
@@ -100,7 +109,7 @@ const toNotStored = (
 }
 
 const toPagesTab = (
-  { definition }: WorkflowVersionPage,
+  { definition }: WorkflowPage,
   tab: WorkflowTabId,
   integrationsHref: string
 ): WorkflowPagesTab | null =>
@@ -109,7 +118,7 @@ const toPagesTab = (
     : null
 
 const toIntegrationsTab = (
-  { definition }: WorkflowVersionPage,
+  { definition }: WorkflowPage,
   tab: WorkflowTabId,
   pagesHref: string
 ): WorkflowIntegrations | null =>
@@ -117,14 +126,41 @@ const toIntegrationsTab = (
     ? toWorkflowIntegrations(definition, pagesHref)
     : null
 
+/**
+ * The grant link comes back to this tab without its own `back`, so links
+ * followed back and forth never nest one `back` inside another.
+ */
+const toPhasesTab = (
+  { header, definition, grantStatusMap }: WorkflowPage,
+  from: string,
+  { status }: WorkflowPageQuery
+): WorkflowPhasesTab | null => {
+  const href = toWorkflowHref(header)
+  const self = toTabHref(href, 'phases', '', status ? { status } : {})
+
+  return definition && grantStatusMap
+    ? toWorkflowPhases(definition.workflow.phases, grantStatusMap, status, {
+        status: (position) =>
+          toTabHref(href, 'phases', from, { status: position }),
+        grantStatus: (position) =>
+          toTabHref(toGrantHref(header), 'phases', self, { status: position })
+      })
+    : null
+}
+
 export const toWorkflowPage = (
-  page: WorkflowVersionPage,
+  page: WorkflowPage,
   tab: WorkflowTabId,
   from: string,
   {
     notice,
+    query,
     catalogue
-  }: { notice?: DefinitionFetchFlash; catalogue: Catalogue | null },
+  }: {
+    notice?: DefinitionFetchFlash
+    query: WorkflowPageQuery
+    catalogue: Catalogue | null
+  },
   now: Date = new Date()
 ): WorkflowPageModel => {
   const href = toWorkflowHref(page.header)
@@ -153,6 +189,7 @@ export const toWorkflowPage = (
       toVersionPath(workflowType, page.header)
     ),
     notStored: toNotStored(page.header, tab),
+    phases: tab === 'phases' ? toPhasesTab(page, from, query) : null,
     pages: toPagesTab(page, tab, toTabHref(href, 'integrations', from)),
     integrations: toIntegrationsTab(page, tab, toTabHref(href, 'pages', from))
   }

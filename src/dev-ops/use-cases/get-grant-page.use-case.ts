@@ -14,11 +14,19 @@ export type {
   DefinitionFileType,
   GrantDefinition,
   GrantAgreement,
+  EntitlementField,
+  EntitlementTemplate,
+  ExternalStatusMapping,
+  GrantEntitlements,
+  GrantLifecycle,
   GrantVersionHeader,
   GrantVersionOverview,
   GrantVersionPage,
   GrantVersionRef,
-  ProcessAddress
+  HelpBlock,
+  ProcessAddress,
+  TemplatePosition,
+  WayIn
 } from '../repositories/grants.repository.ts'
 
 export type GrantPageResult = RecordResult<GrantVersionPage> | HiddenTab

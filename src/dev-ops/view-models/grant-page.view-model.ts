@@ -22,6 +22,10 @@ import { toGrantActions } from './grant-actions.ts'
 import type { GrantActionRow } from './grant-actions.ts'
 import { toAgreementTab } from './grant-agreement.view-model.ts'
 import type { AgreementTab } from './grant-agreement.view-model.ts'
+import { toEntitlementsTab } from './grant-entitlements.ts'
+import type { EntitlementsTab } from './grant-entitlements.ts'
+import { toGrantPhases } from './grant-phases.view-model.ts'
+import type { GrantPhasesTab } from './grant-phases.view-model.ts'
 import { grantType, toGrantHref } from './grants-page.view-model.ts'
 import { toPaymentDefinition } from './payment-definition.ts'
 import type { PaymentDefinitionView } from './payment-definition.ts'
@@ -30,8 +34,8 @@ import {
   toEvents,
   toLinkFact,
   toMonoFact,
-  toReleaseCounterpartFacts,
   toRaw,
+  toReleaseCounterpartFacts,
   toSizeFact,
   toTabHref,
   toTabSection,
@@ -53,7 +57,15 @@ export interface GrantPageModel extends RecordPageModel {
   questions: GrantQuestionsTab | null
   actions: GrantActionRow[] | null
   agreement: AgreementTab | null
+  phases: GrantPhasesTab | null
+  entitlements: EntitlementsTab | null
   payment: { view: PaymentDefinitionView | null; raw: RawTab } | null
+}
+
+/** Query params the grant's tabs read. */
+export interface GrantPageQuery {
+  /** The selected status on Phases. */
+  status?: string
 }
 
 const toAllowListHref = (code: string): string =>
@@ -120,6 +132,32 @@ const toNotStored = (
   return file && files[file]?.stored === false ? file : null
 }
 
+const toEntitlementsHrefs = (href: string, from: string) => ({
+  phases: (status: string | null) =>
+    toTabHref(href, 'phases', from, status === null ? {} : { status }),
+  payment: toTabHref(href, 'payment', from)
+})
+
+/** Null unless CW has the workflow version, so a CW status never links to a page CW cannot show. */
+const toWorkflowPhasesHref = (header: GrantVersionHeader) =>
+  header.counterpart?.exists
+    ? (cwStatus: string, back: string) =>
+        toTabHref(toWorkflowHref(header), 'phases', back, { status: cwStatus })
+    : null
+
+const toEntitlements = (
+  { header, entitlements }: GrantVersionPage,
+  tab: GrantTabId,
+  href: string,
+  from: string
+): EntitlementsTab | null =>
+  tab === 'entitlements' && entitlements
+    ? toEntitlementsTab(
+        { entitlements, hasPaymentFile: header.files.payment !== undefined },
+        toEntitlementsHrefs(href, from)
+      )
+    : null
+
 const toPaymentTab = ({
   payment,
   sectionErrors
@@ -140,8 +178,13 @@ export const toGrantPage = (
   from: string,
   {
     notice,
+    query,
     catalogue
-  }: { notice?: DefinitionFetchFlash; catalogue: Catalogue | null },
+  }: {
+    notice?: DefinitionFetchFlash
+    query: GrantPageQuery
+    catalogue: Catalogue | null
+  },
   now: Date = new Date()
 ): GrantPageModel => {
   const href = toGrantHref(page.header)
@@ -174,6 +217,15 @@ export const toGrantPage = (
       toVersionPath(grantType, page.header)
     ),
     notStored: toNotStored(page.header, tab),
+    phases:
+      tab === 'phases'
+        ? toGrantPhases(page, {
+            status: query.status,
+            href,
+            from,
+            workflowHref: toWorkflowPhasesHref(page.header)
+          })
+        : null,
     questions:
       tab === 'questions' && page.definition
         ? toGrantQuestions(page.definition)
@@ -182,6 +234,7 @@ export const toGrantPage = (
       tab === 'actions' && page.definition
         ? toGrantActions(page.definition.actions)
         : null,
+    entitlements: toEntitlements(page, tab, href, from),
     agreement: toAgreement(page, tab),
     payment: tab === 'payment' ? toPaymentTab(page) : null
   }

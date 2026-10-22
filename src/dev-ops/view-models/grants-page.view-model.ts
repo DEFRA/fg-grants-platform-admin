@@ -6,8 +6,10 @@ const grantsPath = '/dev-ops/grants'
 
 const grantTabLabels: Record<GrantTabId, string> = {
   overview: 'Overview',
+  phases: 'Phases',
   questions: 'Questions',
   actions: 'Actions',
+  entitlements: 'Entitlements',
   agreement: 'Agreement',
   payment: 'Payment',
   events: 'Events',

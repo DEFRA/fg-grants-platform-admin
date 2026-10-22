@@ -12,8 +12,10 @@ interface GrantTab {
 
 export const grantTabs = {
   overview: { read: 'overview', file: null },
+  phases: { read: 'phases', file: 'grant' },
   questions: { read: 'definition', file: 'grant' },
   actions: { read: 'definition', file: 'grant' },
+  entitlements: { read: 'entitlements', file: 'grant' },
   agreement: { read: 'agreement', file: 'agreement' },
   payment: { read: 'payment', file: 'payment' },
   events: { read: 'events', file: null },

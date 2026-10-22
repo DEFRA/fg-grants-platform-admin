@@ -30,6 +30,12 @@ export const fromMax = 2048
 // Checked by `toSafeFrom`: a bad one falls back to the admin's root, not an error page.
 export const backSchema = Joi.string().allow('').max(fromMax)
 
+/** Bounds the query; real positions are far shorter. */
+const positionMax = 512
+
+// Anything up to the bound that the state graph cannot place selects the first status.
+export const statusSchema = Joi.string().allow('').max(positionMax)
+
 export const recordTabSchema = ({ tabs }: RecordType) =>
   Joi.string().valid(...tabs.map(({ id }) => id))
 
