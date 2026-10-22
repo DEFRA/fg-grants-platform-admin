@@ -25,7 +25,8 @@ export const outboxBucket: BucketEntry = {
         { value: 'PUBLISHED', label: 'Queued', tone: 'neutral' },
         { value: 'DEAD_LETTER', label: 'Dead letter', tone: 'error' }
       ],
-      toggle: null
+      toggle: null,
+      within: null
     },
     {
       name: 'eventType',
@@ -35,21 +36,24 @@ export const outboxBucket: BucketEntry = {
         { value: 'UpdateCaseStatus', label: 'UpdateCaseStatus' },
         { value: 'Unrecognised', label: 'Unrecognised' }
       ],
-      toggle: null
+      toggle: null,
+      within: null
     },
     {
       name: 'grantCode',
       param: 'grant',
       label: 'Grant',
       values: null,
-      toggle: null
+      toggle: null,
+      within: null
     },
     {
       name: 'lastError.name',
       param: 'error',
       label: 'Error name',
       values: null,
-      toggle: null
+      toggle: null,
+      within: null
     }
   ],
   refs: [
@@ -139,7 +143,16 @@ export const applicationsBucket: BucketEntry = {
       param: 'grant',
       label: 'Grant',
       values: [{ value: 'example-grant', label: 'example-grant' }],
-      toggle: null
+      toggle: null,
+      within: null
+    },
+    {
+      name: 'currentConfigVersion',
+      param: 'version',
+      label: 'Version',
+      values: null,
+      toggle: null,
+      within: 'code'
     },
     {
       name: 'archived',
@@ -149,11 +162,12 @@ export const applicationsBucket: BucketEntry = {
         { value: 'true', label: 'Archived' },
         { value: 'false', label: 'Current' }
       ],
-      toggle: null
+      toggle: null,
+      within: null
     }
   ],
   refs: [{ kind: 'ref', label: 'Reference' }],
-  indexes: [[], ['code']],
+  indexes: [[], ['code'], ['code', 'currentConfigVersion']],
   groupings: [],
   title: { label: 'Reference', format: 'mono' },
   columns: [
@@ -175,7 +189,8 @@ const versionStatusFact: BucketFact = {
     { value: 'active', label: 'Active', tone: 'success' },
     { value: 'draft', label: 'Draft', tone: 'neutral' }
   ],
-  toggle: null
+  toggle: null,
+  within: null
 }
 
 const fetchStatusValues: BucketFact['values'] = [
@@ -205,7 +220,8 @@ export const grantsBucket: BucketEntry = {
         { value: 'hedgerow-restoration', label: 'hedgerow-restoration' },
         { value: 'woodland-creation', label: 'woodland-creation' }
       ],
-      toggle: null
+      toggle: null,
+      within: null
     },
     versionStatusFact,
     {
@@ -213,7 +229,8 @@ export const grantsBucket: BucketEntry = {
       param: 'definition',
       label: 'Definition',
       values: fetchStatusValues,
-      toggle: null
+      toggle: null,
+      within: null
     }
   ],
   refs: [],
@@ -270,7 +287,8 @@ export const workflowsBucket: BucketEntry = {
       param: 'workflow',
       label: 'Workflow',
       values: [{ value: 'woodland-creation', label: 'woodland-creation' }],
-      toggle: null
+      toggle: null,
+      within: null
     },
     versionStatusFact,
     {
@@ -278,7 +296,8 @@ export const workflowsBucket: BucketEntry = {
       param: 'definition',
       label: 'Definition',
       values: fetchStatusValues,
-      toggle: null
+      toggle: null,
+      within: null
     }
   ],
   indexes: [
