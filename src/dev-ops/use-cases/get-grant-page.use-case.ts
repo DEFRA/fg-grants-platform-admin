@@ -10,6 +10,7 @@ import { readRecord } from './record-reads.ts'
 
 export type {
   DefinitionFileType,
+  GrantDefinition,
   GrantVersionHeader,
   GrantVersionOverview,
   GrantVersionPage,

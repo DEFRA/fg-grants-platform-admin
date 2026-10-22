@@ -18,6 +18,8 @@ import type {
 import { toUnavailableSources } from './event-row.ts'
 import { toGrantQuestions } from './grant-questions.ts'
 import type { GrantQuestionsTab } from './grant-questions.ts'
+import { toGrantActions } from './grant-actions.ts'
+import type { GrantActionRow } from './grant-actions.ts'
 import { grantType, toGrantHref } from './grants-page.view-model.ts'
 import {
   toDateFact,
@@ -41,6 +43,7 @@ export interface GrantPageModel extends RecordPageModel {
   /** The file the tab needs, while it is not stored. */
   notStored: DefinitionFileType | null
   questions: GrantQuestionsTab | null
+  actions: GrantActionRow[] | null
 }
 
 const toAllowListHref = (code: string): string =>
@@ -143,6 +146,10 @@ export const toGrantPage = (
     questions:
       tab === 'questions' && page.definition
         ? toGrantQuestions(page.definition)
+        : null,
+    actions:
+      tab === 'actions' && page.definition
+        ? toGrantActions(page.definition.actions)
         : null
   }
 }
