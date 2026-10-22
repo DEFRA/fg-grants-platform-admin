@@ -28,6 +28,7 @@ import {
   recordParamsSchema,
   recordTabSchema,
   slugFilterSchema,
+  statusSchema,
   versionSchema,
   workflowCodeSchema
 } from '../view-models/record-filters.ts'
@@ -38,7 +39,7 @@ import { toVersionPath } from '../view-models/version-header.ts'
 import { toWorkflowPage } from '../view-models/workflow-page.view-model.ts'
 import { workflowType } from '../view-models/workflows-page.view-model.ts'
 
-interface RecordPageRoute<K, P, T extends string, Q, N> {
+interface RecordPageRoute<K, P, T extends string, N, Q> {
   record: RecordType
   /** Each URL param after the record's path, in order, with its schema. */
   params: Record<keyof K & string, Schema>
@@ -65,12 +66,6 @@ const toNavActive = (
   catalogue: Catalogue | null,
   from: string
 ): string | null => toBackBucket(catalogue, from)?.id ?? null
-
-/** Bounds the query; real positions are far shorter. */
-const positionMax = 512
-
-// Anything up to the bound that the state graph cannot place selects the first status.
-const statusSchema = Joi.string().allow('').max(positionMax)
 
 /** Taken before the read, so it is spent on this render whatever the read then says. */
 const takeNotice = <N>(
@@ -103,14 +98,14 @@ const unavailableView = (
  * One tab of one record per render. A record GAS has not got is GPA's own 404
  * page; any other failure keeps the page, with the reason in place of the tab.
  */
-const recordPageRoute = <K, P, T extends string, Q = object, N = never>({
+const recordPageRoute = <K, P, T extends string, N = never, Q = object>({
   record,
   params,
   query,
   read,
   toPage,
   noticeKey
-}: RecordPageRoute<K, P, T, Q, N>): ServerRoute => ({
+}: RecordPageRoute<K, P, T, N, Q>): ServerRoute => ({
   method: 'GET',
   path: [record.path, ...Object.keys(params).map((name) => `{${name}}`)].join(
     '/'
@@ -248,6 +243,7 @@ export const viewCurrentGrantRoute = currentVersionRoute({
 export const viewWorkflowRoute = recordPageRoute({
   record: workflowType,
   params: { code: workflowCodeSchema, version: versionSchema },
+  query: { status: statusSchema },
   read: getWorkflowPageUseCase,
   toPage: toWorkflowPage,
   noticeKey: definitionFetchNoticeKey

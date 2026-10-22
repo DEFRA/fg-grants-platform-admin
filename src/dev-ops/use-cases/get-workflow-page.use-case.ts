@@ -3,25 +3,65 @@ import type {
   WorkflowVersionRef
 } from '../repositories/workflows.repository.ts'
 import { findWorkflowVersionPage } from '../repositories/workflows.repository.ts'
+import { readGrantStatusMap } from './grant-status-map.ts'
+import type { GrantStatusMap } from './grant-status-map.ts'
 import type { RecordResult } from './record-reads.ts'
 import { readRecord } from './record-reads.ts'
 import { workflowTabs } from './workflow-tabs.ts'
 import type { WorkflowTabId } from './workflow-tabs.ts'
 
 export type {
+  ServiceAddress,
+  StoredAction,
+  StoredBanner,
+  StoredCaseTab,
+  StoredCaseView,
+  StoredEndpoint,
+  StoredExternalAction,
+  StoredTransition,
+  StoredWorkflow,
+  StoredWorkflowPhase,
+  StoredWorkflowStage,
+  StoredWorkflowStatus,
+  WorkflowDefinition,
   WorkflowFileType,
   WorkflowVersionHeader,
   WorkflowVersionOverview,
   WorkflowVersionPage,
   WorkflowVersionRef
 } from '../repositories/workflows.repository.ts'
+export type { GrantStatusMap } from './grant-status-map.ts'
+export type {
+  ExternalStatusMapping,
+  GrantLifecycle
+} from '../repositories/grants.repository.ts'
+
+export interface WorkflowPage extends WorkflowVersionPage {
+  /** Read on Phases alone, once the workflow is there to show. */
+  grantStatusMap?: GrantStatusMap
+}
+
+/** Only a shown workflow reads its grant, so GAS audits no grant view nobody saw. */
+const withGrantStatusMap = async (
+  ref: WorkflowVersionRef,
+  result: RecordResult<WorkflowVersionPage>
+): Promise<RecordResult<WorkflowPage>> =>
+  result.page?.definition
+    ? {
+        ...result,
+        page: { ...result.page, grantStatusMap: await readGrantStatusMap(ref) }
+      }
+    : result
 
 export const getWorkflowPageUseCase = async (
   ref: WorkflowVersionRef,
   tab: WorkflowTabId
-): Promise<RecordResult<WorkflowVersionPage>> =>
-  readRecord(
+): Promise<RecordResult<WorkflowPage>> => {
+  const result = await readRecord(
     'workflow version',
     () => findWorkflowVersionPage(ref, workflowTabs[tab].read),
     'WORKFLOW_VERSION_NOT_FOUND'
   )
+
+  return tab === 'phases' ? withGrantStatusMap(ref, result) : result
+}
