@@ -10,10 +10,13 @@ import { readRecord } from './record-reads.ts'
 
 export type {
   DefinitionFileType,
+  ExternalStatusMapping,
+  GrantLifecycle,
   GrantVersionHeader,
   GrantVersionOverview,
   GrantVersionPage,
-  GrantVersionRef
+  GrantVersionRef,
+  WayIn
 } from '../repositories/grants.repository.ts'
 
 export type GrantPageResult = RecordResult<GrantVersionPage> | HiddenTab

@@ -1,0 +1,4 @@
+<div{% if params.testId %} data-testid="{{ params.testId }}"{% endif %}>
+  <h3 class="mb-1 text-xs font-semibold uppercase tracking-wide text-base-content/60">{{ params.title }}</h3>
+  {{ caller() }}
+</div>

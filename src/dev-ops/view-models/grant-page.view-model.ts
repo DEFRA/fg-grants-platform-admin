@@ -12,6 +12,8 @@ import type {
   DefinitionFetchNotice
 } from './definition-fetch.ts'
 import { toUnavailableSources } from './event-row.ts'
+import { toGrantPhases } from './grant-phases.view-model.ts'
+import type { GrantPhasesTab } from './grant-phases.view-model.ts'
 import { grantType, toGrantHref } from './grants-page.view-model.ts'
 import {
   toDateFact,
@@ -31,6 +33,13 @@ export interface GrantPageModel extends RecordPageModel {
   notices: DefinitionFetchNotice[]
   /** The file the tab needs, while it is not stored. */
   notStored: DefinitionFileType | null
+  phases: GrantPhasesTab | null
+}
+
+/** Query params the grant's tabs read. */
+export interface GrantPageQuery {
+  /** The selected status on Phases. */
+  status?: string
 }
 
 const toFacts = (
@@ -59,9 +68,10 @@ export const toGrantPage = (
   page: GrantVersionPage,
   tab: GrantTabId,
   from: string,
-  { notice }: { notice?: DefinitionFetchFlash } = {}
+  { notice, query }: { notice?: DefinitionFetchFlash; query: GrantPageQuery }
 ): GrantPageModel => {
   const { read } = grantTabs[tab]
+  const href = toGrantHref(page.header)
 
   return {
     record: grantType,
@@ -69,7 +79,7 @@ export const toGrantPage = (
     backHref: from,
     navActive: null,
     trail: [],
-    tabs: toTabs(grantType, toGrantHref(page.header), tab, from),
+    tabs: toTabs(grantType, href, tab, from),
     tab,
     facts: page.overview ? toFacts(page.header, page.overview) : null,
     series: null,
@@ -83,6 +93,15 @@ export const toGrantPage = (
       notice,
       toVersionPath(grantType, page.header)
     ),
-    notStored: toNotStored(page.header, tab)
+    notStored: toNotStored(page.header, tab),
+    phases:
+      tab === 'phases'
+        ? toGrantPhases(page, {
+            status: query.status,
+            href,
+            from,
+            workflowHref: null
+          })
+        : null
   }
 }
