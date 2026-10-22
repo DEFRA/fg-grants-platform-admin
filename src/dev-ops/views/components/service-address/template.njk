@@ -1,0 +1,8 @@
+{% from "status-badge/macro.njk" import statusBadge %}
+
+{%- if params.url -%}
+<span class="font-mono text-sm leading-none break-words" data-testid="{{ params.testId }}-url">{{ params.url }}</span>
+{%- else -%}
+<span data-testid="{{ params.testId }}-not-configured">{{ statusBadge({ status: 'Not configured', role: 'warning' }) }}</span>
+{%- endif -%}
+<div class="mt-1 font-mono text-xs text-base-content/60" data-testid="{{ params.testId }}-service">{{ params.service }}</div>

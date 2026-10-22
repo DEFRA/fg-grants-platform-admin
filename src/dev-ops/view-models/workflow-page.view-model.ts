@@ -21,7 +21,9 @@ import {
   toDateFact,
   toLinkFact,
   toReleaseCounterpartFacts,
+  toEvents,
   toSizeFact,
+  toTabHref,
   toTabSection,
   toTabs,
   toTextFact
@@ -29,6 +31,10 @@ import {
 import type { Fact, RecordPageModel } from './record-page.view-model.ts'
 import { toVersionHeader, toVersionPath } from './version-header.ts'
 import type { VersionHeader } from './version-header.ts'
+import { toWorkflowIntegrations } from './workflow-integrations.ts'
+import type { WorkflowIntegrations } from './workflow-integrations.ts'
+import { toWorkflowPagesTab } from './workflow-pages-tab.ts'
+import type { WorkflowPagesTab } from './workflow-pages-tab.ts'
 import { toWorkflowHref, workflowType } from './workflows-page.view-model.ts'
 
 export interface WorkflowPageModel extends RecordPageModel {
@@ -37,6 +43,8 @@ export interface WorkflowPageModel extends RecordPageModel {
   notices: DefinitionFetchNotice[]
   /** The file the tab needs, while it is not stored. */
   notStored: WorkflowFileType | null
+  pages: WorkflowPagesTab | null
+  integrations: WorkflowIntegrations | null
 }
 
 const toCasesHref = (
@@ -91,6 +99,24 @@ const toNotStored = (
   return file && !files[file].stored ? file : null
 }
 
+const toPagesTab = (
+  { definition }: WorkflowVersionPage,
+  tab: WorkflowTabId,
+  integrationsHref: string
+): WorkflowPagesTab | null =>
+  tab === 'pages' && definition
+    ? toWorkflowPagesTab(definition, integrationsHref)
+    : null
+
+const toIntegrationsTab = (
+  { definition }: WorkflowVersionPage,
+  tab: WorkflowTabId,
+  pagesHref: string
+): WorkflowIntegrations | null =>
+  tab === 'integrations' && definition
+    ? toWorkflowIntegrations(definition, pagesHref)
+    : null
+
 export const toWorkflowPage = (
   page: WorkflowVersionPage,
   tab: WorkflowTabId,
@@ -98,8 +124,10 @@ export const toWorkflowPage = (
   {
     notice,
     catalogue
-  }: { notice?: DefinitionFetchFlash; catalogue: Catalogue | null }
+  }: { notice?: DefinitionFetchFlash; catalogue: Catalogue | null },
+  now: Date = new Date()
 ): WorkflowPageModel => {
+  const href = toWorkflowHref(page.header)
   const { read } = workflowTabs[tab]
 
   return {
@@ -108,14 +136,14 @@ export const toWorkflowPage = (
     backHref: from,
     navActive: null,
     trail: [],
-    tabs: toTabs(workflowType, toWorkflowHref(page.header), tab, from),
+    tabs: toTabs(workflowType, href, tab, from),
     tab,
     facts: page.overview
       ? toFacts(page.header, page.overview, toCasesHref(catalogue, page.header))
       : null,
     series: null,
     seriesDetailed: false,
-    events: null,
+    events: toEvents(page.events, now, toTabHref(href, 'events', from)),
     ...toTabSection(page.raw, page.sectionErrors, tab, read),
     unavailableSources: toUnavailableSources(page.sourceErrors),
     versionHeader: toVersionHeader(workflowType, page.header, tab, from),
@@ -124,6 +152,8 @@ export const toWorkflowPage = (
       notice,
       toVersionPath(workflowType, page.header)
     ),
-    notStored: toNotStored(page.header, tab)
+    notStored: toNotStored(page.header, tab),
+    pages: toPagesTab(page, tab, toTabHref(href, 'integrations', from)),
+    integrations: toIntegrationsTab(page, tab, toTabHref(href, 'pages', from))
   }
 }

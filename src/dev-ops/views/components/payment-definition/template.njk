@@ -1,0 +1,119 @@
+{# Tailwind only sees class names written literally in this file. #}
+{% set card = "card card-border mt-4 bg-base-100 first:mt-0" %}
+{% set mono = "font-mono text-sm leading-none break-words" %}
+{% set muted = "font-mono text-sm leading-none text-base-content/70" %}
+{% set quiet = "text-base-content/60" %}
+{% set empty = "px-4 py-10 text-center text-sm text-base-content/60" %}
+{% set factLabel = "text-sm font-medium text-base-content/70" %}
+{% set factList = "grid grid-cols-1 content-start gap-x-6 gap-y-3 sm:grid-cols-[8rem_minmax(0,1fr)]" %}
+
+{% macro mapping(value) %}
+  {%- if not value -%}
+    <span class="{{ muted }}">—</span>
+  {%- elif value.empty -%}
+    <span class="{{ muted }}">""</span>
+  {%- else -%}
+    <span class="{{ mono }}">{{ value.text }}</span>
+  {%- endif -%}
+{% endmacro %}
+
+{% macro kind(value) %}<span class="{{ quiet }}">{{ value.kind }}</span>{% endmacro %}
+
+{% macro fact(label, testId) %}
+  <div class="contents" data-testid="{{ testId }}">
+    <dt class="{{ factLabel }}">{{ label }}</dt>
+    <dd class="min-w-0">{{ caller() }}</dd>
+  </div>
+{% endmacro %}
+
+{% macro description(value) %}
+  {%- if value and value.kind == "literal" and not value.empty -%}
+    {{ value.text }}
+  {%- else -%}
+    {{ mapping(value) }}
+  {%- endif -%}
+{% endmacro %}
+
+{%- set view = params.view -%}
+{%- set testId = params.testId -%}
+<div data-testid="{{ testId }}">
+  <section class="{{ card }}" aria-labelledby="{{ testId }}-request-title" data-testid="{{ testId }}-request">
+    <div class="card-body gap-3 p-5">
+      <h2 class="card-title text-base" id="{{ testId }}-request-title">Payment request</h2>
+      <div class="w-full overflow-x-auto">
+        <table class="table w-full table-fixed">
+          <colgroup><col class="w-[24%]"><col class="w-[56%]"><col class="w-[20%]"></colgroup>
+          <thead>
+            <tr><th scope="col">Field</th><th scope="col">Value</th><th scope="col">Kind</th></tr>
+          </thead>
+          <tbody>
+            {% for row in view.request %}
+              <tr class="hover:bg-base-200" data-testid="{{ testId }}-field"><td><span class="{{ mono }}">{{ row.field }}</span></td><td>{{ mapping(row.value) }}</td><td>{{ kind(row.value) }}</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  {% for due in view.duePayments %}
+    {% set titleId = testId ~ "-due-" ~ loop.index %}
+    <section class="{{ card }}" aria-labelledby="{{ titleId }}" data-testid="{{ testId }}-due">
+      <div class="card-body gap-3 p-5">
+        <h2 class="card-title text-base" id="{{ titleId }}">{{ due.title }}</h2>
+        {% if due.kind == "from" %}
+          <dl class="{{ factList }} text-sm">
+            {% call fact("From", testId ~ "-from") %}{{ mapping(due.value) }} {{ kind(due.value) }}{% endcall %}
+          </dl>
+        {% else %}
+          <section class="rounded-box border border-base-300" aria-label="{{ due.title }}">
+            <div class="card-body p-5">
+              <div class="grid gap-x-6 gap-y-3 text-sm lg:grid-cols-2">
+                <dl class="{{ factList }}">
+                  {% if due.forEach %}
+                    {% call fact("For each", testId ~ "-due-fact-for-each") %}<span class="{{ mono }}">{{ due.forEach }}</span>{% endcall %}
+                  {% endif %}
+                  {% call fact("Due date", testId ~ "-due-fact-due-date") %}{{ mapping(due.dueDate) }}{% endcall %}
+                </dl>
+                <dl class="{{ factList }}">
+                  {% call fact("Total (pence)", testId ~ "-due-fact-total") %}{{ mapping(due.totalAmountPence) }}{% endcall %}
+                </dl>
+              </div>
+            </div>
+          </section>
+          {% set lines = due.lines %}
+          {% if lines.kind == "from" %}
+            <p class="text-sm {{ quiet }}" data-testid="{{ testId }}-lines-from">Invoice lines from <span class="{{ mono }}">{{ lines.value.text }}</span></p>
+          {% elif not lines.rows | length %}
+            <p class="{{ empty }}" data-testid="{{ testId }}-no-lines">No invoice lines.</p>
+          {% else %}
+            {% if lines.forEach %}
+              <p class="text-sm {{ quiet }}" data-testid="{{ testId }}-for-each">One line per row of <span class="{{ mono }}">{{ lines.forEach }}</span></p>
+            {% endif %}
+            <div class="w-full overflow-x-auto">
+              <table class="table w-full min-w-[48rem] table-fixed" data-testid="{{ testId }}-lines">
+                <colgroup><col class="w-[9%]"><col class="w-[20%]"><col class="w-[17%]"><col class="w-[10%]"><col class="w-[9%]"><col class="w-[11%]"><col class="w-[24%]"></colgroup>
+                <thead>
+                  <tr><th scope="col">Scheme</th><th scope="col">Description</th><th scope="col">Amount (pence)</th><th scope="col">Account</th><th scope="col">Fund</th><th scope="col">Delivery body</th><th scope="col">Marketing year</th></tr>
+                </thead>
+                <tbody>
+                  {% for line in lines.rows %}
+                    {% if line.kind == "from" %}
+                      <tr class="hover:bg-base-200" data-testid="{{ testId }}-line-from"><td colspan="7"><span class="text-sm {{ quiet }}">Line from</span> {{ mapping(line.value) }} {{ kind(line.value) }}</td></tr>
+                    {% else %}
+                      <tr class="hover:bg-base-200" data-testid="{{ testId }}-line"><td>{{ mapping(line.schemeCode) }}</td><td>{{ description(line.description) }}</td><td>{{ mapping(line.amountPence) }}</td><td>{{ mapping(line.accountCode) }}</td><td>{{ mapping(line.fundCode) }}</td><td>{{ mapping(line.deliveryBody) }}</td><td>{{ mapping(line.marketingYear) }}</td></tr>
+                    {% endif %}
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          {% endif %}
+        {% endif %}
+      </div>
+    </section>
+  {% else %}
+    <div class="{{ card }}" data-testid="{{ testId }}-no-due">
+      <p class="{{ empty }}">No due payments.</p>
+    </div>
+  {% endfor %}
+</div>

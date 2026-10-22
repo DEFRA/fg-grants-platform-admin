@@ -9,6 +9,14 @@ import { workflowTabs } from './workflow-tabs.ts'
 import type { WorkflowTabId } from './workflow-tabs.ts'
 
 export type {
+  ServiceAddress,
+  StoredBanner,
+  StoredCaseTab,
+  StoredCaseView,
+  StoredEndpoint,
+  StoredExternalAction,
+  StoredWorkflow,
+  WorkflowDefinition,
   WorkflowFileType,
   WorkflowVersionHeader,
   WorkflowVersionOverview,

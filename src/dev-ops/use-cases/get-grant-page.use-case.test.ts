@@ -4,17 +4,6 @@ import { getGrantPageUseCase } from './get-grant-page.use-case.ts'
 
 vi.mock(import('../repositories/grants.repository.ts'))
 vi.mock(import('../../common/logger.ts'))
-vi.mock(import('./grant-tabs.ts'), async (importOriginal) => {
-  const { grantTabs } = await importOriginal()
-
-  return {
-    grantTabs: {
-      ...grantTabs,
-      // A tab for a file a version may not have, as Agreement and Payment are.
-      payment: { read: 'payment', file: 'payment' }
-    } as typeof grantTabs
-  }
-})
 
 const ref = { code: 'woodland-creation', version: '1.2.0' }
 
@@ -32,9 +21,16 @@ describe('getGrantPageUseCase', () => {
     ['overview', 'overview'],
     ['questions', 'definition'],
     ['actions', 'definition'],
+    ['agreement', 'agreement'],
+    ['payment', 'payment'],
+    ['events', 'events'],
     ['raw', 'definition']
   ] as const)("reads the %s tab from GAS's %s read", async (tab, read) => {
-    const found = page({ grant: { stored: true, fetchStatus: 'fetched' } })
+    const found = page({
+      grant: { stored: true, fetchStatus: 'fetched' },
+      agreement: { stored: true, fetchStatus: 'fetched' },
+      payment: { stored: true, fetchStatus: 'fetched' }
+    })
     vi.mocked(findGrantVersionPage).mockResolvedValue(found)
 
     await expect(getGrantPageUseCase(ref, tab)).resolves.toEqual({
@@ -49,9 +45,10 @@ describe('getGrantPageUseCase', () => {
       page({ grant: { stored: true, fetchStatus: 'fetched' } })
     )
 
-    await expect(getGrantPageUseCase(ref, 'payment' as 'raw')).resolves.toEqual(
-      { outcome: 'hidden', page: null }
-    )
+    await expect(getGrantPageUseCase(ref, 'payment')).resolves.toEqual({
+      outcome: 'hidden',
+      page: null
+    })
   })
 
   test('shows a tab for a file the version has, stored or not', async () => {
@@ -61,10 +58,25 @@ describe('getGrantPageUseCase', () => {
     })
     vi.mocked(findGrantVersionPage).mockResolvedValue(found)
 
-    await expect(getGrantPageUseCase(ref, 'payment' as 'raw')).resolves.toEqual(
-      { outcome: 'found', page: found }
-    )
+    await expect(getGrantPageUseCase(ref, 'payment')).resolves.toEqual({
+      outcome: 'found',
+      page: found
+    })
   })
+
+  test.each(['agreement', 'payment'] as const)(
+    'hides the %s tab when GAS says the version has no file for it',
+    async (tab) => {
+      vi.mocked(findGrantVersionPage).mockRejectedValue(
+        responseError(404, { reason: 'NO_DEFINITION_FILE' })
+      )
+
+      await expect(getGrantPageUseCase(ref, tab)).resolves.toEqual({
+        outcome: 'hidden',
+        page: null
+      })
+    }
+  )
 
   test("is not found only on GAS's own miss of the version", async () => {
     vi.mocked(findGrantVersionPage).mockRejectedValue(

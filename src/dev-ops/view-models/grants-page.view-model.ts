@@ -8,6 +8,9 @@ const grantTabLabels: Record<GrantTabId, string> = {
   overview: 'Overview',
   questions: 'Questions',
   actions: 'Actions',
+  agreement: 'Agreement',
+  payment: 'Payment',
+  events: 'Events',
   raw: 'Raw'
 }
 

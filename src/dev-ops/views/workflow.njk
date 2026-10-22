@@ -3,6 +3,8 @@
 {% from "filter-menu/macro.njk" import filterMenu %}
 {% from "icon/macro.njk" import icon %}
 {% from "status-badge/macro.njk" import statusBadge %}
+{% from "workflow-integrations/macro.njk" import workflowIntegrations %}
+{% from "workflow-pages/macro.njk" import workflowPages %}
 
 {% block recordHeader %}
   {% if versionHeader %}
@@ -51,6 +53,10 @@
     <div class="card card-border bg-base-100" data-testid="{{ record.itemId }}-not-stored">
       <p class="px-4 py-10 text-center text-sm text-base-content/60">{{ notStored | capitalize }} definition not stored.</p>
     </div>
+  {% elif tab == "pages" and pages %}
+    {{ workflowPages({ tab: pages, testId: "workflow-pages" }) }}
+  {% elif tab == "integrations" and integrations %}
+    {{ workflowIntegrations({ integrations: integrations, testId: "workflow-integrations" }) }}
   {% else %}
     {{ super() }}
   {% endif %}

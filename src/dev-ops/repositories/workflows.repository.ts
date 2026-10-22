@@ -7,7 +7,11 @@ import type {
   VersionSummary
 } from './config-versions.ts'
 import type { SourceError } from './events.repository.ts'
-import type { Counterpart, RecordSectionError } from './record-page.ts'
+import type {
+  Counterpart,
+  RecordEvents,
+  RecordSectionError
+} from './record-page.ts'
 
 export type WorkflowVersionRef = VersionRef
 
@@ -32,19 +36,93 @@ export interface WorkflowVersionOverview {
   storedBytes: number | null
 }
 
+export interface StoredEndpoint {
+  code: string
+  service: string
+  path: string
+  method: string
+}
+
+export interface StoredExternalAction {
+  code: string
+  name: string
+  description?: string
+  display: boolean
+  endpoint:
+    | string
+    | {
+        code: string
+        endpointParams?: Record<string, Record<string, unknown>>
+      }
+    | null
+  target: {
+    targetNode: string
+    dataType: 'ARRAY' | 'OBJECT'
+    position: string | null
+    key?: string
+    place: 'append'
+  } | null
+}
+
+export interface StoredBanner {
+  title?: { text?: string; type: string }
+  summary?: Record<
+    string,
+    { label: string; text?: string; type: string; format?: string }
+  >
+}
+
+export interface StoredCaseTab {
+  link?: { text?: string; index?: number } | null
+  renderIf?: string | null
+  /** Each key names what the external action's answer is kept under. */
+  action?: Record<string, unknown> | null
+  content?: { id?: string; component?: string }[] | null
+}
+
+/** The stored workflow as Caseworking reads it at runtime, which is looser than its own schema. */
+export interface StoredWorkflow {
+  endpoints?: StoredEndpoint[]
+  externalActions?: StoredExternalAction[]
+  pages?: { cases?: { details?: StoredCaseView } }
+}
+
+/** What a caseworker sees of a case in CW: its banner and its tabs. */
+export interface StoredCaseView {
+  banner?: StoredBanner
+  tabs?: Record<string, StoredCaseTab>
+}
+
+/** Where an endpoint's service resolves to: scheme, host and path, never its headers. */
+export interface ServiceAddress {
+  code: string | null
+  service: string | null
+  /** Null when the service's URL is unset or unparseable. */
+  url: string | null
+}
+
+export interface WorkflowDefinition {
+  workflow: StoredWorkflow
+  /** One per endpoint, in `workflow.endpoints` order. */
+  addresses: ServiceAddress[]
+}
+
 export interface WorkflowVersionPage {
   header: WorkflowVersionHeader
   overview?: WorkflowVersionOverview | null
+  /** Null when not stored or too large. */
+  definition?: WorkflowDefinition | null
   /** The stored workflow, as Caseworking keeps it; null when not stored or too large. */
   raw?: object | null
   storedBytes?: number | null
+  events?: RecordEvents | null
   sourceErrors: SourceError[]
   sectionErrors: RecordSectionError[]
 }
 
 export type WorkflowVersions = ConfigVersions
 
-export type WorkflowRead = 'overview' | 'raw'
+export type WorkflowRead = 'overview' | 'definition' | 'events' | 'raw'
 
 const workflowPath = (code: string) =>
   `/grant-admin/workflows/${encodeURIComponent(code)}/versions`
