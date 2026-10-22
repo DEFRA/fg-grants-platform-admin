@@ -7,6 +7,7 @@ import {
   viewBucketRoute,
   viewDevOpsRoute
 } from './routes/bucket-list.route.ts'
+import { fetchGrantDefinitionsRoute } from './routes/fetch-definitions.route.ts'
 import { purgeEventRoute } from './routes/purge-event.route.ts'
 import {
   viewApplicationRoute,
@@ -41,6 +42,7 @@ export const devOps = {
             viewCaseRoute,
             viewGrantRoute,
             viewCurrentGrantRoute,
+            fetchGrantDefinitionsRoute,
             viewEventRoute,
             redriveEventRoute,
             purgeEventRoute,

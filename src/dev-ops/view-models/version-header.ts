@@ -33,8 +33,8 @@ export interface VersionHeader {
     panelId: string
     items: SwitcherItem[]
   }
-  /** The files not stored, while there are any. */
-  banner: { text: string } | null
+  /** The files not stored, while there are any, and the form that fetches them. */
+  banner: { text: string; action: string; back: string; tab: string } | null
 }
 
 const statuses: Record<GrantVersionSummary['status'], StatusBadge> = {
@@ -44,7 +44,7 @@ const statuses: Record<GrantVersionSummary['status'], StatusBadge> = {
 
 const fileOrder: DefinitionFileType[] = ['grant', 'agreement', 'payment']
 
-const toAndList = (words: string[]): string =>
+export const toAndList = (words: string[]): string =>
   words.length < 2
     ? words.join('')
     : `${words.slice(0, -1).join(', ')} and ${words.at(-1)}`
@@ -52,10 +52,19 @@ const toAndList = (words: string[]): string =>
 const capitalise = (text: string): string =>
   `${text.charAt(0).toUpperCase()}${text.slice(1)}`
 
+export const toVersionPath = (
+  { path }: RecordType,
+  { code, version }: GrantVersionRef
+): string =>
+  `${path}/${encodeURIComponent(code)}/${encodeURIComponent(version)}`
+
 const toBanner = (
-  { source }: RecordType,
-  { files }: GrantVersionHeader
+  record: RecordType,
+  header: GrantVersionHeader,
+  tab: string,
+  back: string
 ): VersionHeader['banner'] => {
+  const { files } = header
   const missing = fileOrder.filter((type) => files[type]?.stored === false)
 
   if (!missing.length) {
@@ -68,15 +77,12 @@ const toBanner = (
   const noun = missing.length > 1 ? 'definitions' : 'definition'
 
   return {
-    text: `${capitalise(toAndList(missing))} ${noun} not stored.${unused ? ` ${source} won't use this version.` : ''}`
+    text: `${capitalise(toAndList(missing))} ${noun} not stored.${unused ? ` ${record.source} won't use this version.` : ''}`,
+    action: `${toVersionPath(record, header)}/fetch`,
+    back,
+    tab
   }
 }
-
-export const toVersionPath = (
-  { path }: RecordType,
-  { code, version }: GrantVersionRef
-): string =>
-  `${path}/${encodeURIComponent(code)}/${encodeURIComponent(version)}`
 
 /** Anything but a date is shown as stored. */
 const toReceived = (receivedAt: string): string => {
@@ -110,5 +116,5 @@ export const toVersionHeader = (
       active: version === header.version
     }))
   },
-  banner: toBanner(record, header)
+  banner: toBanner(record, header, tab, from)
 })

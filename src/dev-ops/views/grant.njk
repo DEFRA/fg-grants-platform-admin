@@ -14,10 +14,32 @@
 {% endblock %}
 
 {% block beforeTabs %}
+  {% set noticeAlerts = {
+    success: "alert-success alert-soft",
+    warning: "alert-soft alert-warning",
+    error: "alert-soft alert-error"
+  } %}
+  {% set noticeIcons = {
+    success: "check",
+    warning: "exclamation-triangle",
+    error: "exclamation-circle"
+  } %}
+  {% for notice in notices %}
+    <div role="{{ 'status' if notice.role == 'success' else 'alert' }}" class="alert {{ noticeAlerts[notice.role] }} mb-3 text-sm" data-testid="{{ record.itemId }}-notice">
+      {{ icon({ name: noticeIcons[notice.role], class: 'size-4 shrink-0' }) }}
+      <span>{{ notice.text }}{% if notice.reason %}<span class="font-mono">{{ notice.reason }}</span>{% endif %}{{ notice.tail }}</span>
+    </div>
+  {% endfor %}
   {% if versionHeader.banner %}
+    {% set banner = versionHeader.banner %}
     <div role="status" class="alert alert-soft mb-4 flex flex-wrap items-center gap-3 text-sm" data-testid="{{ record.itemId }}-banner">
       {{ icon({ name: 'info', class: 'size-4 shrink-0' }) }}
-      <span class="min-w-0 flex-1">{{ versionHeader.banner.text }}</span>
+      <span class="min-w-0 flex-1">{{ banner.text }}</span>
+      <form method="post" action="{{ banner.action }}" class="shrink-0">
+        <input type="hidden" name="back" value="{{ banner.back }}">
+        <input type="hidden" name="tab" value="{{ banner.tab }}">
+        <button class="btn btn-sm" type="submit" data-testid="{{ record.itemId }}-fetch">Fetch definitions</button>
+      </form>
     </div>
   {% endif %}
 {% endblock %}

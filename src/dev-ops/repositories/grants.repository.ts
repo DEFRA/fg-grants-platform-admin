@@ -1,4 +1,4 @@
-import { getFromGas } from '../../common/gas.ts'
+import { getFromGas, postToGas } from '../../common/gas.ts'
 import type { SourceError } from './events.repository.ts'
 import type { RecordSectionError, StoredDate } from './record-page.ts'
 
@@ -72,6 +72,29 @@ export interface GrantVersions {
 
 export type GrantRead = 'overview' | 'definition'
 
+export type DefinitionFetchReason =
+  | 'missing'
+  | 'forbidden'
+  | 'timeout'
+  | 'unparseable'
+  | 'invalid'
+
+/** What GAS did with one file it had not stored when the fetch began. */
+export type DefinitionFetchFile =
+  | { file: DefinitionFileType; outcome: 'stored' }
+  | {
+      file: DefinitionFileType
+      outcome: 'failed'
+      reason: DefinitionFetchReason
+      /** GAS's own words, only for an `invalid` file. */
+      message: string | null
+    }
+
+export interface DefinitionFetch {
+  /** In the order GAS tried them; empty when every file was already stored. */
+  files: DefinitionFetchFile[]
+}
+
 const grantPath = (code: string) =>
   `/grant-admin/grants/${encodeURIComponent(code)}/versions`
 
@@ -85,3 +108,13 @@ export const findGrantVersionPage = async (
 
 export const findGrantVersions = async (code: string): Promise<GrantVersions> =>
   getFromGas<GrantVersions>(grantPath(code))
+
+/** `actor` goes to GAS on `x-actor`, so the audit record names a person. */
+export const fetchGrantDefinitions = async (
+  { code, version }: GrantVersionRef,
+  actor?: string
+): Promise<DefinitionFetch> =>
+  postToGas<DefinitionFetch>(
+    `${grantPath(code)}/${encodeURIComponent(version)}/fetch`,
+    { actor }
+  )

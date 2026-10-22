@@ -124,7 +124,7 @@ describe('toVersionHeader', () => {
   ] as const)('names %s not stored', (_name, files, text) => {
     expect(
       toVersionHeader(grantType, header({ files }), 'overview', '').banner
-    ).toEqual({ text })
+    ).toMatchObject({ text })
   })
 
   test("says GAS won't use the version when a file not stored has failed for good", () => {
@@ -140,7 +140,7 @@ describe('toVersionHeader', () => {
         'overview',
         ''
       ).banner
-    ).toEqual({
+    ).toMatchObject({
       text: "Grant and payment definitions not stored. GAS won't use this version."
     })
   })
@@ -158,6 +158,24 @@ describe('toVersionHeader', () => {
         'overview',
         ''
       ).banner
-    ).toEqual({ text: 'Payment definition not stored.' })
+    ).toMatchObject({ text: 'Payment definition not stored.' })
+  })
+
+  test('posts the fetch for this version, coming back to the same tab and list', () => {
+    const from = '/dev-ops/grants?status=draft'
+
+    expect(
+      toVersionHeader(
+        grantType,
+        header({ files: { grant: notStored } }),
+        'raw',
+        from
+      ).banner
+    ).toEqual({
+      text: 'Grant definition not stored.',
+      action: '/dev-ops/grants/woodland-creation/1.2.0/fetch',
+      back: from,
+      tab: 'raw'
+    })
   })
 })

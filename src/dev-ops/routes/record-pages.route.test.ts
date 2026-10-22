@@ -1459,7 +1459,7 @@ describe('the not-stored banner', () => {
       const { $ } = await viewPage(`${grantPath}${query}`)
       const banner = part($, 'grant-banner')
 
-      expect(flatten(banner.text())).toBe(
+      expect(flatten(banner.children('span').text())).toBe(
         'Grant, agreement and payment definitions not stored.'
       )
       expect(banner.attr('role')).toBe('status')
@@ -1481,9 +1481,34 @@ describe('the not-stored banner', () => {
 
     const { $ } = await viewPage(grantPath)
 
-    expect(textOf($, 'grant-banner')).toBe(
+    expect(flatten(part($, 'grant-banner').children('span').text())).toBe(
       "Payment definition not stored. GAS won't use this version."
     )
+  })
+
+  test('offers Fetch definitions, posting back to the same tab and list', async () => {
+    const from = '/dev-ops/grants?status=draft'
+    givenGrant({ header: nothingStored, definition: null })
+
+    const { $ } = await viewPage(
+      `${grantPath}?tab=raw&back=${encodeURIComponent(from)}`
+    )
+    const form = part($, 'grant-banner').find('form')
+
+    expect(form.attr('method')).toBe('post')
+    expect(form.attr('action')).toBe(`${grantPath}/fetch`)
+    expect(
+      form
+        .find('input[type="hidden"]')
+        .toArray()
+        .map((input) => [$(input).attr('name'), $(input).attr('value')])
+    ).toEqual([
+      ['back', from],
+      ['tab', 'raw']
+    ])
+    expect(textOf($, 'grant-fetch')).toBe('Fetch definitions')
+    expect(part($, 'grant-fetch').attr('class')).toBe('btn btn-sm')
+    expect(part($, 'grant-fetch').attr('type')).toBe('submit')
   })
 })
 

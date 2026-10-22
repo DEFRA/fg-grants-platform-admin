@@ -1,4 +1,7 @@
 import Joi from 'joi'
+import type { Schema } from 'joi'
+
+import type { RecordType } from './record-type.ts'
 
 const refMax = 100
 
@@ -13,3 +16,20 @@ const versionMax = 32
 export const versionSchema = Joi.string()
   .max(versionMax)
   .pattern(/^\d+\.\d+\.\d+$/)
+
+/** Longer than any list link this app builds for itself, and still bounded. */
+const fromMax = 2048
+
+// Checked by `toSafeFrom`: a bad one falls back to the admin's root, not an error page.
+export const backSchema = Joi.string().allow('').max(fromMax)
+
+export const recordTabSchema = ({ tabs }: RecordType) =>
+  Joi.string().valid(...tabs.map(({ id }) => id))
+
+/** Every param a record's URL names is required. */
+export const recordParamsSchema = (params: Record<string, Schema>) =>
+  Joi.object(
+    Object.fromEntries(
+      Object.entries(params).map(([name, schema]) => [name, schema.required()])
+    )
+  )

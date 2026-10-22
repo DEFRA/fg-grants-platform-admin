@@ -6,6 +6,11 @@ import type {
 } from '../use-cases/get-grant-page.use-case.ts'
 import { grantTabs } from '../use-cases/grant-tabs.ts'
 import type { GrantTabId } from '../use-cases/grant-tabs.ts'
+import { toDefinitionFetchNotices } from './definition-fetch.ts'
+import type {
+  DefinitionFetchFlash,
+  DefinitionFetchNotice
+} from './definition-fetch.ts'
 import { toUnavailableSources } from './event-row.ts'
 import { grantType, toGrantHref } from './grants-page.view-model.ts'
 import {
@@ -17,11 +22,13 @@ import {
   toTextFact
 } from './record-page.view-model.ts'
 import type { Fact, RecordPageModel } from './record-page.view-model.ts'
-import { toVersionHeader } from './version-header.ts'
+import { toVersionHeader, toVersionPath } from './version-header.ts'
 import type { VersionHeader } from './version-header.ts'
 
 export interface GrantPageModel extends RecordPageModel {
   versionHeader: VersionHeader
+  /** What the fetch that has just landed here did. */
+  notices: DefinitionFetchNotice[]
   /** The file the tab needs, while it is not stored. */
   notStored: DefinitionFileType | null
 }
@@ -51,7 +58,8 @@ const toNotStored = (
 export const toGrantPage = (
   page: GrantVersionPage,
   tab: GrantTabId,
-  from: string
+  from: string,
+  { notice }: { notice?: DefinitionFetchFlash } = {}
 ): GrantPageModel => {
   const { read } = grantTabs[tab]
 
@@ -70,6 +78,11 @@ export const toGrantPage = (
     ...toTabSection(page.definition, page.sectionErrors, tab, read),
     unavailableSources: toUnavailableSources(page.sourceErrors),
     versionHeader: toVersionHeader(grantType, page.header, tab, from),
+    notices: toDefinitionFetchNotices(
+      grantType,
+      notice,
+      toVersionPath(grantType, page.header)
+    ),
     notStored: toNotStored(page.header, tab)
   }
 }
