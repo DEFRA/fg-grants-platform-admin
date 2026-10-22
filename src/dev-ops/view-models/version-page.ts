@@ -12,12 +12,20 @@ import type { VersionHeader } from './version-header.ts'
 
 type HeaderInput = Parameters<typeof toVersionHeader>[1]
 
+/** A version's own events: the service whose inbox holds them, and the version they are for. */
+export interface VersionEvents {
+  source: string
+  code: string
+  version: string
+}
+
 export interface VersionShell {
   backHref: string
   navActive: string | null
   versionHeader: VersionHeader
   /** What the fetch that has just landed here did. */
   notices: DefinitionFetchNotice[]
+  versionEvents: VersionEvents
 }
 
 /** The list each kind of version is listed in, by its catalogue id. */
@@ -46,7 +54,12 @@ export const toVersionShell = (
     notice,
     toVersionPath(record, header),
     header
-  )
+  ),
+  versionEvents: {
+    source: record.source,
+    code: header.code,
+    version: header.version
+  }
 })
 
 /** What a tab would show, said while the file it needs is not stored: the banner says the rest. */
