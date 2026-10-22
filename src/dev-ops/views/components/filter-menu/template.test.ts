@@ -86,4 +86,72 @@ describe('filter-menu component as a form choice', () => {
     expect(part($menu, 'value').attr('value')).toBe('ref')
     expect(part($menu, 'chosen').text()).toBe('Reference')
   })
+
+  test('opens a menu at least 250px wide', () => {
+    const $menu = render('filter-menu', choice)
+
+    expect(part($menu, 'panel').hasClass('min-w-[250px]')).toBe(true)
+  })
+})
+
+const links = {
+  testId: 'grant-switcher',
+  panelId: 'grant-switcher-panel',
+  name: 'Version',
+  label: 'Versions of woodland-creation',
+  items: [
+    { label: '2.0.0', href: '/dev-ops/grants/w/2.0.0', active: false },
+    { label: '1.2.0', href: '/dev-ops/grants/w/1.2.0', active: true }
+  ]
+}
+
+const switcherPart = ($: ReturnType<typeof render>, name: string) =>
+  $(`[data-testid="grant-switcher-${name}"]`)
+
+describe('filter-menu component as links', () => {
+  test('draws a full-size trigger, with nothing beside each label, unless asked', () => {
+    const $menu = render('filter-menu', links)
+
+    expect(switcherPart($menu, 'button').hasClass('btn-sm')).toBe(false)
+    expect($menu('[data-testid="do-status-badge"]')).toHaveLength(0)
+    expect(
+      switcherPart($menu, 'chip')
+        .toArray()
+        .map((chip) => $menu(chip).text().trim())
+    ).toEqual(['2.0.0', '1.2.0'])
+  })
+
+  test('draws a small plain trigger when asked, naming the open item', () => {
+    const $menu = render('filter-menu', { ...links, small: true })
+    const button = switcherPart($menu, 'button')
+
+    expect(button.hasClass('btn-sm')).toBe(true)
+    expect(button.hasClass('font-semibold')).toBe(false)
+    expect(button.text().replace(/\s+/g, ' ').trim()).toBe('Version: 1.2.0')
+    expect(switcherPart($menu, 'panel').attr('aria-label')).toBe(
+      'Versions of woodland-creation'
+    )
+  })
+
+  test('gives each item its status and, muted on the right, what is set aside', () => {
+    const $menu = render('filter-menu', {
+      ...links,
+      items: links.items.map((item) => ({
+        ...item,
+        status: { status: 'Active', role: 'success' },
+        aside: '10 Oct 17:25'
+      }))
+    })
+    const chip = switcherPart($menu, 'chip').last()
+
+    expect(chip.attr('aria-current')).toBe('page')
+    expect(chip.find('[data-testid="do-status-label"]').text()).toBe('Active')
+    expect(
+      chip.find('[data-testid="do-status-dot"]').hasClass('status-success')
+    ).toBe(true)
+    expect(switcherPart($menu, 'aside').last().text()).toBe('10 Oct 17:25')
+    expect(switcherPart($menu, 'aside').last().attr('class')).toBe(
+      'ml-auto pl-4 text-base-content/60'
+    )
+  })
 })

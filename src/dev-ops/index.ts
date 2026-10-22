@@ -7,10 +7,18 @@ import {
   viewBucketRoute,
   viewDevOpsRoute
 } from './routes/bucket-list.route.ts'
+import {
+  fetchGrantDefinitionsRoute,
+  fetchWorkflowDefinitionRoute
+} from './routes/fetch-definitions.route.ts'
 import { purgeEventRoute } from './routes/purge-event.route.ts'
 import {
   viewApplicationRoute,
-  viewCaseRoute
+  viewCaseRoute,
+  viewCurrentGrantRoute,
+  viewCurrentWorkflowRoute,
+  viewGrantRoute,
+  viewWorkflowRoute
 } from './routes/record-pages.route.ts'
 import { redriveEventRoute } from './routes/redrive-event.route.ts'
 import { reviewPayloadRoute } from './routes/review-payload.route.ts'
@@ -37,6 +45,12 @@ export const devOps = {
             searchBucketRoute,
             viewApplicationRoute,
             viewCaseRoute,
+            viewGrantRoute,
+            viewCurrentGrantRoute,
+            fetchGrantDefinitionsRoute,
+            viewWorkflowRoute,
+            viewCurrentWorkflowRoute,
+            fetchWorkflowDefinitionRoute,
             viewEventRoute,
             redriveEventRoute,
             purgeEventRoute,

@@ -39,6 +39,32 @@ describe('toNavSections', () => {
             label: 'Applications',
             href: '/dev-ops/applications',
             icon: 'file-text'
+          },
+          {
+            id: 'gas.grants',
+            ids: ['gas.grants'],
+            label: 'Grants',
+            href: '/dev-ops/grants',
+            icon: 'scroll-text'
+          }
+        ]
+      },
+      {
+        title: 'CW',
+        items: [
+          {
+            id: 'cw.cases',
+            ids: ['cw.cases'],
+            label: 'Cases',
+            href: '/dev-ops/cases',
+            icon: 'folder'
+          },
+          {
+            id: 'cw.workflows',
+            ids: ['cw.workflows'],
+            label: 'Workflows',
+            href: '/dev-ops/workflows',
+            icon: 'workflow'
           }
         ]
       }

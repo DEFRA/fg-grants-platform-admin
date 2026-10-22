@@ -4,6 +4,7 @@ import { statusCodes } from '../../common/status-codes.ts'
 import { toGasErrorField, toGasStatusCode } from './gas-status.ts'
 
 export type {
+  Counterpart,
   ListTotal,
   Position,
   RecordEvents,
@@ -68,6 +69,12 @@ export type RecordOutcome = 'found' | 'not-found' | 'timed-out' | 'unavailable'
 export interface RecordResult<P> {
   outcome: RecordOutcome
   page: P | null
+}
+
+/** A tab for a file the record has not got is hidden, not empty. */
+export interface HiddenTab {
+  outcome: 'hidden'
+  page: null
 }
 
 /** Only the backend's own miss is a missing record; a bare 404 is a route GAS has not got. */

@@ -1,6 +1,20 @@
 import { applicationType } from './applications-page.view-model.ts'
 import { caseType } from './cases-page.view-model.ts'
-import { toRecordPage, toSeriesData } from './record-page.view-model.ts'
+import {
+  toCodesFact,
+  toLinkFact,
+  toRaw,
+  toRecordPage,
+  toReleaseCounterpartFacts,
+  toSectionError,
+  toSeriesData,
+  toTextFact,
+  toTooLarge,
+  toVersionedFact,
+  toVersionLinkOf
+} from './record-page.view-model.ts'
+import { toGrantHref } from './grants-page.view-model.ts'
+import { toWorkflowHref, workflowType } from './workflows-page.view-model.ts'
 import type { RecordPageData, SeriesMember } from './record-page.view-model.ts'
 
 const now = new Date('2026-09-30T15:17:31.000Z')
@@ -227,6 +241,34 @@ describe('toRecordPage', () => {
     })
   })
 
+  test('says a document too large to show on any tab but Raw, with no section error', () => {
+    const page = toRecordPage(
+      caseType,
+      data({
+        sectionErrors: [{ section: 'overview', message: 'too large to show' }]
+      }),
+      'overview',
+      '',
+      now
+    )
+
+    expect(page).toMatchObject({ tooLarge: true, sectionError: null })
+  })
+
+  test('leaves too large to Raw on the Raw tab', () => {
+    const page = toRecordPage(
+      caseType,
+      data({
+        sectionErrors: [{ section: 'raw', message: 'too large to show' }]
+      }),
+      'raw',
+      '',
+      now
+    )
+
+    expect(page).toMatchObject({ tooLarge: false, raw: { tooLarge: true } })
+  })
+
   test('leaves Raw out on any other tab', () => {
     expect(
       toRecordPage(
@@ -267,5 +309,258 @@ describe('toRecordPage', () => {
       '/dev-ops/cases/woodland/f02-7d8-a61?tab=events&back=%2Fdev-ops%2Fcases%3Fworkflow%3Dwoodland',
       '/dev-ops/cases/woodland/f02-7d8-a61?tab=raw&back=%2Fdev-ops%2Fcases%3Fworkflow%3Dwoodland'
     ])
+  })
+})
+
+const tooLargeIn = (section: string) => [
+  { section, message: 'too large to show' }
+]
+
+describe('toRaw', () => {
+  test('is too large only for the section it reads', () => {
+    expect(toRaw(null, tooLargeIn('definition'), 'definition')).toEqual({
+      view: null,
+      tooLarge: true
+    })
+    expect(toRaw(null, tooLargeIn('definition'), 'raw')).toEqual({
+      view: null,
+      tooLarge: false
+    })
+  })
+
+  test('draws the document it is given', () => {
+    expect(toRaw({ code: 'x' }, [], 'definition').view).not.toBeNull()
+  })
+})
+
+describe('toSectionError', () => {
+  test("is the failed section's message", () => {
+    expect(
+      toSectionError(
+        [{ section: 'definition', message: 'read failed' }],
+        'definition'
+      )
+    ).toBe('read failed')
+  })
+
+  test('is never too large to show, which has its own warning', () => {
+    expect(toSectionError(tooLargeIn('definition'), 'definition')).toBeNull()
+  })
+
+  test("ignores another section's failure", () => {
+    expect(
+      toSectionError([{ section: 'raw', message: 'read failed' }], 'definition')
+    ).toBeNull()
+  })
+})
+
+describe('toTooLarge', () => {
+  test('is true only for the section it reads', () => {
+    expect(toTooLarge(tooLargeIn('definition'), 'definition')).toBe(true)
+    expect(toTooLarge(tooLargeIn('raw'), 'definition')).toBe(false)
+  })
+
+  test('is false for any other failure of the section', () => {
+    expect(
+      toTooLarge(
+        [{ section: 'definition', message: 'read failed' }],
+        'definition'
+      )
+    ).toBe(false)
+  })
+})
+
+describe('toTextFact', () => {
+  test('is the value as it is', () => {
+    expect(toTextFact('description', 'Description', 'Woodland')).toEqual({
+      id: 'description',
+      label: 'Description',
+      kind: 'text',
+      text: 'Woodland'
+    })
+  })
+
+  test('reads a dash for no value', () => {
+    expect(toTextFact('description', 'Description', null)).toEqual({
+      id: 'description',
+      label: 'Description',
+      kind: 'text',
+      text: '—'
+    })
+  })
+})
+
+describe('toLinkFact', () => {
+  test('links the text to the href', () => {
+    expect(
+      toLinkFact('who-can-apply', 'Who can apply', 'Allow list', '/admin')
+    ).toEqual({
+      id: 'who-can-apply',
+      label: 'Who can apply',
+      kind: 'link',
+      text: 'Allow list',
+      href: '/admin'
+    })
+  })
+
+  test('reads a dash, never a link, when there is nowhere to go', () => {
+    expect(
+      toLinkFact('applications', 'Applications', 'View applications', null)
+    ).toEqual({
+      id: 'applications',
+      label: 'Applications',
+      kind: 'text',
+      text: '—'
+    })
+  })
+})
+
+describe('toVersionedFact', () => {
+  const versions = {
+    code: 'woodland-creation',
+    currentConfigVersion: '1.2.0',
+    originalConfigVersion: '1.1.0'
+  }
+
+  test('links the version to its page, with where it started', () => {
+    expect(
+      toVersionedFact('grant', 'Grant', versions, '/dev-ops/grants/x/1.2.0')
+    ).toEqual({
+      id: 'grant',
+      label: 'Grant',
+      kind: 'mono',
+      text: 'woodland-creation@1.2.0',
+      from: '1.1.0',
+      href: '/dev-ops/grants/x/1.2.0'
+    })
+  })
+
+  test('is plain text when there is no page to link to', () => {
+    expect(
+      toVersionedFact(
+        'grant',
+        'Grant',
+        { ...versions, currentConfigVersion: null },
+        null
+      )
+    ).toEqual({
+      id: 'grant',
+      label: 'Grant',
+      kind: 'mono',
+      text: 'woodland-creation',
+      from: '1.1.0',
+      href: null
+    })
+  })
+})
+
+describe('toVersionLinkOf', () => {
+  test("leads back to the record's Overview, which keeps its own way back", () => {
+    expect(
+      toVersionLinkOf(
+        toGrantHref,
+        'woodland-creation',
+        '1.2.0',
+        '/dev-ops/applications/woodland-creation/a7c',
+        '/dev-ops/applications?grant=woodland-creation'
+      )
+    ).toBe(
+      '/dev-ops/grants/woodland-creation/1.2.0?back=%2Fdev-ops%2Fapplications%2Fwoodland-creation%2Fa7c%3Fback%3D%252Fdev-ops%252Fapplications%253Fgrant%253Dwoodland-creation'
+    )
+  })
+
+  test('leads back to the bare record when it was opened directly', () => {
+    expect(
+      toVersionLinkOf(
+        toWorkflowHref,
+        'woodland',
+        '1.4.2',
+        '/dev-ops/cases/woodland/f02',
+        ''
+      )
+    ).toBe(
+      '/dev-ops/workflows/woodland/1.4.2?back=%2Fdev-ops%2Fcases%2Fwoodland%2Ff02'
+    )
+  })
+
+  test('leads back to the bare record when its own way back would not fit', () => {
+    const from = `/dev-ops/applications?grant=${'a'.repeat(2048)}`
+
+    expect(
+      toVersionLinkOf(
+        toGrantHref,
+        'woodland-creation',
+        '1.2.0',
+        '/dev-ops/applications/woodland-creation/a7c',
+        from
+      )
+    ).toBe(
+      '/dev-ops/grants/woodland-creation/1.2.0?back=%2Fdev-ops%2Fapplications%2Fwoodland-creation%2Fa7c'
+    )
+  })
+
+  test('is null without a version to link to', () => {
+    expect(
+      toVersionLinkOf(
+        toGrantHref,
+        'woodland-creation',
+        null,
+        '/dev-ops/applications/woodland-creation/a7c',
+        ''
+      )
+    ).toBeNull()
+  })
+})
+
+describe('toCodesFact', () => {
+  test('keeps the codes in order', () => {
+    expect(toCodesFact('roles', 'Roles', ['B_ROLE', 'A_ROLE'])).toEqual({
+      id: 'roles',
+      label: 'Roles',
+      kind: 'codes',
+      codes: ['B_ROLE', 'A_ROLE']
+    })
+  })
+
+  test.each([
+    ['no list', null],
+    ['an empty list', []]
+  ])('reads a dash for %s', (_, codes) => {
+    expect(toCodesFact('roles', 'Roles', codes)).toEqual({
+      id: 'roles',
+      label: 'Roles',
+      kind: 'text',
+      text: '—'
+    })
+  })
+})
+
+describe('toReleaseCounterpartFacts', () => {
+  const href = '/dev-ops/workflows/woodland-creation/1.2.0'
+
+  test('links to a version the other service has', () => {
+    expect(
+      toReleaseCounterpartFacts(workflowType, { exists: true }, href)
+    ).toEqual([
+      {
+        id: 'workflow',
+        label: 'Workflow',
+        kind: 'link',
+        text: 'View workflow',
+        href
+      }
+    ])
+  })
+
+  test('says None when the other service has no such version', () => {
+    expect(
+      toReleaseCounterpartFacts(workflowType, { exists: false }, href)
+    ).toEqual([
+      { id: 'workflow', label: 'Workflow', kind: 'text', text: 'None' }
+    ])
+  })
+
+  test('has no row when the other service could not say', () => {
+    expect(toReleaseCounterpartFacts(workflowType, null, href)).toEqual([])
   })
 })

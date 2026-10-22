@@ -1,5 +1,6 @@
 import type { SourceError } from '../use-cases/get-event.use-case.ts'
 import type {
+  Counterpart,
   Position,
   RecordEvents,
   RecordSectionError,
@@ -22,6 +23,7 @@ import { toJsonView } from './json-viewer.view-model.ts'
 import type { JsonView } from './json-viewer.view-model.ts'
 import { toPositionLabel, toPositionTrail, toStatusLabel } from './position.ts'
 import type { PositionStep } from './position.ts'
+import { fromMax } from './record-filters.ts'
 import type { RecordType } from './record-type.ts'
 
 interface FactBase {
@@ -31,10 +33,11 @@ interface FactBase {
 
 export type Fact = FactBase &
   (
-    | { kind: 'mono'; text: string; from: string | null }
+    | { kind: 'mono'; text: string; from: string | null; href: string | null }
     | { kind: 'date'; text: string; instant: string | null }
     | { kind: 'text'; text: string }
     | { kind: 'link'; text: string; href: string }
+    | { kind: 'codes'; codes: string[] }
   )
 
 /** One member of the record's series. */
@@ -65,7 +68,7 @@ interface SeriesRow {
 }
 
 interface SectionTab {
-  id: RecordTab
+  id: string
   label: string
   href: string
   active: boolean
@@ -77,7 +80,7 @@ interface EventsTab {
   more: boolean
 }
 
-interface RawTab {
+export interface RawTab {
   view: JsonView | null
   tooLarge: boolean
 }
@@ -104,7 +107,7 @@ export interface RecordPageModel {
   navActive: string | null
   trail: PositionStep[]
   tabs: SectionTab[]
-  tab: RecordTab
+  tab: string
   facts: Fact[][] | null
   /** Two or more members, or none at all. */
   series: SeriesRow[] | null
@@ -112,17 +115,13 @@ export interface RecordPageModel {
   events: EventsTab | null
   raw: RawTab | null
   sectionError: string | null
+  /** The tab's document is over GAS's cap; Raw says so itself. */
+  tooLarge: boolean
   unavailableSources: string
 }
 
-const tabLabels: Record<RecordTab, string> = {
-  overview: 'Overview',
-  events: 'Events',
-  raw: 'Raw'
-}
-
 /** Every tab keeps the list the record was opened from, so Back still returns to it. */
-const toTabHref = (href: string, tab: RecordTab, from: string): string => {
+export const toTabHref = (href: string, tab: string, from: string): string => {
   const params = new URLSearchParams({
     ...(tab === 'overview' ? {} : { tab }),
     ...(from === '' ? {} : { [backKey]: from })
@@ -131,10 +130,34 @@ const toTabHref = (href: string, tab: RecordTab, from: string): string => {
   return params.size ? `${href}?${params}` : href
 }
 
-const toTabs = (href: string, active: RecordTab, from: string): SectionTab[] =>
-  (Object.keys(tabLabels) as RecordTab[]).map((id) => ({
+/** The record's Overview with its own way back, or the bare Overview when that would not fit in a `back`. */
+const toBackToRecord = (recordHref: string, from: string): string => {
+  const back = toTabHref(recordHref, 'overview', from)
+
+  return back.length > fromMax ? recordHref : back
+}
+
+/** A version's page, told to come back to this record's Overview; null without a version to link to. */
+export const toVersionLinkOf = (
+  toVersionHref: (ref: { code: string; version: string }) => string,
+  code: string,
+  version: string | null,
+  recordHref: string,
+  from: string
+): string | null =>
+  version
+    ? `${toVersionHref({ code, version })}?${backKey}=${encodeURIComponent(toBackToRecord(recordHref, from))}`
+    : null
+
+export const toTabs = (
+  { tabs }: RecordType,
+  href: string,
+  active: string,
+  from: string
+): SectionTab[] =>
+  tabs.map(({ id, label }) => ({
     id,
-    label: tabLabels[id],
+    label,
     href: toTabHref(href, id, from),
     active: id === active
   }))
@@ -167,11 +190,43 @@ export const toDateFact = (
   value: StoredDate
 ): Fact => ({ id, label, kind: 'date', ...toDateText(value) })
 
+export const toTextFact = (
+  id: string,
+  label: string,
+  value: string | null
+): Fact => ({ id, label, kind: 'text', text: value ?? none })
+
+export const toCodesFact = (
+  id: string,
+  label: string,
+  codes: string[] | null
+): Fact =>
+  codes?.length
+    ? { id, label, kind: 'codes', codes }
+    : { id, label, kind: 'text', text: none }
+
+export const toLinkFact = (
+  id: string,
+  label: string,
+  text: string,
+  href: string | null
+): Fact =>
+  href
+    ? { id, label, kind: 'link', text, href }
+    : { id, label, kind: 'text', text: none }
+
 export const toMonoFact = (
   id: string,
   label: string,
   value: string | null
-): Fact => ({ id, label, kind: 'mono', text: value ?? none, from: null })
+): Fact => ({
+  id,
+  label,
+  kind: 'mono',
+  text: value ?? none,
+  from: null,
+  href: null
+})
 
 interface Versions {
   code: string
@@ -183,7 +238,8 @@ interface Versions {
 export const toVersionedFact = (
   id: string,
   label: string,
-  { code, currentConfigVersion, originalConfigVersion }: Versions
+  { code, currentConfigVersion, originalConfigVersion }: Versions,
+  href: string | null
 ): Fact => ({
   id,
   label,
@@ -192,7 +248,8 @@ export const toVersionedFact = (
   from:
     originalConfigVersion && originalConfigVersion !== currentConfigVersion
       ? originalConfigVersion
-      : null
+      : null,
+  href
 })
 
 /** The other record as a fact named for its type; no row at all when there is no link to follow. */
@@ -203,6 +260,21 @@ export const toCounterpartFacts = (
   href
     ? [{ id: itemId, label: title, kind: 'link', text: linkLabel, href }]
     : []
+
+/** A version's counterpart: a link, "None" when the other service has no such version, no row when it could not say. */
+export const toReleaseCounterpartFacts = (
+  type: RecordType,
+  counterpart: Counterpart,
+  href: string
+): Fact[] => {
+  if (!counterpart) {
+    return []
+  }
+
+  return counterpart.exists
+    ? toCounterpartFacts(type, href)
+    : [{ id: type.itemId, label: type.title, kind: 'text', text: 'None' }]
+}
 
 const noFacts = {
   position: { phase: null, stage: null, status: null },
@@ -265,7 +337,7 @@ const toSeries = (
 const isDetailed = ({ series }: RecordPageData): boolean =>
   series?.detailed ?? false
 
-const toEvents = (
+export const toEvents = (
   events: RecordEvents | null | undefined,
   now: Date,
   from: string
@@ -277,20 +349,44 @@ const toEvents = (
 /** GAS's own words for a document it will not show; any other Raw failure is an error like any tab's. */
 const tooLargeToShow = 'too large to show'
 
-const isTooLarge = ({ section, message }: RecordSectionError): boolean =>
-  section === 'raw' && message === tooLargeToShow
+const isTooLarge = ({ message }: RecordSectionError): boolean =>
+  message === tooLargeToShow
 
-const toRaw = ({ raw, sectionErrors }: RecordPageData): RawTab => ({
-  view: raw ? toJsonView(raw) : null,
-  tooLarge: sectionErrors.some(isTooLarge)
+/** @param section The GAS read the tab shows, which names its errors. */
+export const toTooLarge = (
+  sectionErrors: RecordSectionError[],
+  section: string
+): boolean =>
+  sectionErrors.some((error) => error.section === section && isTooLarge(error))
+
+export const toRaw = (
+  document: object | null | undefined,
+  sectionErrors: RecordSectionError[],
+  section: string
+): RawTab => ({
+  view: document ? toJsonView(document) : null,
+  tooLarge: toTooLarge(sectionErrors, section)
 })
 
-const toSectionError = (
-  { sectionErrors }: RecordPageData,
-  tab: RecordTab
+/** Never too large to show: that is a warning of its own, not an error. */
+export const toSectionError = (
+  sectionErrors: RecordSectionError[],
+  section: string
 ): string | null =>
-  sectionErrors.find((error) => error.section === tab && !isTooLarge(error))
+  sectionErrors.find((error) => error.section === section && !isTooLarge(error))
     ?.message ?? null
+
+/** Raw draws its own document and its own too large; every other tab has the shared warning. */
+export const toTabSection = (
+  document: object | null | undefined,
+  sectionErrors: RecordSectionError[],
+  tab: string,
+  section: string
+): Pick<RecordPageModel, 'raw' | 'sectionError' | 'tooLarge'> => ({
+  raw: tab === 'raw' ? toRaw(document, sectionErrors, section) : null,
+  sectionError: toSectionError(sectionErrors, section),
+  tooLarge: tab !== 'raw' && toTooLarge(sectionErrors, section)
+})
 
 export const toRecordPage = (
   record: RecordType,
@@ -304,13 +400,12 @@ export const toRecordPage = (
   backHref: from,
   navActive: null,
   trail: toPositionTrail(data.position),
-  tabs: toTabs(data.href, tab, from),
+  tabs: toTabs(record, data.href, tab, from),
   tab,
   facts: data.facts,
   series: toSeries(data, now),
   seriesDetailed: isDetailed(data),
   events: toEvents(data.events, now, toTabHref(data.href, 'events', from)),
-  raw: tab === 'raw' ? toRaw(data) : null,
-  sectionError: toSectionError(data, tab),
+  ...toTabSection(data.raw, data.sectionErrors, tab, tab),
   unavailableSources: toUnavailableSources(data.sourceErrors)
 })

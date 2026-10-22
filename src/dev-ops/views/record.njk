@@ -22,7 +22,7 @@
 
 {% macro factValue(fact, testId) %}
   {%- if fact.kind == "mono" -%}
-    <span class="{{ monoValue }}" data-testid="{{ testId }}">{{ fact.text }}</span>{% if fact.from %} <span class="{{ monoMuted }}" data-testid="{{ testId }}-from">from {{ fact.from }}</span>{% endif %}
+    {% if fact.href %}<a class="link {{ monoValue }}" href="{{ fact.href }}" data-testid="{{ testId }}">{{ fact.text }}</a>{% else %}<span class="{{ monoValue }}" data-testid="{{ testId }}">{{ fact.text }}</span>{% endif %}{% if fact.from %} <span class="{{ monoMuted }}" data-testid="{{ testId }}-from">from {{ fact.from }}</span>{% endif %}
   {%- elif fact.kind == "date" and fact.instant -%}
     <time class="{{ monoTime }}" datetime="{{ fact.instant }}" data-testid="{{ testId }}">{{ fact.text }}</time>
   {%- elif fact.kind == "date" -%}
@@ -30,6 +30,8 @@
     <span class="{{ monoMuted }}" data-testid="{{ testId }}">{{ fact.text if fact.text else '""' }}</span>
   {%- elif fact.kind == "link" -%}
     <a class="link" href="{{ fact.href }}" target="_blank" rel="noopener noreferrer" data-testid="{{ testId }}">{{ fact.text }}<span class="sr-only"> (opens in a new tab)</span></a>{{ icon({ name: 'external-link', class: 'inline size-3.5 align-middle opacity-50' }) }}
+  {%- elif fact.kind == "codes" -%}
+    <span data-testid="{{ testId }}">{% for code in fact.codes %}<span class="{{ monoValue }}">{{ code }}</span>{% if not loop.last %}<span class="text-base-content/40">, </span>{% endif %}{% endfor %}</span>
   {%- else -%}
     <span data-testid="{{ testId }}">{{ fact.text }}</span>
   {%- endif -%}
@@ -42,6 +44,7 @@
 
   <header class="mt-2 mb-5" data-testid="{{ record.itemId }}-header">
     <h1 class="flex flex-wrap items-baseline gap-x-2 text-xl font-semibold break-words" data-testid="{{ record.itemId }}-title"><span>{{ record.title }}</span> <span class="font-mono text-sm font-normal break-all text-base-content/70 select-all" data-testid="{{ record.itemId }}-ref">{{ ref }}</span></h1>
+    {% block recordHeader %}
     {% if trail | length %}
       <p class="mt-2 flex flex-wrap items-center gap-x-1.5 text-sm" data-testid="{{ record.itemId }}-position">
         {% for step in trail %}
@@ -50,7 +53,10 @@
         {% endfor %}
       </p>
     {% endif %}
+    {% endblock %}
   </header>
+
+  {% block beforeTabs %}{% endblock %}
 
   {% if unavailable %}
     <div role="alert" class="alert alert-error alert-soft text-sm" data-testid="{{ record.itemId }}-error">
@@ -66,10 +72,16 @@
       </div>
     </nav>
 
+    {% block tabBody %}
     {% if sectionError %}
       <div role="alert" class="alert alert-error alert-soft text-sm" data-testid="{{ record.itemId }}-section-error">
         {{ icon({ name: 'exclamation-circle', class: 'size-4 shrink-0' }) }}
         <span>{{ sectionError }}</span>
+      </div>
+    {% elif tooLarge %}
+      <div role="alert" class="alert alert-warning alert-soft text-sm" data-testid="{{ record.itemId }}-too-large">
+        {{ icon({ name: 'exclamation-triangle', class: 'size-4 shrink-0' }) }}
+        <span>Too large to show</span>
       </div>
     {% elif tab == "overview" and facts %}
       <section class="card card-border bg-base-100" aria-label="Overview" data-testid="{{ record.itemId }}-overview">
@@ -163,5 +175,6 @@
     {% else %}
       {{ noData(record) }}
     {% endif %}
+    {% endblock %}
   {% endif %}
 {% endblock %}

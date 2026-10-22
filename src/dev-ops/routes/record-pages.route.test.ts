@@ -9,6 +9,11 @@ import type { ApplicationPage } from '../use-cases/get-application-page.use-case
 import { getApplicationPageUseCase } from '../use-cases/get-application-page.use-case.ts'
 import type { CasePage } from '../use-cases/get-case-page.use-case.ts'
 import { getCasePageUseCase } from '../use-cases/get-case-page.use-case.ts'
+import type { GrantVersionPage } from '../use-cases/get-grant-page.use-case.ts'
+import { getGrantPageUseCase } from '../use-cases/get-grant-page.use-case.ts'
+import { getGrantVersionsUseCase } from '../use-cases/get-grant-versions.use-case.ts'
+import { getCatalogueUseCase } from '../use-cases/get-catalogue.use-case.ts'
+import { applicationsBucket, catalogue } from '../use-cases/test-fixtures.ts'
 
 vi.mock(import('../use-cases/get-catalogue.use-case.ts'))
 vi.mock(import('../use-cases/get-application-page.use-case.ts'), async () => ({
@@ -23,6 +28,13 @@ vi.mock(import('../use-cases/get-case-page.use-case.ts'), async () => ({
   >('../use-cases/get-case-page.use-case.ts')),
   getCasePageUseCase: vi.fn()
 }))
+vi.mock(import('../use-cases/get-grant-page.use-case.ts'), async () => ({
+  ...(await vi.importActual<
+    typeof import('../use-cases/get-grant-page.use-case.ts')
+  >('../use-cases/get-grant-page.use-case.ts')),
+  getGrantPageUseCase: vi.fn()
+}))
+vi.mock(import('../use-cases/get-grant-versions.use-case.ts'))
 vi.mock(import('../../common/config.ts'))
 
 const credentials = {
@@ -462,6 +474,29 @@ describe('the Overview tab', () => {
     const { $ } = await viewPage()
 
     expect(part($, 'application-grant-from')).toHaveLength(0)
+  })
+
+  test('links the grant to its version page, which leads back here', async () => {
+    const from = '/dev-ops/applications?grant=frps-private-beta'
+    const { $ } = await viewPage(`${path}?back=${encodeURIComponent(from)}`)
+
+    const link = part($, 'application-grant')
+    expect(link.is('a')).toBe(true)
+    expect(link.attr('href')).toBe(
+      `/dev-ops/grants/frps-private-beta/1.4.2?back=${encodeURIComponent(`${path}?back=${encodeURIComponent(from)}`)}`
+    )
+    expect(link.attr('class')).toContain('link')
+    expect(link.attr('target')).toBeUndefined()
+    expect(textOf($, 'application-grant-from')).toBe('from 1.4.0')
+  })
+
+  test('leaves the grant unlinked when it has no version', async () => {
+    givenPage({ overview: { ...overview, currentConfigVersion: null } })
+
+    const { $ } = await viewPage()
+
+    expect(part($, 'application-grant').is('span')).toBe(true)
+    expect(textOf($, 'application-grant')).toBe('frps-private-beta')
   })
 
   test('spells each date out in UK time, as the event page does', async () => {
@@ -1007,6 +1042,24 @@ describe('the Raw tab', () => {
   })
 })
 
+describe('a tab whose document is too large to show', () => {
+  test('says so in a warning, not as an error or as no data', async () => {
+    givenPage({
+      overview: null,
+      sectionErrors: [{ section: 'overview', message: 'too large to show' }]
+    })
+
+    const { $ } = await viewPage()
+
+    expect(textOf($, 'application-too-large')).toBe('Too large to show')
+    expect(part($, 'application-too-large').hasClass('alert-warning')).toBe(
+      true
+    )
+    expect(part($, 'application-section-error')).toHaveLength(0)
+    expect(part($, 'application-no-data')).toHaveLength(0)
+  })
+})
+
 describe('the case page', () => {
   beforeEach(() => {
     givenCase()
@@ -1087,6 +1140,29 @@ describe('the case page', () => {
     expect(textOf($, 'case-size')).toBe('4 KiB')
   })
 
+  test('links the workflow to its version page, which leads back here', async () => {
+    const from = '/dev-ops/cases?workflow=woodland'
+    const { $ } = await viewPage(`${casePath}?back=${encodeURIComponent(from)}`)
+
+    const link = part($, 'case-workflow')
+    expect(link.is('a')).toBe(true)
+    expect(link.attr('href')).toBe(
+      `/dev-ops/workflows/woodland/1.4.2?back=${encodeURIComponent(`${casePath}?back=${encodeURIComponent(from)}`)}`
+    )
+    expect(link.attr('class')).toContain('link')
+    expect(link.attr('target')).toBeUndefined()
+    expect(textOf($, 'case-workflow-from')).toBe('from 1.3.5')
+  })
+
+  test('leaves the workflow unlinked when it has no version', async () => {
+    givenCase({ overview: { ...caseOverview, currentConfigVersion: null } })
+
+    const { $ } = await viewPage(casePath)
+
+    expect(part($, 'case-workflow').is('span')).toBe(true)
+    expect(textOf($, 'case-workflow')).toBe('woodland')
+  })
+
   test('shows the stored closing date of a case not marked closed', async () => {
     givenCase({
       overview: { ...caseOverview, closedAt: '2026-09-29T15:02:44.000Z' }
@@ -1157,5 +1233,669 @@ describe('the case page', () => {
     const { headers } = await viewPage(casePath)
 
     expect(headers['cache-control']).toBe('no-store')
+  })
+})
+
+const grantPath = '/dev-ops/grants/woodland-creation/1.2.0'
+
+const fetched = { stored: true, fetchStatus: 'fetched' } as const
+const pending = { stored: false, fetchStatus: 'pending' } as const
+
+const grantHeader: GrantVersionPage['header'] = {
+  code: 'woodland-creation',
+  version: '1.2.0',
+  status: 'active',
+  receivedAt: '2026-09-10T15:25:00.000Z',
+  files: { grant: fetched, agreement: fetched, payment: fetched },
+  versions: [
+    {
+      version: '2.0.0',
+      status: 'draft',
+      receivedAt: '2026-09-15T09:04:00.000Z'
+    },
+    {
+      version: '1.2.0',
+      status: 'active',
+      receivedAt: '2026-09-10T15:25:00.000Z'
+    }
+  ],
+  counterpart: { exists: true }
+}
+
+const grantOverview: NonNullable<GrantVersionPage['overview']> = {
+  description: 'Funding to plant new woodland on agricultural land.',
+  startDate: '2026-04-01T00:00:00.000Z',
+  adminRole: 'Grants.Example.Admin',
+  storedBytes: 10035
+}
+
+const grantDefinition = {
+  code: 'woodland-creation',
+  version: '1.2.0',
+  metadata: { description: 'Funding to plant new woodland.' },
+  actions: [{ name: 'parcels', method: 'GET' }]
+}
+
+const givenGrant = (overrides: Partial<GrantVersionPage> = {}) =>
+  vi.mocked(getGrantPageUseCase).mockResolvedValue({
+    outcome: 'found',
+    page: {
+      header: grantHeader,
+      overview: grantOverview,
+      sourceErrors: [],
+      sectionErrors: [],
+      ...overrides
+    }
+  })
+
+const nothingStored = {
+  ...grantHeader,
+  status: 'draft',
+  files: { grant: pending, agreement: pending, payment: pending }
+} as const
+
+describe('the grant page', () => {
+  beforeEach(() => {
+    givenGrant()
+  })
+
+  test('reads the Overview tab of the grant version in the URL', async () => {
+    const { statusCode } = await viewPage(grantPath)
+
+    expect(statusCode).toBe(statusCodes.ok)
+    expect(getGrantPageUseCase).toHaveBeenCalledWith(
+      { code: 'woodland-creation', version: '1.2.0' },
+      'overview'
+    )
+  })
+
+  test('heads the page with Grant and the code in mono', async () => {
+    const { $ } = await viewPage(grantPath)
+
+    expect(textOf($, 'grant-title')).toBe('Grant woodland-creation')
+    expect(part($, 'grant-ref').attr('class')).toContain('font-mono')
+    expect($('title').text()).toContain('Grant woodland-creation')
+  })
+
+  test('shows the status, then the version switcher, under the title', async () => {
+    const { $ } = await viewPage(grantPath)
+    const line = part($, 'grant-version')
+
+    expect(
+      line.children().first().find('[data-testid="do-status-label"]').text()
+    ).toBe('Active')
+    expect(
+      line
+        .children()
+        .first()
+        .find('[data-testid="do-status-dot"]')
+        .attr('class')
+    ).toBe('status status-success')
+    expect(flatten(part($, 'grant-switcher-button').text())).toBe(
+      'Version: 1.2.0'
+    )
+  })
+
+  test('shows a draft as such', async () => {
+    givenGrant({ header: { ...grantHeader, status: 'draft' } })
+
+    const { $ } = await viewPage(grantPath)
+
+    expect(
+      part($, 'grant-version')
+        .find('[data-testid="do-status-label"]')
+        .first()
+        .text()
+    ).toBe('Draft')
+  })
+
+  test('switches version on a small plain trigger, never the active-filter one', async () => {
+    const { $ } = await viewPage(grantPath)
+    const button = part($, 'grant-switcher-button')
+
+    expect(button.hasClass('btn-sm')).toBe(true)
+    expect(button.hasClass('font-semibold')).toBe(false)
+    expect(button.attr('popovertarget')).toBe('grant-switcher-panel')
+  })
+
+  test('lists every version newest first, with its status and when it was received, ticking this one', async () => {
+    const { $ } = await viewPage(grantPath)
+    const chips = part($, 'grant-switcher-chip').toArray()
+
+    expect(
+      chips.map((chip) =>
+        $(chip)
+          .children('span')
+          .toArray()
+          .map((piece) => flatten($(piece).text()))
+      )
+    ).toEqual([
+      ['2.0.0', 'Draft', '15 Sep 10:04'],
+      ['1.2.0', 'Active', '10 Sep 16:25']
+    ])
+    expect(chips.map((chip) => $(chip).attr('aria-current'))).toEqual([
+      undefined,
+      'page'
+    ])
+  })
+
+  test('opens another version on the same tab, still going back to the list', async () => {
+    const from = '/dev-ops/grants?status=draft'
+    const { $ } = await viewPage(
+      `${grantPath}?tab=raw&back=${encodeURIComponent(from)}`
+    )
+
+    expect(
+      part($, 'grant-switcher-chip')
+        .toArray()
+        .map((chip) => $(chip).attr('href'))
+    ).toEqual([
+      `/dev-ops/grants/woodland-creation/2.0.0?tab=raw&back=${encodeURIComponent(from)}`,
+      `/dev-ops/grants/woodland-creation/1.2.0?tab=raw&back=${encodeURIComponent(from)}`
+    ])
+  })
+
+  test('offers Overview and Raw, keeping the list it was opened from', async () => {
+    const from = '/dev-ops/grants'
+    const { $ } = await viewPage(
+      `${grantPath}?tab=raw&back=${encodeURIComponent(from)}`
+    )
+
+    expect(
+      part($, 'grant-tab')
+        .toArray()
+        .map((tab) => `${$(tab).text()} ${$(tab).attr('href')}`)
+    ).toEqual([
+      `Overview ${grantPath}?back=${encodeURIComponent(from)}`,
+      `Raw ${grantPath}?tab=raw&back=${encodeURIComponent(from)}`
+    ])
+    expect(part($, 'grant-tabs').find('[aria-current="page"]').text()).toBe(
+      'Raw'
+    )
+  })
+
+  test('goes back to the grants list, and sits under it in the navigation', async () => {
+    const from = '/dev-ops/grants?grant=woodland-creation'
+    const { $ } = await viewPage(
+      `${grantPath}?back=${encodeURIComponent(from)}`
+    )
+
+    expect(part($, 'grant-back').attr('href')).toBe(from)
+    expect(textOf($, 'grant-back')).toBe('Back to grants')
+    expect(
+      $('[data-testid="do-nav"] [aria-current="page"]').text().trim()
+    ).toBe('Grants')
+  })
+
+  test('refuses a tab it does not have', async () => {
+    const { statusCode } = await viewPage(`${grantPath}?tab=answers`)
+
+    expect(statusCode).toBe(statusCodes.badRequest)
+  })
+
+  test.each([
+    ['a version with no patch', '/dev-ops/grants/woodland-creation/1.2'],
+    ['a code with capitals', '/dev-ops/grants/Woodland/1.2.0']
+  ])('refuses %s', async (_name, url) => {
+    const { statusCode } = await viewPage(url)
+
+    expect(statusCode).toBe(statusCodes.badRequest)
+  })
+
+  test('opens Overview in place of a tab for a file the version has not got', async () => {
+    vi.mocked(getGrantPageUseCase).mockResolvedValue({
+      outcome: 'hidden',
+      page: null
+    })
+
+    const { statusCode, headers } = await viewPage(
+      `${grantPath}?tab=raw&back=%2Fdev-ops%2Fgrants`
+    )
+
+    expect(statusCode).toBe(statusCodes.found)
+    expect(headers.location).toBe(`${grantPath}?back=%2Fdev-ops%2Fgrants`)
+  })
+
+  test("answers GPA's own 404 page for a version GAS does not have", async () => {
+    vi.mocked(getGrantPageUseCase).mockResolvedValue({
+      outcome: 'not-found',
+      page: null
+    })
+
+    const { statusCode } = await viewPage(grantPath)
+
+    expect(statusCode).toBe(statusCodes.notFound)
+  })
+
+  test.each([
+    ['unavailable', 'This grant could not be loaded from GAS.'],
+    [
+      'timed-out',
+      'This grant could not be loaded: GAS timed out waiting for it. Refresh to try again.'
+    ]
+  ] as const)('names the code when GAS is %s', async (outcome, message) => {
+    vi.mocked(getGrantPageUseCase).mockResolvedValue({ outcome, page: null })
+
+    const { statusCode, $ } = await viewPage(grantPath)
+
+    expect(statusCode).toBe(statusCodes.ok)
+    expect(textOf($, 'grant-error')).toBe(message)
+    expect(textOf($, 'grant-title')).toBe('Grant woodland-creation')
+    expect(part($, 'grant-version')).toHaveLength(0)
+    expect(part($, 'grant-tabs')).toHaveLength(0)
+  })
+
+  test('is never stored', async () => {
+    const { headers } = await viewPage(grantPath)
+
+    expect(headers['cache-control']).toBe('no-store')
+  })
+})
+
+describe('the not-stored banner', () => {
+  test('is absent while every file is stored', async () => {
+    givenGrant()
+
+    const { $ } = await viewPage(grantPath)
+
+    expect(part($, 'grant-banner')).toHaveLength(0)
+  })
+
+  test('names every file not stored, above the tabs, on every tab', async () => {
+    givenGrant({ header: nothingStored, overview: null, definition: null })
+
+    for (const query of ['', '?tab=raw']) {
+      const { $ } = await viewPage(`${grantPath}${query}`)
+      const banner = part($, 'grant-banner')
+
+      expect(flatten(banner.children('span').text())).toBe(
+        'Grant, agreement and payment definitions not stored.'
+      )
+      expect(banner.attr('role')).toBe('status')
+      expect(banner.find('[data-testid="do-icon-info"]')).toHaveLength(1)
+      expect(banner.next().attr('data-testid')).toBe('grant-tabs')
+    }
+  })
+
+  test("says GAS won't use the version when a file not stored has failed for good", async () => {
+    givenGrant({
+      header: {
+        ...grantHeader,
+        files: {
+          grant: fetched,
+          payment: { stored: false, fetchStatus: 'permanent_error' }
+        }
+      }
+    })
+
+    const { $ } = await viewPage(grantPath)
+
+    expect(flatten(part($, 'grant-banner').children('span').text())).toBe(
+      "Payment definition not stored. GAS won't use this version."
+    )
+  })
+
+  test('offers Fetch definitions, posting back to the same tab and list', async () => {
+    const from = '/dev-ops/grants?status=draft'
+    givenGrant({ header: nothingStored, definition: null })
+
+    const { $ } = await viewPage(
+      `${grantPath}?tab=raw&back=${encodeURIComponent(from)}`
+    )
+    const form = part($, 'grant-banner').find('form')
+
+    expect(form.attr('method')).toBe('post')
+    expect(form.attr('action')).toBe(`${grantPath}/fetch`)
+    expect(
+      form
+        .find('input[type="hidden"]')
+        .toArray()
+        .map((input) => [$(input).attr('name'), $(input).attr('value')])
+    ).toEqual([
+      ['back', from],
+      ['tab', 'raw']
+    ])
+    expect(textOf($, 'grant-fetch')).toBe('Fetch definitions')
+    expect(part($, 'grant-fetch').attr('class')).toBe('btn btn-sm')
+    expect(part($, 'grant-fetch').attr('type')).toBe('submit')
+  })
+})
+
+describe('the grant Overview tab', () => {
+  test('lists the definition facts on the left and the links out on the right', async () => {
+    givenGrant()
+
+    const { $ } = await viewPage(grantPath)
+
+    expect(
+      part($, 'grant-facts')
+        .find('dl')
+        .toArray()
+        .map((column) =>
+          $(column)
+            .find('dt')
+            .toArray()
+            .map((label) => $(label).text())
+        )
+    ).toEqual([
+      ['Description', 'Start date', 'Received', 'Admin role'],
+      ['Workflow', 'Applications', 'Who can apply', 'Versions', 'Size']
+    ])
+    expect(textOf($, 'grant-description')).toBe(
+      'Funding to plant new woodland on agricultural land.'
+    )
+    expect(textOf($, 'grant-start-date')).toBe('1 Apr 2026 01:00:00.000')
+    expect(part($, 'grant-received').attr('datetime')).toBe(
+      '2026-09-10T15:25:00Z'
+    )
+    expect(textOf($, 'grant-admin-role')).toBe('Grants.Example.Admin')
+    expect(part($, 'grant-admin-role').attr('class')).toContain('font-mono')
+    expect(textOf($, 'grant-versions')).toBe('2')
+    expect(textOf($, 'grant-size')).toBe('9.8 KiB')
+  })
+
+  test('links to the workflow of the same code and version, in a new tab', async () => {
+    givenGrant()
+
+    const { $ } = await viewPage(grantPath)
+    const link = part($, 'grant-workflow')
+
+    expect(link.attr('href')).toBe('/dev-ops/workflows/woodland-creation/1.2.0')
+    expect(link.attr('target')).toBe('_blank')
+    expect(flatten(link.text())).toBe('View workflow (opens in a new tab)')
+  })
+
+  test('says None when CW has no workflow of that version', async () => {
+    givenGrant({ header: { ...grantHeader, counterpart: { exists: false } } })
+
+    const { $ } = await viewPage(grantPath)
+
+    expect(textOf($, 'grant-workflow')).toBe('None')
+    expect(part($, 'grant-workflow').attr('href')).toBeUndefined()
+  })
+
+  test('leaves the Workflow fact out when CW could not say', async () => {
+    givenGrant({ header: { ...grantHeader, counterpart: null } })
+
+    const { $ } = await viewPage(grantPath)
+
+    expect(part($, 'grant-fact-workflow')).toHaveLength(0)
+    expect(part($, 'grant-fact-applications')).toHaveLength(1)
+  })
+
+  test("links to the applications on this version, as the catalogue spells the list's filters", async () => {
+    givenGrant()
+
+    const { $ } = await viewPage(grantPath)
+
+    expect(part($, 'grant-applications').attr('href')).toBe(
+      '/dev-ops/applications?grant=woodland-creation&version=1.2.0'
+    )
+    expect(textOf($, 'grant-applications')).toBe(
+      'View applications (opens in a new tab)'
+    )
+  })
+
+  test.each([
+    [
+      'does not filter applications by version',
+      {
+        ...catalogue,
+        buckets: [
+          {
+            ...applicationsBucket,
+            facts: applicationsBucket.facts.filter(
+              ({ name }) => name !== 'currentConfigVersion'
+            )
+          }
+        ]
+      }
+    ],
+    ['has no applications list', { ...catalogue, buckets: [] }],
+    ['could not be read', null]
+  ])(
+    'reads a dash for Applications when the catalogue %s',
+    async (_, answer) => {
+      givenGrant()
+      vi.mocked(getCatalogueUseCase).mockResolvedValueOnce(answer)
+
+      const { $ } = await viewPage(grantPath)
+
+      expect(textOf($, 'grant-applications')).toBe('—')
+      expect(part($, 'grant-applications').attr('href')).toBeUndefined()
+    }
+  )
+
+  test('opens the allow list on its Who can apply tab', async () => {
+    givenGrant()
+
+    const { $ } = await viewPage(grantPath)
+
+    expect(part($, 'grant-who-can-apply').attr('href')).toBe(
+      '/grant-ops/grants/woodland-creation/admin#who-can-apply'
+    )
+    expect(textOf($, 'grant-who-can-apply')).toBe(
+      'Allow list (opens in a new tab)'
+    )
+  })
+
+  test('shows the version facts, and a dash for each definition fact, while nothing is stored', async () => {
+    givenGrant({
+      header: nothingStored,
+      overview: {
+        description: null,
+        startDate: null,
+        adminRole: null,
+        storedBytes: null
+      }
+    })
+
+    const { $ } = await viewPage(grantPath)
+
+    expect(part($, 'grant-not-stored')).toHaveLength(0)
+    expect(
+      ['description', 'start-date', 'admin-role', 'size'].map((id) =>
+        textOf($, `grant-${id}`)
+      )
+    ).toEqual(['—', '—', '—', '—'])
+    expect(part($, 'grant-received').attr('datetime')).toBe(
+      '2026-09-10T15:25:00Z'
+    )
+    expect(
+      ['workflow', 'applications', 'who-can-apply'].map((id) =>
+        part($, `grant-${id}`).attr('href')
+      )
+    ).toEqual([
+      '/dev-ops/workflows/woodland-creation/1.2.0',
+      '/dev-ops/applications?grant=woodland-creation&version=1.2.0',
+      '/grant-ops/grants/woodland-creation/admin#who-can-apply'
+    ])
+  })
+
+  test('says the overview could not be read in place of the facts', async () => {
+    givenGrant({
+      overview: null,
+      sectionErrors: [
+        { section: 'overview', message: 'Overview could not be loaded' }
+      ]
+    })
+
+    const { $ } = await viewPage(grantPath)
+
+    expect(textOf($, 'grant-section-error')).toBe(
+      'Overview could not be loaded'
+    )
+    expect(part($, 'grant-facts')).toHaveLength(0)
+  })
+})
+
+describe('the grant Raw tab', () => {
+  test('reads the stored definition', async () => {
+    givenGrant({ overview: undefined, definition: grantDefinition })
+
+    await viewPage(`${grantPath}?tab=raw`)
+
+    expect(getGrantPageUseCase).toHaveBeenCalledWith(
+      { code: 'woodland-creation', version: '1.2.0' },
+      'raw'
+    )
+  })
+
+  test('shows the whole stored grant document in the folding viewer', async () => {
+    givenGrant({ overview: undefined, definition: grantDefinition })
+
+    const { $ } = await viewPage(`${grantPath}?tab=raw`)
+
+    expect(part($, 'grant-raw').attr('aria-label')).toBe('Grant document')
+    expect(
+      part($, 'grant-raw-line')
+        .toArray()
+        .map((line) => $(line).find('code').text())
+    ).toEqual(JSON.stringify(grantDefinition, null, 2).split('\n'))
+  })
+
+  test('is offered on a version with no agreement or payment file', async () => {
+    givenGrant({
+      header: { ...grantHeader, files: { grant: fetched } },
+      overview: undefined,
+      definition: grantDefinition
+    })
+
+    const { $ } = await viewPage(`${grantPath}?tab=raw`)
+
+    expect(part($, 'grant-tab').last().text()).toBe('Raw')
+    expect(part($, 'grant-raw')).toHaveLength(1)
+  })
+
+  test('says the grant definition is not stored, and nothing else', async () => {
+    givenGrant({ header: nothingStored, overview: undefined, definition: null })
+
+    const { $ } = await viewPage(`${grantPath}?tab=raw`)
+
+    expect(textOf($, 'grant-not-stored')).toBe('Grant definition not stored.')
+    expect(part($, 'grant-raw')).toHaveLength(0)
+    expect(part($, 'grant-raw-too-large')).toHaveLength(0)
+    expect(part($, 'grant-section-error')).toHaveLength(0)
+    expect(part($, 'grant-no-data')).toHaveLength(0)
+  })
+
+  test("says a stored document over GAS's cap is too large to show", async () => {
+    givenGrant({
+      overview: undefined,
+      definition: null,
+      sectionErrors: [{ section: 'definition', message: 'too large to show' }]
+    })
+
+    const { $ } = await viewPage(`${grantPath}?tab=raw`)
+
+    expect(textOf($, 'grant-raw-too-large')).toBe('Too large to show')
+    expect(part($, 'grant-raw')).toHaveLength(0)
+    expect(part($, 'grant-section-error')).toHaveLength(0)
+    expect(part($, 'grant-too-large')).toHaveLength(0)
+  })
+
+  test('takes too large only from the definition read', async () => {
+    givenGrant({
+      overview: undefined,
+      definition: null,
+      sectionErrors: [{ section: 'raw', message: 'too large to show' }]
+    })
+
+    const { $ } = await viewPage(`${grantPath}?tab=raw`)
+
+    expect(part($, 'grant-raw-too-large')).toHaveLength(0)
+    expect(textOf($, 'grant-no-data')).toBe('GAS returned no data for this tab')
+  })
+
+  test('says the definition could not be read on any other failure', async () => {
+    givenGrant({
+      overview: undefined,
+      definition: null,
+      sectionErrors: [
+        { section: 'definition', message: 'Definition could not be loaded' }
+      ]
+    })
+
+    const { $ } = await viewPage(`${grantPath}?tab=raw`)
+
+    expect(textOf($, 'grant-section-error')).toBe(
+      'Definition could not be loaded'
+    )
+    expect(part($, 'grant-raw-too-large')).toHaveLength(0)
+  })
+})
+
+describe('the bare grant URL', () => {
+  const versions = {
+    code: 'woodland-creation',
+    current: '1.2.0',
+    versions: grantHeader.versions
+  }
+
+  test('opens the current version on the tab asked for, keeping the list it came from', async () => {
+    vi.mocked(getGrantVersionsUseCase).mockResolvedValue({
+      outcome: 'found',
+      page: versions
+    })
+
+    const { statusCode, headers } = await viewPage(
+      '/dev-ops/grants/woodland-creation?tab=raw&back=%2Fdev-ops%2Fgrants'
+    )
+
+    expect(statusCode).toBe(statusCodes.found)
+    expect(headers.location).toBe(
+      `${grantPath}?tab=raw&back=%2Fdev-ops%2Fgrants`
+    )
+    expect(getGrantVersionsUseCase).toHaveBeenCalledWith('woodland-creation')
+  })
+
+  test('opens Overview when no tab is asked for', async () => {
+    vi.mocked(getGrantVersionsUseCase).mockResolvedValue({
+      outcome: 'found',
+      page: versions
+    })
+
+    const { headers } = await viewPage('/dev-ops/grants/woodland-creation')
+
+    expect(headers.location).toBe(grantPath)
+  })
+
+  test.each([
+    ['a code GAS has not got', { outcome: 'not-found', page: null }],
+    [
+      'a code with no active version',
+      { outcome: 'found', page: { ...versions, current: null } }
+    ]
+  ] as const)("answers GPA's own 404 page for %s", async (_name, result) => {
+    vi.mocked(getGrantVersionsUseCase).mockResolvedValue(result)
+
+    const { statusCode } = await viewPage('/dev-ops/grants/woodland-creation')
+
+    expect(statusCode).toBe(statusCodes.notFound)
+  })
+
+  test('says GAS timed out, naming the code', async () => {
+    vi.mocked(getGrantVersionsUseCase).mockResolvedValue({
+      outcome: 'timed-out',
+      page: null
+    })
+
+    const { statusCode, $ } = await viewPage(
+      '/dev-ops/grants/woodland-creation'
+    )
+
+    expect(statusCode).toBe(statusCodes.ok)
+    expect(textOf($, 'grant-error')).toBe(
+      'This grant could not be loaded: GAS timed out waiting for it. Refresh to try again.'
+    )
+    expect(textOf($, 'grant-title')).toBe('Grant woodland-creation')
+  })
+
+  test('refuses a tab the grant page has not got', async () => {
+    const { statusCode } = await viewPage(
+      '/dev-ops/grants/woodland-creation?tab=answers'
+    )
+
+    expect(statusCode).toBe(statusCodes.badRequest)
   })
 })
