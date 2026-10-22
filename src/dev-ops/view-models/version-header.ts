@@ -1,13 +1,25 @@
-import type { BadgeRole } from '../use-cases/get-event.use-case.ts'
 import type {
-  DefinitionFileType,
-  GrantVersionHeader,
-  GrantVersionRef,
-  GrantVersionSummary
-} from '../use-cases/get-grant-page.use-case.ts'
+  DefinitionFile,
+  VersionRef,
+  VersionSummary
+} from '../repositories/config-versions.ts'
+import type { BadgeRole } from '../use-cases/get-event.use-case.ts'
+import type { DefinitionFileType } from '../use-cases/get-grant-page.use-case.ts'
+import type { WorkflowFileType } from '../use-cases/get-workflow-page.use-case.ts'
 import { toDayClock, toValidDate } from './event-formats.ts'
 import { toTabHref } from './record-page.view-model.ts'
 import type { RecordType } from './record-type.ts'
+
+type VersionFileType = DefinitionFileType | WorkflowFileType
+
+/** A grant's or a workflow's version, as GAS heads either page. */
+interface VersionPageHeader extends VersionRef {
+  status: VersionSummary['status']
+  receivedAt: string
+  files: Partial<Record<VersionFileType, DefinitionFile>>
+  /** Newest first. */
+  versions: VersionSummary[]
+}
 
 interface StatusBadge {
   status: string
@@ -33,18 +45,23 @@ export interface VersionHeader {
     panelId: string
     items: SwitcherItem[]
   }
-  /** The files not stored, while there are any. */
-  banner: { text: string } | null
+  /** The files not stored, while there are any, and the form that fetches them. */
+  banner: { text: string; action: string; back: string; tab: string } | null
 }
 
-const statuses: Record<GrantVersionSummary['status'], StatusBadge> = {
+const statuses: Record<VersionSummary['status'], StatusBadge> = {
   active: { status: 'Active', role: 'success' },
   draft: { status: 'Draft', role: 'neutral' }
 }
 
-const fileOrder: DefinitionFileType[] = ['grant', 'agreement', 'payment']
+const fileOrder: VersionFileType[] = [
+  'grant',
+  'agreement',
+  'payment',
+  'workflow'
+]
 
-const toAndList = (words: string[]): string =>
+export const toAndList = (words: string[]): string =>
   words.length < 2
     ? words.join('')
     : `${words.slice(0, -1).join(', ')} and ${words.at(-1)}`
@@ -52,10 +69,19 @@ const toAndList = (words: string[]): string =>
 const capitalise = (text: string): string =>
   `${text.charAt(0).toUpperCase()}${text.slice(1)}`
 
+export const toVersionPath = (
+  { path }: RecordType,
+  { code, version }: VersionRef
+): string =>
+  `${path}/${encodeURIComponent(code)}/${encodeURIComponent(version)}`
+
 const toBanner = (
-  { source }: RecordType,
-  { files }: GrantVersionHeader
+  record: RecordType,
+  header: VersionPageHeader,
+  tab: string,
+  back: string
 ): VersionHeader['banner'] => {
+  const { files } = header
   const missing = fileOrder.filter((type) => files[type]?.stored === false)
 
   if (!missing.length) {
@@ -68,15 +94,12 @@ const toBanner = (
   const noun = missing.length > 1 ? 'definitions' : 'definition'
 
   return {
-    text: `${capitalise(toAndList(missing))} ${noun} not stored.${unused ? ` ${source} won't use this version.` : ''}`
+    text: `${capitalise(toAndList(missing))} ${noun} not stored.${unused ? ` ${record.source} won't use this version.` : ''}`,
+    action: `${toVersionPath(record, header)}/fetch`,
+    back,
+    tab
   }
 }
-
-export const toVersionPath = (
-  { path }: RecordType,
-  { code, version }: GrantVersionRef
-): string =>
-  `${path}/${encodeURIComponent(code)}/${encodeURIComponent(version)}`
 
 /** Anything but a date is shown as stored. */
 const toReceived = (receivedAt: string): string => {
@@ -87,7 +110,7 @@ const toReceived = (receivedAt: string): string => {
 
 export const toVersionHeader = (
   record: RecordType,
-  header: GrantVersionHeader,
+  header: VersionPageHeader,
   tab: string,
   from: string
 ): VersionHeader => ({
@@ -110,5 +133,5 @@ export const toVersionHeader = (
       active: version === header.version
     }))
   },
-  banner: toBanner(record, header)
+  banner: toBanner(record, header, tab, from)
 })

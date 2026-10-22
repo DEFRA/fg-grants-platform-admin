@@ -1,5 +1,6 @@
 import Boom from '@hapi/boom'
 import type { Request, ResponseToolkit, ServerRoute } from '@hapi/hapi'
+import type { YarFlashes } from '@hapi/yar'
 import Joi from 'joi'
 import type { Schema } from 'joi'
 
@@ -7,27 +8,37 @@ import { getApplicationPageUseCase } from '../use-cases/get-application-page.use
 import { getCasePageUseCase } from '../use-cases/get-case-page.use-case.ts'
 import { getGrantPageUseCase } from '../use-cases/get-grant-page.use-case.ts'
 import { getGrantVersionsUseCase } from '../use-cases/get-grant-versions.use-case.ts'
+import { getWorkflowPageUseCase } from '../use-cases/get-workflow-page.use-case.ts'
+import { getWorkflowVersionsUseCase } from '../use-cases/get-workflow-versions.use-case.ts'
 import type { HiddenTab, RecordResult } from '../use-cases/record-reads.ts'
 import { toApplicationPage } from '../view-models/application-page.view-model.ts'
 import { applicationType } from '../view-models/applications-page.view-model.ts'
 import { getCatalogueUseCase } from '../use-cases/get-catalogue.use-case.ts'
+import type { Catalogue } from '../use-cases/get-catalogue.use-case.ts'
 import { toBackBucket } from '../view-models/bucket-nav.ts'
 import { toCasePage } from '../view-models/case-page.view-model.ts'
 import { caseType } from '../view-models/cases-page.view-model.ts'
 import { toSafeFrom } from '../view-models/event-page.view-model.ts'
+import { definitionFetchNoticeKey } from '../view-models/definition-fetch.ts'
 import { toGrantPage } from '../view-models/grant-page.view-model.ts'
 import { grantType } from '../view-models/grants-page.view-model.ts'
 import { recordPageCache } from '../view-models/list-filters.ts'
 import {
+  backSchema,
+  recordParamsSchema,
+  recordTabSchema,
   slugFilterSchema,
-  versionSchema
+  versionSchema,
+  workflowCodeSchema
 } from '../view-models/record-filters.ts'
 import { toTabHref } from '../view-models/record-page.view-model.ts'
 import type { RecordPageModel } from '../view-models/record-page.view-model.ts'
 import type { RecordType } from '../view-models/record-type.ts'
 import { toVersionPath } from '../view-models/version-header.ts'
+import { toWorkflowPage } from '../view-models/workflow-page.view-model.ts'
+import { workflowType } from '../view-models/workflows-page.view-model.ts'
 
-interface RecordPageRoute<K, P, T extends string, Q> {
+interface RecordPageRoute<K, P, T extends string, Q, N> {
   record: RecordType
   /** Each URL param after the record's path, in order, with its schema. */
   params: Record<keyof K & string, Schema>
@@ -38,8 +49,10 @@ interface RecordPageRoute<K, P, T extends string, Q> {
     page: P,
     tab: T,
     from: string,
-    options: { query: Q }
+    options: { notice?: N; query: Q; catalogue: Catalogue | null }
   ) => RecordPageModel
+  /** Where a write leaves its outcome for the one render after it. */
+  noticeKey?: keyof YarFlashes
 }
 
 type RecordPageQuery<T> = {
@@ -48,14 +61,10 @@ type RecordPageQuery<T> = {
 } & Record<string, unknown>
 
 /** The list a record's page sits under in the navigation: the one it goes back to. */
-const toNavActive = async (from: string): Promise<string | null> =>
-  toBackBucket(await getCatalogueUseCase(), from)?.id ?? null
-
-/** Longer than any list link this app builds for itself, and still bounded. */
-const fromMax = 2048
-
-// Checked by `toSafeFrom`: a bad one falls back to the admin's root, not an error page.
-const backSchema = Joi.string().allow('').max(fromMax)
+const toNavActive = (
+  catalogue: Catalogue | null,
+  from: string
+): string | null => toBackBucket(catalogue, from)?.id ?? null
 
 /** Bounds the query; real positions are far shorter. */
 const positionMax = 512
@@ -63,15 +72,12 @@ const positionMax = 512
 // Anything up to the bound that the state graph cannot place selects the first status.
 const statusSchema = Joi.string().allow('').max(positionMax)
 
-const tabSchema = ({ tabs }: RecordType) =>
-  Joi.string().valid(...tabs.map(({ id }) => id))
-
-const toParamsSchema = (params: Record<string, Schema>) =>
-  Joi.object(
-    Object.fromEntries(
-      Object.entries(params).map(([name, schema]) => [name, schema.required()])
-    )
-  )
+/** Taken before the read, so it is spent on this render whatever the read then says. */
+const takeNotice = <N>(
+  request: Request,
+  key: keyof YarFlashes | undefined
+): N | undefined =>
+  key ? (request.yar.flash(key) as unknown as N[])[0] : undefined
 
 const unavailableView = (
   h: ResponseToolkit,
@@ -97,13 +103,14 @@ const unavailableView = (
  * One tab of one record per render. A record GAS has not got is GPA's own 404
  * page; any other failure keeps the page, with the reason in place of the tab.
  */
-const recordPageRoute = <K, P, T extends string, Q = object>({
+const recordPageRoute = <K, P, T extends string, Q = object, N = never>({
   record,
   params,
   query,
   read,
-  toPage
-}: RecordPageRoute<K, P, T, Q>): ServerRoute => ({
+  toPage,
+  noticeKey
+}: RecordPageRoute<K, P, T, Q, N>): ServerRoute => ({
   method: 'GET',
   path: [record.path, ...Object.keys(params).map((name) => `{${name}}`)].join(
     '/'
@@ -111,9 +118,9 @@ const recordPageRoute = <K, P, T extends string, Q = object>({
   options: {
     cache: recordPageCache,
     validate: {
-      params: toParamsSchema(params),
+      params: recordParamsSchema(params),
       query: Joi.object({
-        tab: tabSchema(record).default('overview'),
+        tab: recordTabSchema(record).default('overview'),
         back: backSchema,
         ...query
       })
@@ -123,6 +130,7 @@ const recordPageRoute = <K, P, T extends string, Q = object>({
     const key = request.params as unknown as K
     const { tab, back, ...extra } = request.query as RecordPageQuery<T>
     const from = toSafeFrom(back)
+    const notice = takeNotice<N>(request, noticeKey)
     const { outcome, page } = await read(key, tab)
 
     if (outcome === 'not-found') {
@@ -133,7 +141,8 @@ const recordPageRoute = <K, P, T extends string, Q = object>({
       return h.redirect(toTabHref(request.path, 'overview', from))
     }
 
-    const navActive = await toNavActive(from)
+    const catalogue = await getCatalogueUseCase()
+    const navActive = toNavActive(catalogue, from)
 
     if (page === null) {
       return unavailableView(h, record, request.params[record.titleParam], {
@@ -145,7 +154,7 @@ const recordPageRoute = <K, P, T extends string, Q = object>({
 
     return h.view(record.view, {
       pageTitle: record.title,
-      ...toPage(page, tab, from, { query: extra as Q }),
+      ...toPage(page, tab, from, { notice, query: extra as Q, catalogue }),
       navActive
     })
   }
@@ -168,9 +177,9 @@ const currentVersionRoute = ({
   options: {
     cache: recordPageCache,
     validate: {
-      params: toParamsSchema({ code }),
+      params: recordParamsSchema({ code }),
       query: Joi.object({
-        tab: tabSchema(record).default('overview'),
+        tab: recordTabSchema(record).default('overview'),
         back: backSchema
       })
     }
@@ -188,7 +197,7 @@ const currentVersionRoute = ({
     if (page === null) {
       return unavailableView(h, record, asked, {
         from,
-        navActive: await toNavActive(from),
+        navActive: toNavActive(await getCatalogueUseCase(), from),
         outcome
       })
     }
@@ -226,11 +235,26 @@ export const viewGrantRoute = recordPageRoute({
   params: { code: slugFilterSchema, version: versionSchema },
   query: { status: statusSchema },
   read: getGrantPageUseCase,
-  toPage: toGrantPage
+  toPage: toGrantPage,
+  noticeKey: definitionFetchNoticeKey
 })
 
 export const viewCurrentGrantRoute = currentVersionRoute({
   record: grantType,
   code: slugFilterSchema,
   read: getGrantVersionsUseCase
+})
+
+export const viewWorkflowRoute = recordPageRoute({
+  record: workflowType,
+  params: { code: workflowCodeSchema, version: versionSchema },
+  read: getWorkflowPageUseCase,
+  toPage: toWorkflowPage,
+  noticeKey: definitionFetchNoticeKey
+})
+
+export const viewCurrentWorkflowRoute = currentVersionRoute({
+  record: workflowType,
+  code: workflowCodeSchema,
+  read: getWorkflowVersionsUseCase
 })

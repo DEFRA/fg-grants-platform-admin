@@ -1,5 +1,6 @@
 import type { SourceError } from '../use-cases/get-event.use-case.ts'
 import type {
+  Counterpart,
   Position,
   RecordEvents,
   RecordSectionError,
@@ -35,6 +36,7 @@ export type Fact = FactBase &
     | { kind: 'date'; text: string; instant: string | null }
     | { kind: 'text'; text: string }
     | { kind: 'link'; text: string; href: string }
+    | { kind: 'codes'; codes: string[] }
   )
 
 /** One member of the record's series. */
@@ -180,6 +182,25 @@ export const toTextFact = (
   value: string | null
 ): Fact => ({ id, label, kind: 'text', text: value ?? none })
 
+export const toCodesFact = (
+  id: string,
+  label: string,
+  codes: string[] | null
+): Fact =>
+  codes?.length
+    ? { id, label, kind: 'codes', codes }
+    : { id, label, kind: 'text', text: none }
+
+export const toLinkFact = (
+  id: string,
+  label: string,
+  text: string,
+  href: string | null
+): Fact =>
+  href
+    ? { id, label, kind: 'link', text, href }
+    : { id, label, kind: 'text', text: none }
+
 export const toMonoFact = (
   id: string,
   label: string,
@@ -216,6 +237,21 @@ export const toCounterpartFacts = (
   href
     ? [{ id: itemId, label: title, kind: 'link', text: linkLabel, href }]
     : []
+
+/** A version's counterpart: a link, "None" when the other service has no such version, no row when it could not say. */
+export const toReleaseCounterpartFacts = (
+  type: RecordType,
+  counterpart: Counterpart,
+  href: string
+): Fact[] => {
+  if (!counterpart) {
+    return []
+  }
+
+  return counterpart.exists
+    ? toCounterpartFacts(type, href)
+    : [{ id: type.itemId, label: type.title, kind: 'text', text: 'None' }]
+}
 
 const noFacts = {
   position: { phase: null, stage: null, status: null },

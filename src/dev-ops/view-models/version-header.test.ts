@@ -1,5 +1,6 @@
 import type { GrantVersionHeader } from '../use-cases/get-grant-page.use-case.ts'
 import { grantType } from './grants-page.view-model.ts'
+import { workflowType } from './workflows-page.view-model.ts'
 import { toVersionHeader } from './version-header.ts'
 
 const header = (
@@ -22,6 +23,7 @@ const header = (
       receivedAt: '2026-10-10T16:25:00.000Z'
     }
   ],
+  counterpart: null,
   ...overrides
 })
 
@@ -124,7 +126,7 @@ describe('toVersionHeader', () => {
   ] as const)('names %s not stored', (_name, files, text) => {
     expect(
       toVersionHeader(grantType, header({ files }), 'overview', '').banner
-    ).toEqual({ text })
+    ).toMatchObject({ text })
   })
 
   test("says GAS won't use the version when a file not stored has failed for good", () => {
@@ -140,7 +142,7 @@ describe('toVersionHeader', () => {
         'overview',
         ''
       ).banner
-    ).toEqual({
+    ).toMatchObject({
       text: "Grant and payment definitions not stored. GAS won't use this version."
     })
   })
@@ -158,6 +160,49 @@ describe('toVersionHeader', () => {
         'overview',
         ''
       ).banner
-    ).toEqual({ text: 'Payment definition not stored.' })
+    ).toMatchObject({ text: 'Payment definition not stored.' })
   })
+
+  test('posts the fetch for this version, coming back to the same tab and list', () => {
+    const from = '/dev-ops/grants?status=draft'
+
+    expect(
+      toVersionHeader(
+        grantType,
+        header({ files: { grant: notStored } }),
+        'raw',
+        from
+      ).banner
+    ).toEqual({
+      text: 'Grant definition not stored.',
+      action: '/dev-ops/grants/woodland-creation/1.2.0/fetch',
+      back: from,
+      tab: 'raw'
+    })
+  })
+
+  test.each([
+    ['pending', 'Workflow definition not stored.'],
+    [
+      'permanent_error',
+      "Workflow definition not stored. CW won't use this version."
+    ]
+  ] as const)(
+    'names a %s workflow not stored, posting the fetch to the workflow page',
+    (fetchStatus, text) => {
+      expect(
+        toVersionHeader(
+          workflowType,
+          { ...header(), files: { workflow: { stored: false, fetchStatus } } },
+          'raw',
+          ''
+        ).banner
+      ).toEqual({
+        text,
+        action: '/dev-ops/workflows/woodland-creation/1.2.0/fetch',
+        back: '',
+        tab: 'raw'
+      })
+    }
+  )
 })

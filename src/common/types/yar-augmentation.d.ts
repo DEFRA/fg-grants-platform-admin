@@ -4,6 +4,7 @@ import type {
   StoredSearch,
   StoredSearchKey
 } from '../../dev-ops/view-models/stored-search.ts'
+import type { DefinitionFetchFlash } from '../../dev-ops/view-models/definition-fetch.ts'
 import type {
   EventNotice,
   PurgeFormNotice
@@ -19,6 +20,7 @@ declare module '@hapi/yar' {
     /** Both event writes: `action` says which one this was. */
     redriveOutcome: EventNotice
     purgeForm: PurgeFormNotice
+    definitionFetchOutcome: DefinitionFetchFlash
   }
 
   interface YarValues {

@@ -1,0 +1,760 @@
+import { load, type CheerioAPI } from 'cheerio'
+import type { Server } from '@hapi/hapi'
+
+import { statusCodes } from '../../common/status-codes.ts'
+import { createServer } from '../../server/index.ts'
+import { devOps } from '../index.ts'
+import type { DefinitionFetchResult } from '../use-cases/definition-fetches.ts'
+import { fetchWorkflowDefinitionUseCase } from '../use-cases/fetch-workflow-definition.use-case.ts'
+import type { WorkflowVersionPage } from '../use-cases/get-workflow-page.use-case.ts'
+import { getWorkflowPageUseCase } from '../use-cases/get-workflow-page.use-case.ts'
+import { getWorkflowVersionsUseCase } from '../use-cases/get-workflow-versions.use-case.ts'
+
+vi.mock(import('../use-cases/get-catalogue.use-case.ts'))
+vi.mock(import('../use-cases/get-workflow-page.use-case.ts'))
+vi.mock(import('../use-cases/get-workflow-versions.use-case.ts'))
+vi.mock(import('../use-cases/fetch-workflow-definition.use-case.ts'))
+vi.mock(import('../../common/config.ts'))
+
+const credentials = {
+  user: { id: '6f1e9c2a-3b4d-4e5f-8a9b-0c1d2e3f4a5b', name: 'Ada Lovelace' },
+  scope: ['FCP.GrantOperationsAdmin']
+}
+
+const path = '/dev-ops/workflows/woodland-creation/1.2.0'
+const listed = '/dev-ops/workflows?workflow=woodland-creation'
+
+const fetched = { stored: true, fetchStatus: 'fetched' } as const
+const pending = { stored: false, fetchStatus: 'pending' } as const
+
+const header: WorkflowVersionPage['header'] = {
+  code: 'woodland-creation',
+  version: '1.2.0',
+  status: 'active',
+  receivedAt: '2026-10-10T16:25:00.000Z',
+  files: { workflow: fetched },
+  versions: [
+    {
+      version: '2.0.0',
+      status: 'draft',
+      receivedAt: '2026-10-15T10:04:00.000Z'
+    },
+    {
+      version: '1.2.0',
+      status: 'active',
+      receivedAt: '2026-10-10T16:25:00.000Z'
+    }
+  ],
+  counterpart: { exists: true }
+}
+
+const notStored = {
+  ...header,
+  status: 'draft',
+  files: { workflow: pending }
+} as const
+
+const overview: NonNullable<WorkflowVersionPage['overview']> = {
+  schemeName: 'Woodland Creation Offer',
+  requiredRoles: {
+    allOf: ['Casework.Read'],
+    anyOf: ['Casework.ReadWrite', 'Casework.Admin']
+  },
+  storedBytes: 14540
+}
+
+const blankOverview = {
+  schemeName: null,
+  requiredRoles: null,
+  storedBytes: null
+}
+
+const document = {
+  _id: '6710c4a2e1b3f40012ab34cd',
+  code: 'woodland-creation',
+  schemeName: 'Woodland Creation Offer',
+  version: '1.2.0',
+  phases: [{ code: 'PRE_AWARD', stages: [] }],
+  requiredRoles: overview.requiredRoles,
+  endpoints: [
+    {
+      code: 'land-parcels',
+      service: 'LAND_DATA',
+      path: '/parcels/{sbi}',
+      method: 'GET'
+    }
+  ]
+}
+
+/** Whatever version the URL names, with the same files and facts. */
+const givenWorkflow = (overrides: Partial<WorkflowVersionPage> = {}) =>
+  vi
+    .mocked(getWorkflowPageUseCase)
+    .mockImplementation(async ({ code, version }) => ({
+      outcome: 'found',
+      page: {
+        header: { ...header, code, version },
+        overview,
+        sourceErrors: [],
+        sectionErrors: [],
+        ...overrides
+      }
+    }))
+
+const givenRaw = (overrides: Partial<WorkflowVersionPage> = {}) =>
+  givenWorkflow({
+    overview: undefined,
+    raw: document,
+    storedBytes: 14540,
+    ...overrides
+  })
+
+const flatten = (text: string) => text.replace(/\s+/g, ' ').trim()
+
+const part = ($: CheerioAPI, testId: string) => $(`[data-testid="${testId}"]`)
+
+const textOf = ($: CheerioAPI, testId: string) =>
+  flatten(part($, testId).text())
+
+let server: Server
+
+const viewPage = async (url = path, cookie?: string) => {
+  const { result, statusCode, headers } = await server.inject({
+    method: 'GET',
+    url,
+    headers: cookie ? { cookie } : {},
+    auth: { strategy: 'session', credentials }
+  })
+
+  return { $: load(result as unknown as string), statusCode, headers }
+}
+
+const post = async (payload: object | undefined = {}, url = `${path}/fetch`) =>
+  server.inject({
+    method: 'POST',
+    url,
+    payload,
+    auth: { strategy: 'session', credentials }
+  })
+
+const sessionCookie = (response: { headers: Record<string, unknown> }) =>
+  (response.headers['set-cookie'] as string[])[0].split(';')[0]
+
+const noticesOf = ($: CheerioAPI) =>
+  part($, 'workflow-notice')
+    .toArray()
+    .map((notice) => ({
+      role: $(notice).attr('role'),
+      className: $(notice).attr('class'),
+      text: flatten($(notice).text()),
+      mono: $(notice).find('.font-mono').text(),
+      icon: $(notice).find('[data-testid^="do-icon-"]').attr('data-testid')
+    }))
+
+/** The write, then the page it redirects to, exactly as a browser does it. */
+const fetchAndFollow = async (payload: object = {}) => {
+  const written = await post(payload)
+  const cookie = sessionCookie(written)
+  const { $ } = await viewPage(written.headers.location as string, cookie)
+
+  return { cookie, $ }
+}
+
+const givenOutcome = (result: DefinitionFetchResult<'workflow'>) =>
+  vi.mocked(fetchWorkflowDefinitionUseCase).mockResolvedValue(result)
+
+beforeAll(async () => {
+  vi.useFakeTimers({ toFake: ['Date'] })
+  vi.setSystemTime(new Date('2026-10-21T12:00:00.000Z'))
+
+  server = await createServer()
+  await server.register([devOps])
+  await server.initialize()
+})
+
+beforeEach(() => {
+  givenWorkflow()
+})
+
+afterAll(async () => {
+  vi.useRealTimers()
+  await server.stop()
+})
+
+describe('the workflow page', () => {
+  test('reads the Overview tab of the workflow version in the URL', async () => {
+    const { statusCode } = await viewPage()
+
+    expect(statusCode).toBe(statusCodes.ok)
+    expect(getWorkflowPageUseCase).toHaveBeenCalledWith(
+      { code: 'woodland-creation', version: '1.2.0' },
+      'overview'
+    )
+  })
+
+  test('opens a workflow whose code has capitals, as CW spells it', async () => {
+    const { statusCode, $ } = await viewPage(
+      '/dev-ops/workflows/Casework-Smoke/1.0.0'
+    )
+
+    expect(statusCode).toBe(statusCodes.ok)
+    expect(textOf($, 'workflow-title')).toBe('Workflow Casework-Smoke')
+  })
+
+  test('heads the page with Workflow and the code in mono', async () => {
+    const { $ } = await viewPage()
+
+    expect(textOf($, 'workflow-title')).toBe('Workflow woodland-creation')
+    expect(part($, 'workflow-ref').attr('class')).toContain('font-mono')
+    expect($('title').text()).toContain('Workflow woodland-creation')
+  })
+
+  test('shows the status, then the version switcher, under the title', async () => {
+    const { $ } = await viewPage()
+    const line = part($, 'workflow-version')
+
+    expect(line.find('[data-testid="do-status-label"]').first().text()).toBe(
+      'Active'
+    )
+    expect(flatten(part($, 'workflow-switcher-button').text())).toBe(
+      'Version: 1.2.0'
+    )
+    expect(part($, 'workflow-switcher-button').hasClass('btn-sm')).toBe(true)
+  })
+
+  test('lists every version newest first, ticking this one, each opening the same tab and list', async () => {
+    const { $ } = await viewPage(
+      `${path}?tab=raw&back=${encodeURIComponent(listed)}`
+    )
+    const chips = part($, 'workflow-switcher-chip').toArray()
+
+    expect(
+      chips.map((chip) => [
+        $(chip)
+          .children('span')
+          .toArray()
+          .map((piece) => flatten($(piece).text()))
+          .join(' | '),
+        $(chip).attr('href'),
+        $(chip).attr('aria-current')
+      ])
+    ).toEqual([
+      [
+        '2.0.0 | Draft | 15 Oct 11:04',
+        `/dev-ops/workflows/woodland-creation/2.0.0?tab=raw&back=${encodeURIComponent(listed)}`,
+        undefined
+      ],
+      [
+        '1.2.0 | Active | 10 Oct 17:25',
+        `${path}?tab=raw&back=${encodeURIComponent(listed)}`,
+        'page'
+      ]
+    ])
+  })
+
+  test('offers Overview and Raw, keeping the list it was opened from', async () => {
+    const { $ } = await viewPage(
+      `${path}?tab=raw&back=${encodeURIComponent(listed)}`
+    )
+
+    expect(
+      part($, 'workflow-tab')
+        .toArray()
+        .map((tab) => `${$(tab).text()} ${$(tab).attr('href')}`)
+    ).toEqual([
+      `Overview ${path}?back=${encodeURIComponent(listed)}`,
+      `Raw ${path}?tab=raw&back=${encodeURIComponent(listed)}`
+    ])
+    expect(part($, 'workflow-tabs').find('[aria-current="page"]').text()).toBe(
+      'Raw'
+    )
+  })
+
+  test('goes back to the workflows list, and sits under it in the navigation', async () => {
+    const { $ } = await viewPage(`${path}?back=${encodeURIComponent(listed)}`)
+
+    expect(part($, 'workflow-back').attr('href')).toBe(listed)
+    expect(textOf($, 'workflow-back')).toBe('Back to workflows')
+    expect(
+      $('[data-testid="do-nav"] [aria-current="page"]').text().trim()
+    ).toBe('Workflows')
+  })
+
+  test.each([
+    ['a tab it has not got', `${path}?tab=phases`],
+    ['a version with no patch', '/dev-ops/workflows/woodland-creation/1.2'],
+    [
+      'a code CW would never store',
+      '/dev-ops/workflows/woodland_creation/1.2.0'
+    ],
+    [
+      'a code longer than GAS allows',
+      `/dev-ops/workflows/${'w'.repeat(129)}/1.2.0`
+    ]
+  ])('refuses %s', async (_name, url) => {
+    const { statusCode } = await viewPage(url)
+
+    expect(statusCode).toBe(statusCodes.badRequest)
+  })
+
+  test('opens a code as long as GAS allows', async () => {
+    const { statusCode } = await viewPage(
+      `/dev-ops/workflows/${'w'.repeat(128)}/1.2.0`
+    )
+
+    expect(statusCode).toBe(statusCodes.ok)
+  })
+
+  test("answers GPA's own 404 page for a version GAS does not have", async () => {
+    vi.mocked(getWorkflowPageUseCase).mockResolvedValue({
+      outcome: 'not-found',
+      page: null
+    })
+
+    const { statusCode } = await viewPage()
+
+    expect(statusCode).toBe(statusCodes.notFound)
+  })
+
+  test.each([
+    ['unavailable', 'This workflow could not be loaded from CW.'],
+    [
+      'timed-out',
+      'This workflow could not be loaded: CW timed out waiting for it. Refresh to try again.'
+    ]
+  ] as const)(
+    'says so, as a case page does, when CW is %s',
+    async (outcome, message) => {
+      vi.mocked(getWorkflowPageUseCase).mockResolvedValue({
+        outcome,
+        page: null
+      })
+
+      const { statusCode, $ } = await viewPage()
+
+      expect(statusCode).toBe(statusCodes.ok)
+      expect(textOf($, 'workflow-error')).toBe(message)
+      expect(textOf($, 'workflow-title')).toBe('Workflow woodland-creation')
+      expect(part($, 'workflow-tabs')).toHaveLength(0)
+    }
+  )
+
+  test('is never stored', async () => {
+    const { headers } = await viewPage()
+
+    expect(headers['cache-control']).toBe('no-store')
+  })
+})
+
+describe('the workflow not-stored banner', () => {
+  test('is absent while the workflow is stored', async () => {
+    const { $ } = await viewPage()
+
+    expect(part($, 'workflow-banner')).toHaveLength(0)
+  })
+
+  test('says the workflow is not stored, above the tabs, on every tab', async () => {
+    givenWorkflow({ header: notStored, overview: blankOverview, raw: null })
+
+    for (const query of ['', '?tab=raw']) {
+      const { $ } = await viewPage(`${path}${query}`)
+      const banner = part($, 'workflow-banner')
+
+      expect(flatten(banner.children('span').text())).toBe(
+        'Workflow definition not stored.'
+      )
+      expect(banner.attr('role')).toBe('status')
+      expect(banner.attr('class')).toContain('alert-soft')
+      expect(banner.find('[data-testid="do-icon-info"]')).toHaveLength(1)
+      expect(banner.next().attr('data-testid')).toBe('workflow-tabs')
+    }
+  })
+
+  test("says CW won't use the version only when its fetch has failed for good", async () => {
+    givenWorkflow({
+      header: {
+        ...notStored,
+        files: { workflow: { stored: false, fetchStatus: 'permanent_error' } }
+      }
+    })
+
+    const { $ } = await viewPage()
+
+    expect(flatten(part($, 'workflow-banner').children('span').text())).toBe(
+      "Workflow definition not stored. CW won't use this version."
+    )
+  })
+
+  test('offers Fetch definitions, posting back to the same tab and list', async () => {
+    givenWorkflow({ header: notStored, raw: null })
+
+    const { $ } = await viewPage(
+      `${path}?tab=raw&back=${encodeURIComponent(listed)}`
+    )
+    const form = part($, 'workflow-banner').find('form')
+
+    expect(form.attr('method')).toBe('post')
+    expect(form.attr('action')).toBe(`${path}/fetch`)
+    expect(
+      form
+        .find('input[type="hidden"]')
+        .toArray()
+        .map((input) => [$(input).attr('name'), $(input).attr('value')])
+    ).toEqual([
+      ['back', listed],
+      ['tab', 'raw']
+    ])
+    expect(textOf($, 'workflow-fetch')).toBe('Fetch definitions')
+    expect(part($, 'workflow-fetch').attr('class')).toBe('btn btn-sm')
+  })
+})
+
+describe('the workflow Overview tab', () => {
+  test('lists Scheme name and Received, then Size', async () => {
+    const { $ } = await viewPage()
+
+    expect(
+      part($, 'workflow-facts')
+        .find('dl')
+        .toArray()
+        .map((column) =>
+          $(column)
+            .find('dt')
+            .toArray()
+            .map((label) => $(label).text())
+        )
+    ).toEqual([['Scheme name', 'Received'], ['Size']])
+    expect(textOf($, 'workflow-scheme-name')).toBe('Woodland Creation Offer')
+    expect(part($, 'workflow-received').attr('datetime')).toBe(
+      '2026-10-10T16:25:00Z'
+    )
+    expect(textOf($, 'workflow-size')).toBe('14.2 KiB')
+  })
+
+  test('shows the version facts, and a dash for each definition fact, while the workflow is not stored', async () => {
+    givenWorkflow({ header: notStored, overview: blankOverview })
+
+    const { $ } = await viewPage()
+
+    expect(part($, 'workflow-not-stored')).toHaveLength(0)
+    expect(textOf($, 'workflow-scheme-name')).toBe('—')
+    expect(textOf($, 'workflow-size')).toBe('—')
+    expect(part($, 'workflow-received').attr('datetime')).toBe(
+      '2026-10-10T16:25:00Z'
+    )
+  })
+
+  test('renders the same for a workflow with no grant', async () => {
+    givenWorkflow({
+      header: {
+        ...header,
+        code: 'casework-smoke-test',
+        version: '0.0.0',
+        counterpart: { exists: false }
+      }
+    })
+
+    const { statusCode, $ } = await viewPage(
+      '/dev-ops/workflows/casework-smoke-test/0.0.0'
+    )
+
+    expect(statusCode).toBe(statusCodes.ok)
+    expect(textOf($, 'workflow-scheme-name')).toBe('Woodland Creation Offer')
+  })
+
+  test('says the overview could not be read in place of the facts', async () => {
+    givenWorkflow({
+      overview: null,
+      sectionErrors: [
+        { section: 'overview', message: 'Overview could not be loaded' }
+      ]
+    })
+
+    const { $ } = await viewPage()
+
+    expect(textOf($, 'workflow-section-error')).toBe(
+      'Overview could not be loaded'
+    )
+    expect(part($, 'workflow-facts')).toHaveLength(0)
+  })
+})
+
+describe('the workflow Raw tab', () => {
+  test("reads GAS's raw read", async () => {
+    givenRaw()
+
+    await viewPage(`${path}?tab=raw`)
+
+    expect(getWorkflowPageUseCase).toHaveBeenCalledWith(
+      { code: 'woodland-creation', version: '1.2.0' },
+      'raw'
+    )
+  })
+
+  test('shows the stored workflow document whole, in the folding viewer', async () => {
+    givenRaw()
+
+    const { $ } = await viewPage(`${path}?tab=raw`)
+
+    expect(part($, 'workflow-raw').attr('aria-label')).toBe('Workflow document')
+    expect(
+      part($, 'workflow-raw-line')
+        .toArray()
+        .map((line) => $(line).find('code').text())
+    ).toEqual(JSON.stringify(document, null, 2).split('\n'))
+  })
+
+  test('says the workflow definition is not stored, under the banner, and nothing else', async () => {
+    givenRaw({ header: notStored, raw: null, storedBytes: null })
+
+    const { $ } = await viewPage(`${path}?tab=raw`)
+
+    expect(textOf($, 'workflow-not-stored')).toBe(
+      'Workflow definition not stored.'
+    )
+    expect(part($, 'workflow-banner')).toHaveLength(1)
+    expect(part($, 'workflow-raw')).toHaveLength(0)
+    expect(part($, 'workflow-section-error')).toHaveLength(0)
+    expect(part($, 'workflow-no-data')).toHaveLength(0)
+  })
+
+  test("says a stored document over GAS's cap is too large to show", async () => {
+    givenRaw({
+      raw: null,
+      sectionErrors: [{ section: 'raw', message: 'too large to show' }]
+    })
+
+    const { $ } = await viewPage(`${path}?tab=raw`)
+
+    expect(textOf($, 'workflow-raw-too-large')).toBe('Too large to show')
+    expect(part($, 'workflow-raw')).toHaveLength(0)
+    expect(part($, 'workflow-section-error')).toHaveLength(0)
+    expect(part($, 'workflow-too-large')).toHaveLength(0)
+  })
+
+  test('says the document could not be read on any other failure', async () => {
+    givenRaw({
+      raw: null,
+      sectionErrors: [{ section: 'raw', message: 'Raw could not be loaded' }]
+    })
+
+    const { $ } = await viewPage(`${path}?tab=raw`)
+
+    expect(textOf($, 'workflow-section-error')).toBe('Raw could not be loaded')
+    expect(part($, 'workflow-raw-too-large')).toHaveLength(0)
+  })
+
+  test('says CW returned nothing for a stored workflow it sent no document for', async () => {
+    givenRaw({ raw: null })
+
+    const { $ } = await viewPage(`${path}?tab=raw`)
+
+    expect(textOf($, 'workflow-no-data')).toBe(
+      'CW returned no data for this tab'
+    )
+  })
+})
+
+describe('the bare workflow URL', () => {
+  const versions = {
+    code: 'woodland-creation',
+    current: '1.2.0',
+    versions: header.versions
+  }
+
+  test('opens the current version on the tab asked for, keeping the list it came from', async () => {
+    vi.mocked(getWorkflowVersionsUseCase).mockResolvedValue({
+      outcome: 'found',
+      page: versions
+    })
+
+    const { statusCode, headers } = await viewPage(
+      '/dev-ops/workflows/woodland-creation?tab=raw&back=%2Fdev-ops%2Fworkflows'
+    )
+
+    expect(statusCode).toBe(statusCodes.found)
+    expect(headers.location).toBe(`${path}?tab=raw&back=%2Fdev-ops%2Fworkflows`)
+    expect(getWorkflowVersionsUseCase).toHaveBeenCalledWith('woodland-creation')
+  })
+
+  test('opens a code with capitals', async () => {
+    vi.mocked(getWorkflowVersionsUseCase).mockResolvedValue({
+      outcome: 'found',
+      page: { ...versions, code: 'Casework-Smoke' }
+    })
+
+    const { headers } = await viewPage('/dev-ops/workflows/Casework-Smoke')
+
+    expect(headers.location).toBe('/dev-ops/workflows/Casework-Smoke/1.2.0')
+  })
+
+  test.each([
+    ['a code GAS has not got', { outcome: 'not-found', page: null }],
+    [
+      'a code with no active version',
+      { outcome: 'found', page: { ...versions, current: null } }
+    ]
+  ] as const)("answers GPA's own 404 page for %s", async (_name, result) => {
+    vi.mocked(getWorkflowVersionsUseCase).mockResolvedValue(result)
+
+    const { statusCode } = await viewPage(
+      '/dev-ops/workflows/woodland-creation'
+    )
+
+    expect(statusCode).toBe(statusCodes.notFound)
+  })
+
+  test('says CW is unavailable, naming the code', async () => {
+    vi.mocked(getWorkflowVersionsUseCase).mockResolvedValue({
+      outcome: 'unavailable',
+      page: null
+    })
+
+    const { statusCode, $ } = await viewPage(
+      '/dev-ops/workflows/woodland-creation'
+    )
+
+    expect(statusCode).toBe(statusCodes.ok)
+    expect(textOf($, 'workflow-error')).toBe(
+      'This workflow could not be loaded from CW.'
+    )
+  })
+})
+
+describe('fetchWorkflowDefinitionRoute', () => {
+  beforeEach(() => {
+    givenOutcome({
+      outcome: 'fetched',
+      files: [{ file: 'workflow', outcome: 'stored' }]
+    })
+  })
+
+  test('forbids a signed in user without the operations admin role', async () => {
+    const { statusCode } = await server.inject({
+      method: 'POST',
+      url: `${path}/fetch`,
+      payload: {},
+      auth: {
+        strategy: 'session',
+        credentials: { ...credentials, scope: ['FCP.GrantApplicationsAdmin'] }
+      }
+    })
+
+    expect(statusCode).toBe(statusCodes.forbidden)
+    expect(fetchWorkflowDefinitionUseCase).not.toHaveBeenCalled()
+  })
+
+  test('fetches the version in the URL, for the signed in operator, capitals and all', async () => {
+    await post({}, '/dev-ops/workflows/Casework-Smoke/1.0.0/fetch')
+
+    expect(fetchWorkflowDefinitionUseCase).toHaveBeenCalledWith(
+      { code: 'Casework-Smoke', version: '1.0.0' },
+      'Ada Lovelace'
+    )
+  })
+
+  test('goes back to the same tab of the version, and the list it was opened from', async () => {
+    const { statusCode, headers } = await post({ back: listed, tab: 'raw' })
+
+    expect(statusCode).toBe(statusCodes.seeOther)
+    expect(headers.location).toBe(
+      `${path}?tab=raw&back=${encodeURIComponent(listed)}`
+    )
+  })
+
+  test('refuses a tab the workflow page has not got', async () => {
+    const { statusCode } = await post({ tab: 'phases' })
+
+    expect(statusCode).toBe(statusCodes.badRequest)
+    expect(fetchWorkflowDefinitionUseCase).not.toHaveBeenCalled()
+  })
+
+  test('says the workflow was stored, once, in a soft success notice with a tick, and drops the banner', async () => {
+    const { cookie, $ } = await fetchAndFollow()
+
+    expect(noticesOf($)).toEqual([
+      {
+        role: 'status',
+        className: expect.stringContaining('alert-success alert-soft'),
+        text: 'Fetched — workflow definition stored.',
+        mono: '',
+        icon: 'do-icon-check'
+      }
+    ])
+    expect(part($, 'workflow-banner')).toHaveLength(0)
+    expect(noticesOf((await viewPage(path, cookie)).$)).toEqual([])
+  })
+
+  test('shows the stored document on Raw after a fetch, with the success notice once', async () => {
+    givenRaw()
+
+    const { cookie, $ } = await fetchAndFollow({ tab: 'raw' })
+
+    expect(part($, 'workflow-raw')).toHaveLength(1)
+    expect(noticesOf($).map(({ text }) => text)).toEqual([
+      'Fetched — workflow definition stored.'
+    ])
+    expect(noticesOf((await viewPage(`${path}?tab=raw`, cookie)).$)).toEqual([])
+  })
+
+  test('names the reason the workflow failed in mono, and keeps the banner as the retry', async () => {
+    givenOutcome({
+      outcome: 'fetched',
+      files: [
+        {
+          file: 'workflow',
+          outcome: 'failed',
+          reason: 'invalid',
+          message: 'phases[0].code is required'
+        }
+      ]
+    })
+    givenWorkflow({ header: notStored })
+
+    const { cookie, $ } = await fetchAndFollow()
+
+    expect(noticesOf($)).toEqual([
+      {
+        role: 'alert',
+        className: expect.stringContaining('alert-soft alert-error'),
+        text: 'Not fetched — workflow definition: phases[0].code is required. Nothing has changed.',
+        mono: 'phases[0].code is required',
+        icon: 'do-icon-exclamation-circle'
+      }
+    ])
+    expect(textOf($, 'workflow-fetch')).toBe('Fetch definitions')
+    expect(noticesOf((await viewPage(path, cookie)).$)).toEqual([])
+  })
+
+  test('shows what GAS said even when the version still reads not stored', async () => {
+    givenWorkflow({ header: notStored })
+
+    const { $ } = await fetchAndFollow()
+
+    expect(noticesOf($).map(({ text }) => text)).toEqual([
+      'Fetched — workflow definition stored.'
+    ])
+    expect(part($, 'workflow-banner')).toHaveLength(1)
+  })
+
+  test.each([
+    [
+      'not-found',
+      'Not fetched — CW no longer has this version. Nothing has changed.'
+    ],
+    [
+      'unavailable',
+      'Fetch failed — CW could not finish it. Refresh to see what was stored.'
+    ],
+    [
+      'timed-out',
+      'Fetch status unknown — CW did not answer in time. Refresh to check.'
+    ]
+  ] as const)('says what a %s fetch means', async (outcome, text) => {
+    givenOutcome({ outcome, files: [] })
+
+    const { $ } = await fetchAndFollow()
+
+    expect(noticesOf($).map(({ text: said }) => said)).toEqual([text])
+  })
+})

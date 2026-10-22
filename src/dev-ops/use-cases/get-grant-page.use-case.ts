@@ -20,7 +20,6 @@ export type {
   GrantVersionOverview,
   GrantVersionPage,
   GrantVersionRef,
-  GrantVersionSummary,
   HelpBlock,
   TemplatePosition,
   WayIn
