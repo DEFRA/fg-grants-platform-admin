@@ -75,7 +75,11 @@ export interface StoredBanner {
 }
 
 export interface StoredCaseTab {
-  link?: { text?: string; index?: number } | null
+  link?: {
+    text?: string
+    index?: number
+    href?: { urlTemplate?: unknown } | null
+  } | null
   renderIf?: string | null
   /** Each key names what the external action's answer is kept under. */
   action?: Record<string, unknown> | null

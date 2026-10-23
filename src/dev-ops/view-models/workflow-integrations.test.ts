@@ -81,7 +81,8 @@ describe('toWorkflowIntegrations', () => {
             {
               kind: 'button',
               label: 'Recalculate payment',
-              href: `${pagesHref}#banner`
+              href: `${pagesHref}#banner`,
+              linksElsewhere: null
             }
           ],
           call: {
@@ -119,7 +120,8 @@ describe('toWorkflowIntegrations', () => {
             {
               kind: 'tab',
               label: 'Land',
-              href: `${pagesHref}#tab-land-parcels`
+              href: `${pagesHref}#tab-land-parcels`,
+              linksElsewhere: null
             }
           ],
           call: {
@@ -208,7 +210,12 @@ describe('toWorkflowIntegrations triggers', () => {
         pages: withBanner()
       }).triggers
     ).toEqual([
-      { kind: 'button', label: 'Action A', href: `${pagesHref}#banner` }
+      {
+        kind: 'button',
+        label: 'Action A',
+        href: `${pagesHref}#banner`,
+        linksElsewhere: null
+      }
     ])
   })
 
@@ -248,7 +255,30 @@ describe('toWorkflowIntegrations triggers', () => {
       {
         kind: 'tab',
         label: 'Application',
-        href: `${pagesHref}#tab-case-details`
+        href: `${pagesHref}#tab-case-details`,
+        linksElsewhere: null
+      }
+    ])
+  })
+
+  test("says where a tab's link goes when it is not the tab's own page", () => {
+    expect(
+      cardOf({
+        endpoints: [parcels],
+        externalActions: [action('A')],
+        pages: withBanner({
+          land: {
+            link: { href: { urlTemplate: '/cases/{caseId}/notes' } },
+            action: { a: 'A' }
+          }
+        })
+      }).triggers
+    ).toEqual([
+      {
+        kind: 'tab',
+        label: 'Land',
+        href: `${pagesHref}#tab-land`,
+        linksElsewhere: { address: '/cases/{caseId}/notes' }
       }
     ])
   })
@@ -264,7 +294,8 @@ describe('toWorkflowIntegrations triggers', () => {
       {
         kind: 'tab',
         label: 'Land Parcels',
-        href: `${pagesHref}#tab-land-parcels`
+        href: `${pagesHref}#tab-land-parcels`,
+        linksElsewhere: null
       }
     ])
   })
@@ -516,6 +547,32 @@ describe('toWorkflowIntegrations sends', () => {
     ])
   })
 
+  test.each([
+    ['$5', 'fixed', '"$5"'],
+    ['\\$.caseRef', 'fixed', '"$.caseRef"'],
+    ['Case $.caseRef', 'case', 'Case $.caseRef'],
+    ['@.id', 'case', '@.id'],
+    [{ ref: '$.caseRef', count: 1 }, 'case', '{"ref":"$.caseRef","count":1}'],
+    [['a', 'b'], 'fixed', '["a","b"]']
+  ])(
+    "reads %j as CW's resolver does: %s, shown as %s",
+    (value, source, text) => {
+      expect(
+        cardOf({
+          endpoints: [parcels],
+          externalActions: [
+            action('A', {
+              endpoint: {
+                code: 'parcels',
+                endpointParams: { BODY: { v: value } }
+              }
+            })
+          ]
+        }).sends
+      ).toEqual([{ kind: 'BODY', name: 'v', source, text }])
+    }
+  )
+
   test("names the service whose configured headers replace the action's own, only when it sends any", () => {
     const sending = (endpointParams: Record<string, Record<string, unknown>>) =>
       cardOf({
@@ -575,7 +632,12 @@ describe('toWorkflowIntegrations duplicate codes', () => {
     })
 
     expect(integrations.cards[0].triggers).toEqual([
-      { kind: 'button', label: 'Action A', href: `${pagesHref}#banner` }
+      {
+        kind: 'button',
+        label: 'Action A',
+        href: `${pagesHref}#banner`,
+        linksElsewhere: null
+      }
     ])
     expect(writesOf(integrations.cards[0])).toEqual([
       {
