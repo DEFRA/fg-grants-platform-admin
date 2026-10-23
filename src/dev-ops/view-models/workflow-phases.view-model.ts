@@ -51,6 +51,8 @@ type FlagName = 'start' | 'tasks read-only' | 'closes case' | 'hides tasks'
 interface GasStatus {
   name: string
   position: string
+  /** False when the grant has no such status. */
+  defined: boolean
 }
 
 /** What makes GAS send its next message: the move CW's message made, another service's message, or the last claim. */
@@ -102,6 +104,8 @@ type TellsGas =
 export interface WorkflowStatusPanel {
   code: string
   name: string
+  /** The CW theme, which `role` colours. */
+  theme: string
   role: BadgeRole | null
   flags: PanelBadge<FlagName>[]
   phase: { code: string; name: string }
@@ -128,10 +132,12 @@ export interface WorkflowStatusPanel {
 }
 
 interface FindingsSummary {
+  /** Statuses with a finding, each once. */
   count: number
   groups: {
     kind: Finding['kind']
-    statuses: { code: string; href: string }[]
+    /** `stageName` only when the code is in more than one stage. */
+    statuses: { code: string; stageName: string | null; href: string }[]
   }[]
 }
 
@@ -341,7 +347,8 @@ const unmovedSends = (place: Place, lifecycle: GrantLifecycle) => {
 
 const gasStatus = (names: LifecycleNames, position: string): GasStatus => ({
   name: names.status(position),
-  position
+  position,
+  defined: names.positions.has(position)
 })
 
 const toMismatches = (
@@ -430,6 +437,7 @@ const toStateMap = (
         return {
           code,
           name,
+          theme,
           tone: toThemeRole(theme) ?? 'neutral',
           flagged: findings.length > 0,
           findings,
@@ -648,6 +656,7 @@ const toPanel = (place: Place, context: PanelContext): WorkflowStatusPanel => {
   return {
     code: status.code,
     name: status.name,
+    theme: status.theme,
     role: toThemeRole(status.theme),
     flags: toFlags(status, position === initial),
     phase: { code: phase.code, name: phase.name },
@@ -672,21 +681,22 @@ const toFindingsSummary = (
   index: Map<string, Place>,
   links: WorkflowPhasesLinks
 ): FindingsSummary | null => {
+  const places = [...index.values()]
+  const repeated = (code: string) =>
+    places.filter(({ status }) => status.code === code).length > 1
   const groups = findingOrder
     .map((kind) => ({
       kind,
-      statuses: [...index.values()]
+      statuses: places
         .filter(({ findings }) => findings.some((item) => item.kind === kind))
-        .map(({ position, status }) => ({
+        .map(({ position, stage, status }) => ({
           code: status.code,
+          stageName: repeated(status.code) ? stage.name : null,
           href: `${links.status(position)}#panel`
         }))
     }))
     .filter(({ statuses }) => statuses.length)
-  const count = groups.reduce(
-    (total, { statuses }) => total + statuses.length,
-    0
-  )
+  const count = places.filter(({ findings }) => findings.length).length
 
   return count ? { count, groups } : null
 }

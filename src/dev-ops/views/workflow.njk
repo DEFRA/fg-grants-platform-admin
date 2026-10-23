@@ -32,8 +32,8 @@
     {% if phases.findings %}
       <div role="status" class="alert alert-warning alert-soft mb-3 text-sm" data-testid="workflow-phases-findings">
         {{ icon({ name: 'exclamation-triangle', class: 'size-4 shrink-0' }) }}
-        <p class="min-w-0 break-words">{{ phases.findings.count }} finding{{ "s" if phases.findings.count != 1 }}:
-          {%- for group in phases.findings.groups %}{% if not loop.first %} ·{% endif %} {{ group.kind }} {% for status in group.statuses %}<a class="link" href="{{ status.href }}" data-testid="workflow-phases-finding-link">{{ codeText(status.code) }}</a>{% if not loop.last %}, {% endif %}{% endfor %}{% endfor %}
+        <p class="min-w-0 break-words">{{ phases.findings.count }} {{ "status" if phases.findings.count == 1 else "statuses" }} with findings:
+          {%- for group in phases.findings.groups %}{% if not loop.first %} ·{% endif %} {{ group.kind }} {% for status in group.statuses %}<a class="link" href="{{ status.href }}" data-testid="workflow-phases-finding-link">{{ codeText(status.code) }}{% if status.stageName %} ({{ status.stageName }}){% endif %}</a>{% if not loop.last %}, {% endif %}{% endfor %}{% endfor %}
         </p>
       </div>
     {% endif %}

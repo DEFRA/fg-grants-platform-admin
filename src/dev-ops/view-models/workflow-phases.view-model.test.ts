@@ -228,7 +228,8 @@ describe('toWorkflowPhases', () => {
       nodes.find(({ position }) => position.endsWith('WITHDRAWN'))
     ).toMatchObject({
       name: 'Withdrawn',
-      label: 'Withdrawn (PRE_AWARD:REVIEW:WITHDRAWN), finding: unreachable'
+      label:
+        'Withdrawn (PRE_AWARD:REVIEW:WITHDRAWN), CW theme NEUTRAL, finding: unreachable'
     })
     expect(tabFor(undefined).legend).toEqual([
       { kind: 'plain', label: 'Action' },
@@ -252,6 +253,7 @@ describe('toWorkflowPhases', () => {
           statuses: [
             {
               code: 'AWAITING_ACCEPTANCE',
+              stageName: null,
               href: 'status:POST_AWARD:AGREEMENT:AWAITING_ACCEPTANCE#panel'
             }
           ]
@@ -261,10 +263,12 @@ describe('toWorkflowPhases', () => {
           statuses: [
             {
               code: 'WITHDRAWN',
+              stageName: null,
               href: 'status:PRE_AWARD:REVIEW:WITHDRAWN#panel'
             },
             {
               code: 'ACCEPTED',
+              stageName: null,
               href: 'status:POST_AWARD:AGREEMENT:ACCEPTED#panel'
             }
           ]
@@ -281,6 +285,52 @@ describe('toWorkflowPhases', () => {
     expect(
       tabFor(undefined, found, phases).legend.map(({ kind }) => kind)
     ).not.toContain('flagged')
+  })
+
+  test('counts each status with findings once, and names the stage of a code in more than one stage', () => {
+    const phases = onePhase(
+      [
+        'S1',
+        [
+          status('A', [action('P:S1:B', 'GO')]),
+          status('B', [], { closes: true })
+        ]
+      ],
+      ['S2', [status('B')]]
+    )
+    const summary = tabFor(undefined, found, phases).findings
+
+    expect(summary?.count).toBe(1)
+    expect(summary?.groups).toEqual([
+      {
+        kind: 'dead end',
+        statuses: [{ code: 'B', stageName: 'S2', href: 'status:P:S2:B#panel' }]
+      },
+      {
+        kind: 'unreachable',
+        statuses: [{ code: 'B', stageName: 'S2', href: 'status:P:S2:B#panel' }]
+      }
+    ])
+  })
+
+  test("names each status's CW theme, so its colour is never the only cue", () => {
+    const phases = onePhase([
+      'S',
+      [
+        status('A', [action('P:S:B', 'GO')], { theme: 'WARN' }),
+        status('B', [], { closes: true, theme: 'NONE' })
+      ]
+    ])
+    const nodes = tabFor(undefined, found, phases).graphs.phases[0].nodes
+
+    expect(nodes.map(({ label }) => label)).toEqual([
+      'A (P:S:A), CW theme WARN',
+      'B (P:S:B), CW theme NONE'
+    ])
+    expect(panelFor('A', found, phases)).toMatchObject({
+      theme: 'WARN',
+      role: 'warning'
+    })
   })
 
   test('marks the starting status on the graph and in the panel, and leaves out the ways in of an unreachable one', () => {
@@ -682,12 +732,12 @@ describe('toWorkflowPhases: a status GAS may send that CW has no move to', () =>
   }
 
   const mismatchOf = (
-    sends: { name: string; position: string },
+    sends: { name: string; position: string; defined: boolean },
     when: object
   ) => ({
     kind: 'mismatch',
     version: '1.2.0',
-    at: { name: 'Approved', position: generating },
+    at: { name: 'Approved', position: generating, defined: true },
     sends,
     when
   })
@@ -701,7 +751,7 @@ describe('toWorkflowPhases: a status GAS may send that CW has no move to', () =>
     expect(panelFor('IN_REVIEW', grant).findings).toEqual([])
     expect(panelFor('APPROVED', grant).findings).toEqual([
       mismatchOf(
-        { name: 'Offered', position: drafted },
+        { name: 'Offered', position: drafted, defined: true },
         { kind: 'sends', source: 'Agreements', code: 'offered' }
       )
     ])
@@ -713,7 +763,11 @@ describe('toWorkflowPhases: a status GAS may send that CW has no move to', () =>
     expect(tabFor(undefined, grant).findings?.groups).toContainEqual({
       kind: 'mismatch',
       statuses: [
-        { code: 'APPROVED', href: 'status:PRE_AWARD:REVIEW:APPROVED#panel' }
+        {
+          code: 'APPROVED',
+          stageName: null,
+          href: 'status:PRE_AWARD:REVIEW:APPROVED#panel'
+        }
       ]
     })
   })
@@ -743,7 +797,10 @@ describe('toWorkflowPhases: a status GAS may send that CW has no move to', () =>
         withEffects([into([tellsCw('REQUEST_WITHDRAWAL', 'WITHDRAWN')])])
       ).findings
     ).toEqual([
-      mismatchOf({ name: 'Withdrawn', position: withdrawn }, { kind: 'move' })
+      mismatchOf(
+        { name: 'Withdrawn', position: withdrawn, defined: false },
+        { kind: 'move' }
+      )
     ])
   })
 
@@ -767,7 +824,10 @@ describe('toWorkflowPhases: a status GAS may send that CW has no move to', () =>
     }
 
     expect(panelFor('APPROVED', withEffects([fromAny])).findings).toEqual([
-      mismatchOf({ name: 'Withdrawn', position: withdrawn }, { kind: 'move' })
+      mismatchOf(
+        { name: 'Withdrawn', position: withdrawn, defined: false },
+        { kind: 'move' }
+      )
     ])
   })
 
@@ -785,7 +845,7 @@ describe('toWorkflowPhases: a status GAS may send that CW has no move to', () =>
 
     expect(panelFor('APPROVED', grant).findings).toEqual([
       mismatchOf(
-        { name: 'Offered', position: drafted },
+        { name: 'Offered', position: drafted, defined: true },
         { kind: 'sends', source: 'Agreements', code: 'offered' }
       )
     ])
@@ -802,7 +862,10 @@ describe('toWorkflowPhases: a status GAS may send that CW has no move to', () =>
     }
 
     expect(panelFor('APPROVED', grant).findings).toEqual([
-      mismatchOf({ name: 'Offered', position: drafted }, { kind: 'claim' })
+      mismatchOf(
+        { name: 'Offered', position: drafted, defined: true },
+        { kind: 'claim' }
+      )
     ])
   })
 
@@ -824,7 +887,7 @@ describe('toWorkflowPhases: a status GAS may send that CW has no move to', () =>
     expect(panel.maySend).toEqual([
       {
         onlyWhen: 'no agreement is on offer',
-        sends: { name: 'Withdrawn', position: withdrawn }
+        sends: { name: 'Withdrawn', position: withdrawn, defined: false }
       }
     ])
   })
