@@ -7,6 +7,7 @@ import { toEventHref, toTimeCell } from './event-formats.ts'
 import { toStampedEventName } from './event-names.ts'
 import type { EventName } from './event-names.ts'
 import { isDeadLetterStatus } from './event-state.ts'
+import { toFittingBack } from './record-filters.ts'
 
 export interface EventRow {
   eventHref: string
@@ -32,7 +33,7 @@ export const toEventRow =
     const created = toTimeCell(event.createdAt, now)
 
     return {
-      eventHref: `${toEventHref(event)}?${backKey}=${encodeURIComponent(from)}`,
+      eventHref: `${toEventHref(event)}?${backKey}=${encodeURIComponent(toFittingBack(from))}`,
       eventId: event.eventId,
       status: event.status,
       statusLabel: event.statusLabel,

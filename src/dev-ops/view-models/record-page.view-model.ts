@@ -22,6 +22,7 @@ import { toJsonView } from './json-viewer.view-model.ts'
 import type { JsonView } from './json-viewer.view-model.ts'
 import { toPositionLabel, toPositionTrail, toStatusLabel } from './position.ts'
 import type { PositionStep } from './position.ts'
+import { toFittingBack } from './record-filters.ts'
 import type { RecordType } from './record-type.ts'
 
 interface FactBase {
@@ -125,7 +126,7 @@ const tabLabels: Record<RecordTab, string> = {
 const toTabHref = (href: string, tab: RecordTab, from: string): string => {
   const params = new URLSearchParams({
     ...(tab === 'overview' ? {} : { tab }),
-    ...(from === '' ? {} : { [backKey]: from })
+    ...(from === '' ? {} : { [backKey]: toFittingBack(from) })
   })
 
   return params.size ? `${href}?${params}` : href

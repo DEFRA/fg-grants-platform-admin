@@ -1,3 +1,4 @@
+{% from "no-value/macro.njk" import noValue %}
 {% from "event-row/macro.njk" import createdCell, rowClass %}
 {% from "status-text/macro.njk" import statusText %}
 {% from "./shared.njk" import ref, replaced %}
@@ -6,7 +7,7 @@
   {%- if cell -%}
     {{ createdCell({ text: cell.text, instant: cell.instant, precise: cell.precise, clock: cell.clock, testId: testId }) }}
   {%- else -%}
-    <td class="text-right"><span class="ml-auto block w-fit font-mono text-sm text-base-content/70" data-testid="{{ testId }}-none">—</span></td>
+    <td class="text-right"><span class="ml-auto block w-fit">{{ noValue({ testId: testId }) }}</span></td>
   {%- endif -%}
 {% endmacro %}
 

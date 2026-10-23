@@ -25,9 +25,7 @@ import {
   toUnattributedPage
 } from '../view-models/payload-edit-page.ts'
 import { seeOther } from '../view-models/see-other.ts'
-
-/** Longer than any query this app builds for itself, and still bounded. */
-const fromMax = 2048
+import { fromMax } from '../view-models/record-filters.ts'
 
 /** Four times the limit the form enforces: past 500 is the operator's mistake, to be shown with the note in front of them. */
 const noteMax = 2000

@@ -16,9 +16,7 @@ import { isDeadLetterStatus } from '../view-models/event-state.ts'
 import { toPurgeFormError, toPurgeNote } from '../view-models/purge-form.ts'
 import { toActor } from '../../common/view-models/actor.ts'
 import { seeOther } from '../view-models/see-other.ts'
-
-/** Longer than any query this app builds for itself, and still bounded. */
-const fromMax = 2048
+import { fromMax } from '../view-models/record-filters.ts'
 
 /** Long enough for any code the backends may add, short enough to be a code. */
 const reasonMax = 64

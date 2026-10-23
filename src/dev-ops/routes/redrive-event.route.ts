@@ -11,6 +11,7 @@ import {
 } from '../view-models/event-page.view-model.ts'
 import { toActor } from '../../common/view-models/actor.ts'
 import { seeOther } from '../view-models/see-other.ts'
+import { fromMax } from '../view-models/record-filters.ts'
 
 /**
  * The page the operator was on, and nothing about the outcome: a parameter
@@ -42,9 +43,6 @@ const toRedirect = (key: EventKey, from: string): string => {
  * registers this through `scopedTo`, and that helper only scopes a route that
  * declares no auth of its own.
  */
-/** Longer than any query this app builds for itself, and still bounded. */
-const fromMax = 2048
-
 export const redriveEventRoute: ServerRoute = {
   method: 'POST',
   path: '/dev-ops/events/{service}/{box}/{id}/redrive',

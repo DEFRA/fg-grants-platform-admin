@@ -14,7 +14,7 @@ import { toCasePage } from '../view-models/case-page.view-model.ts'
 import { caseType } from '../view-models/cases-page.view-model.ts'
 import { toSafeFrom } from '../view-models/event-page.view-model.ts'
 import { recordPageCache } from '../view-models/list-filters.ts'
-import { slugFilterSchema } from '../view-models/record-filters.ts'
+import { slugFilterSchema, fromMax } from '../view-models/record-filters.ts'
 import type { RecordPageModel } from '../view-models/record-page.view-model.ts'
 import type { RecordType } from '../view-models/record-type.ts'
 
@@ -34,9 +34,6 @@ interface RecordPageQuery {
 /** The list a record's page sits under in the navigation: the one it goes back to. */
 const toNavActive = async (from: string): Promise<string | null> =>
   toBackBucket(await getCatalogueUseCase(), from)?.id ?? null
-
-/** Longer than any list link this app builds for itself, and still bounded. */
-const fromMax = 2048
 
 /**
  * One tab of one record per render. A record GAS has not got is GPA's own 404

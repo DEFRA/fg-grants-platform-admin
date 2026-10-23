@@ -72,6 +72,7 @@ import {
   toRedriveEditedNote
 } from './payload-edit.ts'
 import { toStackFrames } from './stack-frames.ts'
+import { toFittingBack } from './record-filters.ts'
 
 type AttemptRole = Extract<BadgeRole, 'warning' | 'error'>
 
@@ -244,7 +245,7 @@ const toSelfHref = (
   const params = new URLSearchParams()
 
   if (from !== '') {
-    params.set(backKey, from)
+    params.set(backKey, toFittingBack(from))
   }
 
   if (extra) {

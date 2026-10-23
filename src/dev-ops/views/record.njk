@@ -1,5 +1,6 @@
 {% extends 'layouts/page.njk' %}
 
+{% from "muted/macro.njk" import muted %}
 {% from "back/macro.njk" import back %}
 {% from "event-row/macro.njk" import eventRow, eventsHead %}
 {% from "icon/macro.njk" import icon %}
@@ -41,7 +42,7 @@
   {{ back({ href: backHref or homeHref, list: record.listId, navLabel: (record.listId | capitalize) ~ " list", testId: record.itemId }) }}
 
   <header class="mt-2 mb-5" data-testid="{{ record.itemId }}-header">
-    <h1 class="flex flex-wrap items-baseline gap-x-2 text-xl font-semibold break-words" data-testid="{{ record.itemId }}-title"><span>{{ record.title }}</span> <span class="font-mono text-sm font-normal break-all text-base-content/70 select-all" data-testid="{{ record.itemId }}-ref">{{ ref }}</span></h1>
+    <h1 class="flex flex-wrap items-baseline gap-x-2 text-xl font-semibold break-words" data-testid="{{ record.itemId }}-title"><span>{{ record.title }}</span> <span class="font-mono text-sm font-normal break-all {{ muted }} select-all" data-testid="{{ record.itemId }}-ref">{{ ref }}</span></h1>
     {% if trail | length %}
       <p class="mt-2 flex flex-wrap items-center gap-x-1.5 text-sm" data-testid="{{ record.itemId }}-position">
         {% for step in trail %}
@@ -59,11 +60,12 @@
     </div>
   {% else %}
     <nav class="mb-4" aria-label="Sections" data-testid="{{ record.itemId }}-tabs">
-      <div class="tabs tabs-border">
+      {# One row that scrolls on a phone, with the open tab brought into view. #}
+      <do-tab-strip class="tabs tabs-border flex-nowrap overflow-x-auto [scrollbar-gutter:stable]">
         {% for item in tabs %}
-          <a class="tab{% if item.active %} tab-active{% endif %}" href="{{ item.href }}"{% if item.active %} aria-current="page"{% endif %} data-testid="{{ record.itemId }}-tab">{{ item.label }}</a>
+          <a class="tab shrink-0{% if item.active %} tab-active{% endif %}" href="{{ item.href }}"{% if item.active %} aria-current="page"{% endif %} data-testid="{{ record.itemId }}-tab">{{ item.label }}</a>
         {% endfor %}
-      </div>
+      </do-tab-strip>
     </nav>
 
     {% if sectionError %}
@@ -139,10 +141,10 @@
             </table>
           </div>
           {% if events.more %}
-            <p class="border-t border-base-300 px-4 py-3 text-sm text-base-content/70" data-testid="{{ record.itemId }}-events-more">Showing the newest 50 from each {{ record.source }} queue.</p>
+            <p class="border-t border-base-300 px-4 py-3 text-sm {{ muted }}" data-testid="{{ record.itemId }}-events-more">Showing the newest 50 from each {{ record.source }} queue.</p>
           {% endif %}
         {% else %}
-          <p class="px-4 py-10 text-center text-sm text-base-content/60" data-testid="{{ record.itemId }}-events-empty">No events found.</p>
+          <p class="px-4 py-10 text-center text-sm {{ muted }}" data-testid="{{ record.itemId }}-events-empty">No events found.</p>
         {% endif %}
       </div>
     {% elif tab == "raw" and raw %}

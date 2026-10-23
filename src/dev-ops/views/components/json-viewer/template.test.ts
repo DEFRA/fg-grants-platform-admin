@@ -42,10 +42,23 @@ describe('json-viewer component', () => {
     ).toBe('13 items ],')
   })
 
-  test('makes each fold at least 24px high, a target big enough to hit', () => {
+  test('keeps a fold on the same line height as every other row', () => {
     const $ = viewer({ a: { b: 1 } })
+    const summary = $('summary').first()
 
-    expect($('summary').first().attr('class')?.split(' ')).toContain('min-h-6')
+    expect(summary.attr('class')).not.toContain('min-h-')
+    expect(summary.children().last().prev().attr('class')).toContain(
+      'h-[1lh] w-3 items-center justify-end leading-none'
+    )
+  })
+
+  test('floats Copy in the top right corner of the block', () => {
+    const $ = viewer({ a: 1 })
+
+    expect($('[data-json-viewer-tools]').attr('class')).toBe(
+      'absolute top-2 right-2 z-1'
+    )
+    expect($('do-json-viewer').attr('class')).toBe('relative flex flex-col')
   })
 
   test('keeps numbers out of the selectable text', () => {
