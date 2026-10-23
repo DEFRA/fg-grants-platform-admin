@@ -674,17 +674,64 @@ describe('a way matched by a bare status code', () => {
     ).toEqual({ code: 'IN_REVIEW', said: true })
   })
 
-  test('draws its edge dotted, and adds its legend item', () => {
-    const tab = phasesOf(undefined, null, bare)
-    const kinds = tab.graphs.phases
-      .flatMap(({ edges }) => edges)
-      .map(({ kind }) => kind)
+  const bareEdge = (read: GrantLifecycle) =>
+    phasesOf(undefined, null, read)
+      .graphs.phases.flatMap(({ edges }) => edges)
+      .find(({ title }) =>
+        title.startsWith(
+          'PRE_AWARD:REVIEW:IN_REVIEW → PRE_AWARD:APPLICATION:AMEND'
+        )
+      )
 
-    expect(kinds).toContain('dotted')
-    expect(tab.legend.at(-1)).toEqual({
+  test('draws its edge dotted when it runs no process, and adds its legend item', () => {
+    const quiet: GrantLifecycle = {
+      ...bare,
+      waysIn: bare.waysIn.map((wayIn) =>
+        isBareMove(wayIn) ? { ...wayIn, processes: [] } : wayIn
+      )
+    }
+
+    expect(bareEdge(quiet)?.kind).toBe('dotted')
+    expect(phasesOf(undefined, null, quiet).legend.at(-1)).toEqual({
       kind: 'dotted',
       label: 'Matched by status code only, in any stage'
     })
+  })
+
+  test('draws its edge in the process colour and dotted when it runs a process, keeping both legend items', () => {
+    const tab = phasesOf(undefined, null, bare)
+
+    expect(bareEdge(bare)).toEqual(
+      expect.objectContaining({
+        kind: 'strong-dotted',
+        title:
+          'PRE_AWARD:REVIEW:IN_REVIEW → PRE_AWARD:APPLICATION:AMEND: NOTIFY'
+      })
+    )
+    expect(tab.legend.map(({ kind }) => kind)).toEqual(
+      expect.arrayContaining(['strong', 'dotted'])
+    )
+  })
+
+  test('reads the processes GAS-16 names when it knows them', () => {
+    const effects: GrantLifecycle = {
+      ...bare,
+      waysIn: bare.waysIn.map((wayIn) => ({
+        ...wayIn,
+        processEffects: isBareMove(wayIn)
+          ? [
+              {
+                process: 'NOTIFY',
+                setsStatus: null,
+                tellsCw: false,
+                onlyWhen: null
+              }
+            ]
+          : []
+      }))
+    }
+
+    expect(bareEdge(effects)?.kind).toBe('strong-dotted')
   })
 
   test('says nothing of how a way matched when GAS does not say', () => {

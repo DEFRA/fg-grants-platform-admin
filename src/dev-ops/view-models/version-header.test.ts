@@ -286,16 +286,16 @@ describe('toVersionHeader', () => {
     })
   })
 
-  test('links the newest older version with every file stored, while the grant file is not stored', () => {
+  test('links the newest stored version, newer or older, while the grant file is not stored', () => {
     const banner = toVersionHeader(
       grantType,
       header({
-        files: { grant: notStored },
+        version: '1.19.0',
+        files: { grant: { stored: false, fetchStatus: 'permanent_error' } },
         versions: [
-          { ...withState('fetched', true), version: '2.0.0' },
-          withState('pending', false),
-          { ...withState('pending', false), version: '1.1.0' },
-          { ...withState('fetched', true), version: '1.0.0' }
+          { ...withState('fetched', true), version: '1.40.4' },
+          { ...withState('permanent_error', false), version: '1.19.0' },
+          { ...withState('fetched', true), version: '1.18.0' }
         ]
       }),
       'phases',
@@ -305,8 +305,54 @@ describe('toVersionHeader', () => {
     expect(banner?.lines.at(-1)).toEqual([
       'Newest stored version: ',
       {
-        link: '1.0.0 ›',
-        href: '/dev-ops/grants/woodland-creation/1.0.0?tab=phases'
+        link: '1.40.4 ›',
+        href: '/dev-ops/grants/woodland-creation/1.40.4?tab=phases'
+      }
+    ])
+  })
+
+  test('links the newest stored older version from the newest version, skipping those not stored', () => {
+    const banner = toVersionHeader(
+      grantType,
+      header({
+        files: { grant: notStored },
+        versions: [
+          withState('pending', false),
+          { ...withState('pending', false), version: '1.1.0' },
+          { ...withState('fetched', true), version: '1.0.0' }
+        ]
+      }),
+      'overview',
+      ''
+    ).banner
+
+    expect(banner?.lines.at(-1)).toMatchObject([
+      'Newest stored version: ',
+      { link: '1.0.0 ›' }
+    ])
+  })
+
+  test('links the newest stored workflow version on a workflow page', () => {
+    const banner = toVersionHeader(
+      workflowType,
+      {
+        ...header(),
+        files: { workflow: notStored },
+        versions: [
+          { ...withState('fetched', true), version: '2.0.0' },
+          withState('pending', false),
+          { ...withState('fetched', true), version: '1.0.0' }
+        ]
+      },
+      'raw',
+      ''
+    ).banner
+
+    expect(banner?.lines.at(-1)).toEqual([
+      'Newest stored version: ',
+      {
+        link: '2.0.0 ›',
+        href: '/dev-ops/workflows/woodland-creation/2.0.0?tab=raw'
       }
     ])
   })

@@ -25,7 +25,12 @@ export interface StatePhase {
   stages: StateStage[]
 }
 
-export type MoveKind = 'plain' | 'strong' | 'dashed' | 'dotted'
+export type MoveKind =
+  | 'plain'
+  | 'strong'
+  | 'dashed'
+  | 'dotted'
+  | 'strong-dotted'
 
 /** One edge, between full `PHASE:STAGE:STATUS` positions. */
 export interface StateMove {
