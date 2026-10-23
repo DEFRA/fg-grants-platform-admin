@@ -9,7 +9,8 @@
   plain: "stroke-current",
   strong: "stroke-info",
   dashed: "stroke-current",
-  dotted: "stroke-current"
+  dotted: "stroke-current",
+  "strong-dotted": "stroke-info"
 } %}
 {% set nodeStrokes = {
   selected: "stroke-base-content",
@@ -29,13 +30,12 @@
   flagged: "inline-block h-4 w-6 rounded border-2 border-warning",
   "other-phase": "inline-block h-4 w-6 rounded border border-dashed border-base-content/40"
 } %}
-{% set edgeWidths = { plain: 1.5, strong: 2, dashed: 1.5, dotted: 1.5 } %}
+{% set edgeWidths = { plain: 1.5, strong: 2, dashed: 1.5, dotted: 1.5, "strong-dotted": 2 } %}
 {# Moves only GAS can make, or that run no process, are dashed, so their meaning is never colour alone. #}
 {% set dash = "4 3" %}
 {# A move matched only by a bare status code is dotted. #}
-{% set edgeDashes = { dashed: dash, dotted: "1 3" } %}
-{# The graph fades at each edge it scrolls on past; the element sets `data-fade-left` and `data-fade-right`. #}
-{% set scroller = "overflow-x-auto focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-base-content data-[fade-right]:[mask-image:linear-gradient(to_right,#000_92%,transparent)] data-[fade-left]:[mask-image:linear-gradient(to_left,#000_92%,transparent)] [&[data-fade-left][data-fade-right]]:[mask-image:linear-gradient(to_right,transparent,#000_8%,#000_92%,transparent)]" %}
+{% set edgeDashes = { dashed: dash, dotted: "1 3", "strong-dotted": "1 3" } %}
+{% set scroller = "overflow-x-auto pb-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-base-content" %}
 
 {% macro legend(items, testId) %}
   <div class="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm font-normal {{ muted }}" data-testid="{{ testId }}-legend">
@@ -81,8 +81,10 @@
             {% if loop.first %}{{ legend(params.legend, testId) }}{% endif %}
           </div>
           {% if graph.nodes | length %}
-            <div class="{{ scroller }}" tabindex="0" role="region" aria-label="{{ graph.name or graph.code }} statuses" data-graph-scroll data-testid="{{ testId }}-scroller">
-              <svg width="{{ graph.width }}" height="{{ graph.height }}" viewBox="0 0 {{ graph.width }} {{ graph.height }}" class="block max-w-none {{ muted }}" role="group" aria-label="{{ graph.name or graph.code }} statuses" data-testid="{{ testId }}-graph">
+            {# The element shows the hint only while the graph is wider than its box. #}
+            <p class="flex items-center gap-1.5 text-sm {{ muted }}" id="{{ markerId }}-scroll-hint" hidden data-testid="{{ testId }}-scroll-hint">{{ icon({ name: 'move-horizontal', class: 'size-4 shrink-0' }) }}This graph is wider than its card. Scroll sideways, or tab to it and use the arrow keys, to see every status.</p>
+            <div class="{{ scroller }}" tabindex="0" role="region" aria-label="{{ graph.name or graph.code }} statuses" data-graph-scroll data-hint="{{ markerId }}-scroll-hint" data-testid="{{ testId }}-scroller">
+              <svg width="{{ graph.width }}" height="{{ graph.height }}" viewBox="0 0 {{ graph.width }} {{ graph.height }}" class="block max-w-none {{ muted }}" data-testid="{{ testId }}-graph">
                 <defs>
                   <marker id="{{ markerId }}-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="fill-current"/></marker>
                   <marker id="{{ markerId }}-strong" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="fill-info"/></marker>
@@ -91,7 +93,7 @@
                   <rect x="{{ band.x }}" y="{{ band.y }}" width="{{ band.width }}" height="{{ band.height }}" rx="10" class="fill-base-200 stroke-base-300" stroke-width="1" data-testid="{{ testId }}-band"/>
                 {% endfor %}
                 {% for edge in graph.edges %}
-                  <path d="{{ edge.d }}" fill="none" class="{{ edgeStrokes[edge.kind] }}" stroke-width="{{ edgeWidths[edge.kind] }}"{% if edgeDashes[edge.kind] %} stroke-dasharray="{{ edgeDashes[edge.kind] }}"{% endif %} marker-end="url(#{{ markerId }}-{{ 'strong' if edge.kind == 'strong' else 'arrow' }})" data-testid="{{ testId }}-edge" data-kind="{{ edge.kind }}"><title>{{ edge.title }}</title></path>
+                  <path d="{{ edge.d }}" fill="none" class="{{ edgeStrokes[edge.kind] }}" stroke-width="{{ edgeWidths[edge.kind] }}"{% if edgeDashes[edge.kind] %} stroke-dasharray="{{ edgeDashes[edge.kind] }}"{% endif %} marker-end="url(#{{ markerId }}-{{ 'strong' if edge.kind == 'strong' or edge.kind == 'strong-dotted' else 'arrow' }})" data-testid="{{ testId }}-edge" data-kind="{{ edge.kind }}"><title>{{ edge.title }}</title></path>
                 {% endfor %}
                 {# Drawn after the edges, on a plate, so no edge crosses a label. #}
                 {% for band in graph.bands %}
