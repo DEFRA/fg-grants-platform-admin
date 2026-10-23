@@ -120,7 +120,7 @@ interface GrantPhasesOptions {
   /** The version's own page. */
   href: string
   from: string
-  /** Null while CW statuses have nowhere to link to. */
+  /** Null when CW lacks this workflow version or cannot say. */
   workflowHref: ((cwStatus: string, back: string) => string) | null
 }
 

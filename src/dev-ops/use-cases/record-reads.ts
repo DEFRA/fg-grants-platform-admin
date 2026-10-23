@@ -4,6 +4,7 @@ import { statusCodes } from '../../common/status-codes.ts'
 import { toGasErrorField, toGasStatusCode } from './gas-status.ts'
 
 export type {
+  Counterpart,
   ListTotal,
   Position,
   RecordEvents,

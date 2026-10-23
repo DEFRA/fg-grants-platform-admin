@@ -72,7 +72,7 @@ const statuses: Record<VersionSummary['status'], StatusBadge> = {
   draft: { status: 'Draft', role: 'neutral' }
 }
 
-const mainFiles: VersionFileType[] = ['grant']
+const mainFiles: VersionFileType[] = ['grant', 'workflow']
 
 /** The grant or workflow file is stored, so no older version need be offered in its place. */
 const isMainStored = ({ files }: VersionPageHeader): boolean =>

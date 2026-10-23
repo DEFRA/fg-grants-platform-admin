@@ -1,5 +1,6 @@
 import type { BadgeRole, SourceError } from '../use-cases/get-event.use-case.ts'
 import type {
+  Counterpart,
   Position,
   RecordEvents,
   RecordSectionError,
@@ -292,6 +293,21 @@ export const toCounterpartFacts = (
   href
     ? [{ id: itemId, label: title, kind: 'link', text: linkLabel, href }]
     : []
+
+/** A version's counterpart: a link, "None" when the other service has no such version, no row when it could not say. */
+export const toReleaseCounterpartFacts = (
+  type: RecordType,
+  counterpart: Counterpart,
+  href: string
+): Fact[] => {
+  if (!counterpart) {
+    return []
+  }
+
+  return counterpart.exists
+    ? toCounterpartFacts(type, href)
+    : [toTextFact(type.itemId, type.title, 'None')]
+}
 
 const noFacts = {
   position: { phase: null, stage: null, status: null },

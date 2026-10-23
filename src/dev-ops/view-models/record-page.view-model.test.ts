@@ -5,12 +5,14 @@ import {
   toLinkFact,
   toRaw,
   toRecordPage,
+  toReleaseCounterpartFacts,
   toSectionError,
   toSeriesData,
   toTabHref,
   toTextFact,
   toTooLarge
 } from './record-page.view-model.ts'
+import { workflowType } from './workflows-page.view-model.ts'
 import type { RecordPageData, SeriesMember } from './record-page.view-model.ts'
 
 const now = new Date('2026-09-30T15:17:31.000Z')
@@ -448,5 +450,35 @@ describe('toCodesFact', () => {
       label: 'Roles',
       kind: 'none'
     })
+  })
+})
+
+describe('toReleaseCounterpartFacts', () => {
+  const href = '/dev-ops/workflows/woodland-creation/1.2.0'
+
+  test('links to a version the other service has', () => {
+    expect(
+      toReleaseCounterpartFacts(workflowType, { exists: true }, href)
+    ).toEqual([
+      {
+        id: 'workflow',
+        label: 'Workflow',
+        kind: 'link',
+        text: 'View workflow',
+        href
+      }
+    ])
+  })
+
+  test('says None when the other service has no such version', () => {
+    expect(
+      toReleaseCounterpartFacts(workflowType, { exists: false }, href)
+    ).toEqual([
+      { id: 'workflow', label: 'Workflow', kind: 'text', text: 'None' }
+    ])
+  })
+
+  test('has no row when the other service could not say', () => {
+    expect(toReleaseCounterpartFacts(workflowType, null, href)).toEqual([])
   })
 })

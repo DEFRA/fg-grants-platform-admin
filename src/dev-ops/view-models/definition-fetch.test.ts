@@ -3,6 +3,7 @@ import { toDefinitionFetchNotices } from './definition-fetch.ts'
 import type { DefinitionFetchFlash } from './definition-fetch.ts'
 import { grantType } from './grants-page.view-model.ts'
 import type { VersionFiles } from './version-banner.ts'
+import { workflowType } from './workflows-page.view-model.ts'
 
 const page = '/dev-ops/grants/woodland-creation/2.0.0'
 
@@ -150,6 +151,25 @@ describe('toDefinitionFetchNotices', () => {
       "error: Couldn't fetch the agreement definition",
       "error: Couldn't fetch the payment definition"
     ])
+  })
+
+  test('names CW for a workflow', () => {
+    expect(
+      said(
+        toDefinitionFetchNotices(
+          workflowType,
+          {
+            outcome: 'fetched',
+            files: [failed('workflow', 'forbidden')],
+            page
+          },
+          page,
+          { ...header, files: {} }
+        )[0]
+      )
+    ).toBe(
+      "Couldn't fetch the workflow definition: `Definition file not readable by CW`. CW can't read the bucket; check its S3 access. Nothing has changed."
+    )
   })
 
   test.each([
