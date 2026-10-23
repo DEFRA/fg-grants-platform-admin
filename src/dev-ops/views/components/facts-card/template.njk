@@ -7,12 +7,14 @@
 
 {# Tailwind only sees class names written literally in this file. #}
 {% set monoValue = "text-sm" %}
+{# A link keeps the line's own height, so its underline sits on the label's baseline. #}
+{% set monoLink = "link text-sm" %}
 {% set monoMuted = "font-mono text-sm leading-none " ~ muted %}
 {% set monoTime = "font-mono text-sm leading-none tabular-nums" %}
 
 {% macro factValue(fact, testId, draw) %}
   {%- if fact.kind == "mono" -%}
-    <span class="{{ monoValue }}" data-testid="{{ testId }}">{{ codeText(fact.text) }}</span>{% if fact.from %} <span class="{{ monoMuted }}" data-testid="{{ testId }}-from">from {{ fact.from }}</span>{% endif %}
+    {% if fact.href %}<a class="{{ monoLink }}" href="{{ fact.href }}" data-testid="{{ testId }}">{{ codeText(fact.text) }}</a>{% else %}<span class="{{ monoValue }}" data-testid="{{ testId }}">{{ codeText(fact.text) }}</span>{% endif %}{% if fact.from %} <span class="{{ monoMuted }}" data-testid="{{ testId }}-from">from {{ fact.from }}</span>{% endif %}
   {%- elif fact.kind == "date" and fact.instant -%}
     <time class="{{ monoTime }}" datetime="{{ fact.instant }}" data-testid="{{ testId }}">{{ fact.text }}</time>
   {%- elif fact.kind == "date" -%}

@@ -8,6 +8,7 @@ import {
   toApplicationHref
 } from './applications-page.view-model.ts'
 import { caseType, toCaseHref } from './cases-page.view-model.ts'
+import { toGrantHref } from './grants-page.view-model.ts'
 import {
   toDateFact,
   toCounterpartFacts,
@@ -15,16 +16,18 @@ import {
   toRecordPage,
   toSeriesData,
   toSizeFact,
-  toVersionedFact
+  toVersionedFact,
+  toVersionLinkOf
 } from './record-page.view-model.ts'
 import type { Fact, RecordPageModel } from './record-page.view-model.ts'
 
 const toFacts = (
   overview: ApplicationOverview,
-  caseHref: string | null
+  caseHref: string | null,
+  grantHref: string | null
 ): Fact[][] => [
   [
-    toVersionedFact('grant', 'Grant', overview),
+    toVersionedFact('grant', 'Grant', overview, grantHref),
     ...toCounterpartFacts(caseType, caseHref),
     toDateFact('submitted', 'Submitted', overview.submittedAt),
     toDateFact('created', 'Created', overview.createdAt),
@@ -57,7 +60,17 @@ export const toApplicationPage = (
       href: toApplicationHref(page.header),
       position: page.header.position,
       facts: page.overview
-        ? toFacts(page.overview, toCounterpartHref(page))
+        ? toFacts(
+            page.overview,
+            toCounterpartHref(page),
+            toVersionLinkOf(
+              toGrantHref,
+              page.overview.code,
+              page.overview.currentConfigVersion,
+              toApplicationHref(page.header),
+              from
+            )
+          )
         : null,
       series: page.overview
         ? toSeriesData(
