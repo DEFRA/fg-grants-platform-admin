@@ -153,6 +153,32 @@ describe('grant-status-panel component', () => {
     )
   })
 
+  test("leaves out a stage's name where it repeats the status's name", () => {
+    const $ = renderPanel({
+      waysOut: [
+        {
+          to: ref('Awaiting claim', 'AWAITING', 'Awaiting claim'),
+          processes: [],
+          triggers: [],
+          untriggered: false,
+          bareCode: null
+        }
+      ],
+      triggeredBy: [
+        {
+          kind: 'claim',
+          at: ref('Claim submitted', 'CLAIM_SUBMITTED', 'Claim submitted'),
+          href: '/entitlements'
+        }
+      ]
+    })
+
+    expect(rows($, 'way-out')).toEqual(['→ Awaiting claim AWAITING'])
+    expect(rows($, 'trigger')).toEqual([
+      'Claim Last claim submitted — while the application is at Claim submitted'
+    ])
+  })
+
   test('gives each trigger its source badge, what it is and the stage it is keyed on', () => {
     const $ = renderPanel()
 
