@@ -34,6 +34,7 @@ describe('getWorkflowPageUseCase', () => {
     ['overview', 'overview'],
     ['phases', 'definition'],
     ['pages', 'definition'],
+    ['events', 'events'],
     ['raw', 'raw']
   ] as const)("reads the %s tab from GAS's %s read", async (tab, read) => {
     const found = {

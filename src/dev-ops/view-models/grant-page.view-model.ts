@@ -27,6 +27,7 @@ import type { PaymentDefinitionView } from './payment-definition.ts'
 import {
   toDateFact,
   toDayFact,
+  toEvents,
   toLinkFact,
   toMonoFact,
   toRaw,
@@ -278,7 +279,7 @@ export const toGrantPage = (
     facts: toOverviewFacts(page, catalogue),
     series: null,
     seriesDetailed: false,
-    events: null,
+    events: toEvents(page.events, now, toTabHref(href, 'events', from)),
     ...toTabSection(page.definition, page.sectionErrors, tab, read),
     unavailableSources: toUnavailableSources(page.sourceErrors),
     ...toVersionShell(grantType, page.header, tab, from, {

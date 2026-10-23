@@ -16,6 +16,7 @@ import {
   toNoneFact,
   toLinkFact,
   toReleaseCounterpartFacts,
+  toEvents,
   toSizeFact,
   toTabHref,
   toTabSection,
@@ -200,7 +201,7 @@ export const toWorkflowPage = (
     facts: toOverviewFacts(page, catalogue),
     series: null,
     seriesDetailed: false,
-    events: null,
+    events: toEvents(page.events, now, toTabHref(href, 'events', from)),
     ...toTabSection(page.raw, page.sectionErrors, tab, read),
     unavailableSources: toUnavailableSources(page.sourceErrors),
     ...toVersionShell(workflowType, page.header, tab, from, {
