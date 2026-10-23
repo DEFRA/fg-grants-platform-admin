@@ -2,11 +2,17 @@
 import { StateGraph } from './state-graph.element.ts'
 
 const box = (scrollWidth: number, clientWidth: number, nodeX = 900) => {
-  document.body.innerHTML = `<do-state-graph><div data-graph-scroll><svg><g data-band-label data-x="100" data-room="500"></g><a aria-current="true"><rect x="${nodeX}" width="100"></rect></a></svg></div></do-state-graph>`
+  document.body.innerHTML = `<do-state-graph><p id="hint" hidden></p><div data-graph-scroll data-hint="hint"><svg><g data-band-label data-x="100" data-room="500"></g><a aria-current="true"><rect x="${nodeX}" width="100"></rect></a></svg></div></do-state-graph>`
   const scroller = document.querySelector<HTMLElement>('[data-graph-scroll]')!
 
-  Object.defineProperty(scroller, 'scrollWidth', { value: scrollWidth })
-  Object.defineProperty(scroller, 'clientWidth', { value: clientWidth })
+  Object.defineProperty(scroller, 'scrollWidth', {
+    value: scrollWidth,
+    configurable: true
+  })
+  Object.defineProperty(scroller, 'clientWidth', {
+    value: clientWidth,
+    configurable: true
+  })
 
   return scroller
 }
@@ -37,20 +43,50 @@ describe('state-graph element', () => {
     expect(scroller.scrollLeft).toBe(0)
   })
 
-  test('fades the edges it scrolls on past, and none once it fits', () => {
+  test('shows the scroll hint and describes the box by it only while the graph is wider than its box', () => {
     const scroller = box(2000, 400)
 
     enhance()
 
-    expect(scroller.hasAttribute('data-fade-right')).toBe(true)
-    expect(scroller.hasAttribute('data-fade-left')).toBe(true)
+    expect(document.getElementById('hint')!.hidden).toBe(false)
+    expect(scroller.getAttribute('aria-describedby')).toBe('hint')
 
     const fits = box(400, 400, 100)
 
     enhance()
 
-    expect(fits.hasAttribute('data-fade-right')).toBe(false)
-    expect(fits.hasAttribute('data-fade-left')).toBe(false)
+    expect(document.getElementById('hint')!.hidden).toBe(true)
+    expect(fits.hasAttribute('aria-describedby')).toBe(false)
+  })
+
+  test('checks again when the box is resized', () => {
+    const scroller = box(400, 400, 100)
+    let resized: ResizeObserverCallback = () => {}
+
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        constructor(callback: ResizeObserverCallback) {
+          resized = callback
+        }
+
+        observe() {}
+
+        disconnect() {}
+      }
+    )
+    enhance()
+
+    expect(document.getElementById('hint')!.hidden).toBe(true)
+
+    Object.defineProperty(scroller, 'clientWidth', { value: 300 })
+    resized(
+      [{ target: scroller } as unknown as ResizeObserverEntry],
+      {} as ResizeObserver
+    )
+
+    expect(document.getElementById('hint')!.hidden).toBe(false)
+    vi.unstubAllGlobals()
   })
 
   test("keeps each stage's label at the box's left edge while its band is in view", () => {

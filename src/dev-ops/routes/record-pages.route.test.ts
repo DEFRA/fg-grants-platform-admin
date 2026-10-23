@@ -1342,6 +1342,33 @@ describe('the grant page', () => {
     expect($('title').text()).toContain('Grant woodland-creation')
   })
 
+  test.each([
+    { tab: 'Overview', query: '' },
+    { tab: 'Raw', query: '?tab=raw' }
+  ])(
+    'titles the document with the open tab, $tab, and the version',
+    async ({ tab, query }) => {
+      const { $ } = await viewPage(`${grantPath}${query}`)
+
+      expect($('title').text().split(' | ')[0]).toBe(
+        `${tab} – Grant woodland-creation 1.2.0`
+      )
+    }
+  )
+
+  test('titles a version GAS has not got as not found, with its version', async () => {
+    vi.mocked(getGrantPageUseCase).mockResolvedValue({
+      outcome: 'not-found',
+      page: null
+    })
+
+    const { $ } = await viewPage('/dev-ops/grants/woodland-creation/9.9.9')
+
+    expect($('title').text().split(' | ')[0]).toBe(
+      'Not found – Grant woodland-creation 9.9.9'
+    )
+  })
+
   test('shows the status, then the version switcher, under the title', async () => {
     const { $ } = await viewPage(grantPath)
     const line = part($, 'grant-version')
@@ -2692,23 +2719,23 @@ describe('the grant Payment tab', () => {
       'For each $.agreement.paymentSchedule.instalments'
     )
     expect(textOf($, 'grant-payment-due-fact-due-date')).toBe(
-      'Due date @.dueDatecopied'
+      'Due date @.dueDate copied'
     )
     expect(textOf($, 'grant-payment-due-fact-total')).toBe(
-      'Total (pence) @.totalAmountPencecopied'
+      'Total (pence) @.totalAmountPence copied'
     )
     expect(textOf($, 'grant-payment-for-each')).toBe(
       'One line per row of @.lineItems'
     )
     expect(cellsOf($, 'grant-payment-line')).toEqual([
       [
-        'CMOR1fixed',
-        'calculated ›',
-        '@.amountPencecopied',
-        'SOS710fixed',
-        'DRD10fixed',
-        'RP00fixed',
-        'calculated ›'
+        'CMOR1 fixed',
+        'calculated (see Calculated fields)',
+        '@.amountPence copied',
+        'SOS710 fixed',
+        'DRD10 fixed',
+        'RP00 fixed',
+        'calculated (see Calculated fields)'
       ]
     ])
     expect(part($, 'grant-payment-line-expressions')).toHaveLength(1)
@@ -2731,7 +2758,7 @@ describe('the grant Payment tab', () => {
         .contents()
         .toArray()
         .map((node) => node.type)
-    ).toEqual(['tag', 'tag'])
+    ).toEqual(['tag', 'text', 'tag'])
     expect(textOf($, 'grant-payment-line')).toContain(
       'Woodland Management Plan Payment'
     )
@@ -2769,7 +2796,7 @@ describe('the grant Payment tab', () => {
     const { $ } = await viewPage(paymentPath)
 
     expect(textOf($, 'grant-payment-from')).toBe(
-      'From $.agreement.paymentscopied'
+      'From $.agreement.payments copied'
     )
     expect(part($, 'grant-payment-lines')).toHaveLength(0)
   })
@@ -2786,9 +2813,9 @@ describe('the grant Payment tab', () => {
     const { $ } = await viewPage(paymentPath)
 
     expect(textOf($, 'grant-payment-lines-from')).toBe(
-      'Invoice lines from @.linescopied'
+      'Invoice lines from @.lines copied'
     )
-    expect(textOf($, 'grant-payment-line-from')).toBe('Line from @.linecopied')
+    expect(textOf($, 'grant-payment-line-from')).toBe('Line from @.line copied')
     expect(
       part($, 'grant-payment-line-from').children('td').attr('colspan')
     ).toBe('7')
