@@ -212,11 +212,11 @@ const liftedOver = ($: CheerioAPI, row: Cheerio<Element>) =>
 
 let server: Server
 
-const viewPage = async (url = path) => {
+const viewPage = async (url = path, scope = credentials.scope) => {
   const { result, statusCode, headers } = await server.inject({
     method: 'GET',
     url,
-    auth: { strategy: 'session', credentials }
+    auth: { strategy: 'session', credentials: { ...credentials, scope } }
   })
 
   return { $: load(result as unknown as string), statusCode, headers }
@@ -1311,6 +1311,8 @@ const givenGrant = (overrides: Partial<GrantVersionPage> = {}) =>
     }
   })
 
+const bothRoles = ['FCP.GrantOperationsAdmin', 'FCP.GrantApplicationsAdmin']
+
 const nothingStored = {
   ...grantHeader,
   status: 'draft',
@@ -1893,16 +1895,28 @@ describe('the grant Overview tab', () => {
     }
   )
 
-  test('opens the allow list on its Who can apply tab', async () => {
+  test('opens the allow list on its Who can apply tab for a session holding the Grant Ops role', async () => {
     givenGrant()
 
-    const { $ } = await viewPage(grantPath)
+    const { $ } = await viewPage(grantPath, bothRoles)
 
     expect(part($, 'grant-who-can-apply').attr('href')).toBe(
       '/grant-ops/grants/woodland-creation/admin#who-can-apply'
     )
     expect(textOf($, 'grant-who-can-apply')).toBe(
       'Allow list (opens in a new tab)'
+    )
+  })
+
+  test('names the Grant Ops role in place of the allow list link for a session without it', async () => {
+    givenGrant()
+
+    const { $ } = await viewPage(grantPath)
+
+    expect(part($, 'grant-who-can-apply').attr('href')).toBeUndefined()
+    expect(textOf($, 'grant-who-can-apply')).toBe('Allow list')
+    expect(textOf($, 'grant-who-can-apply-note')).toBe(
+      '· needs the FCP.GrantApplicationsAdmin role'
     )
   })
 
@@ -1917,7 +1931,7 @@ describe('the grant Overview tab', () => {
       }
     })
 
-    const { $ } = await viewPage(grantPath)
+    const { $ } = await viewPage(grantPath, bothRoles)
 
     expect(part($, 'grant-not-stored')).toHaveLength(0)
     expect(
