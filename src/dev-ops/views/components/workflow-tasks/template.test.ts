@@ -414,7 +414,9 @@ describe('workflow-tasks component', () => {
   test('says there are no task groups', () => {
     const $ = renderGroups([])
 
-    expect(flatten(part($, 'empty').text())).toBe('No task groups.')
+    expect(flatten(part($, 'empty').text())).toBe(
+      'No task groups in this version.'
+    )
     expect(part($, 'intro')).toHaveLength(0)
   })
 })

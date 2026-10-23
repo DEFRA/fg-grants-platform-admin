@@ -139,7 +139,7 @@
     </section>
   {% else %}
     <div class="{{ card }}" data-testid="{{ testId }}-empty">
-      <p class="px-4 py-10 text-center text-sm {{ muted }}">No external actions.</p>
+      <p class="px-4 py-10 text-center text-sm {{ muted }}">No integrations (external actions) in this version.</p>
     </div>
   {% endfor %}
   {% if integrations.unusedEndpoints | length %}

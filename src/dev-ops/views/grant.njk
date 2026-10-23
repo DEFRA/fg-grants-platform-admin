@@ -67,7 +67,15 @@
     {{ paymentDefinition({ view: payment.view, testId: "grant-payment" }) }}
     {{ rawDetails({ view: payment.raw.view, label: "Payment definition", summary: "Raw payment definition (JSON)", testId: "grant-payment-raw" }) }}
   {% elif tab == "raw" and raw.view %}
-    <p class="mb-3 text-sm {{ muted }}" data-testid="grant-raw-caption">Grant definition as GAS stored it. GAS keeps only the keys it reads, so the published file may have more. Agreement and payment JSON are under their own tabs.</p>
+    {% set byId = tabs | groupby("id") %}
+    {% set agreementTab = byId.agreement[0] if byId.agreement %}
+    {% set paymentTab = byId.payment[0] if byId.payment %}
+    <p class="mb-3 text-sm {{ muted }}" data-testid="grant-raw-caption">Grant definition as GAS stored it. GAS keeps only the keys it reads, so the published file may have more.
+      {%- if agreementTab and paymentTab %} The agreement and payment definitions are on the <a class="link" href="{{ agreementTab.href }}">Agreement</a> and <a class="link" href="{{ paymentTab.href }}">Payment</a> tabs.
+      {%- elif agreementTab %} The agreement definition is on the <a class="link" href="{{ agreementTab.href }}">Agreement</a> tab.
+      {%- elif paymentTab %} The payment definition is on the <a class="link" href="{{ paymentTab.href }}">Payment</a> tab.
+      {%- endif -%}
+    </p>
     {{ super() }}
   {% else %}
     {{ super() }}

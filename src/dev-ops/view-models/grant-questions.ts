@@ -920,6 +920,7 @@ const toAllOf = (
 
 const sumRules: Record<string, (sum: Schema) => Words> = {
   fgSumEquals: (sum) => [
+    'The sum of ',
     ...codes(namesIn(sum.fields), ' + '),
     ' must equal ',
     code(asText(sum.targetField))
@@ -930,6 +931,7 @@ const sumRules: Record<string, (sum: Schema) => Words> = {
     ` must be at least ${asText(sum.minimum)}`
   ],
   fgSumMax: (sum) => [
+    'The sum of ',
     ...codes(namesIn(sum.fields), ' + '),
     ' must be at most ',
     code(asText(sum.targetField))
