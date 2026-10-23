@@ -1,4 +1,4 @@
-import type { SourceError } from '../use-cases/get-event.use-case.ts'
+import type { BadgeRole, SourceError } from '../use-cases/get-event.use-case.ts'
 import type {
   Position,
   RecordEvents,
@@ -9,7 +9,6 @@ import type {
 } from '../use-cases/record-reads.ts'
 import {
   isIsoInstant,
-  none,
   toAbsolute,
   toPreciseInstant,
   toStoredTimeCell
@@ -34,9 +33,26 @@ export type Fact = FactBase &
   (
     | { kind: 'mono'; text: string; from: string | null }
     | { kind: 'date'; text: string; instant: string | null }
-    | { kind: 'text'; text: string }
+    | { kind: 'text'; text: string; note?: string }
     | { kind: 'link'; text: string; href: string }
+    | { kind: 'codes'; codes: string[] }
+    | { kind: 'lines'; lines: FactLine[] }
+    | { kind: 'none' }
   )
+
+interface FactBadge {
+  status: string
+  role: BadgeRole
+  title?: string
+}
+
+/** One line of a fact that holds several: a label, then codes, badges or a muted note, each optional. */
+export interface FactLine {
+  label: string
+  codes?: string[]
+  badges?: FactBadge[]
+  note?: string | null
+}
 
 /** One member of the record's series. */
 export interface SeriesMember {
@@ -66,7 +82,7 @@ interface SeriesRow {
 }
 
 interface SectionTab {
-  id: RecordTab
+  id: string
   label: string
   href: string
   active: boolean
@@ -78,7 +94,7 @@ interface EventsTab {
   more: boolean
 }
 
-interface RawTab {
+export interface RawTab {
   view: JsonView | null
   tooLarge: boolean
 }
@@ -105,7 +121,7 @@ export interface RecordPageModel {
   navActive: string | null
   trail: PositionStep[]
   tabs: SectionTab[]
-  tab: RecordTab
+  tab: string
   facts: Fact[][] | null
   /** Two or more members, or none at all. */
   series: SeriesRow[] | null
@@ -113,29 +129,36 @@ export interface RecordPageModel {
   events: EventsTab | null
   raw: RawTab | null
   sectionError: string | null
+  /** The tab's document is over GAS's cap; Raw says so itself. */
+  tooLarge: boolean
   unavailableSources: string
 }
 
-const tabLabels: Record<RecordTab, string> = {
-  overview: 'Overview',
-  events: 'Events',
-  raw: 'Raw'
-}
-
 /** Every tab keeps the list the record was opened from, so Back still returns to it. */
-const toTabHref = (href: string, tab: RecordTab, from: string): string => {
+export const toTabHref = (
+  href: string,
+  tab: string,
+  from: string,
+  extra?: Record<string, string>
+): string => {
   const params = new URLSearchParams({
     ...(tab === 'overview' ? {} : { tab }),
-    ...(from === '' ? {} : { [backKey]: toFittingBack(from) })
+    ...(from === '' ? {} : { [backKey]: toFittingBack(from) }),
+    ...extra
   })
 
   return params.size ? `${href}?${params}` : href
 }
 
-const toTabs = (href: string, active: RecordTab, from: string): SectionTab[] =>
-  (Object.keys(tabLabels) as RecordTab[]).map((id) => ({
+export const toTabs = (
+  { tabs }: RecordType,
+  href: string,
+  active: string,
+  from: string
+): SectionTab[] =>
+  tabs.map(({ id, label }) => ({
     id,
-    label: tabLabels[id],
+    label,
     href: toTabHref(href, id, from),
     active: id === active
   }))
@@ -144,35 +167,100 @@ const kib = new Intl.NumberFormat('en-GB', { maximumFractionDigits: 1 })
 
 const bytesPerKib = 1024
 
-export const toSizeFact = (bytes: number | null): Fact => ({
-  id: 'size',
-  label: 'Size',
-  kind: 'text',
-  text: bytes === null ? none : `${kib.format(bytes / bytesPerKib)} KiB`
+/** A fact with no value, drawn as the one sign for a missing value. */
+export const toNoneFact = (id: string, label: string): Fact => ({
+  id,
+  label,
+  kind: 'none'
 })
 
-/** Anything but an ISO instant is shown as stored, so a malformed date is never read as another. */
-const toDateText = (value: StoredDate) => {
-  if (value === null) {
-    return { text: none, instant: null }
-  }
+export const toSizeFact = (
+  bytes: number | null,
+  label: string = 'Size'
+): Fact =>
+  bytes === null
+    ? toNoneFact('size', label)
+    : {
+        id: 'size',
+        label,
+        kind: 'text',
+        text: `${kib.format(bytes / bytesPerKib)} KiB`
+      }
 
-  return isIsoInstant(value)
+/** Anything but an ISO instant is shown as stored, so a malformed date is never read as another. */
+const toDateText = (value: string) =>
+  isIsoInstant(value)
     ? { text: toPreciseInstant(new Date(value)), instant: toAbsolute(value) }
     : { text: value, instant: null }
+
+const dayFormat = new Intl.DateTimeFormat('en-GB', {
+  day: 'numeric',
+  month: 'short',
+  year: 'numeric',
+  timeZone: 'Europe/London'
+})
+
+/** "1 Jan 2100", with a muted note after it; anything but an ISO instant is shown as stored. */
+export const toDayFact = (
+  id: string,
+  label: string,
+  value: StoredDate,
+  note: string
+): Fact => {
+  if (value === null) {
+    return toNoneFact(id, label)
+  }
+
+  return {
+    id,
+    label,
+    kind: 'text',
+    text: isIsoInstant(value) ? dayFormat.format(new Date(value)) : value,
+    note
+  }
 }
 
 export const toDateFact = (
   id: string,
   label: string,
   value: StoredDate
-): Fact => ({ id, label, kind: 'date', ...toDateText(value) })
+): Fact =>
+  value === null
+    ? toNoneFact(id, label)
+    : { id, label, kind: 'date', ...toDateText(value) }
+
+export const toTextFact = (
+  id: string,
+  label: string,
+  value: string | null
+): Fact =>
+  value === null
+    ? toNoneFact(id, label)
+    : { id, label, kind: 'text', text: value }
+
+export const toCodesFact = (
+  id: string,
+  label: string,
+  codes: string[] | null
+): Fact =>
+  codes?.length ? { id, label, kind: 'codes', codes } : toNoneFact(id, label)
+
+export const toLinkFact = (
+  id: string,
+  label: string,
+  text: string,
+  href: string | null
+): Fact =>
+  href ? { id, label, kind: 'link', text, href } : toNoneFact(id, label)
 
 export const toMonoFact = (
   id: string,
   label: string,
   value: string | null
-): Fact => ({ id, label, kind: 'mono', text: value ?? none, from: null })
+): Fact =>
+  value === null
+    ? toNoneFact(id, label)
+    : { id, label, kind: 'mono', text: value, from: null }
 
 interface Versions {
   code: string
@@ -266,7 +354,7 @@ const toSeries = (
 const isDetailed = ({ series }: RecordPageData): boolean =>
   series?.detailed ?? false
 
-const toEvents = (
+export const toEvents = (
   events: RecordEvents | null | undefined,
   now: Date,
   from: string
@@ -278,20 +366,44 @@ const toEvents = (
 /** GAS's own words for a document it will not show; any other Raw failure is an error like any tab's. */
 const tooLargeToShow = 'too large to show'
 
-const isTooLarge = ({ section, message }: RecordSectionError): boolean =>
-  section === 'raw' && message === tooLargeToShow
+const isTooLarge = ({ message }: RecordSectionError): boolean =>
+  message === tooLargeToShow
 
-const toRaw = ({ raw, sectionErrors }: RecordPageData): RawTab => ({
-  view: raw ? toJsonView(raw) : null,
-  tooLarge: sectionErrors.some(isTooLarge)
+/** @param section The GAS read the tab shows, which names its errors. */
+export const toTooLarge = (
+  sectionErrors: RecordSectionError[],
+  section: string
+): boolean =>
+  sectionErrors.some((error) => error.section === section && isTooLarge(error))
+
+export const toRaw = (
+  document: object | null | undefined,
+  sectionErrors: RecordSectionError[],
+  section: string
+): RawTab => ({
+  view: document ? toJsonView(document) : null,
+  tooLarge: toTooLarge(sectionErrors, section)
 })
 
-const toSectionError = (
-  { sectionErrors }: RecordPageData,
-  tab: RecordTab
+/** Never too large to show: that is a warning of its own, not an error. */
+export const toSectionError = (
+  sectionErrors: RecordSectionError[],
+  section: string
 ): string | null =>
-  sectionErrors.find((error) => error.section === tab && !isTooLarge(error))
+  sectionErrors.find((error) => error.section === section && !isTooLarge(error))
     ?.message ?? null
+
+/** Raw draws its own document and its own too large; every other tab has the shared warning. */
+export const toTabSection = (
+  document: object | null | undefined,
+  sectionErrors: RecordSectionError[],
+  tab: string,
+  section: string
+): Pick<RecordPageModel, 'raw' | 'sectionError' | 'tooLarge'> => ({
+  raw: tab === 'raw' ? toRaw(document, sectionErrors, section) : null,
+  sectionError: toSectionError(sectionErrors, section),
+  tooLarge: tab !== 'raw' && toTooLarge(sectionErrors, section)
+})
 
 export const toRecordPage = (
   record: RecordType,
@@ -305,13 +417,12 @@ export const toRecordPage = (
   backHref: from,
   navActive: null,
   trail: toPositionTrail(data.position),
-  tabs: toTabs(data.href, tab, from),
+  tabs: toTabs(record, data.href, tab, from),
   tab,
   facts: data.facts,
   series: toSeries(data, now),
   seriesDetailed: isDetailed(data),
   events: toEvents(data.events, now, toTabHref(data.href, 'events', from)),
-  raw: tab === 'raw' ? toRaw(data) : null,
-  sectionError: toSectionError(data, tab),
+  ...toTabSection(data.raw, data.sectionErrors, tab, tab),
   unavailableSources: toUnavailableSources(data.sourceErrors)
 })

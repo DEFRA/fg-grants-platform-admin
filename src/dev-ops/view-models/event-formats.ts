@@ -197,16 +197,18 @@ export const isIsoInstant = (value: string): boolean => {
 export const toAbsolute = (value: string): string | null =>
   toValidDate(value)?.toISOString().replace('.000', '') ?? null
 
-/** Past a day the date replaces the seconds, so an old row cannot read as this morning. */
-export const toClock = (date: Date, now: Date): string => {
-  if (now.getTime() - date.getTime() <= msPerDay) {
-    return clockFormat.format(date)
-  }
-
+/** `15 Oct 10:04`, in UK time. */
+export const toDayClock = (date: Date): string => {
   const parts = partsOf(dayClockFormat, date)
 
   return `${parts.day} ${parts.month} ${parts.hour}:${parts.minute}`
 }
+
+/** Past a day the date replaces the seconds, so an old row cannot read as this morning. */
+export const toClock = (date: Date, now: Date): string =>
+  now.getTime() - date.getTime() <= msPerDay
+    ? clockFormat.format(date)
+    : toDayClock(date)
 
 /** Never shortened by age: the detail page is read against logs. */
 export const toPreciseInstant = (date: Date): string => {
