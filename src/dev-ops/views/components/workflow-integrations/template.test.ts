@@ -365,7 +365,7 @@ describe('workflow-integrations component', () => {
     const $ = renderTab(withWorkflow({ externalActions: [] }))
 
     expect(flatten($(`[data-testid="${testId}-empty"]`).text())).toBe(
-      'No external actions.'
+      'No integrations (external actions) in this version.'
     )
     expect($(`[data-testid="${testId}-unused"] tbody tr`)).toHaveLength(2)
   })
