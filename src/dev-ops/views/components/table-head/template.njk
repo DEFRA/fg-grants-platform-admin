@@ -19,11 +19,13 @@
   time: "w-[27%] sm:w-[24%]"
 } -%}
 {%- set phoneHidden = "hidden sm:table-cell" -%}
+{#- A col that is not display: table-column stops being a column, so it is only hidden on a phone. -#}
+{%- set phoneHiddenCol = "max-sm:hidden" -%}
 {%- set widths = versionWidths if params.layout == "versions" else null -%}
 {%- set even = evenly[params.columns | length] if params.even and not widths else null -%}
 <colgroup>
   <col{% if widths %} class="{{ widths.title }}"{% elif even %} class="{{ even }}"{% endif %}>
-  {% for column in params.columns %}<col class="{{ (widths[column.key] if widths else (even or shares[column.format] or otherShare)) }}{% if column.phoneHidden %} {{ phoneHidden }}{% endif %}">{% endfor %}
+  {% for column in params.columns %}<col class="{{ (widths[column.key] if widths else (even or shares[column.format] or otherShare)) }}{% if column.phoneHidden %} {{ phoneHiddenCol }}{% endif %}">{% endfor %}
   <col class="{{ widths.time if widths else (even or shares.time) }}">
 </colgroup>
 <thead>
