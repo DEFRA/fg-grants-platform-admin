@@ -2678,23 +2678,23 @@ describe('the grant Payment tab', () => {
       'For each $.agreement.paymentSchedule.instalments'
     )
     expect(textOf($, 'grant-payment-due-fact-due-date')).toBe(
-      'Due date @.dueDatecopied'
+      'Due date @.dueDate copied'
     )
     expect(textOf($, 'grant-payment-due-fact-total')).toBe(
-      'Total (pence) @.totalAmountPencecopied'
+      'Total (pence) @.totalAmountPence copied'
     )
     expect(textOf($, 'grant-payment-for-each')).toBe(
       'One line per row of @.lineItems'
     )
     expect(cellsOf($, 'grant-payment-line')).toEqual([
       [
-        'CMOR1fixed',
-        'calculated ›',
-        '@.amountPencecopied',
-        'SOS710fixed',
-        'DRD10fixed',
-        'RP00fixed',
-        'calculated ›'
+        'CMOR1 fixed',
+        'calculated (see Calculated fields)',
+        '@.amountPence copied',
+        'SOS710 fixed',
+        'DRD10 fixed',
+        'RP00 fixed',
+        'calculated (see Calculated fields)'
       ]
     ])
     expect(part($, 'grant-payment-line-expressions')).toHaveLength(1)
@@ -2717,7 +2717,7 @@ describe('the grant Payment tab', () => {
         .contents()
         .toArray()
         .map((node) => node.type)
-    ).toEqual(['tag', 'tag'])
+    ).toEqual(['tag', 'text', 'tag'])
     expect(textOf($, 'grant-payment-line')).toContain(
       'Woodland Management Plan Payment'
     )
@@ -2755,7 +2755,7 @@ describe('the grant Payment tab', () => {
     const { $ } = await viewPage(paymentPath)
 
     expect(textOf($, 'grant-payment-from')).toBe(
-      'From $.agreement.paymentscopied'
+      'From $.agreement.payments copied'
     )
     expect(part($, 'grant-payment-lines')).toHaveLength(0)
   })
@@ -2772,9 +2772,9 @@ describe('the grant Payment tab', () => {
     const { $ } = await viewPage(paymentPath)
 
     expect(textOf($, 'grant-payment-lines-from')).toBe(
-      'Invoice lines from @.linescopied'
+      'Invoice lines from @.lines copied'
     )
-    expect(textOf($, 'grant-payment-line-from')).toBe('Line from @.linecopied')
+    expect(textOf($, 'grant-payment-line-from')).toBe('Line from @.line copied')
     expect(
       part($, 'grant-payment-line-from').children('td').attr('colspan')
     ).toBe('7')

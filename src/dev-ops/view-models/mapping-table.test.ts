@@ -136,6 +136,17 @@ describe('toMappingRows', () => {
       ['2', 1, 'value']
     ])
   })
+
+  test('marks an empty list as empty, and a list with items as not', () => {
+    expect(
+      toMappingRows({ actions: [], parcels: ['ZZ9999-0001'] }).filter(
+        ({ kind }) => kind === 'list'
+      )
+    ).toEqual([
+      { field: 'actions', depth: 0, kind: 'list', empty: true },
+      { field: 'parcels', depth: 0, kind: 'list', empty: false }
+    ])
+  })
 })
 
 describe('contextRootsOf', () => {

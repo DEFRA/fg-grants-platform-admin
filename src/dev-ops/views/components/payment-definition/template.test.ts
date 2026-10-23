@@ -124,7 +124,7 @@ describe('payment-definition component: due payments', () => {
 
     expect(textOf($, 'due-title')).toBe('Due payment')
     expect(textOf($, 'due-fact-total')).toBe(
-      'Total (pence) $.claim.totalAmountPencecopied'
+      'Total (pence) $.claim.totalAmountPence copied'
     )
     expect(part($, 'due').find('section')).toHaveLength(0)
   })
@@ -137,13 +137,13 @@ describe('payment-definition component: due payments', () => {
       .map((cell) => flatten($(cell).text()))
 
     expect(cells).toEqual([
-      'WMPfixed',
-      'Woodland Management Plan Paymentfixed',
-      '$.claim.totalAmountPencecopied',
+      'WMP fixed',
+      'Woodland Management Plan Payment fixed',
+      '$.claim.totalAmountPence copied',
       '—',
       '—',
       '—',
-      'calculated ›'
+      'calculated (see Calculated fields)'
     ])
     expect(flatten(part($, 'line-expressions').find('dl').text())).toBe(
       'Marketing year $substring($.execution.executedAt, 0, 4)'

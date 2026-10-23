@@ -426,7 +426,7 @@ describe('toAgreementTab: pages', () => {
         {
           kind: 'section',
           id: 'acceptance',
-          condition: '$.agreement.acceptedAt'
+          condition: toMappingValue('$.agreement.acceptedAt')
         }
       ],
       components: ['heading'],
@@ -555,9 +555,16 @@ describe('toAgreementTab: processes', () => {
       ],
       bodyOnGet: false,
       outputs: [
-        { field: 'offer', value: toMappingValue('$.response.offer') },
+        {
+          field: 'offer',
+          depth: 0,
+          kind: 'value',
+          value: toMappingValue('$.response.offer')
+        },
         {
           field: 'totalAmountPence',
+          depth: 0,
+          kind: 'value',
           value: toMappingValue('$.response.totalAmountPence')
         }
       ],
@@ -616,6 +623,42 @@ describe('toAgreementTab: processes', () => {
     })
 
     expect(tab.processes[0].lands).toEqual(['page'])
+  })
+
+  test('gives the fields of a nested output, walking a collection as GAS does', () => {
+    const [generate] = withDefinition({
+      processDefinitions: {
+        GENERATE_OFFER: {
+          type: 'endpoint',
+          endpoint: { method: 'POST', path: '/offer', service: 'LAND_DATA' },
+          request: { body: {} },
+          output: {
+            actions: {
+              itemsRef:
+                'jsonata:$.response.payment.payments[0].invoiceLines[quantity > 0]',
+              items: { ref: '@.pigType' }
+            },
+            items: []
+          }
+        }
+      }
+    }).processes
+
+    expect(generate.outputs).toEqual([
+      {
+        field: 'actions',
+        depth: 0,
+        kind: 'each',
+        forEach: '$.response.payment.payments[0].invoiceLines[quantity > 0]'
+      },
+      {
+        field: 'ref',
+        depth: 1,
+        kind: 'value',
+        value: toMappingValue('@.pigType')
+      },
+      { field: 'items', depth: 0, kind: 'list', empty: true }
+    ])
   })
 
   test('gives no processes for a definition that has none', () => {

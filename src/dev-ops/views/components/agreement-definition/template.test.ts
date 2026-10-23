@@ -431,6 +431,58 @@ describe('agreement-definition component: Processes', () => {
     expect(textOf($, 'process-lands')).toBe('saved to the agreement')
   })
 
+  test('lists the fields of a nested output, and says when a list is empty', () => {
+    const $ = withDefinition({
+      processDefinitions: {
+        GENERATE_OFFER: {
+          type: 'endpoint',
+          endpoint: { method: 'POST', path: '/offer', service: 'LAND_DATA' },
+          request: { body: {} },
+          output: {
+            actions: {
+              itemsRef: 'jsonata:$.response.lines[quantity > 0]',
+              items: { ref: '@.pigType', code: 'PIGS' }
+            },
+            items: []
+          }
+        }
+      }
+    })
+
+    expect(
+      part($, 'process-output')
+        .toArray()
+        .map((row) => [flatten($(row).text()), $(row).attr('class')])
+    ).toEqual([
+      ['actions for each $.response.lines[quantity > 0]', 'text-sm pl-0'],
+      ['ref ← @.pigType', 'text-sm pl-4'],
+      ['code = PIGS', 'text-sm pl-4'],
+      ['items empty list', 'text-sm pl-0']
+    ])
+    expect(part($, 'processes').text()).not.toContain('jsonata:')
+  })
+
+  test("shows a section's condition without its jsonata: prefix", () => {
+    const $ = withDefinition({
+      pages: {
+        document: {
+          title: 'Agreement document',
+          sections: [
+            {
+              id: 'acceptance',
+              condition: "jsonata:$.agreement.state = 'accepted'"
+            }
+          ],
+          components: [{ component: 'heading' }]
+        }
+      }
+    })
+
+    expect(textOf($, 'page-details')).toBe(
+      "acceptance (shown when $.agreement.state = 'accepted')"
+    )
+  })
+
   test('says when there are no processes, with no table', () => {
     const $ = withDefinition({ processDefinitions: undefined })
 

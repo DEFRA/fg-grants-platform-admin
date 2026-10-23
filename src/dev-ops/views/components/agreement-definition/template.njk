@@ -47,13 +47,14 @@
   <span class="text-sm">{{ codeText(action.name) }}</span>{% if action.page %}<div class="{{ note }}">opens page {{ pageLink(action.page) }}</div>{% endif %}
 {% endmacro %}
 
-{% macro sends(rows) %}
+{% macro mappingLines(rows, testId) %}
   {%- for row in rows -%}
-    <div class="text-sm {{ indents[row.depth] | default(indents | last) }}">
+    <div class="text-sm {{ indents[row.depth] | default(indents | last) }}"{% if testId %} data-testid="{{ testId }}"{% endif %}>
       {{- codeText(row.field) -}}
       {%- if row.kind == "value" and row.value.kind == "literal" %} = {{ mappingValue(row.value) }}
       {%- elif row.kind == "value" %} <span class="{{ muted }}">←</span> {{ mappingValue(row.value) }}
       {%- elif row.kind == "each" %} <span class="{{ muted }}">for each</span> {{ codeText(row.forEach) }}
+      {%- elif row.kind == "list" and row.empty %} <span class="{{ muted }}">empty list</span>
       {%- endif -%}
     </div>
   {%- endfor -%}
@@ -179,7 +180,7 @@
                             {%- elif detail.kind == "print" %}printable
                             {%- elif detail.kind == "contents" %}contents list
                             {%- elif detail.kind == "back" %}back link to {{ codeText(detail.href) }}
-                            {%- else %}{{ codeText(detail.id) }}{% if detail.condition %} (shown when {{ codeText(detail.condition) }}){% endif %}
+                            {%- else %}{{ codeText(detail.id) }}{% if detail.condition %} (shown when {{ mappingValue(detail.condition) }}){% endif %}
                             {%- endif -%}
                           </span>
                         {%- endfor -%}
@@ -239,18 +240,18 @@
                       {%- if process.call -%}
                         {{ serviceAddress({ method: process.call.method, path: process.call.path, url: process.call.url, service: process.call.service, unset: process.call.unset, source: "GAS", environment: environment, testId: testId ~ "-process" }) }}
                         {%- if process.sends | length -%}
-                          <div class="mt-2" data-testid="{{ testId }}-process-sends"><span class="text-sm {{ muted }}">Sends{% if process.bodyOnGet %} (body sent with a GET){% endif %}</span>{{ sends(process.sends) }}</div>
+                          <div class="mt-2" data-testid="{{ testId }}-process-sends"><span class="text-sm {{ muted }}">Sends{% if process.bodyOnGet %} (body sent with a GET){% endif %}</span>{{ mappingLines(process.sends) }}</div>
                         {%- endif -%}
                       {%- else -%}
                         {{ noValue({}) }}
                       {%- endif -%}
                     </td>
                     <td>
-                      {%- for output in process.outputs -%}
-                        <div class="text-sm" data-testid="{{ testId }}-process-output">{{ codeText(output.field) }} <span class="{{ muted }}">←</span> {{ mappingValue(output.value) }}</div>
+                      {%- if process.outputs | length -%}
+                        {{ mappingLines(process.outputs, testId ~ "-process-output") }}
                       {%- else -%}
                         {{ noValue({}) }}
-                      {%- endfor -%}
+                      {%- endif -%}
                       {%- if process.outputs | length -%}
                         <div class="{{ note }}" data-testid="{{ testId }}-process-lands">
                           {%- for land in process.lands -%}

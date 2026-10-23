@@ -13,4 +13,4 @@
 {%- else -%}
   <span class="text-sm">{{ codeText(value.text) }}</span>
 {%- endif -%}
-{%- if value and suffix %}<span class="{{ suffixClasses[suffix] }}" data-comes-from>{{ value.comesFrom }}</span>{% endif -%}
+{%- if value and suffix %}{{ " " }}<span class="{{ suffixClasses[suffix] }}" data-comes-from>{{ value.comesFrom }}</span>{% endif -%}
