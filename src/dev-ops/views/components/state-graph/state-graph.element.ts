@@ -2,24 +2,39 @@ const margin = 8
 
 /**
  * Brings the selected status into view inside its own scroll box, only when
- * it is out of view and without moving the page. While the graph scrolls on,
- * the box fades at the edge it goes on past, and each stage's label stays at
- * the box's left edge for as long as its band is in view.
+ * it is out of view and without moving the page. While a graph is wider than
+ * its box, the box's scroll hint shows and describes the box. Each stage's
+ * label stays at the box's left edge for as long as its band is in view.
  */
 export class StateGraph extends HTMLElement {
+  #observer: ResizeObserver | null = null
+
   connectedCallback() {
     queueMicrotask(() => this.enhance())
   }
 
+  disconnectedCallback() {
+    this.#observer?.disconnect()
+  }
+
   enhance() {
+    this.#observer?.disconnect()
+    this.#observer = new ResizeObserver((entries) => {
+      for (const { target } of entries) {
+        this.#fit(target as HTMLElement)
+      }
+    })
+
     for (const box of this.querySelectorAll<HTMLElement>(
       '[data-graph-scroll]'
     )) {
       this.#reveal(box)
+      this.#fit(box)
       this.#follow(box)
       box.addEventListener('scroll', () => this.#follow(box), {
         passive: true
       })
+      this.#observer.observe(box)
     }
   }
 
@@ -40,13 +55,26 @@ export class StateGraph extends HTMLElement {
     }
   }
 
-  #follow(box: HTMLElement) {
-    box.toggleAttribute('data-fade-left', box.scrollLeft > 0)
-    box.toggleAttribute(
-      'data-fade-right',
-      box.scrollLeft + box.clientWidth < box.scrollWidth - 1
-    )
+  #fit(box: HTMLElement) {
+    const id = box.dataset.hint
+    const hint = id ? document.getElementById(id) : null
 
+    if (!hint) {
+      return
+    }
+
+    const overflows = box.scrollWidth > box.clientWidth + 1
+
+    hint.hidden = !overflows
+
+    if (overflows) {
+      box.setAttribute('aria-describedby', hint.id)
+    } else {
+      box.removeAttribute('aria-describedby')
+    }
+  }
+
+  #follow(box: HTMLElement) {
     for (const label of box.querySelectorAll('[data-band-label]')) {
       const start = Number(label.getAttribute('data-x'))
       const room = Number(label.getAttribute('data-room'))

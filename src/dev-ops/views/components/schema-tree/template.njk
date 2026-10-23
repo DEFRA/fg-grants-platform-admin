@@ -15,7 +15,7 @@
 {%- set testId = params.testId -%}
 {%- set would = "" if params.checked else "would be " -%}
 <div data-testid="{{ testId }}">
-  <div class="{{ columns }} hidden border-b border-base-300 pb-2 text-sm font-semibold {{ muted }}" role="row" data-testid="{{ testId }}-head"><span role="columnheader">Property</span><span role="columnheader">Type</span><span role="columnheader">Required</span><span role="columnheader">Constraints</span></div>
+  <div class="{{ columns }} hidden border-b border-base-300 pb-2 text-sm font-semibold {{ muted }}" aria-hidden="true" data-testid="{{ testId }}-head"><span>Property</span><span>Type</span><span>Required</span><span>Constraints</span></div>
   {%- for row in params.rows -%}
     {%- if row.kind == "end" -%}
       </details>
@@ -45,9 +45,9 @@
           </span>
         </span>
         <span class="mt-1 ml-4.5 flex flex-wrap items-center gap-x-3 gap-y-1 {{ indent }} sm:contents">
-          <span class="{{ mono }}" data-testid="{{ testId }}-type">{{ words(field.type) }}</span>
+          <span class="sr-only">Type: </span><span class="{{ mono }}" data-testid="{{ testId }}-type">{{ words(field.type) }}</span>
           <span data-testid="{{ testId }}-required">{% if field.required %}Required{% else %}<span class="{{ muted }}">Optional</span>{% endif %}</span>
-          <span class="min-w-0" data-testid="{{ testId }}-constraints">
+          <span class="sr-only">Constraints: </span><span class="min-w-0" data-testid="{{ testId }}-constraints">
             {%- for constraint in field.constraints -%}
               {%- if not loop.first %}<span class="{{ separator }}">, </span>{% endif -%}
               <span data-testid="{{ testId }}-constraint">{{ words(constraint) }}</span>

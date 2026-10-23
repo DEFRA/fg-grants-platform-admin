@@ -25,6 +25,11 @@ export interface VersionFiles extends VersionRef {
   s3Bucket?: string | null
 }
 
+/** The page's version, with every version of its record, newest first. */
+export interface BannerVersion extends VersionFiles {
+  versions: VersionSummary[]
+}
+
 export const fileOrder: VersionFileType[] = [
   'grant',
   'agreement',
@@ -37,6 +42,13 @@ const fileNames: Record<VersionFileType, string> = {
   agreement: 'Agreement definition',
   payment: 'Payment definition',
   workflow: 'Workflow definition'
+}
+
+const fileLabels: Record<VersionFileType, string> = {
+  grant: 'Grant',
+  agreement: 'Agreement',
+  payment: 'Payment',
+  workflow: 'Workflow'
 }
 
 /** The file the service fetches for itself and caps at five tries; the others it reads on demand, uncapped. */
@@ -64,7 +76,7 @@ const majorOf = (version: string): string => version.split('.')[0]
 
 interface Context {
   record: RecordType
-  version: VersionFiles
+  version: BannerVersion
   type: VersionFileType
   file: DefinitionFile
 }
@@ -100,11 +112,32 @@ const attemptWords = ({ type, file }: Context): string => {
 
 const isDraft = ({ version }: Context): boolean => version.status === 'draft'
 
+/** A newer active version of the same major that is not Failed, which the service rolls forward to instead of this one. */
+const hasNewerUsable = ({ version, versions }: BannerVersion): boolean => {
+  const at = versions.findIndex((entry) => entry.version === version)
+
+  return versions
+    .slice(0, Math.max(at, 0))
+    .some(
+      (entry) =>
+        entry.status === 'active' &&
+        entry.fetchStatus !== 'permanent_error' &&
+        majorOf(entry.version) === majorOf(version)
+    )
+}
+
 /** The main file is fetched only for the newest usable version of a major; the others whenever an agreement or claim on the version needs them. */
-const whenFetched = ({ record, type, version }: Context): string =>
-  isMainFile(type)
-    ? `${record.source} fetches it from S3 when it first needs it. ${record.source} only uses the newest usable version in each major, so an older version's ${type} file is never fetched; that is normal.`
-    : `${record.source} fetches it from S3 the first time an agreement or claim on ${version.version} needs it.`
+const whenFetched = ({ record, type, version }: Context): string => {
+  if (!isMainFile(type)) {
+    return `${record.source} fetches it from S3 the first time an agreement or claim on ${version.version} needs it.`
+  }
+
+  const fetched = `${record.source} fetches it from S3 when it first needs it.`
+
+  return hasNewerUsable(version)
+    ? `${fetched} ${record.source} only uses the newest usable version in each major, so an older version's ${type} file is never fetched; that is normal.`
+    : fetched
+}
 
 const notStoredYet = (context: Context): Words => {
   const first = `${fileNames[context.type]} not stored yet.`
@@ -139,16 +172,37 @@ const fetchError = (context: Context): Words => {
 const listName = ({ listId }: RecordType): string =>
   `${listId.charAt(0).toUpperCase()}${listId.slice(1)} list`
 
-const whenUsed = ({ record, type }: Context): string =>
-  isMainFile(type)
-    ? ` ${record.source} ignores this copy and still fetches the file from S3 itself the first time it needs it.`
+const whenUsed = ({ record, type }: Context, many: boolean): string => {
+  if (isMainFile(type)) {
+    return ` ${record.source} ignores this copy and still fetches the file from S3 itself the first time it needs it.`
+  }
+
+  return many
+    ? ` ${record.source} uses each stored copy the first time it needs it.`
     : ` ${record.source} uses this stored copy the first time it needs it.`
+}
 
-const storedNotLoaded = (context: Context): Words => {
-  const { record, type } = context
-  const first = `${fileNames[type]} stored. ${record.source} hasn't loaded it itself yet, so the ${listName(record)} shows it as Not stored yet (or Fetch error).`
+/** "Agreement and payment definitions". */
+const namesOf = (types: VersionFileType[]): string => {
+  if (types.length === 1) {
+    return fileNames[types[0]]
+  }
 
-  return isDraft(context) ? [first] : [first, whenUsed(context)]
+  const labels = types.map((type, at) =>
+    at ? fileLabels[type].toLowerCase() : fileLabels[type]
+  )
+
+  return `${labels.slice(0, -1).join(', ')} and ${labels.at(-1)} definitions`
+}
+
+/** One sentence for the stored files not yet loaded that the service treats alike. */
+const storedNotLoaded = (context: Context, types: VersionFileType[]): Words => {
+  const { record } = context
+  const many = types.length > 1
+  const them = many ? 'them' : 'it'
+  const first = `${namesOf(types)} stored. ${record.source} hasn't loaded ${them} itself yet, so the ${listName(record)} shows ${them} as Not stored yet (or Fetch error).`
+
+  return isDraft(context) ? [first] : [first, whenUsed(context, many)]
 }
 
 const failedConsequences: Record<
@@ -177,21 +231,22 @@ const failed = (context: Context): Words => [
   ` ${toFailedConsequence(context.type, context.version)}`
 ]
 
-/** The one sentence a file needs, or none for a file stored and loaded. */
-const storedWords = (context: Context): Words | null =>
-  isStoredNotLoaded(context.file) ? storedNotLoaded(context) : null
-
 const unstoredWords = (context: Context): Words =>
   context.file.fetchStatus === 'transient_error'
     ? fetchError(context)
     : notStoredYet(context)
 
+/** The one sentence a file needs, or none for a file stored and loaded. */
 const toFileWords = (context: Context): Words | null => {
   if (context.file.fetchStatus === 'permanent_error') {
     return failed(context)
   }
 
-  return context.file.stored ? storedWords(context) : unstoredWords(context)
+  if (isStoredNotLoaded(context.file)) {
+    return storedNotLoaded(context, [context.type])
+  }
+
+  return context.file.stored ? null : unstoredWords(context)
 }
 
 const toneOf = ({ stored, fetchStatus }: DefinitionFile): BannerTone => {
@@ -219,16 +274,51 @@ export interface BannerLines {
   lines: Words[]
 }
 
-/** One sentence per file that needs one, files in order; none when every file is stored and loaded. */
+/** Stored files not yet loaded that the service treats alike, side by side, as one. */
+const joinsLast = (contexts: Context[], { type, file }: Context): boolean => {
+  const last = contexts.at(-1)
+
+  return (
+    last !== undefined &&
+    isStoredNotLoaded(last.file) &&
+    isStoredNotLoaded(file) &&
+    isMainFile(last.type) === isMainFile(type)
+  )
+}
+
+const toGroups = (contexts: Context[]): Context[][] =>
+  contexts.reduce<Context[][]>((groups, context) => {
+    const last = groups.at(-1)
+
+    return last && joinsLast(last, context)
+      ? [...groups.slice(0, -1), [...last, context]]
+      : [...groups, [context]]
+  }, [])
+
+const toGroupWords = (group: Context[]): Words | null =>
+  group.length > 1
+    ? storedNotLoaded(
+        group[0],
+        group.map(({ type }) => type)
+      )
+    : toFileWords(group[0])
+
+/** One sentence per file that needs one, files in order, stored ones not yet loaded together; none when every file is stored and loaded. */
 export const toBannerLines = (
   record: RecordType,
-  version: VersionFiles
+  version: BannerVersion
 ): BannerLines | null => {
-  const files = fileOrder.flatMap((type) => {
+  const contexts = fileOrder.flatMap((type) => {
     const file = version.files[type]
-    const words = file && toFileWords({ record, version, type, file })
 
-    return words ? [{ words, tone: toneOf(file) }] : []
+    return file ? [{ record, version, type, file }] : []
+  })
+  const files = toGroups(contexts).flatMap((group) => {
+    const words = toGroupWords(group)
+
+    return words
+      ? [{ words, tone: worstTone(group.map(({ file }) => toneOf(file))) }]
+      : []
   })
 
   if (!files.length) {
@@ -242,13 +332,6 @@ export const toBannerLines = (
       ...files.map(({ words }) => words)
     ]
   }
-}
-
-const fileLabels: Record<VersionFileType, string> = {
-  grant: 'Grant',
-  agreement: 'Agreement',
-  payment: 'Payment',
-  workflow: 'Workflow'
 }
 
 /** The list's own Definition values, as the service declares them for its version list. */

@@ -52,11 +52,11 @@ describe('json-viewer component', () => {
     )
   })
 
-  test('floats Copy in the top right corner of the block', () => {
+  test('floats Copy in the top right corner of the block, clear of its scrollbar', () => {
     const $ = viewer({ a: 1 })
 
     expect($('[data-json-viewer-tools]').attr('class')).toBe(
-      'absolute top-2 right-2 z-1'
+      'absolute top-2 right-5 z-1'
     )
     expect($('do-json-viewer').attr('class')).toBe('relative flex flex-col')
   })
