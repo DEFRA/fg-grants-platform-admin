@@ -1066,7 +1066,7 @@ describe('the workflow Phases tab', () => {
     const { $ } = await viewPage(phasesPath)
 
     expect(textOf($, 'workflow-phases-findings')).toBe(
-      '3 findings: dead end AWAITING_ACCEPTANCE · unreachable WITHDRAWN, ACCEPTED'
+      '3 statuses with findings: dead end AWAITING_ACCEPTANCE · unreachable WITHDRAWN, ACCEPTED'
     )
     expect(part($, 'workflow-phases-finding-link').first().attr('href')).toBe(
       `${path}?tab=phases&status=${encodeURIComponent('POST_AWARD:AGREEMENT:AWAITING_ACCEPTANCE')}#panel`
@@ -1171,6 +1171,43 @@ describe('the workflow Phases tab', () => {
       'The statuses and moves appear once the workflow definition is stored.'
     )
     expect(part($, 'workflow-phases-panel')).toHaveLength(0)
+  })
+
+  test('names the stage of a finding whose code is in more than one stage', async () => {
+    const [pre, ...rest] = woodlandPhases
+    const withdrawn = pre.stages
+      .flatMap(({ statuses }) => statuses)
+      .find(({ code }) => code === 'WITHDRAWN')!
+
+    givenPhases({
+      definition: {
+        ...woodlandDefinition,
+        workflow: {
+          ...woodlandDefinition.workflow,
+          phases: [
+            {
+              ...pre,
+              stages: [
+                ...pre.stages,
+                {
+                  code: 'LATER',
+                  name: 'Later',
+                  statuses: [withdrawn],
+                  taskGroups: []
+                }
+              ]
+            },
+            ...rest
+          ]
+        }
+      }
+    })
+
+    const { $ } = await viewPage(phasesPath)
+
+    expect(textOf($, 'workflow-phases-findings')).toBe(
+      '4 statuses with findings: dead end AWAITING_ACCEPTANCE · unreachable WITHDRAWN (Review application), WITHDRAWN (Later), ACCEPTED'
+    )
   })
 
   test('warns of a position held twice', async () => {

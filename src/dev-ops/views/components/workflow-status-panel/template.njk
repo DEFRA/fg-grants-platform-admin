@@ -22,7 +22,7 @@
 
 {%- set panel = params -%}
 <div class="flex flex-wrap items-center gap-2" data-testid="workflow-status-panel-badges">
-  {{ statusBadge({ label: panel.name, status: panel.name, role: panel.role }) }}
+  <span class="inline-flex flex-wrap items-center gap-1.5" data-testid="workflow-status-panel-theme">CW shows it as {{ statusBadge({ label: panel.name, status: panel.name, role: panel.role }) }} {{ codeText(panel.theme) }}</span>
   {% for flag in panel.flags %}{{ inlineBadge({ text: flag.label, title: flag.title, srText: flag.title, testId: "workflow-status-panel-flag" }) }} {% endfor %}
 </div>
 {{ stageFacts({ phase: panel.phase, stage: panel.stage, testId: "workflow-status-panel-stage" }) }}
@@ -41,7 +41,7 @@
   </div>
 {% endfor %}
 {% for item in panel.maySend %}
-  <p class="text-sm {{ muted }}" data-testid="workflow-status-panel-may-send">If {{ item.onlyWhen }}, GAS may also send <strong class="font-semibold">{{ item.sends.name }}</strong>; this status has no move to it.</p>
+  <p class="text-sm {{ muted }}" data-testid="workflow-status-panel-may-send">If {{ item.onlyWhen }}, GAS may also send <strong class="font-semibold">{{ item.sends.name }}</strong> ({{ codeText(item.sends.position) }}){% if not item.sends.defined %}, which the grant doesn't define{% endif %}; no move from this status takes that message.</p>
 {% endfor %}
 {% if panel.waysIn %}
   {% call statusPanelSection({ title: "Ways in", testId: "workflow-status-panel-ways-in" }) %}

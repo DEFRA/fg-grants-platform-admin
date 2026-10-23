@@ -143,6 +143,10 @@ describe('workflow-status-panel component', () => {
     expect($badges.find('[data-testid="do-status-label"]').text()).toBe(
       'Withdrawn'
     )
+    expect(flatten(part($, 'theme').text())).toBe(
+      'CW shows it as Withdrawn NEUTRAL'
+    )
+    expect(part($, 'theme').find('.font-mono').text()).toBe('NEUTRAL')
     expect($badges.find('[data-testid="do-status-dot"]').attr('class')).toBe(
       'status bg-base-content/80'
     )
@@ -351,7 +355,15 @@ describe('workflow-status-panel component', () => {
       maySend: [
         {
           onlyWhen: 'no agreement is on offer',
-          sends: { name: 'Withdrawn', position: 'P:S:WITHDRAWN' }
+          sends: {
+            name: 'Application withdrawn',
+            position: 'P:S:APPLICATION_WITHDRAWN',
+            defined: false
+          }
+        },
+        {
+          onlyWhen: 'the claim is rejected',
+          sends: { name: 'Rejected', position: 'P:S:REJECTED', defined: true }
         }
       ]
     })
@@ -359,10 +371,15 @@ describe('workflow-status-panel component', () => {
     expect(flatten(part($, 'finding').text())).toBe(
       'If GAS is on grant 1.0.0 too, after this message GAS is at Generating offer and will next send Offer drafted (P:S:DRAFTED) when Agreements sends offered. This status has no move to it, so CW would dead-letter that message.'
     )
-    expect(flatten(part($, 'may-send').text())).toBe(
-      'If no agreement is on offer, GAS may also send Withdrawn; this status has no move to it.'
-    )
-    expect(part($, 'may-send').attr('class')).toBe(
+    expect(
+      part($, 'may-send')
+        .toArray()
+        .map((line) => flatten($(line).text()))
+    ).toEqual([
+      "If no agreement is on offer, GAS may also send Application withdrawn (P:S:APPLICATION_WITHDRAWN), which the grant doesn't define; no move from this status takes that message.",
+      'If the claim is rejected, GAS may also send Rejected (P:S:REJECTED); no move from this status takes that message.'
+    ])
+    expect(part($, 'may-send').first().attr('class')).toBe(
       'text-sm text-base-content/70'
     )
   })
