@@ -120,14 +120,14 @@ describe('workflow-integrations component', () => {
   test.each([
     [
       '/cases/{caseId}/notes',
-      "Trigger Every time a caseworker opens the Land tab's own page. The tab's link in the case view goes to /cases/{caseId}/notes instead."
+      'Trigger Every time a caseworker opens the Land tab. Its link in the case view goes to /cases/{caseId}/notes .'
     ],
     [
       '$.supplementaryData.landUrl',
-      "Trigger Every time a caseworker opens the Land tab's own page. The tab's link in the case view goes to an address worked out from the case instead."
+      'Trigger Every time a caseworker opens the Land tab. Its link in the case view goes to an address worked out from the case.'
     ]
   ])(
-    'says when a tab links to %s, not to its own page',
+    "says where a tab's link goes when the workflow sets it to %s",
     (urlTemplate, text) => {
       const workflow = structuredClone(woodlandDefinition.workflow)
       const tab = workflow.pages!.cases!.details!.tabs!['land-parcels']
