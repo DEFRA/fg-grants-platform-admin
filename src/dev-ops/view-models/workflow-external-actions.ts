@@ -99,6 +99,8 @@ export interface CaseTab {
   /** The tab's action map, in map order. */
   fires: { key: string; actionCode: unknown }[]
   components: string[]
+  /** Where the tab's link goes instead of its own page; a null address is worked out from the case. */
+  linksElsewhere: { address: string | null } | null
 }
 
 interface BuiltInTab {
@@ -124,6 +126,52 @@ const idToText = (key: string): string =>
     .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
     .join(' ')
 
+/** How CW's resolver reads a string: as written, from the case, or worked out by JSONata. */
+export type ValueSource = 'fixed' | 'case' | 'computed'
+
+const isRef = (part: string): boolean =>
+  part.startsWith('$.') || part.startsWith('@.')
+
+const isEscapedRef = (value: string): boolean =>
+  value.startsWith('\\$.') || value.startsWith('\\@.')
+
+/** An escaped ref is sent as written, without its backslash. */
+export const literalOf = (value: string): string =>
+  isEscapedRef(value) ? value.slice(1) : value
+
+/** In CW's order: an escaped ref, then `jsonata:`, then a ref alone or among space-separated words. */
+export const sourceOfText = (value: string): ValueSource => {
+  if (isEscapedRef(value)) {
+    return 'fixed'
+  }
+
+  if (value.startsWith('jsonata:')) {
+    return 'computed'
+  }
+
+  return value.split(' ').some(isRef) ? 'case' : 'fixed'
+}
+
+/** Scheme, host and path only: never credentials, a query or a fragment. */
+const toShownAddress = (url: string): string =>
+  url
+    .replace(/^((?:[a-z][a-z0-9+.-]*:)?\/\/)[^/?#]*@/i, '$1')
+    .replace(/[?#].*$/s, '')
+
+const fixedAddressOf = (template: unknown): string | null =>
+  typeof template === 'string' && sourceOfText(template) === 'fixed'
+    ? toShownAddress(literalOf(template))
+    : null
+
+/** CW sends the tab's link to `href.urlTemplate` whenever one is set. */
+const toLinksElsewhere = (
+  link: StoredCaseTab['link']
+): CaseTab['linksElsewhere'] => {
+  const template = link?.href?.urlTemplate
+
+  return template ? { address: fixedAddressOf(template) } : null
+}
+
 const toFires = ({ action }: StoredCaseTab = {}): CaseTab['fires'] =>
   Object.entries(action ?? {}).map(([key, actionCode]) => ({
     key,
@@ -146,7 +194,8 @@ const toBuiltInTab = (
   builtIn: true,
   renderIf: null,
   fires: toFires(tab),
-  components: toComponents(tab)
+  components: toComponents(tab),
+  linksElsewhere: null
 })
 
 const toLink = (
@@ -166,7 +215,8 @@ const toDefinitionTab = (
   builtIn: false,
   renderIf: renderIf ?? null,
   fires: toFires(tab),
-  components: toComponents(tab)
+  components: toComponents(tab),
+  linksElsewhere: toLinksElsewhere(link)
 })
 
 /** CW's own comparator: a tab with no index goes last, ties keep their order. */
