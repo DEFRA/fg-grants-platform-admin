@@ -1,21 +1,48 @@
-import type { DefinitionFile } from '../repositories/config-versions.ts'
+import type {
+  DefinitionFile,
+  VersionSummary
+} from '../repositories/config-versions.ts'
 import { catalogue } from '../use-cases/test-fixtures.ts'
 import { grantType } from './grants-page.view-model.ts'
 import { toBannerLines, toFileLines } from './version-banner.ts'
-import type { VersionFiles } from './version-banner.ts'
+import type { BannerVersion, VersionFiles } from './version-banner.ts'
 import type { Words } from './words.ts'
 import { workflowType } from './workflows-page.view-model.ts'
 
+const summary = (
+  version: string,
+  overrides: Partial<VersionSummary> = {}
+): VersionSummary => ({
+  version,
+  status: 'active',
+  receivedAt: '2026-10-10T16:25:00.000Z',
+  fetchStatus: 'fetched',
+  stored: true,
+  ...overrides
+})
+
 const version = (
   files: VersionFiles['files'],
-  overrides: Partial<VersionFiles> = {}
-): VersionFiles => ({
+  overrides: Partial<BannerVersion> = {}
+): BannerVersion => ({
   code: 'qa-complex',
   version: '1.1.0',
   status: 'active',
   s3Bucket: 'config-broker-local',
   files,
+  versions: [summary('1.1.0', { stored: false, fetchStatus: 'pending' })],
   ...overrides
+})
+
+const notStored = { stored: false, fetchStatus: 'pending' } as const
+
+/** 1.1.0 between a newer and an older version. */
+const between = (newer: Partial<VersionSummary> = {}, major = '1') => ({
+  versions: [
+    summary(`${major}.2.0`, newer),
+    summary('1.1.0', notStored),
+    summary('1.0.0')
+  ]
 })
 
 const file = (overrides: Partial<DefinitionFile>): DefinitionFile => ({
@@ -46,9 +73,23 @@ const lines = (
 ) => toBannerLines(record, version(files, overrides))?.lines.map(said)
 
 describe('toBannerLines', () => {
-  test('says a grant file not stored yet is fetched only for the newest usable version of its major', () => {
-    expect(lines({ grant: file({}) })).toEqual([
+  test('says a grant file not stored yet on an older version of its major is never fetched, which is normal', () => {
+    expect(lines({ grant: file({}) }, between())).toEqual([
       "Grant definition not stored yet. GAS fetches it from S3 when it first needs it. GAS only uses the newest usable version in each major, so an older version's grant file is never fetched; that is normal. Fetch definitions stores it now."
+    ])
+  })
+
+  test.each([
+    ['the newest version of its major', {}],
+    ['newer only in another major', between({}, '2')],
+    ['newer only as a draft', between({ status: 'draft' })],
+    [
+      'newer only as a Failed version',
+      between({ fetchStatus: 'permanent_error' })
+    ]
+  ])('never calls a grant file not stored yet older on %s', (_, overrides) => {
+    expect(lines({ grant: file({}) }, overrides)).toEqual([
+      'Grant definition not stored yet. GAS fetches it from S3 when it first needs it. Fetch definitions stores it now.'
     ])
   })
 
@@ -207,9 +248,15 @@ describe('toBannerLines', () => {
     ).toEqual([
       "Workflow definition failed. CW won't roll forward to this version: cases on 1.x use the newest usable 1.x version instead. Publish a fixed version."
     ])
-    expect(lines({ workflow: file({}) }, {}, workflowType)?.[0]).toBe(
+  })
+
+  test('says of a workflow file not stored yet that CW fetches it, and never on its newest version that it is older', () => {
+    expect(lines({ workflow: file({}) }, between(), workflowType)).toEqual([
       "Workflow definition not stored yet. CW fetches it from S3 when it first needs it. CW only uses the newest usable version in each major, so an older version's workflow file is never fetched; that is normal. Fetch definition stores it now."
-    )
+    ])
+    expect(lines({ workflow: file({}) }, {}, workflowType)).toEqual([
+      'Workflow definition not stored yet. CW fetches it from S3 when it first needs it. Fetch definition stores it now.'
+    ])
   })
 
   test('opens a draft with the draft sentence, and stops its file sentences after their first', () => {
@@ -225,6 +272,40 @@ describe('toBannerLines', () => {
       "**Draft:** GAS won't pick this version for new work until the config broker publishes it as active. Fetch definitions stores its files now; once the version is active, GAS uses the stored agreement and payment files, and still fetches the grant file from S3 itself.",
       'Grant definition not stored yet.',
       'Payment definition: fetch error, 1 failed fetches in a row.'
+    ])
+  })
+
+  test('says the agreement and payment files stored but not loaded in one sentence', () => {
+    expect(
+      lines({
+        grant: file({ stored: true, fetchStatus: 'fetched' }),
+        agreement: file({ stored: true }),
+        payment: file({ stored: true, fetchStatus: 'transient_error' })
+      })
+    ).toEqual([
+      "Agreement and payment definitions stored. GAS hasn't loaded them itself yet, so the Grants list shows them as Not stored yet (or Fetch error). GAS uses each stored copy the first time it needs it."
+    ])
+  })
+
+  test('keeps the grant file stored but not loaded apart, since GAS ignores its copy', () => {
+    expect(
+      lines({
+        grant: file({ stored: true }),
+        agreement: file({ stored: true }),
+        payment: file({ stored: true })
+      })?.map((line) => line.split(' stored.')[0])
+    ).toEqual(['Grant definition', 'Agreement and payment definitions'])
+  })
+
+  test('joins only files side by side that are both stored but not loaded', () => {
+    expect(
+      lines({
+        agreement: file({ stored: true }),
+        payment: file({ stored: false })
+      })?.map((line) => line.split('.')[0])
+    ).toEqual([
+      'Agreement definition stored',
+      'Payment definition not stored yet'
     ])
   })
 
