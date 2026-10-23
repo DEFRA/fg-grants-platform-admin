@@ -13,6 +13,7 @@ const grantTabLabels: Record<GrantTabId, string> = {
   entitlements: 'Entitlements',
   agreement: 'Agreement',
   payment: 'Payment',
+  events: 'Events',
   raw: 'Raw'
 }
 

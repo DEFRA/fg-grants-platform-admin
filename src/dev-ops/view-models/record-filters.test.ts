@@ -10,6 +10,10 @@ describe('toBackLabel', () => {
       '/dev-ops/grants/qa-complex/1.1.0?tab=phases&back=%2Fdev-ops%2Fgrants',
       'Back to grant qa-complex 1.1.0'
     ],
+    [
+      '/dev-ops/workflows/qa-complex/1.1.0',
+      'Back to workflow qa-complex 1.1.0'
+    ],
     ['/dev-ops/events/gas/inbox/6ad9086d1650ab8312898a92', 'Back to event']
   ])('names the page %s leads to', (back, label) => {
     expect(toBackLabel(back, lists)).toBe(label)

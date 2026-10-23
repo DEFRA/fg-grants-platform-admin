@@ -50,7 +50,8 @@ const header: GrantVersionPage['header'] = {
       status: 'active',
       receivedAt: '2026-10-10T16:25:00.000Z'
     }
-  ]
+  ],
+  counterpart: null
 }
 
 const givenOutcome = (result: DefinitionFetchResult<DefinitionFileType>) =>

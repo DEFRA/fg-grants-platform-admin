@@ -1,5 +1,6 @@
 import type { BadgeRole, SourceError } from '../use-cases/get-event.use-case.ts'
 import type {
+  Counterpart,
   Position,
   RecordEvents,
   RecordSectionError,
@@ -31,7 +32,7 @@ interface FactBase {
 
 export type Fact = FactBase &
   (
-    | { kind: 'mono'; text: string; from: string | null }
+    | { kind: 'mono'; text: string; from: string | null; href: string | null }
     | { kind: 'date'; text: string; instant: string | null }
     | { kind: 'text'; text: string; note?: string }
     | { kind: 'link'; text: string; href: string }
@@ -150,6 +151,18 @@ export const toTabHref = (
   return params.size ? `${href}?${params}` : href
 }
 
+/** A version's page, told to come back to this record's Overview; null without a version to link to. */
+export const toVersionLinkOf = (
+  toVersionHref: (ref: { code: string; version: string }) => string,
+  code: string,
+  version: string | null,
+  recordHref: string,
+  from: string
+): string | null =>
+  version
+    ? `${toVersionHref({ code, version })}?${backKey}=${encodeURIComponent(toFittingBack(toTabHref(recordHref, 'overview', from)))}`
+    : null
+
 export const toTabs = (
   { tabs }: RecordType,
   href: string,
@@ -260,7 +273,7 @@ export const toMonoFact = (
 ): Fact =>
   value === null
     ? toNoneFact(id, label)
-    : { id, label, kind: 'mono', text: value, from: null }
+    : { id, label, kind: 'mono', text: value, from: null, href: null }
 
 interface Versions {
   code: string
@@ -272,7 +285,8 @@ interface Versions {
 export const toVersionedFact = (
   id: string,
   label: string,
-  { code, currentConfigVersion, originalConfigVersion }: Versions
+  { code, currentConfigVersion, originalConfigVersion }: Versions,
+  href: string | null
 ): Fact => ({
   id,
   label,
@@ -281,7 +295,8 @@ export const toVersionedFact = (
   from:
     originalConfigVersion && originalConfigVersion !== currentConfigVersion
       ? originalConfigVersion
-      : null
+      : null,
+  href
 })
 
 /** The other record as a fact named for its type; no row at all when there is no link to follow. */
@@ -292,6 +307,21 @@ export const toCounterpartFacts = (
   href
     ? [{ id: itemId, label: title, kind: 'link', text: linkLabel, href }]
     : []
+
+/** A version's counterpart: a link, "None" when the other service has no such version, no row when it could not say. */
+export const toReleaseCounterpartFacts = (
+  type: RecordType,
+  counterpart: Counterpart,
+  href: string
+): Fact[] => {
+  if (!counterpart) {
+    return []
+  }
+
+  return counterpart.exists
+    ? toCounterpartFacts(type, href)
+    : [toTextFact(type.itemId, type.title, 'None')]
+}
 
 const noFacts = {
   position: { phase: null, stage: null, status: null },

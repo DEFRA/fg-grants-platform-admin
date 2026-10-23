@@ -16,7 +16,15 @@ import type {
 } from '../use-cases/get-grant-page.use-case.ts'
 import { getGrantPageUseCase } from '../use-cases/get-grant-page.use-case.ts'
 import { getGrantVersionsUseCase } from '../use-cases/get-grant-versions.use-case.ts'
-import { agreementDefinition } from '../use-cases/test-fixtures.ts'
+import { getCatalogueUseCase } from '../use-cases/get-catalogue.use-case.ts'
+import {
+  agreementDefinition,
+  applicationsBucket,
+  catalogue,
+  woodlandDefinition
+} from '../use-cases/test-fixtures.ts'
+import type { WorkflowVersionPage } from '../use-cases/get-workflow-page.use-case.ts'
+import { getWorkflowPageUseCase } from '../use-cases/get-workflow-page.use-case.ts'
 
 vi.mock(import('../use-cases/get-catalogue.use-case.ts'))
 vi.mock(import('../use-cases/get-application-page.use-case.ts'), async () => ({
@@ -38,6 +46,12 @@ vi.mock(import('../use-cases/get-grant-page.use-case.ts'), async () => ({
   getGrantPageUseCase: vi.fn()
 }))
 vi.mock(import('../use-cases/get-grant-versions.use-case.ts'))
+vi.mock(import('../use-cases/get-workflow-page.use-case.ts'), async () => ({
+  ...(await vi.importActual<
+    typeof import('../use-cases/get-workflow-page.use-case.ts')
+  >('../use-cases/get-workflow-page.use-case.ts')),
+  getWorkflowPageUseCase: vi.fn()
+}))
 vi.mock(import('../../common/config.ts'))
 
 const credentials = {
@@ -477,6 +491,29 @@ describe('the Overview tab', () => {
     const { $ } = await viewPage()
 
     expect(part($, 'application-grant-from')).toHaveLength(0)
+  })
+
+  test('links the grant to its version page, which leads back here', async () => {
+    const from = '/dev-ops/applications?grant=frps-private-beta'
+    const { $ } = await viewPage(`${path}?back=${encodeURIComponent(from)}`)
+
+    const link = part($, 'application-grant')
+    expect(link.is('a')).toBe(true)
+    expect(link.attr('href')).toBe(
+      `/dev-ops/grants/frps-private-beta/1.4.2?back=${encodeURIComponent(`${path}?back=${encodeURIComponent(from)}`)}`
+    )
+    expect(link.attr('class')).toContain('link')
+    expect(link.attr('target')).toBeUndefined()
+    expect(textOf($, 'application-grant-from')).toBe('from 1.4.0')
+  })
+
+  test('leaves the grant unlinked when it has no version', async () => {
+    givenPage({ overview: { ...overview, currentConfigVersion: null } })
+
+    const { $ } = await viewPage()
+
+    expect(part($, 'application-grant').is('span')).toBe(true)
+    expect(textOf($, 'application-grant')).toBe('frps-private-beta')
   })
 
   test('spells each date out in UK time, as the event page does', async () => {
@@ -1120,6 +1157,29 @@ describe('the case page', () => {
     expect(textOf($, 'case-size')).toBe('4 KiB')
   })
 
+  test('links the workflow to its version page, which leads back here', async () => {
+    const from = '/dev-ops/cases?workflow=woodland'
+    const { $ } = await viewPage(`${casePath}?back=${encodeURIComponent(from)}`)
+
+    const link = part($, 'case-workflow')
+    expect(link.is('a')).toBe(true)
+    expect(link.attr('href')).toBe(
+      `/dev-ops/workflows/woodland/1.4.2?back=${encodeURIComponent(`${casePath}?back=${encodeURIComponent(from)}`)}`
+    )
+    expect(link.attr('class')).toContain('link')
+    expect(link.attr('target')).toBeUndefined()
+    expect(textOf($, 'case-workflow-from')).toBe('from 1.3.5')
+  })
+
+  test('leaves the workflow unlinked when it has no version', async () => {
+    givenCase({ overview: { ...caseOverview, currentConfigVersion: null } })
+
+    const { $ } = await viewPage(casePath)
+
+    expect(part($, 'case-workflow').is('span')).toBe(true)
+    expect(textOf($, 'case-workflow')).toBe('woodland')
+  })
+
   test('shows the stored closing date of a case not marked closed', async () => {
     givenCase({
       overview: { ...caseOverview, closedAt: '2026-09-29T15:02:44.000Z' }
@@ -1215,7 +1275,8 @@ const grantHeader: GrantVersionPage['header'] = {
       status: 'active',
       receivedAt: '2026-09-10T15:25:00.000Z'
     }
-  ]
+  ],
+  counterpart: { exists: true }
 }
 
 const grantOverview: NonNullable<GrantVersionPage['overview']> = {
@@ -1375,6 +1436,7 @@ describe('the grant page', () => {
       `Entitlements ${grantPath}?tab=entitlements&back=${encodeURIComponent(from)}`,
       `Agreement ${grantPath}?tab=agreement&back=${encodeURIComponent(from)}`,
       `Payment ${grantPath}?tab=payment&back=${encodeURIComponent(from)}`,
+      `Events ${grantPath}?tab=events&back=${encodeURIComponent(from)}`,
       `Raw ${grantPath}?tab=raw&back=${encodeURIComponent(from)}`
     ])
     expect(part($, 'grant-tabs').find('[aria-current="page"]').text()).toBe(
@@ -1412,6 +1474,11 @@ describe('the grant page', () => {
       'Back to application'
     ],
     ['a case', '/dev-ops/cases/woodland-creation/abc-123', 'Back to case'],
+    [
+      'a workflow version',
+      '/dev-ops/workflows/woodland-creation/1.2.0?tab=phases',
+      'Back to workflow woodland-creation 1.2.0'
+    ],
     [
       'an event',
       '/dev-ops/events/gas/inbox/6ad9086d1650ab8312898a92',
@@ -1655,7 +1722,13 @@ describe('the grant Overview tab', () => {
         'Admin role',
         'Definitions'
       ],
-      ['Who can apply', 'Versions', 'Definition size']
+      [
+        'Workflow',
+        'Applications',
+        'Who can apply',
+        'Versions',
+        'Definition size'
+      ]
     ])
     expect(textOf($, 'grant-description')).toBe(
       'Funding to plant new woodland on agricultural land.'
@@ -1721,6 +1794,78 @@ describe('the grant Overview tab', () => {
     )
   })
 
+  test('links to the workflow of the same code and version, in a new tab', async () => {
+    givenGrant()
+
+    const { $ } = await viewPage(grantPath)
+    const link = part($, 'grant-workflow')
+
+    expect(link.attr('href')).toBe('/dev-ops/workflows/woodland-creation/1.2.0')
+    expect(link.attr('target')).toBe('_blank')
+    expect(flatten(link.text())).toBe('View workflow (opens in a new tab)')
+  })
+
+  test('says None when CW has no workflow of that version', async () => {
+    givenGrant({ header: { ...grantHeader, counterpart: { exists: false } } })
+
+    const { $ } = await viewPage(grantPath)
+
+    expect(textOf($, 'grant-workflow')).toBe('None')
+    expect(part($, 'grant-workflow').attr('href')).toBeUndefined()
+  })
+
+  test('leaves the Workflow fact out when CW could not say', async () => {
+    givenGrant({ header: { ...grantHeader, counterpart: null } })
+
+    const { $ } = await viewPage(grantPath)
+
+    expect(part($, 'grant-fact-workflow')).toHaveLength(0)
+    expect(part($, 'grant-fact-applications')).toHaveLength(1)
+  })
+
+  test("links to the applications on this version, as the catalogue spells the list's filters", async () => {
+    givenGrant()
+
+    const { $ } = await viewPage(grantPath)
+
+    expect(part($, 'grant-applications').attr('href')).toBe(
+      '/dev-ops/applications?grant=woodland-creation&version=1.2.0'
+    )
+    expect(textOf($, 'grant-applications')).toBe(
+      'View applications (opens in a new tab)'
+    )
+  })
+
+  test.each([
+    [
+      'does not filter applications by version',
+      {
+        ...catalogue,
+        buckets: [
+          {
+            ...applicationsBucket,
+            facts: applicationsBucket.facts.filter(
+              ({ name }) => name !== 'currentConfigVersion'
+            )
+          }
+        ]
+      }
+    ],
+    ['has no applications list', { ...catalogue, buckets: [] }],
+    ['could not be read', null]
+  ])(
+    'reads a dash for Applications when the catalogue %s',
+    async (_, answer) => {
+      givenGrant()
+      vi.mocked(getCatalogueUseCase).mockResolvedValueOnce(answer)
+
+      const { $ } = await viewPage(grantPath)
+
+      expect(textOf($, 'grant-applications-none')).toBe('—')
+      expect(part($, 'grant-applications').attr('href')).toBeUndefined()
+    }
+  )
+
   test('opens the allow list on its Who can apply tab', async () => {
     givenGrant()
 
@@ -1756,9 +1901,15 @@ describe('the grant Overview tab', () => {
     expect(part($, 'grant-received').attr('datetime')).toBe(
       '2026-09-10T15:25:00Z'
     )
-    expect(part($, 'grant-who-can-apply').attr('href')).toBe(
+    expect(
+      ['workflow', 'applications', 'who-can-apply'].map((id) =>
+        part($, `grant-${id}`).attr('href')
+      )
+    ).toEqual([
+      '/dev-ops/workflows/woodland-creation/1.2.0',
+      '/dev-ops/applications?grant=woodland-creation&version=1.2.0',
       '/grant-ops/grants/woodland-creation/admin#who-can-apply'
-    )
+    ])
   })
 
   test('says the overview could not be read in place of the facts', async () => {
@@ -1935,6 +2086,7 @@ describe('the grant Questions tab', () => {
       'Entitlements',
       'Agreement',
       'Payment',
+      'Events',
       'Raw'
     ])
     expect(part($, 'grant-tabs').find('[aria-current="page"]').text()).toBe(
@@ -2203,6 +2355,7 @@ describe('the grant Actions tab', () => {
       'Entitlements',
       'Agreement',
       'Payment',
+      'Events',
       'Raw'
     ])
     expect(part($, 'grant-tabs').find('[aria-current="page"]').text()).toBe(
@@ -2757,6 +2910,7 @@ describe('the grant Payment tab', () => {
       'Questions',
       'Actions',
       'Entitlements',
+      'Events',
       'Raw'
     ])
   })
@@ -2944,6 +3098,7 @@ describe('the grant Agreement tab', () => {
       'Actions',
       'Entitlements',
       'Payment',
+      'Events',
       'Raw'
     ])
   })
@@ -3184,7 +3339,7 @@ describe('the grant Phases tab', () => {
     ])
   })
 
-  test('shows CW and Agreements setters as plain text, keyed on their stage', async () => {
+  test('links a CW setter to the workflow Phases tab with that status selected', async () => {
     givenPhases()
 
     const amend = await viewPage(
@@ -3197,13 +3352,72 @@ describe('the grant Phases tab', () => {
     expect(sectionLines(amend.$, 'grant-phases-triggered-by')).toEqual([
       'CW RFI_SENT — while the application is in Review'
     ])
-    expect(part(amend.$, 'grant-phases-triggered-by').find('a')).toHaveLength(0)
+    expect(
+      part(amend.$, 'grant-phases-triggered-by').find('a').attr('href')
+    ).toBe(
+      `/dev-ops/workflows/woodland-creation/1.2.0?tab=phases&back=${encodeURIComponent(
+        `${phasesPath}&status=${encodeURIComponent('PRE_AWARD:APPLICATION:AMEND')}`
+      )}&status=RFI_SENT`
+    )
     expect(sectionLines(offered.$, 'grant-phases-triggered-by')).toEqual([
       'Agreements offered — while the application is in Agreement'
     ])
     expect(part(offered.$, 'grant-phases-triggered-by').find('a')).toHaveLength(
       0
     )
+  })
+
+  test('opens the workflow Phases tab it links to, with that status selected', async () => {
+    givenPhases()
+    vi.mocked(getWorkflowPageUseCase).mockResolvedValue({
+      outcome: 'found',
+      page: {
+        header: {
+          code: 'woodland-creation',
+          version: '1.2.0',
+          status: 'active',
+          receivedAt: '2026-09-10T15:25:00.000Z',
+          files: { workflow: fetched },
+          versions: [],
+          counterpart: { exists: true }
+        },
+        definition: woodlandDefinition,
+        grantStatusMap: { outcome: 'no-grant' },
+        sourceErrors: [],
+        sectionErrors: []
+      }
+    })
+
+    const grant = await viewPage(
+      `${phasesPath}&status=PRE_AWARD:APPLICATION:AMEND`
+    )
+    const href = part(grant.$, 'grant-phases-triggered-by')
+      .find('a')
+      .attr('href')
+    const { $, statusCode } = await viewPage(href)
+
+    expect(statusCode).toBe(statusCodes.ok)
+    expect(
+      part($, 'workflow-phases-node')
+        .filter('[aria-current="true"]')
+        .attr('data-position')
+    ).toBe('PRE_AWARD:REVIEW:RFI_SENT')
+  })
+
+  test.each([
+    ['CW has no workflow of that version', { exists: false }],
+    ['CW could not say', null]
+  ])('shows a CW setter as plain text when %s', async (_, counterpart) => {
+    givenPhases({ header: { ...grantHeader, counterpart } })
+
+    const { $ } = await viewPage(
+      `${phasesPath}&status=PRE_AWARD:APPLICATION:AMEND`
+    )
+
+    expect(sectionLines($, 'grant-phases-triggered-by')).toEqual([
+      'CW RFI_SENT — while the application is in Review'
+    ])
+    expect(part($, 'grant-phases-triggered-by').find('a')).toHaveLength(0)
   })
 
   test('sets a status by the last claim, with no moves out and the stage facts', async () => {
@@ -3590,5 +3804,272 @@ describe('the bare grant URL', () => {
     )
 
     expect(statusCode).toBe(statusCodes.badRequest)
+  })
+})
+
+describe("the version pages' Events tab", () => {
+  const workflowPath = '/dev-ops/workflows/Woodland-Creation/1.2.0'
+  const listed = '/dev-ops/grants?grant=woodland-creation'
+
+  const workflowHeader: WorkflowVersionPage['header'] = {
+    code: 'Woodland-Creation',
+    version: '1.2.0',
+    status: 'active',
+    receivedAt: '2026-09-10T15:25:00.000Z',
+    files: { workflow: fetched },
+    versions: grantHeader.versions,
+    counterpart: null
+  }
+
+  const givenWorkflow = (overrides: Partial<WorkflowVersionPage>) =>
+    vi.mocked(getWorkflowPageUseCase).mockResolvedValue({
+      outcome: 'found',
+      page: {
+        header: workflowHeader,
+        sourceErrors: [],
+        sectionErrors: [],
+        ...overrides
+      }
+    })
+
+  const configEvent = (service: 'gas' | 'caseworking') => ({
+    service,
+    box: 'inbox' as const,
+    id: '6716a9c2e4b0a1f2c3d4e5f6',
+    eventId: '7c1e0bd2-5f0a-4c4e-9b1d-0000174876e8',
+    type: 'ConfigVersionUpdated',
+    status: 'COMPLETED',
+    statusLabel: 'Completed',
+    statusRole: 'success' as const,
+    statusRetrying: false,
+    createdAt: '2026-09-22T09:14:37.000Z',
+    latency: 'took 2s',
+    latencyTitle: 'Received to completed'
+  })
+
+  const rejected = (service: 'gas' | 'caseworking') => ({
+    ...configEvent(service),
+    id: '6716a9c2e4b0a1f2c3d4e5f7',
+    status: 'DEAD_LETTER',
+    statusLabel: 'Dead letter',
+    statusRole: 'error' as const,
+    latency: null
+  })
+
+  const versionPages = [
+    {
+      itemId: 'grant',
+      path: grantPath,
+      ref: { code: 'woodland-creation', version: '1.2.0' },
+      service: 'gas' as const,
+      inbox: '/dev-ops/events/gas/inbox',
+      source: 'GAS',
+      hop: 'GAS inbox',
+      twin: { itemId: 'application', path },
+      read: getGrantPageUseCase,
+      given: (overrides: Partial<GrantVersionPage>) =>
+        givenGrant({ overview: undefined, ...overrides })
+    },
+    {
+      itemId: 'workflow',
+      path: workflowPath,
+      ref: { code: 'Woodland-Creation', version: '1.2.0' },
+      service: 'caseworking' as const,
+      inbox: '/dev-ops/events/cw/inbox',
+      source: 'CW',
+      hop: 'CW-BE',
+      twin: { itemId: 'case', path: casePath },
+      read: getWorkflowPageUseCase,
+      given: givenWorkflow
+    }
+  ]
+
+  /** The events table with its page's own names taken out, so two pages' tables can be compared. */
+  const eventsCard = ($: CheerioAPI, itemId: string, recordPath: string) =>
+    $.html(part($, `${itemId}-events-table`))
+      .replaceAll(`${itemId}-events`, 'record-events')
+      .replaceAll(encodeURIComponent(recordPath), 'RECORD')
+
+  test.each(versionPages)(
+    "reads the $itemId version's Events tab",
+    async ({ path: pagePath, ref, read, given }) => {
+      given({ events: { rows: [], more: false } })
+
+      await viewPage(`${pagePath}?tab=events`)
+
+      expect(read).toHaveBeenCalledWith(ref, 'events')
+    }
+  )
+
+  test.each(versionPages)(
+    'draws the $itemId events exactly as the $twin.itemId page draws its own',
+    async ({ itemId, path: pagePath, service, twin, given }) => {
+      const events = {
+        rows: [configEvent(service), rejected(service)],
+        more: true
+      }
+      given({ events })
+      givenPage({ overview: undefined, events })
+      vi.mocked(getCasePageUseCase).mockResolvedValue({
+        outcome: 'found',
+        page: {
+          header: caseHeader,
+          events,
+          sourceErrors: [],
+          sectionErrors: []
+        }
+      })
+
+      const { $ } = await viewPage(`${pagePath}?tab=events`)
+      const { $: record } = await viewPage(`${twin.path}?tab=events`)
+
+      expect(eventsCard($, itemId, pagePath)).toBe(
+        eventsCard(record, twin.itemId, twin.path)
+      )
+      expect(part($, 'event-row')).toHaveLength(2)
+    }
+  )
+
+  test.each(versionPages)(
+    'links each $itemId event to its page, coming back to this tab',
+    async ({ path: pagePath, service, inbox, given }) => {
+      given({ events: { rows: [configEvent(service)], more: false } })
+
+      const tab = `${pagePath}?tab=events&back=${encodeURIComponent(listed)}`
+      const { $ } = await viewPage(tab)
+
+      expect(part($, 'event-link').attr('href')).toBe(
+        `${inbox}/6716a9c2e4b0a1f2c3d4e5f6?back=${encodeURIComponent(tab)}`
+      )
+    }
+  )
+
+  test.each(versionPages)(
+    'shows a rejected $itemId event as a dead letter',
+    async ({ path: pagePath, service, given }) => {
+      given({ events: { rows: [rejected(service)], more: false } })
+
+      const { $ } = await viewPage(`${pagePath}?tab=events`)
+
+      expect(part($, 'event-row').attr('class')).toContain('bg-error/5')
+      expect(flatten(part($, 'event-row').find('td').eq(1).text())).toBe(
+        'Dead letter'
+      )
+    }
+  )
+
+  test.each(versionPages)(
+    "says the $itemId tab shows the newest 50 from $source's inbox",
+    async ({ itemId, path: pagePath, service, source, given }) => {
+      given({ events: { rows: [configEvent(service)], more: true } })
+
+      const { $ } = await viewPage(`${pagePath}?tab=events`)
+
+      expect(textOf($, `${itemId}-events-more`)).toBe(
+        `Showing the newest 50 from ${source}'s inbox.`
+      )
+    }
+  )
+
+  test.each(versionPages)(
+    "captions the $itemId events with the version they are for, and a search of $source's inbox for every version",
+    async ({ itemId, path: pagePath, ref, service, source, inbox, given }) => {
+      given({ events: { rows: [configEvent(service)], more: false } })
+
+      const { $ } = await viewPage(`${pagePath}?tab=events`)
+      const caption = part($, `${itemId}-events-caption`)
+      const search = part($, `${itemId}-events-search`)
+
+      expect(
+        caption
+          .children()
+          .toArray()
+          .map((line) => flatten($(line).text()))
+      ).toEqual([
+        `ConfigVersionUpdated events ${source} received for ${ref.code} ${ref.version}, newest first.`,
+        `A version ${source} rejected has no page: search ${source}'s inbox for ${ref.code} ›`
+      ])
+      expect(caption.attr('class')).toBe(
+        'px-4 pt-3 text-sm text-base-content/70'
+      )
+      expect(search.attr('action')).toBe(inbox)
+      expect(search.find('input[name="ref-value"]').attr('value')).toBe(
+        ref.code
+      )
+    }
+  )
+
+  test.each(versionPages)(
+    "says when $source holds no event for the $itemId version, with the search in place of the caption's",
+    async ({ itemId, path: pagePath, ref, source, given }) => {
+      given({ events: { rows: [], more: false } })
+
+      const { $ } = await viewPage(`${pagePath}?tab=events`)
+
+      expect(
+        part($, `${itemId}-events-empty`)
+          .children()
+          .toArray()
+          .map((line) => flatten($(line).text()))
+      ).toEqual([
+        `${source} holds no config event for ${ref.code} ${ref.version}. Events ${source} no longer holds are not listed.`,
+        `Search ${source}'s inbox for ${ref.code} to see every version's events ›`
+      ])
+      expect(part($, `${itemId}-events-caption`)).toHaveLength(0)
+      expect(part($, `${itemId}-events-search`)).toHaveLength(1)
+    }
+  )
+
+  test.each(versionPages)(
+    'says $hop could not be read, and never that it holds nothing',
+    async ({ itemId, path: pagePath, hop, ref, source, given }) => {
+      given({ events: { rows: [], more: false }, sourceErrors: [{ hop }] })
+
+      const { $ } = await viewPage(`${pagePath}?tab=events`)
+
+      expect(textOf($, `${itemId}-events-partial`)).toBe(
+        `Some event sources are unavailable: ${hop}. Showing the rest.`
+      )
+      expect(
+        part($, `${itemId}-events-empty`)
+          .children()
+          .toArray()
+          .map((line) => flatten($(line).text()))
+      ).toEqual([
+        `Search ${source}'s inbox for ${ref.code} to see every version's events ›`
+      ])
+    }
+  )
+
+  test.each(versionPages)(
+    'says so when the $itemId events could not be read',
+    async ({ itemId, path: pagePath, given }) => {
+      given({
+        events: null,
+        sectionErrors: [
+          { section: 'events', message: 'Events could not be loaded' }
+        ]
+      })
+
+      const { $ } = await viewPage(`${pagePath}?tab=events`)
+
+      expect(textOf($, `${itemId}-section-error`)).toBe(
+        'Events could not be loaded'
+      )
+    }
+  )
+
+  test('lists the events of a grant whose definitions are not stored, under the banner', async () => {
+    givenGrant({
+      header: nothingStored,
+      overview: undefined,
+      events: { rows: [configEvent('gas')], more: false }
+    })
+
+    const { $ } = await viewPage(`${grantPath}?tab=events`)
+
+    expect(part($, 'grant-banner')).toHaveLength(1)
+    expect(part($, 'grant-not-stored')).toHaveLength(0)
+    expect(part($, 'event-row')).toHaveLength(1)
   })
 })

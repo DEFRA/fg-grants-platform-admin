@@ -7,7 +7,12 @@ import type {
   VersionSummary
 } from './config-versions.ts'
 import type { SourceError } from './events.repository.ts'
-import type { RecordSectionError, StoredDate } from './record-page.ts'
+import type {
+  Counterpart,
+  RecordEvents,
+  RecordSectionError,
+  StoredDate
+} from './record-page.ts'
 
 export type GrantVersionRef = VersionRef
 
@@ -26,6 +31,8 @@ export interface GrantVersionHeader {
   s3Bucket?: string | null
   /** Newest first. */
   versions: VersionSummary[]
+  /** Null while the workflow link is unknown, and on a tab that does not show it. */
+  counterpart: Counterpart
 }
 
 /** Each is null while the grant file is not stored. */
@@ -284,6 +291,7 @@ export interface GrantVersionPage {
   payment?: Record<string, unknown> | null
   /** Null when not stored or too large. */
   agreement?: GrantAgreement | null
+  events?: RecordEvents | null
   /** Null when the grant file is not stored, too large, or refused by GAS's model (each with its section error). */
   entitlements?: GrantEntitlements | null
   sourceErrors: SourceError[]
@@ -299,6 +307,7 @@ export type GrantRead =
   | 'entitlements'
   | 'agreement'
   | 'payment'
+  | 'events'
 
 const grantPath = (code: string) =>
   `/grant-admin/grants/${encodeURIComponent(code)}/versions`

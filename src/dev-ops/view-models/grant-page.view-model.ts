@@ -1,12 +1,14 @@
 import type {
   GrantVersionHeader,
   GrantVersionOverview,
-  GrantVersionPage
+  GrantVersionPage,
+  GrantVersionRef
 } from '../use-cases/get-grant-page.use-case.ts'
 import type { Catalogue } from '../use-cases/get-catalogue.use-case.ts'
 import { grantTabs, offersTab } from '../use-cases/grant-tabs.ts'
 import type { GrantTabId } from '../use-cases/grant-tabs.ts'
 import { toAdminHref } from '../../grant-ops/view-models/allow-list-page.view-model.ts'
+import { toVersionListHref } from './bucket-links.ts'
 import type { DefinitionFetchFlash } from './definition-fetch.ts'
 import { toUnavailableSources } from './event-row.ts'
 import { toGrantQuestions } from './grant-questions.ts'
@@ -25,9 +27,11 @@ import type { PaymentDefinitionView } from './payment-definition.ts'
 import {
   toDateFact,
   toDayFact,
+  toEvents,
   toLinkFact,
   toMonoFact,
   toRaw,
+  toReleaseCounterpartFacts,
   toSizeFact,
   toTabHref,
   toTabSection,
@@ -39,6 +43,7 @@ import type { RecordType } from './record-type.ts'
 import { toFileLines } from './version-banner.ts'
 import { toNotStored, toVersionShell } from './version-page.ts'
 import type { NotStored, VersionShell } from './version-page.ts'
+import { toWorkflowHref, workflowType } from './workflows-page.view-model.ts'
 
 export interface GrantPageModel extends RecordPageModel, VersionShell {
   notStored: NotStored | null
@@ -58,6 +63,19 @@ export interface GrantPageQuery {
 
 const toAllowListHref = (code: string): string =>
   `${toAdminHref(code)}#who-can-apply`
+
+const applicationsBucket = 'gas.applications'
+
+const toApplicationsHref = (
+  catalogue: Catalogue | null,
+  { code, version }: GrantVersionRef
+): string | null =>
+  toVersionListHref(
+    catalogue,
+    applicationsBucket,
+    { codeFact: 'code', versionFact: 'currentConfigVersion' },
+    { code, version }
+  )
 
 const toFacts = (
   header: GrantVersionHeader,
@@ -82,6 +100,17 @@ const toFacts = (
     }
   ],
   [
+    ...toReleaseCounterpartFacts(
+      workflowType,
+      header.counterpart,
+      toWorkflowHref(header)
+    ),
+    toLinkFact(
+      'applications',
+      'Applications',
+      'View applications',
+      toApplicationsHref(catalogue, header)
+    ),
     toLinkFact(
       'who-can-apply',
       'Who can apply',
@@ -103,6 +132,13 @@ const toEntitlementsHrefs = (href: string, from: string) => ({
     toTabHref(href, 'phases', from, status === null ? {} : { status }),
   payment: toTabHref(href, 'payment', from)
 })
+
+/** Null unless CW has the workflow version, so a CW status never links to a page CW cannot show. */
+const toWorkflowPhasesHref = (header: GrantVersionHeader) =>
+  header.counterpart?.exists
+    ? (cwStatus: string, back: string) =>
+        toTabHref(toWorkflowHref(header), 'phases', back, { status: cwStatus })
+    : null
 
 const toPaymentFileState = ({
   files
@@ -207,7 +243,7 @@ const toPhases = (
         status,
         href,
         from,
-        workflowHref: null
+        workflowHref: toWorkflowPhasesHref(page.header)
       })
     : null
 
@@ -243,7 +279,7 @@ export const toGrantPage = (
     facts: toOverviewFacts(page, catalogue),
     series: null,
     seriesDetailed: false,
-    events: null,
+    events: toEvents(page.events, now, toTabHref(href, 'events', from)),
     ...toTabSection(page.definition, page.sectionErrors, tab, read),
     unavailableSources: toUnavailableSources(page.sourceErrors),
     ...toVersionShell(grantType, page.header, tab, from, {
