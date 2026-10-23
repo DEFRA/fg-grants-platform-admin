@@ -4,6 +4,7 @@ import type {
   BucketSummary,
   Catalogue
 } from './get-catalogue.use-case.ts'
+import type { AgreementDefinition } from './get-grant-page.use-case.ts'
 
 /** A bucket of events and a bucket of records, shaped as GAS's catalogue describes them. */
 export const outboxBucket: BucketEntry = {
@@ -366,4 +367,95 @@ export const catalogue: Catalogue = {
     workflowsBucket
   ],
   sourceErrors: []
+}
+
+/** An agreement definition as GAS stores it (`agreements__definitions.definition`). */
+export const agreementDefinition: AgreementDefinition = {
+  code: 'woodland-creation',
+  agreementNumberPrefix: 'WC',
+  create: {
+    target: 'offered',
+    application: '$.input.answers',
+    processes: ['GENERATE_OFFER']
+  },
+  states: {
+    offered: {
+      page: 'offered',
+      on: {
+        accept: {
+          target: 'accepted',
+          page: 'accept',
+          validation: {
+            required: [
+              {
+                name: 'confirm',
+                value: '$.form.confirm',
+                href: '#confirm',
+                message: 'Confirm you have read the terms'
+              }
+            ]
+          },
+          processes: ['CREATE_AGREEMENT_PAYMENT']
+        },
+        withdraw: { target: 'withdrawn' },
+        cancel: { target: 'cancelled' }
+      }
+    },
+    accepted: {
+      page: 'accepted',
+      processes: ['GENERATE_OFFER'],
+      on: { terminate: { target: 'terminated' } }
+    },
+    withdrawn: { page: 'withdrawn' },
+    cancelled: {},
+    terminated: { page: 'terminated' }
+  },
+  pages: {
+    document: {
+      title: 'Agreement document',
+      layout: 'document',
+      components: [{ component: 'heading' }],
+      sections: [
+        { id: 'parties' },
+        { id: 'actions' },
+        { id: 'payments' },
+        { id: 'terms' }
+      ]
+    },
+    offered: {
+      title: 'Review your agreement offer',
+      components: [
+        { component: 'summary-list' },
+        { component: 'button' },
+        { component: 'summary-list' }
+      ]
+    },
+    accept: {
+      title: 'Accept your agreement offer',
+      components: [{ component: 'form' }]
+    }
+  },
+  processDefinitions: {
+    GENERATE_OFFER: {
+      type: 'endpoint',
+      endpoint: {
+        method: 'POST',
+        service: 'LAND_DATA',
+        path: '/api/v2/parcels/{sbi}'
+      },
+      request: { body: { sbi: '$.application.sbi' } },
+      output: {
+        offer: '$.response.offer',
+        totalAmountPence: '$.response.totalAmountPence'
+      }
+    },
+    FETCH_TERMS: {
+      type: 'endpoint',
+      endpoint: { method: 'GET', service: 'AGREEMENT_DOCS', path: '/terms' },
+      request: { body: {} },
+      output: { terms: '$.response.terms' }
+    },
+    CREATE_AGREEMENT_PAYMENT: { type: 'handler' }
+  },
+  templates: { terms: { standard: {}, welsh: {} } }
 }

@@ -1,4 +1,5 @@
 import type { CaseRef } from '../use-cases/get-case-page.use-case.ts'
+import { recordTabEntries } from './record-type.ts'
 import type { RecordType } from './record-type.ts'
 
 const casesPath = '/dev-ops/cases'
@@ -10,7 +11,10 @@ export const caseType: RecordType = {
   path: casesPath,
   source: 'CW',
   showClosed: true,
-  linkLabel: 'View case'
+  linkLabel: 'View case',
+  tabs: recordTabEntries,
+  view: 'record',
+  titleParam: 'caseRef'
 }
 
 export const toCaseHref = ({ workflowCode, caseRef }: CaseRef): string =>

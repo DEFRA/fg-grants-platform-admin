@@ -8,7 +8,7 @@
   <do-back>
     <a class="link link-hover inline-flex items-center gap-1 {{ muted }} hover:text-base-content" href="{{ params.href }}" data-testid="{{ prefix }}-back">
       {{ icon({ name: 'arrow-right', class: 'size-4 rotate-180' }) }}
-      <span>Back to {{ params.list | default("events", true) }}</span>
+      <span>{{ params.label or ("Back to " ~ (params.list | default("events", true))) }}</span>
     </a>
   </do-back>
 </nav>

@@ -1,0 +1,9 @@
+{# A mapping's fields: Field, Value and Comes from, nested fields beneath their parent. #}
+{% macro mappingTable(params) %}
+    {%- include "./template.njk" -%}
+{% endmacro %}
+
+{# One mapping value, with what it comes from as a muted suffix: `suffix` "always", or "phone" below `sm` only. #}
+{% macro mappingValue(value, suffix) %}
+    {%- include "./value.njk" -%}
+{% endmacro %}
