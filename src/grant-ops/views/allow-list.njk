@@ -4,6 +4,7 @@
 {% from "govuk/components/error-summary/macro.njk" import govukErrorSummary %}
 {% from "govuk/components/notification-banner/macro.njk" import govukNotificationBanner %}
 {% from "govuk/components/textarea/macro.njk" import govukTextarea %}
+{% from "govuk/components/radios/macro.njk" import govukRadios %}
 
 {% block content %}
   <div class="govuk-grid-row">
@@ -37,7 +38,22 @@
           </li>
         </ul>
 
-        <div class="govuk-tabs__panel" id="grant-setup"></div>
+        <div class="govuk-tabs__panel" id="grant-setup">
+          <form method="post" action="{{ settingsFormAction }}" novalidate>
+            {{ govukRadios({
+              name: "status",
+              idPrefix: "grant-status",
+              errorMessage: { text: settingsError } if settingsError else none,
+              fieldset: { legend: { text: "Is this grant open or closed?", classes: "govuk-fieldset__legend--m" } },
+              hint: { text: "Changes take effect when you save." },
+              items: [
+                { value: "open", text: "Open", checked: settings.open === true },
+                { value: "closed", text: "Closed", checked: settings.open === false }
+              ]
+            }) }}
+            {{ govukButton({ text: "Save changes" }) }}
+          </form>
+        </div>
 
         <div class="govuk-tabs__panel" id="who-can-apply">
           <h2 class="govuk-heading-l">Who can apply</h2>
