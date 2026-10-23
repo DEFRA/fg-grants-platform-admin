@@ -285,6 +285,7 @@ describe('the workflow page', () => {
       `Tasks ${path}?tab=tasks&back=${encodeURIComponent(listed)}`,
       `Pages ${path}?tab=pages&back=${encodeURIComponent(listed)}`,
       `Integrations ${path}?tab=integrations&back=${encodeURIComponent(listed)}`,
+      `Events ${path}?tab=events&back=${encodeURIComponent(listed)}`,
       `Raw ${path}?tab=raw&back=${encodeURIComponent(listed)}`
     ])
     expect(part($, 'workflow-tabs').find('[aria-current="page"]').text()).toBe(
