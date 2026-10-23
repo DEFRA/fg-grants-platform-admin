@@ -1,5 +1,6 @@
 import type { WorkflowDefinition } from '../use-cases/get-workflow-page.use-case.ts'
 import { woodlandDefinition } from '../use-cases/test-fixtures.ts'
+import { toMappingValue } from './mapping-table.ts'
 import { toWorkflowPagesTab } from './workflow-pages-tab.ts'
 
 const withWorkflow = (
@@ -141,6 +142,40 @@ describe('toWorkflowPagesTab', () => {
 
     expect(tab.banner.title).toEqual({ kind: 'empty', text: '""' })
     expect(tab.banner.summary[0].valueFrom).toEqual({ kind: 'none' })
+  })
+
+  test('reads a jsonata: path as an expression, and any other path as CW stores it', () => {
+    const tab = toWorkflowPagesTab(
+      withWorkflow({
+        pages: {
+          cases: {
+            details: {
+              banner: {
+                title: { text: 'jsonata:$.payload.name', type: 'string' },
+                summary: {
+                  id: {
+                    label: 'ID',
+                    text: 'jsonata:$.a & $.b',
+                    type: 'string'
+                  },
+                  both: { label: 'Both', text: '$.a $.b', type: 'string' }
+                }
+              }
+            }
+          }
+        }
+      }),
+      integrationsHref
+    )
+
+    expect(tab.banner.title).toEqual({
+      kind: 'expression',
+      value: toMappingValue('jsonata:$.payload.name')
+    })
+    expect(tab.banner.summary.map(({ valueFrom }) => valueFrom)).toEqual([
+      { kind: 'expression', value: toMappingValue('jsonata:$.a & $.b') },
+      { kind: 'value', text: '$.a $.b' }
+    ])
   })
 
   test('has no title, buttons or fields without a banner', () => {

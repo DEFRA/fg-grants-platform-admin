@@ -1,5 +1,6 @@
 {% from "code-text/macro.njk" import codeText %}
 {% from "inline-badge/macro.njk" import inlineBadge %}
+{% from "mapping-table/macro.njk" import mappingValue %}
 {% from "muted/macro.njk" import muted %}
 {% from "no-value/macro.njk" import noValue %}
 {% from "workflow-pages/action-cell.njk" import actionCell %}
@@ -13,6 +14,8 @@
 {% macro storedText(value) %}
   {%- if value.kind == "value" -%}
     {{ codeText(value.text, "text-sm") }}
+  {%- elif value.kind == "expression" -%}
+    {{ mappingValue(value.value, "always") }}
   {%- elif value.kind == "empty" -%}
     <span class="{{ monoMuted }}">{{ value.text }}</span>
   {%- else -%}
@@ -37,19 +40,22 @@
           {%- else -%}
             {{ noValue({}) }}
           {%- endfor -%}
-          <div class="{{ note }}" data-testid="{{ testId }}-buttons-who">Shown to caseworkers with ReadWrite and the workflow's roles.</div>
+          {%- if tab.banner.buttons | length %}
+            <div class="{{ note }}" data-testid="{{ testId }}-buttons-who">Shown to caseworkers with ReadWrite and the workflow's roles.</div>
+          {%- endif %}
         </dd>
         {% if tab.banner.summary | length %}
           <dt class="{{ factLabel }}">Summary</dt>
           <dd class="min-w-0">
             <div class="w-full overflow-x-auto">
-              <table class="table table-sm w-auto max-w-3xl min-w-[32rem]" data-testid="{{ testId }}-summary">
+              <table class="table table-sm w-full min-w-[40rem] table-fixed" data-testid="{{ testId }}-summary">
+                <colgroup><col class="w-[22%]"><col class="w-[22%]"><col class="w-[40%]"><col class="w-[16%]"></colgroup>
                 <thead>
                   <tr><th scope="col">Key</th><th scope="col">Label</th><th scope="col">Value from</th><th scope="col">Type</th></tr>
                 </thead>
                 <tbody>
                   {% for row in tab.banner.summary %}
-                    <tr class="hover:bg-base-200" data-testid="{{ testId }}-summary-row"><td>{{ codeText(row.key, "text-sm") }}</td><td>{{ row.label }}</td><td>{{ storedText(row.valueFrom) }}</td><td>{{ codeText(row.type, "text-sm") }}</td></tr>
+                    <tr class="hover:bg-base-200" data-testid="{{ testId }}-summary-row"><td>{{ codeText(row.key, "text-sm") }}</td><td class="text-sm">{{ row.label }}</td><td>{{ storedText(row.valueFrom) }}</td><td>{{ codeText(row.type, "text-sm") }}</td></tr>
                   {% endfor %}
                 </tbody>
               </table>

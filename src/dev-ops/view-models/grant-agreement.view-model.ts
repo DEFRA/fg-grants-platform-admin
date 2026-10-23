@@ -81,7 +81,7 @@ type PageDetail =
   | { kind: 'watermark'; state: string; text: string }
   | { kind: 'print' | 'contents' }
   | { kind: 'back'; href: string }
-  | { kind: 'section'; id: string; condition: string | null }
+  | { kind: 'section'; id: string; condition: MappingValue | null }
 
 interface PageRow {
   id: string
@@ -101,7 +101,7 @@ interface ProcessRow {
   sends: MappingRow[]
   /** A body sent with a GET, which some servers drop. */
   bodyOnGet: boolean
-  outputs: { field: string; value: MappingValue }[]
+  outputs: MappingRow[]
   lands: Lands[]
 }
 
@@ -431,7 +431,10 @@ const toPageDetails = (page: Page): PageDetail[] => [
     (section): PageDetail => ({
       kind: 'section',
       id: section.id,
-      condition: orNone(section.condition)
+      condition:
+        section.condition === undefined
+          ? null
+          : toMappingValue(section.condition)
     })
   )
 ]
@@ -502,8 +505,8 @@ const paymentHandler = 'CREATE_AGREEMENT_PAYMENT'
 const bodyOf = (process: Process): Record<string, unknown> | undefined =>
   process.type === 'endpoint' ? process.request.body : undefined
 
-const outputsOf = (process: Process): [string, unknown][] =>
-  process.type === 'endpoint' ? entriesOf(process.output) : []
+const outputsOf = (process: Process): Record<string, unknown> =>
+  process.type === 'endpoint' ? (process.output ?? {}) : {}
 
 const isGet = (process: Process): boolean =>
   process.type === 'endpoint' && process.endpoint.method.toUpperCase() === 'GET'
@@ -520,10 +523,7 @@ const toProcessRow =
       call: toCall(name, process, agreement),
       sends: toMappingRows(body ?? {}),
       bodyOnGet: body !== undefined && isGet(process),
-      outputs: outputsOf(process).map(([field, value]) => ({
-        field,
-        value: toMappingValue(value)
-      })),
+      outputs: toMappingRows(outputsOf(process)),
       lands: toLands(name, agreement.definition)
     }
   }
