@@ -16,7 +16,11 @@ import type {
 } from '../use-cases/get-grant-page.use-case.ts'
 import { getGrantPageUseCase } from '../use-cases/get-grant-page.use-case.ts'
 import { getGrantVersionsUseCase } from '../use-cases/get-grant-versions.use-case.ts'
-import { agreementDefinition } from '../use-cases/test-fixtures.ts'
+import {
+  agreementDefinition,
+  woodlandDefinition
+} from '../use-cases/test-fixtures.ts'
+import { getWorkflowPageUseCase } from '../use-cases/get-workflow-page.use-case.ts'
 
 vi.mock(import('../use-cases/get-catalogue.use-case.ts'))
 vi.mock(import('../use-cases/get-application-page.use-case.ts'), async () => ({
@@ -38,6 +42,12 @@ vi.mock(import('../use-cases/get-grant-page.use-case.ts'), async () => ({
   getGrantPageUseCase: vi.fn()
 }))
 vi.mock(import('../use-cases/get-grant-versions.use-case.ts'))
+vi.mock(import('../use-cases/get-workflow-page.use-case.ts'), async () => ({
+  ...(await vi.importActual<
+    typeof import('../use-cases/get-workflow-page.use-case.ts')
+  >('../use-cases/get-workflow-page.use-case.ts')),
+  getWorkflowPageUseCase: vi.fn()
+}))
 vi.mock(import('../../common/config.ts'))
 
 const credentials = {
@@ -1215,7 +1225,8 @@ const grantHeader: GrantVersionPage['header'] = {
       status: 'active',
       receivedAt: '2026-09-10T15:25:00.000Z'
     }
-  ]
+  ],
+  counterpart: { exists: true }
 }
 
 const grantOverview: NonNullable<GrantVersionPage['overview']> = {
@@ -1412,6 +1423,11 @@ describe('the grant page', () => {
       'Back to application'
     ],
     ['a case', '/dev-ops/cases/woodland-creation/abc-123', 'Back to case'],
+    [
+      'a workflow version',
+      '/dev-ops/workflows/woodland-creation/1.2.0?tab=phases',
+      'Back to workflow woodland-creation 1.2.0'
+    ],
     [
       'an event',
       '/dev-ops/events/gas/inbox/6ad9086d1650ab8312898a92',
@@ -1655,7 +1671,7 @@ describe('the grant Overview tab', () => {
         'Admin role',
         'Definitions'
       ],
-      ['Who can apply', 'Versions', 'Definition size']
+      ['Workflow', 'Who can apply', 'Versions', 'Definition size']
     ])
     expect(textOf($, 'grant-description')).toBe(
       'Funding to plant new woodland on agricultural land.'
@@ -1721,6 +1737,35 @@ describe('the grant Overview tab', () => {
     )
   })
 
+  test('links to the workflow of the same code and version, in a new tab', async () => {
+    givenGrant()
+
+    const { $ } = await viewPage(grantPath)
+    const link = part($, 'grant-workflow')
+
+    expect(link.attr('href')).toBe('/dev-ops/workflows/woodland-creation/1.2.0')
+    expect(link.attr('target')).toBe('_blank')
+    expect(flatten(link.text())).toBe('View workflow (opens in a new tab)')
+  })
+
+  test('says None when CW has no workflow of that version', async () => {
+    givenGrant({ header: { ...grantHeader, counterpart: { exists: false } } })
+
+    const { $ } = await viewPage(grantPath)
+
+    expect(textOf($, 'grant-workflow')).toBe('None')
+    expect(part($, 'grant-workflow').attr('href')).toBeUndefined()
+  })
+
+  test('leaves the Workflow fact out when CW could not say', async () => {
+    givenGrant({ header: { ...grantHeader, counterpart: null } })
+
+    const { $ } = await viewPage(grantPath)
+
+    expect(part($, 'grant-fact-workflow')).toHaveLength(0)
+    expect(part($, 'grant-fact-who-can-apply')).toHaveLength(1)
+  })
+
   test('opens the allow list on its Who can apply tab', async () => {
     givenGrant()
 
@@ -1756,9 +1801,14 @@ describe('the grant Overview tab', () => {
     expect(part($, 'grant-received').attr('datetime')).toBe(
       '2026-09-10T15:25:00Z'
     )
-    expect(part($, 'grant-who-can-apply').attr('href')).toBe(
+    expect(
+      ['workflow', 'who-can-apply'].map((id) =>
+        part($, `grant-${id}`).attr('href')
+      )
+    ).toEqual([
+      '/dev-ops/workflows/woodland-creation/1.2.0',
       '/grant-ops/grants/woodland-creation/admin#who-can-apply'
-    )
+    ])
   })
 
   test('says the overview could not be read in place of the facts', async () => {
@@ -3184,7 +3234,7 @@ describe('the grant Phases tab', () => {
     ])
   })
 
-  test('shows CW and Agreements setters as plain text, keyed on their stage', async () => {
+  test('links a CW setter to the workflow Phases tab with that status selected', async () => {
     givenPhases()
 
     const amend = await viewPage(
@@ -3197,13 +3247,72 @@ describe('the grant Phases tab', () => {
     expect(sectionLines(amend.$, 'grant-phases-triggered-by')).toEqual([
       'CW RFI_SENT — while the application is in Review'
     ])
-    expect(part(amend.$, 'grant-phases-triggered-by').find('a')).toHaveLength(0)
+    expect(
+      part(amend.$, 'grant-phases-triggered-by').find('a').attr('href')
+    ).toBe(
+      `/dev-ops/workflows/woodland-creation/1.2.0?tab=phases&back=${encodeURIComponent(
+        `${phasesPath}&status=${encodeURIComponent('PRE_AWARD:APPLICATION:AMEND')}`
+      )}&status=RFI_SENT`
+    )
     expect(sectionLines(offered.$, 'grant-phases-triggered-by')).toEqual([
       'Agreements offered — while the application is in Agreement'
     ])
     expect(part(offered.$, 'grant-phases-triggered-by').find('a')).toHaveLength(
       0
     )
+  })
+
+  test('opens the workflow Phases tab it links to, with that status selected', async () => {
+    givenPhases()
+    vi.mocked(getWorkflowPageUseCase).mockResolvedValue({
+      outcome: 'found',
+      page: {
+        header: {
+          code: 'woodland-creation',
+          version: '1.2.0',
+          status: 'active',
+          receivedAt: '2026-09-10T15:25:00.000Z',
+          files: { workflow: fetched },
+          versions: [],
+          counterpart: { exists: true }
+        },
+        definition: woodlandDefinition,
+        grantStatusMap: { outcome: 'no-grant' },
+        sourceErrors: [],
+        sectionErrors: []
+      }
+    })
+
+    const grant = await viewPage(
+      `${phasesPath}&status=PRE_AWARD:APPLICATION:AMEND`
+    )
+    const href = part(grant.$, 'grant-phases-triggered-by')
+      .find('a')
+      .attr('href')
+    const { $, statusCode } = await viewPage(href)
+
+    expect(statusCode).toBe(statusCodes.ok)
+    expect(
+      part($, 'workflow-phases-node')
+        .filter('[aria-current="true"]')
+        .attr('data-position')
+    ).toBe('PRE_AWARD:REVIEW:RFI_SENT')
+  })
+
+  test.each([
+    ['CW has no workflow of that version', { exists: false }],
+    ['CW could not say', null]
+  ])('shows a CW setter as plain text when %s', async (_, counterpart) => {
+    givenPhases({ header: { ...grantHeader, counterpart } })
+
+    const { $ } = await viewPage(
+      `${phasesPath}&status=PRE_AWARD:APPLICATION:AMEND`
+    )
+
+    expect(sectionLines($, 'grant-phases-triggered-by')).toEqual([
+      'CW RFI_SENT — while the application is in Review'
+    ])
+    expect(part($, 'grant-phases-triggered-by').find('a')).toHaveLength(0)
   })
 
   test('sets a status by the last claim, with no moves out and the stage facts', async () => {

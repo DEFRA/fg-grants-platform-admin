@@ -5,6 +5,14 @@ import type {
   Catalogue
 } from './get-catalogue.use-case.ts'
 import type { AgreementDefinition } from './get-grant-page.use-case.ts'
+import type {
+  StoredAction,
+  StoredTransition,
+  StoredValueOption,
+  StoredWorkflowPhase,
+  StoredWorkflowStatus,
+  WorkflowDefinition
+} from './get-workflow-page.use-case.ts'
 
 /** A bucket of events and a bucket of records, shaped as GAS's catalogue describes them. */
 export const outboxBucket: BucketEntry = {
@@ -367,6 +375,287 @@ export const catalogue: Catalogue = {
     workflowsBucket
   ],
   sourceErrors: []
+}
+
+const workflowStatus = (
+  code: string,
+  name: string,
+  theme: string,
+  overrides: Partial<StoredWorkflowStatus> = {}
+): StoredWorkflowStatus => ({
+  code,
+  name,
+  theme,
+  interactive: true,
+  closes: false,
+  hideTaskGroups: false,
+  transitions: [],
+  ...overrides
+})
+
+const go = (
+  targetPosition: string,
+  action: StoredAction | null = null,
+  checkTasks = false
+): StoredTransition => ({ targetPosition, checkTasks, action })
+
+const act = (
+  code: string,
+  name: string,
+  comment: StoredAction['comment'] = null,
+  confirm = false
+): StoredAction => ({ code, name, checkTasks: false, comment, confirm })
+
+/** A value option; one with a comment label asks for a required comment. */
+const option = (
+  code: string,
+  name: string,
+  completes: boolean,
+  comment?: string
+): StoredValueOption => ({
+  code,
+  name,
+  completes,
+  comment: comment ? { label: comment, mandatory: true } : null
+})
+
+/** The prototype's `woodland-creation@1.2.0` phases, as CW stores them. */
+export const woodlandPhases: StoredWorkflowPhase[] = [
+  {
+    code: 'PRE_AWARD',
+    name: 'Pre-award',
+    stages: [
+      {
+        code: 'REVIEW',
+        name: 'Review application',
+        statuses: [
+          workflowStatus('AWAITING_REVIEW', 'Awaiting review', 'NEUTRAL', {
+            interactive: false,
+            transitions: [
+              go(
+                'PRE_AWARD:REVIEW:IN_REVIEW',
+                act('START_REVIEW', 'Start review')
+              )
+            ]
+          }),
+          workflowStatus('IN_REVIEW', 'In review', 'INFO', {
+            transitions: [
+              go(
+                'PRE_AWARD:REVIEW:APPROVED',
+                act('APPROVE', 'Approve', { mandatory: false }, true),
+                true
+              ),
+              go(
+                'PRE_AWARD:REVIEW:REJECTED',
+                act('REJECT', 'Reject', { mandatory: true }, true)
+              ),
+              go(
+                'PRE_AWARD:REVIEW:ON_HOLD',
+                act('PUT_ON_HOLD', 'Put on hold', { mandatory: true })
+              ),
+              go(
+                'PRE_AWARD:REVIEW:RFI_SENT',
+                act('SEND_RFI', 'Request information', { mandatory: true })
+              )
+            ]
+          }),
+          workflowStatus('ON_HOLD', 'On hold', 'NOTICE', {
+            transitions: [
+              go('PRE_AWARD:REVIEW:IN_REVIEW', act('RESUME', 'Resume review'))
+            ]
+          }),
+          workflowStatus('RFI_SENT', 'Information requested', 'WARN', {
+            transitions: [go('PRE_AWARD:REVIEW:IN_REVIEW')]
+          }),
+          workflowStatus('APPROVED', 'Approved', 'SUCCESS', {
+            interactive: false,
+            transitions: [go('POST_AWARD:AGREEMENT:AWAITING_ACCEPTANCE')]
+          }),
+          workflowStatus('REJECTED', 'Rejected', 'ERROR', {
+            interactive: false,
+            closes: true,
+            hideTaskGroups: true
+          }),
+          workflowStatus('WITHDRAWN', 'Withdrawn', 'NEUTRAL', {
+            interactive: false,
+            closes: true,
+            hideTaskGroups: true
+          })
+        ],
+        taskGroups: [
+          {
+            code: 'CHECKS',
+            name: 'Application checks',
+            tasks: [
+              {
+                code: 'CHECK_ELIGIBILITY',
+                name: 'Check eligibility',
+                mandatory: true,
+                requiredRoles: null,
+                valueOptions: [
+                  option('ACCEPTED', 'Accepted', true),
+                  option('RFI', 'Information needed', false, 'What is missing'),
+                  option('CANNOT_COMPLETE', 'Cannot complete', false, 'Why')
+                ]
+              },
+              {
+                code: 'CHECK_LAND',
+                name: 'Check land parcels',
+                mandatory: true,
+                requiredRoles: null,
+                valueOptions: [
+                  option('ACCEPTED', 'Accepted', true),
+                  option('NOT_ACCEPTED', 'Not accepted', true, 'Which parcels')
+                ]
+              },
+              {
+                code: 'SITE_VISIT_DATE',
+                name: 'Record site visit date',
+                mandatory: false,
+                requiredRoles: { allOf: ['ROLE_RPA_CASES_APPROVE'], anyOf: [] },
+                input: { type: 'date', label: 'Site visit date' }
+              }
+            ]
+          },
+          {
+            code: 'APPROVAL',
+            name: 'Approval',
+            tasks: [
+              {
+                code: 'SECOND_CHECK',
+                name: 'Second check',
+                mandatory: true,
+                requiredRoles: { allOf: [], anyOf: ['ROLE_RPA_ADMIN'] },
+                valueOptions: [
+                  option('AGREED', 'Agreed', true),
+                  option('NOT_AGREED', 'Not agreed', true, 'Why not')
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  {
+    code: 'POST_AWARD',
+    name: 'Post-award',
+    stages: [
+      {
+        code: 'AGREEMENT',
+        name: 'Agreement',
+        statuses: [
+          workflowStatus('AWAITING_ACCEPTANCE', 'Awaiting acceptance', 'INFO', {
+            interactive: false
+          }),
+          workflowStatus('ACCEPTED', 'Agreement accepted', 'SUCCESS', {
+            interactive: false,
+            closes: true
+          })
+        ],
+        taskGroups: []
+      }
+    ]
+  }
+]
+
+/** The prototype's `woodland-creation@1.2.0`, as GAS answers its definition read. */
+export const woodlandDefinition: WorkflowDefinition = {
+  workflow: {
+    phases: woodlandPhases,
+    pages: {
+      cases: {
+        details: {
+          banner: {
+            title: { text: '$.payload.answers.businessName', type: 'string' },
+            summary: {
+              sbi: {
+                label: 'SBI',
+                text: '$.payload.identifiers.sbi',
+                type: 'string'
+              },
+              reference: {
+                label: 'Reference',
+                text: '$.caseRef',
+                type: 'string'
+              },
+              hectares: {
+                label: 'Area (ha)',
+                text: '$.payload.answers.hectares',
+                type: 'number'
+              },
+              submitted: {
+                label: 'Submitted',
+                text: '$.payload.submittedAt',
+                type: 'date',
+                format: 'dd MMM yyyy'
+              }
+            }
+          },
+          tabs: {
+            'case-details': { content: [{ component: 'summary-list' }] },
+            'land-parcels': {
+              link: { text: 'Land', index: 2 },
+              action: { parcels: 'REFRESH_PARCELS' },
+              content: [{ component: 'table' }]
+            },
+            agreements: {
+              link: { text: 'Agreement', index: 5 },
+              renderIf: '$.supplementaryData.agreements',
+              content: [{ component: 'table' }]
+            }
+          }
+        }
+      }
+    },
+    endpoints: [
+      {
+        code: 'land-parcels',
+        service: 'LAND_DATA',
+        path: '/api/v2/parcels/{sbi}',
+        method: 'GET'
+      },
+      {
+        code: 'recalculate',
+        service: 'PAYMENT_CALC',
+        path: '/api/v1/calculate',
+        method: 'POST'
+      }
+    ],
+    externalActions: [
+      {
+        code: 'RECALCULATE',
+        name: 'Recalculate payment',
+        description: 'Ask the land service for a new payment figure.',
+        display: true,
+        endpoint: { code: 'recalculate' },
+        target: {
+          targetNode: 'payment',
+          dataType: 'OBJECT',
+          position: null,
+          place: 'append'
+        }
+      },
+      {
+        code: 'REFRESH_PARCELS',
+        name: 'Refresh land parcels',
+        display: false,
+        endpoint: {
+          code: 'land-parcels',
+          endpointParams: { PATH: { sbi: '$.payload.identifiers.sbi' } }
+        },
+        target: null
+      }
+    ]
+  },
+  addresses: [
+    {
+      code: 'land-parcels',
+      service: 'LAND_DATA',
+      url: 'https://land-data.example/api/v2/parcels/{sbi}'
+    },
+    { code: 'recalculate', service: 'PAYMENT_CALC', url: null }
+  ]
 }
 
 /** An agreement definition as GAS stores it (`agreements__definitions.definition`). */
