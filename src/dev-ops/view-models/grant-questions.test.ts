@@ -464,6 +464,40 @@ describe('toGrantQuestions schema tree', () => {
     ])
   })
 
+  test('keeps both schemas of a field set both beside a ref and in its target', () => {
+    const { rows } = schemaCard({
+      $defs: {
+        address: {
+          type: 'object',
+          properties: {
+            postcode: { type: 'string', pattern: '^[A-Z]', maxLength: 8 }
+          }
+        }
+      },
+      properties: {
+        address: {
+          $ref: '#/$defs/address',
+          properties: { postcode: { minLength: 5, maxLength: 10 } }
+        }
+      }
+    })
+
+    expect(
+      fieldsOf(rows).map(({ name, type, constraints }) => [
+        name,
+        said(type),
+        constraints.map(said)
+      ])
+    ).toEqual([
+      ['address', '`object`', []],
+      [
+        'postcode',
+        '`string`',
+        ['length 5–8', 'pattern `^[A-Z]`', 'length ≤ 10']
+      ]
+    ])
+  })
+
   test("keeps both sets of an array's item constraints too", () => {
     expect(
       rulesOf({

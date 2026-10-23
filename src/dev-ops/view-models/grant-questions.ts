@@ -132,9 +132,36 @@ interface Resolved {
   walk: Walk
 }
 
+/** A field's constraints set on both sides of a ref, kept beside the field it was merged into. */
+const alsoOf = new WeakMap<Schema, Schema>()
+
+const bothField = (target: unknown, sibling: unknown): unknown => {
+  if (!isSchema(target) || !isSchema(sibling)) {
+    return sibling
+  }
+
+  const { merged, also } = splitSiblings(target, sibling)
+
+  if (also) {
+    alsoOf.set(merged, also)
+  }
+
+  return merged
+}
+
 const bothProperties = (target: unknown, siblings: unknown): Schema =>
   isSchema(target) && isSchema(siblings)
-    ? { properties: { ...target, ...siblings } }
+    ? {
+        properties: {
+          ...target,
+          ...Object.fromEntries(
+            Object.entries(siblings).map(([name, sibling]) => [
+              name,
+              bothField(target[name], sibling)
+            ])
+          )
+        }
+      }
     : {}
 
 const bothRequired = (target: unknown, siblings: unknown): Schema =>
@@ -166,12 +193,20 @@ const splitSiblings = (
   }
 }
 
+const unreferenced = (schema: Schema, walk: Walk): Resolved => ({
+  schema,
+  from: null,
+  unresolved: null,
+  also: alsoOf.get(schema) ?? null,
+  walk
+})
+
 /** A local `$ref` read in place, its siblings over its target but beside its constraints; any other ref is kept as it is. */
 const resolve = (schema: Schema, walk: Walk): Resolved => {
   const ref = schema.$ref
 
   if (typeof ref !== 'string') {
-    return { schema, from: null, unresolved: null, also: null, walk }
+    return unreferenced(schema, walk)
   }
 
   const target = walk.seen.includes(ref) ? null : targetOf(ref, walk.root)
