@@ -23,6 +23,7 @@ export interface VersionShell {
   backHref: string
   navActive: string | null
   versionHeader: VersionHeader
+  version: string
   /** What the fetch that has just landed here did. */
   notices: DefinitionFetchNotice[]
   versionEvents: VersionEvents
@@ -49,6 +50,7 @@ export const toVersionShell = (
   backHref: from || record.path,
   navActive: ownLists[record.itemId],
   versionHeader: toVersionHeader(record, header, tab, from, catalogue, now),
+  version: header.version,
   notices: toDefinitionFetchNotices(
     record,
     notice,
