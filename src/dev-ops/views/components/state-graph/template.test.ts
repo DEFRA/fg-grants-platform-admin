@@ -146,8 +146,7 @@ describe('state-graph component', () => {
 
     expect(Number(width)).toBeGreaterThan(0)
     expect(svg.attr('viewBox')).toBe(`0 0 ${width} ${height}`)
-    expect(svg.attr('role')).toBe('group')
-    expect(svg.attr('aria-label')).toBe('Pre-award statuses')
+    expect(svg.attr('class')).toContain('max-w-none')
     expect($('[style]')).toHaveLength(0)
   })
 
@@ -163,6 +162,21 @@ describe('state-graph component', () => {
     )
     expect(dashed.attr('stroke-dasharray')).toBe('4 3')
     expect(dashed.attr('marker-end')).toBe('url(#phases-phase-0-arrow)')
+  })
+
+  test('draws a bare-code move that runs a process in the info colour and dotted', () => {
+    const $ = graph({
+      map: {
+        ...map,
+        moves: [{ ...map.moves[1], kind: 'strong-dotted' }]
+      }
+    })
+    const edge = $('[data-testid="phases-edge"][data-kind="strong-dotted"]')
+
+    expect(edge.attr('class')).toBe('stroke-info')
+    expect(edge.attr('stroke-width')).toBe('2')
+    expect(edge.attr('stroke-dasharray')).toBe('1 3')
+    expect(edge.attr('marker-end')).toBe('url(#phases-phase-0-strong)')
   })
 
   test('draws an other-phase node dashed, with its name only and its position in the title', () => {
@@ -342,17 +356,38 @@ describe('state-graph component', () => {
     expect(items.eq(2).find('span').attr('class')).toContain('border-dashed')
   })
 
-  test('scrolls each graph in a named region a keyboard can reach, fading at the right while it scrolls', () => {
-    const region = graph()('[data-testid="phases-graph"]').first().parent()
+  test('scrolls each graph at full size in one named region a keyboard can reach, with no fade', () => {
+    const $ = graph()
+    const region = $('[data-testid="phases-graph"]').first().parent()
 
     expect(region.attr('class')).toContain('overflow-x-auto')
-    expect(region.attr('class')).toContain(
-      'data-[fade-right]:[mask-image:linear-gradient(to_right,#000_92%,transparent)]'
-    )
+    expect(region.attr('class')).not.toContain('mask-image')
     expect(region.attr('data-graph-scroll')).toBe('')
     expect(region.attr('tabindex')).toBe('0')
     expect(region.attr('role')).toBe('region')
     expect(region.attr('aria-label')).toBe('Pre-award statuses')
+    expect(
+      $('[data-testid="phases-phase"]')
+        .first()
+        .find('[aria-label="Pre-award statuses"]')
+    ).toHaveLength(1)
+    expect($('[data-testid="phases-graph"]').attr('role')).toBeUndefined()
+  })
+
+  test('puts a hidden hint above each graph that says it scrolls sideways, for the element to show', () => {
+    const $ = graph()
+    const hint = $('[data-testid="phases-scroll-hint"]').first()
+    const region = hint.next()
+
+    expect(region.attr('data-testid')).toBe('phases-scroller')
+    expect(region.attr('data-hint')).toBe(hint.attr('id'))
+    expect(hint.attr('id')).toBe('phases-phase-0-scroll-hint')
+    expect(hint.attr('hidden')).toBe('hidden')
+    expect(hint.find('[data-testid="do-icon-move-horizontal"]')).toHaveLength(1)
+    expect(flatten(hint.text())).toBe(
+      'This graph is wider than its card. Scroll sideways, or tab to it and use the arrow keys, to see every status.'
+    )
+    expect($('[data-testid="phases-scroll-hint"]')).toHaveLength(2)
   })
 
   test('puts the panel first below lg and sticky beside the graphs from lg, titled with the selected status, around the body', () => {

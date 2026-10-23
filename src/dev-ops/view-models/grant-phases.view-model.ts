@@ -184,7 +184,7 @@ const isTriggered = ({ setters }: Context, position: string) =>
 
 const toMoveKind = (move: Move, processes: string[]): MoveKind => {
   if (isBare(move)) {
-    return 'dotted'
+    return processes.length ? 'strong-dotted' : 'dotted'
   }
 
   return processes.length ? 'strong' : 'dashed'
