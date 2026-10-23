@@ -6,6 +6,7 @@ import {
   isCaseworkingRolesUnavailable,
   toGasRefusal
 } from '../use-cases/gas-refusal.ts'
+import { getGrantSettingsUseCase } from '../use-cases/grant-settings.use-case.ts'
 import { getAllowListUseCase } from '../use-cases/get-allow-list.use-case.ts'
 import type {
   AllowListFormSubmission,
@@ -63,6 +64,20 @@ const respondToAdministrationFailure = (h: ResponseToolkit, error: unknown) => {
   throw error
 }
 
+const renderAllowListPage = async (
+  h: ResponseToolkit,
+  code: string,
+  page: ReturnType<typeof toAllowListPage>,
+  statusCode = 200
+) =>
+  h
+    .view('allow-list', {
+      ...page,
+      settings: await getGrantSettingsUseCase(code),
+      settingsFormAction: `${toAdminHref(code)}/settings`
+    })
+    .code(statusCode)
+
 export const viewAllowListRoute: ServerRoute = {
   method: 'GET',
   path: '/grant-ops/grants/{code}/admin',
@@ -74,8 +89,9 @@ export const viewAllowListRoute: ServerRoute = {
       const [saved] = request.yar.flash(allowListSavedKey)
       const [activeTab] = request.yar.flash(allowListActiveTabKey)
 
-      return h.view(
-        'allow-list',
+      return await renderAllowListPage(
+        h,
+        code,
         toAllowListPage(code, view, { saved, activeTab })
       )
     } catch (error) {
@@ -110,7 +126,7 @@ export const resetAllowListRoute: ServerRoute = {
 const renderGenericRefusal = async (h: ResponseToolkit, code: string) => {
   const view = await getAllowListUseCase(code)
 
-  return h.view('allow-list', toAllowListRefusalPage(code, view)).code(400)
+  return renderAllowListPage(h, code, toAllowListRefusalPage(code, view), 400)
 }
 
 const respondToOutcome = (
@@ -119,9 +135,12 @@ const respondToOutcome = (
   outcome: Exclude<ReplaceAllowListOutcome, { outcome: 'saved' }>
 ) => {
   if (outcome.outcome === 'invalid') {
-    return h
-      .view('allow-list', toAllowListInvalidPage(code, outcome.view))
-      .code(400)
+    return renderAllowListPage(
+      h,
+      code,
+      toAllowListInvalidPage(code, outcome.view),
+      400
+    )
   }
 
   const { refusal } = outcome

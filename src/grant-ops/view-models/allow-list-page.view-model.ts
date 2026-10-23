@@ -50,7 +50,7 @@ const toPage = ({
 }: PageOptions): AllowListPage => ({
   activeTab,
   code,
-  pageTitle: errorSummary.length ? 'Error: Who can apply' : 'Who can apply',
+  pageTitle: `${errorSummary.length ? 'Error: ' : ''}${activeTab === 'grant-setup' ? 'Grant setup' : 'Who can apply'}`,
   formAction: toAdminHref(code),
   form: view,
   errorSummary,

@@ -2,6 +2,7 @@ import Boom from '@hapi/boom'
 import type { Server } from '@hapi/hapi'
 import { load } from 'cheerio'
 
+import { getGrantSettings } from '../repositories/grant-settings.repository.ts'
 import { currentGasActor } from '../../common/gas-actor.ts'
 import { statusCodes } from '../../common/status-codes.ts'
 import { createServer } from '../../server/index.ts'
@@ -19,6 +20,14 @@ vi.mock(
     replaceGrantAllowList: vi.fn()
   })
 )
+
+vi.mock(import('../repositories/grant-settings.repository.ts'))
+beforeEach(() => {
+  vi.mocked(getGrantSettings).mockImplementation(async (grantCode) => ({
+    grantCode,
+    open: false
+  }))
+})
 
 const url = '/grant-ops/grants/woodland/admin'
 const resetUrl = `${url}/reset`
@@ -152,7 +161,7 @@ describe('viewAllowListRoute', () => {
     const { $, statusCode } = await viewPage()
 
     expect(statusCode).toBe(statusCodes.ok)
-    expect($('title').text()).toContain('Who can apply')
+    expect($('title').text()).toContain('Grant setup')
     expect($('title').text()).not.toContain('Error:')
     expect($('h1').text().trim()).toBe('Grant code woodland')
     expect($('body').text()).not.toContain('Woodland Creation')
@@ -210,7 +219,9 @@ describe('viewAllowListRoute', () => {
     const reset = $('[data-testid="allow-list-reset"]')
 
     expect($('#who-can-apply form').attr('action')).toBe(url)
-    expect($('button[type="submit"]').text().trim()).toBe('Save allow list')
+    expect($('#who-can-apply button[type="submit"]').text().trim()).toBe(
+      'Save allow list'
+    )
     expect(reset.text().trim()).toBe('Reset changes')
     expect(reset.attr('href')).toBe(resetUrl)
     expect(reset.hasClass('govuk-button--secondary')).toBe(true)

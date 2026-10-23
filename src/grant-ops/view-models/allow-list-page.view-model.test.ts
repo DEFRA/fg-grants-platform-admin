@@ -51,7 +51,7 @@ describe('toAllowListPage', () => {
   })
 
   test('titles the page without an error', () => {
-    expect(page.pageTitle).toBe('Who can apply')
+    expect(page.pageTitle).toBe('Grant setup')
     expect(page.errorSummary).toEqual([])
   })
 
