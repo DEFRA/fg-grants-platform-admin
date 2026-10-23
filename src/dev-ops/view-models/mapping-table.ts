@@ -40,7 +40,7 @@ export interface MappingValue {
 export type MappingRow = { field: string; depth: number } & (
   | { kind: 'value'; value: MappingValue }
   | { kind: 'group' }
-  | { kind: 'list' }
+  | { kind: 'list'; empty: boolean }
   | { kind: 'each'; forEach: string }
 )
 
@@ -135,7 +135,7 @@ const toEachRows: ToRows = (field, value, depth) => {
 }
 
 const toListRows: ToRows = (field, value, depth) => [
-  { field, depth, kind: 'list' },
+  { field, depth, kind: 'list', empty: (value as unknown[]).length === 0 },
   ...(value as unknown[]).flatMap((element, index) =>
     toRows(String(index + 1), element, depth + 1)
   )

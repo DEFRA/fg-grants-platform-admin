@@ -30,9 +30,9 @@
 {# A literal description is read as words; anything else is a mapping. #}
 {% macro lineCell(value) %}
   {%- if value and value.kind == "expression" -%}
-    <span class="text-sm {{ muted }}">calculated ›</span>
+    <span class="text-sm {{ muted }}">calculated (see Calculated fields)</span>
   {%- elif value and value.kind == "literal" and not value.empty -%}
-    <span class="text-sm">{{ value.text }}</span><span class="ml-1.5 text-xs {{ muted }}" data-comes-from>fixed</span>
+    <span class="text-sm">{{ value.text }}</span>{{ " " }}<span class="ml-1.5 text-xs {{ muted }}" data-comes-from>fixed</span>
   {%- else -%}
     {{ mappingValue(value, "always") }}
   {%- endif -%}
