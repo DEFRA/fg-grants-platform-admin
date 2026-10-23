@@ -86,4 +86,32 @@ describe('filter-menu component as a form choice', () => {
     expect(part($menu, 'value').attr('value')).toBe('ref')
     expect(part($menu, 'chosen').text()).toBe('Reference')
   })
+
+  test('opens a menu at least 250px wide', () => {
+    const $menu = render('filter-menu', choice)
+
+    expect(part($menu, 'panel').hasClass('min-w-[250px]')).toBe(true)
+  })
+})
+
+const links = {
+  testId: 'grant-switcher',
+  panelId: 'grant-switcher-panel',
+  name: 'Version',
+  label: 'Versions of woodland-creation',
+  items: [
+    { label: '2.0.0', href: '/dev-ops/grants/w/2.0.0', active: false },
+    { label: '1.2.0', href: '/dev-ops/grants/w/1.2.0', active: true }
+  ]
+}
+
+const switcherPart = ($: ReturnType<typeof render>, name: string) =>
+  $(`[data-testid="grant-switcher-${name}"]`)
+
+describe('filter-menu component as links', () => {
+  test('leaves its links in the tab order, for a page without script', () => {
+    const $menu = render('filter-menu', links)
+
+    expect(switcherPart($menu, 'chip').filter('[tabindex]')).toHaveLength(0)
+  })
 })

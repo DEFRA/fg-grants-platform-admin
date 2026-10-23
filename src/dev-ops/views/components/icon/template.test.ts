@@ -59,7 +59,9 @@ describe('icon component', () => {
     ['file-text', 5],
     ['folder', 1],
     ['activity', 1],
-    ['log-out', 3]
+    ['log-out', 3],
+    ['scroll-text', 4],
+    ['workflow', 1]
   ])('renders the shell icon %s as a stroked lucide svg', (name, paths) => {
     const svg = render('icon', { name, class: 'size-4' })(
       `[data-testid="do-icon-${name}"]`

@@ -1,5 +1,6 @@
 import type { EventRow } from '../repositories/events.repository.ts'
 import { toEventRow, toUnavailableSources } from './event-row.ts'
+import { fromMax } from './record-filters.ts'
 
 const now = new Date('2026-06-16T10:20:00.000Z')
 
@@ -39,6 +40,16 @@ describe('toEventRow', () => {
       eventName: { name: 'UpdateCaseStatus', spoken: 'Update case status' },
       isDeadLetter: true
     })
+  })
+
+  test('shortens a way back too long for the event page to accept', () => {
+    const long = `/dev-ops/cases/w/abc?tab=events&back=${encodeURIComponent(`/dev-ops/cases?q=${'a'.repeat(fromMax)}`)}`
+    const back = new URL(
+      toEventRow(now, long)(event()).eventHref,
+      'http://gpa'
+    ).searchParams.get('back')
+
+    expect(back).toBe('/dev-ops/cases/w/abc?tab=events')
   })
 
   test('marks only a dead letter as one', () => {

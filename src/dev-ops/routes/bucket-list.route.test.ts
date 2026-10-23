@@ -8,11 +8,13 @@ import { devOps } from '../index.ts'
 import {
   applicationsBucket,
   catalogue,
+  grantsBucket,
   outboxBucket,
   pagedInbox,
   pagedOutbox,
   summarisedBucket,
-  toggledBucket
+  toggledBucket,
+  workflowsBucket
 } from '../use-cases/test-fixtures.ts'
 import {
   getBucketAtUseCase,
@@ -342,7 +344,7 @@ describe('the navigation', () => {
         .find('.menu-title')
         .toArray()
         .map((title) => $(title).text())
-    ).toEqual(['GAS'])
+    ).toEqual(['GAS', 'CW'])
     expect(part($, 'do-nav-gas.outbox').attr('href')).toBe(path)
     expect(part($, 'do-nav-gas.outbox').text().trim()).toBe('Outbox')
     expect(part($, 'bucket-title').text()).toBe('GAS outbox')
@@ -571,7 +573,7 @@ describe('the tiles', () => {
 
     const counts = part($, 'bucket-tile-count')
 
-    expect(counts.eq(1).attr('class')).toContain('text-base-content/60')
+    expect(counts.eq(1).attr('class')).toContain('text-base-content/70')
     expect(counts.eq(2).attr('class')).toContain('text-error')
   })
 
@@ -820,7 +822,7 @@ describe('how a list was read', () => {
     const { $ } = await viewPage(`${path}?grant=example-grant`)
 
     expect(textOf($, 'bucket-empty')).toBe(
-      'No events found. Searched everything.'
+      'No events whose Grant is "example-grant". Searched everything.'
     )
     expect(part($, 'bucket-tail').attr('hidden')).toBeDefined()
     expect(part($, 'bucket-tail').attr('data-closed')).toBeDefined()
@@ -1350,6 +1352,318 @@ describe('a search by identifier', () => {
   })
 })
 
+describe('the version lists', () => {
+  const grantsPath = '/dev-ops/grants'
+  const workflowsPath = '/dev-ops/workflows'
+
+  const versionRow = (
+    kind: 'grant' | 'workflow',
+    overrides: Partial<BucketRow> = {}
+  ): BucketRow =>
+    row({
+      title: 'woodland-creation',
+      subtitle: null,
+      cells: { version: '1.2.0', status: 'active', definition: 'fetched' },
+      link: { kind, code: 'woodland-creation', version: '1.2.0' },
+      ...overrides
+    })
+
+  const givenGrants = (rows: BucketRow[]) =>
+    givenPage(exact({ bucket: 'gas.grants', rows, groups: [] }))
+
+  const menuNames = ($: CheerioAPI) =>
+    part($, 'bucket-toolbar')
+      .find('[data-testid^="bucket-filter-"][data-testid$="-button"]')
+      .toArray()
+      .map((button) => flatten($(button).text()))
+
+  test('are in the navigation, Grants under GAS after Applications and Workflows under CW after Cases', async () => {
+    const { $ } = await viewPage(grantsPath)
+
+    expect(
+      part($, 'do-nav')
+        .find('a')
+        .toArray()
+        .map((link) => $(link).attr('data-testid'))
+    ).toEqual([
+      'do-nav-gas.outbox',
+      'do-nav-gas.applications',
+      'do-nav-gas.grants',
+      'do-nav-cw.cases',
+      'do-nav-cw.workflows'
+    ])
+    expect(
+      part($, 'do-nav-gas.grants').find('[data-testid="do-icon-scroll-text"]')
+    ).toHaveLength(1)
+    expect(
+      part($, 'do-nav-cw.workflows').find('[data-testid="do-icon-workflow"]')
+    ).toHaveLength(1)
+  })
+
+  test('head the table with grant, version, definition, status and received, at set widths, with Status hidden on phones', async () => {
+    givenGrants([versionRow('grant')])
+
+    const { $ } = await viewPage(grantsPath)
+
+    expect(queryBucketUseCase).toHaveBeenCalledWith(
+      grantsBucket,
+      { where: {} },
+      false
+    )
+    expect(
+      part($, 'bucket-head')
+        .find('th')
+        .toArray()
+        .map((head) => $(head).text())
+    ).toEqual(['Grant', 'Version', 'Definition', 'Status', 'Received'])
+    expect(
+      part($, 'bucket-table')
+        .find('colgroup col')
+        .toArray()
+        .map((col) => $(col).attr('class'))
+    ).toEqual([
+      'w-[22%] sm:w-[26%]',
+      'w-[17%] sm:w-[14%]',
+      'w-[34%] sm:w-[22%]',
+      'w-[14%] max-sm:hidden',
+      'w-[27%] sm:w-[24%]'
+    ])
+    expect(part($, 'bucket-head').find('th').eq(3).attr('class')).toBe(
+      'hidden sm:table-cell'
+    )
+    expect(part($, 'bucket-cell-status').attr('class')).toBe(
+      'overflow-hidden max-sm:text-xs hidden sm:table-cell'
+    )
+    expect(part($, 'bucket-table').attr('class')).toContain('sm:min-w-[64rem]')
+    expect(part($, 'bucket-table').attr('class')).not.toContain(
+      ' min-w-[64rem]'
+    )
+  })
+
+  test('keep the even columns on every other list', async () => {
+    const { $ } = await viewPage('/dev-ops/applications')
+
+    expect(
+      part($, 'bucket-table')
+        .find('colgroup col')
+        .toArray()
+        .map((col) => $(col).attr('class'))
+    ).toEqual(['w-1/4', 'w-1/4', 'w-1/4', 'w-1/4'])
+  })
+
+  test('title each badge with what its value means, and add the draft clause on a draft row', async () => {
+    givenGrants([
+      versionRow('grant', {
+        cells: { version: '2.0.0', status: 'draft', definition: 'pending' }
+      })
+    ])
+
+    const { $ } = await viewPage(grantsPath)
+
+    expect(
+      part($, 'bucket-cell-definition')
+        .find('[data-testid="do-status-badge"]')
+        .attr('title')
+    ).toBe(
+      "At least one of this version's files (grant, agreement, payment) isn't fetched by GAS yet. Draft: GAS won't pick it for new work until it is published as active."
+    )
+    expect(
+      part($, 'bucket-cell-status')
+        .find('[data-testid="do-status-badge"]')
+        .attr('title')
+    ).toBe('Not yet published as active.')
+  })
+
+  test('badge a draft beside its version on phones, and keep the Definition on one line there', async () => {
+    givenGrants([
+      versionRow('grant', {
+        cells: { version: '2.0.0', status: 'draft', definition: 'pending' }
+      })
+    ])
+
+    const { $ } = await viewPage(grantsPath)
+    const badge = part($, 'bucket-cell-version-phone-status')
+
+    expect(badge.attr('class')).toBe('sm:hidden')
+    expect(flatten(badge.text())).toBe('Draft')
+    expect(badge.children().attr('class')).toBe('badge badge-ghost badge-sm')
+    expect(part($, 'bucket-cell-definition').attr('class')).toBe(
+      'overflow-hidden max-sm:text-xs'
+    )
+  })
+
+  test('say each value under it in the filter menus', async () => {
+    const { $ } = await viewPage(grantsPath)
+
+    expect(textsOf($, 'bucket-filter-worstFetchStatus-hint')).toEqual([
+      'GAS has fetched every file of this version (grant, agreement, payment) itself.',
+      "At least one of this version's files (grant, agreement, payment) isn't fetched by GAS yet.",
+      "GAS's last fetch of at least one of this version's files from S3 failed.",
+      "GAS refused at least one of this version's files and won't use it."
+    ])
+    expect(
+      part($, 'bucket-filter-worstFetchStatus-hint').first().attr('class')
+    ).toBe('block text-xs text-base-content/70')
+  })
+
+  test('name the Time button by the time the list is kept by', async () => {
+    const { $ } = await viewPage(grantsPath)
+
+    expect(flatten(textOf($, 'bucket-range-button'))).toBe('Received: All')
+  })
+
+  test('say which filters found nothing', async () => {
+    givenGrants([])
+
+    const { $ } = await viewPage(
+      `${grantsPath}?status=draft&definition=permanent_error`
+    )
+
+    expect(textOf($, 'bucket-empty')).toBe(
+      'No grant versions whose Status is Draft and Definition is Failed.'
+    )
+  })
+
+  test('give a screen reader the version in the link, and wrap a long code at its hyphens', async () => {
+    givenGrants([versionRow('grant')])
+
+    const { $ } = await viewPage(grantsPath)
+
+    expect(textOf($, 'bucket-row-spoken-version')).toBe('version 1.2.0')
+    expect(part($, 'bucket-row-spoken-version').attr('class')).toBe('sr-only')
+    expect(part($, 'bucket-row-link').attr('class')).toContain('break-words')
+    expect(part($, 'bucket-row-link').attr('class')).not.toContain('break-all')
+  })
+
+  test('draw a grant version by its code, linked to its page, with its version, status and definition', async () => {
+    givenGrants([versionRow('grant')])
+
+    const { $ } = await viewPage(`${grantsPath}?status=active`)
+
+    const link = part($, 'bucket-row-link')
+
+    expect(link.attr('href')).toBe(
+      `${grantsPath}/woodland-creation/1.2.0?back=${encodeURIComponent(`${grantsPath}?status=active`)}`
+    )
+    expect(link.attr('class')).toContain('font-mono')
+    expect(textOf($, 'bucket-row-title')).toBe('woodland-creation')
+    expect(textOf($, 'bucket-cell-version')).toBe('1.2.0')
+    expect(part($, 'bucket-cell-version').find('.font-mono')).toHaveLength(1)
+    expect(textOf($, 'bucket-cell-status')).toBe('Active')
+    expect(
+      part($, 'bucket-cell-status')
+        .find('[data-testid="do-status-dot"]')
+        .hasClass('status-success')
+    ).toBe(true)
+    expect(textOf($, 'bucket-cell-definition')).toBe('Stored')
+    expect(part($, 'bucket-row').attr('class')).not.toContain('bg-error/5')
+  })
+
+  test('tint a version whose definition failed for good like a dead letter, and no other', async () => {
+    givenGrants([
+      versionRow('grant', {
+        cells: {
+          version: '1.2.0',
+          status: 'draft',
+          definition: 'permanent_error'
+        }
+      }),
+      versionRow('grant', {
+        id: '66f000000000000000000002',
+        cells: { version: '1.1.0', status: 'active', definition: 'pending' }
+      })
+    ])
+
+    const { $ } = await viewPage(grantsPath)
+
+    const rows = part($, 'bucket-row')
+
+    expect(rows.eq(0).attr('class')).toContain('bg-error/5')
+    expect(rows.eq(1).attr('class')).not.toContain('bg-error/5')
+    expect(textsOf($, 'bucket-cell-definition')).toEqual([
+      'Failed',
+      'Not stored yet'
+    ])
+  })
+
+  test('offer the time, then the grant, status and definition menus, with the codes plain, and no search', async () => {
+    const { $ } = await viewPage(grantsPath)
+
+    expect(menuNames($)).toEqual([
+      'Grant: All',
+      'Status: All',
+      'Definition: All'
+    ])
+    expect(
+      part($, 'bucket-filter-grantCode-panel').find('.font-mono')
+    ).toHaveLength(0)
+    expect(textsOf($, 'bucket-filter-grantCode-chip')).toEqual([
+      'All',
+      'hedgerow-restoration',
+      'woodland-creation'
+    ])
+    expect(part($, 'bucket-search')).toHaveLength(0)
+  })
+
+  test('ask GAS for drafts only when the status is Draft', async () => {
+    await viewPage(`${grantsPath}?status=draft`)
+
+    expect(asked()).toEqual([{ where: { status: 'draft' } }, false])
+  })
+
+  test('ask GAS for the definition status as one dotted fact', async () => {
+    await viewPage(`${grantsPath}?definition=permanent_error`)
+
+    expect(asked()).toEqual([
+      { where: { worstFetchStatus: 'permanent_error' } },
+      false
+    ])
+  })
+
+  test('end with No more grant versions, and say when none are found', async () => {
+    givenGrants([versionRow('grant')])
+
+    const ended = await viewPage(grantsPath)
+
+    expect(textOf(ended.$, 'bucket-load-more-end')).toBe(
+      'No more grant versions'
+    )
+
+    givenGrants([])
+
+    const empty = await viewPage(grantsPath)
+
+    expect(textOf(empty.$, 'bucket-empty')).toBe('No grant versions found.')
+  })
+
+  test('draw a workflow version linked to its page, with the workflow menu, ending on its own noun', async () => {
+    givenPage(
+      exact({
+        bucket: 'cw.workflows',
+        rows: [versionRow('workflow')],
+        groups: []
+      })
+    )
+
+    const { $ } = await viewPage(`${workflowsPath}?workflow=woodland-creation`)
+
+    expect(queryBucketUseCase).toHaveBeenCalledWith(
+      workflowsBucket,
+      { where: { grantCode: 'woodland-creation' } },
+      false
+    )
+    expect(part($, 'bucket-row-link').attr('href')).toBe(
+      `${workflowsPath}/woodland-creation/1.2.0?back=${encodeURIComponent(`${workflowsPath}?workflow=woodland-creation`)}`
+    )
+    expect(menuNames($)).toEqual([
+      'Workflow: woodland-creation',
+      'Status: All',
+      'Definition: All'
+    ])
+    expect(textOf($, 'bucket-load-more-end')).toBe('No more workflow versions')
+  })
+})
+
 describe('a list GAS would not or could not read', () => {
   test('says GAS refused the request, in its words, with a way to start again', async () => {
     vi.mocked(queryBucketUseCase).mockResolvedValue(refusal)
@@ -1527,6 +1841,9 @@ describe('the summaries a list declares', () => {
 
     expect(textOf($, 'bucket-summary-none')).toBe('No error recorded')
     expect(part($, 'bucket-summary-none').is('a')).toBe(false)
+    expect(part($, 'bucket-summary-none').attr('class')).toBe(
+      'font-mono text-base-content/70'
+    )
   })
 
   test('follow the time range and the toggle, in what is asked and in every link', async () => {

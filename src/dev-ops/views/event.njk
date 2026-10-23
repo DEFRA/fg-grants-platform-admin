@@ -1,36 +1,25 @@
 {% extends 'layouts/page.njk' %}
 
+{% from "muted/macro.njk" import muted %}
+{% from "no-value/macro.njk" import noValue %}
 {% from "back/macro.njk" import back %}
 {% from "char-count/macro.njk" import charCount %}
 {% from "icon/macro.njk" import icon %}
 {% from "json-viewer/macro.njk" import jsonViewer %}
 {% from "status-badge/macro.njk" import statusBadge %}
+{% from "alert-role/macro.njk" import alertRoles, alertIcons %}
 
 {# Tailwind only sees class names written literally in this file. #}
-{% set factLabel = "text-sm font-medium text-base-content/70" %}
+{% set factLabel = "text-sm font-medium " ~ muted %}
 {# `leading-none`: an inline mono box on the sans line otherwise makes its row a pixel taller. #}
 {% set monoValue = "font-mono text-sm leading-none break-all" %}
-{% set monoMuted = "font-mono text-sm leading-none text-base-content/70" %}
+{% set monoMuted = "font-mono text-sm leading-none " ~ muted %}
 {# A time is short enough to keep whole; `break-all` would split it mid-number. #}
 {% set monoTime = "font-mono text-sm leading-none tabular-nums whitespace-nowrap" %}
 {# `select-all` so one click takes the whole id, and `break-all` so the hex
    wraps inside the column rather than widening a phone. #}
-{% set idInline = "font-mono text-sm font-normal break-all text-base-content/70 select-all" %}
+{% set idInline = "font-mono text-sm font-normal break-all select-all " ~ muted %}
 {% set titleLine = "flex flex-wrap items-baseline gap-x-2 text-xl font-semibold break-words" %}
-{# The success role is solid: `alert-soft` writes the message in the role's own
-   colour on a tint of that colour, and for success that is a pale green on a
-   pale green, under 3:1. #}
-{% set bannerAlerts = {
-  success: "alert-success",
-  warning: "alert-soft alert-warning",
-  error: "alert-soft alert-error"
-} %}
-{% set bannerIcons = {
-  success: "circle-check",
-  warning: "exclamation-triangle",
-  error: "exclamation-circle"
-} %}
-
 {#
   Every clock on this page is already the full UK wall clock, to the
   millisecond, so there is no `title`: a tooltip could only repeat the text
@@ -63,8 +52,8 @@
   {{ back({ href: backHref or homeHref }) }}
 
   {% if banner %}
-    <div id="event-banner" role="alert" class="alert {{ bannerAlerts[banner.role] }} mt-3 text-sm{% if bannerFocus %} focus:outline-none{% endif %}"{% if bannerFocus %} tabindex="-1" data-focus-on-arrival{% endif %} data-testid="event-banner">
-      {{ icon({ name: bannerIcons[banner.role], class: 'size-4 shrink-0' }) }}
+    <div id="event-banner" role="alert" class="alert {{ alertRoles[banner.role] }} mt-3 text-sm{% if bannerFocus %} focus:outline-none{% endif %}"{% if bannerFocus %} tabindex="-1" data-focus-on-arrival{% endif %} data-testid="event-banner">
+      {{ icon({ name: alertIcons[banner.role], class: 'size-4 shrink-0' }) }}
       <span>{{ banner.message }}</span>
     </div>
   {% endif %}
@@ -164,7 +153,7 @@
               {% elif traceId %}
                 <span class="{{ monoValue }}" data-testid="event-trace-id">{{ traceId }}</span>
               {% else %}
-                <span class="{{ monoMuted }}" data-testid="event-trace-id-none">—</span>
+                {{ noValue({ testId: "event-trace-id" }) }}
               {% endif %}
             {% endcall %}
 
@@ -178,14 +167,14 @@
               {% call fact("Payload edited", "event-fact-edited") %}
                 <div data-testid="event-edited">
                   <span data-testid="event-edited-by">by {{ editedFact.by }} on {{ timestamp(editedFact.at, editedFact.atInstant, monoTime, "event-edited-at") }}</span>
-                  {% if editedFact.note %}<div class="italic text-base-content/70" data-testid="event-edited-note">"{{ editedFact.note }}"</div>{% endif %}
+                  {% if editedFact.note %}<div class="italic {{ muted }}" data-testid="event-edited-note">"{{ editedFact.note }}"</div>{% endif %}
                 </div>
               {% endcall %}
             {% endif %}
 
             {% if lastRedriveText %}
               {% call fact("Last redrive", "event-fact-last-redrive") %}
-                <span data-testid="event-last-redrive">{{ timestamp(lastRedriveText, lastRedriveInstant, monoTime, "event-last-redrive-at") }}{% if lastRedriveBy %} <span class="text-sm text-base-content/70" data-testid="event-last-redrive-by">· by {{ lastRedriveBy }}</span>{% endif %}</span>
+                <span data-testid="event-last-redrive">{{ timestamp(lastRedriveText, lastRedriveInstant, monoTime, "event-last-redrive-at") }}{% if lastRedriveBy %} <span class="text-sm {{ muted }}" data-testid="event-last-redrive-by">· by {{ lastRedriveBy }}</span>{% endif %}</span>
               {% endcall %}
             {% endif %}
           </dl>
@@ -195,7 +184,7 @@
               {% if segregationRef %}
                 <span class="{{ monoValue }}" data-testid="event-segregation-ref">{{ segregationRef }}</span>
               {% else %}
-                <span class="{{ monoMuted }}" data-testid="event-segregation-ref-none">—</span>
+                {{ noValue({ testId: "event-segregation-ref" }) }}
               {% endif %}
             {% endcall %}
 
@@ -212,7 +201,7 @@
                 {% if targetTopic %}
                   <span class="{{ monoValue }}" data-testid="event-queue-value">{{ targetTopic }}</span>
                 {% else %}
-                  <span class="{{ monoMuted }}" data-testid="event-queue-value-none">—</span>
+                  {{ noValue({ testId: "event-queue-value" }) }}
                 {% endif %}
               {% endcall %}
             {% endif %}
@@ -226,8 +215,8 @@
               {% call fact(purgedFact.label, "event-fact-purged") %}
                 <div data-testid="event-purged">
                   <span data-testid="event-purged-reason">{{ purgedFact.reason }}</span>
-                  <span class="text-base-content/70" data-testid="event-purged-by">· by {{ purgedFact.by }} on {{ timestamp(purgedFact.at, purgedFact.atInstant, monoTime, "event-purged-at") }}</span>
-                  {% if purgedFact.note %}<div class="italic text-base-content/70" data-testid="event-purged-note">"{{ purgedFact.note }}"</div>{% endif %}
+                  <span class="{{ muted }}" data-testid="event-purged-by">· by {{ purgedFact.by }} on {{ timestamp(purgedFact.at, purgedFact.atInstant, monoTime, "event-purged-at") }}</span>
+                  {% if purgedFact.note %}<div class="italic {{ muted }}" data-testid="event-purged-note">"{{ purgedFact.note }}"</div>{% endif %}
                 </div>
               {% endcall %}
             </dl>
@@ -242,18 +231,18 @@
         {%- set attemptNames = { warning: "Failed", error: "Failed, final attempt" } -%}
         {# A filled shape as well as colour for the final failure (WCAG 1.4.1), in the same box as the others. #}
         {%- set attemptShapes = { warning: "circle-x", error: "octagon-x" } -%}
-        <h2 class="card-title text-base" data-testid="event-attempts-heading">Attempts{% if attempts %} <span class="text-sm font-normal tabular-nums text-base-content/70" data-testid="event-attempts-value">{{ attempts.made }} of {{ attempts.allowed }}</span>{% endif %}</h2>
+        <h2 class="card-title text-base" data-testid="event-attempts-heading">Attempts{% if attempts %} <span class="text-sm font-normal tabular-nums {{ muted }}" data-testid="event-attempts-value">{{ attempts.made }} of {{ attempts.allowed }}</span>{% endif %}</h2>
         {% if attemptsBlock in ["predated", "predatedCompleted"] %}
           <div class="flex flex-col gap-2 text-sm" data-testid="event-attempts-predated">
-            <p class="text-base-content/70" data-testid="event-attempts-empty">No attempt details recorded (event predates attempt history).{% if lastResubmissionDate %} Last resubmitted {{ timestamp(lastResubmissionDate, lastResubmissionInstant, "", "event-predated-resubmitted-at") }}.{% endif %}</p>
+            <p class="{{ muted }}" data-testid="event-attempts-empty">No attempt details recorded (event predates attempt history).{% if lastResubmissionDate %} Last resubmitted {{ timestamp(lastResubmissionDate, lastResubmissionInstant, "", "event-predated-resubmitted-at") }}.{% endif %}</p>
             {% if attemptsBlock == "predated" and (errorName or errorMessage) %}
               <div class="flex items-start gap-1.5" data-testid="event-last-error">
                 {%- set lastErrorIcons = { warning: "mt-0.5 size-4 shrink-0 text-warning", error: "mt-0.5 size-4 shrink-0 text-error [&>path:first-child]:fill-current [&>path:not(:first-child)]:stroke-base-100" } -%}
                 {{ icon({ name: attemptShapes[errorRole], class: lastErrorIcons[errorRole] }) }}<span class="sr-only" data-testid="event-last-error-icon-name">{{ attemptNames[errorRole] }}</span>
                 <div class="min-w-0">
-                  <div class="text-base-content/70" data-testid="event-last-error-label">Last error</div>
+                  <div class="{{ muted }}" data-testid="event-last-error-label">Last error</div>
                   <div class="font-mono wrap-anywhere" data-testid="event-error-message">{% if errorName %}<span class="font-medium" data-testid="event-error-name">{{ errorName }}</span>{% if errorMessage %}: {% endif %}{% endif %}{{ errorMessage }}</div>
-                  {% if errorAt %}<div class="font-mono text-base-content/70" data-testid="event-error-at">at {{ timestamp(errorAt, errorAtInstant) }}</div>{% endif %}
+                  {% if errorAt %}<div class="font-mono {{ muted }}" data-testid="event-error-at">at {{ timestamp(errorAt, errorAtInstant) }}</div>{% endif %}
                   {% if errorSearchHref %}
                     <div class="mt-1"><a class="link" href="{{ errorSearchHref }}" data-testid="event-error-search">Show all events with this error{{ icon({ name: 'arrow-right', class: 'ms-1 inline size-3.5 align-middle' }) }}</a></div>
                   {% endif %}
@@ -270,19 +259,19 @@
                 <div class="timeline-middle">{{ icon({ name: attemptShapes[attempt.role], class: attemptIcons[attempt.role] }) }}<span class="sr-only" data-testid="event-attempt-icon-name">{{ attemptNames[attempt.role] }}</span></div>
                 <div class="timeline-end mb-3 pt-0.5">
                   <div class="font-mono text-sm tabular-nums">
-                    <span class="font-medium text-base-content/70" data-testid="event-attempt-number">{{ attempt.number }}</span>
+                    <span class="font-medium {{ muted }}" data-testid="event-attempt-number">{{ attempt.number }}</span>
                     <span class="text-base-content/30" aria-hidden="true">·</span>
                     {{ timestamp(attempt.precise, attempt.instant, "", "event-attempt-when") }}
                     {% if attempt.delta %}
                       <span class="text-base-content/30" aria-hidden="true">·</span>
-                      <span class="text-base-content/70" data-testid="event-attempt-delta">{{ attempt.delta }}</span>
+                      <span class="{{ muted }}" data-testid="event-attempt-delta">{{ attempt.delta }}</span>
                     {% endif %}
                   </div>
                   {%- if attempt.stack -%}
                     <details class="group" data-testid="event-attempt-details">
-                      <summary class="flex cursor-pointer items-start gap-1 rounded-sm font-mono text-sm wrap-anywhere [list-style:none] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-base-content [&::-webkit-details-marker]:hidden" title="{{ attempt.name }}: {{ attempt.message }}" data-testid="event-attempt-error"><span><span class="font-medium" data-testid="event-attempt-name">{{ attempt.name }}</span>: {{ attempt.message }}</span>{{ icon({ name: 'chevron-down', class: 'mt-0.5 size-4 shrink-0 text-base-content/70 transition-transform group-open:rotate-180' }) }}<span class="sr-only">stacktrace</span></summary>
+                      <summary class="flex cursor-pointer items-start gap-1 rounded-sm font-mono text-sm wrap-anywhere [list-style:none] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-base-content [&::-webkit-details-marker]:hidden" title="{{ attempt.name }}: {{ attempt.message }}" data-testid="event-attempt-error"><span><span class="font-medium" data-testid="event-attempt-name">{{ attempt.name }}</span>: {{ attempt.message }}</span>{{ icon({ name: 'chevron-down', class: 'mt-0.5 size-4 shrink-0 ' ~ muted ~ ' transition-transform group-open:rotate-180' }) }}<span class="sr-only">stacktrace</span></summary>
                       <div class="mt-1 max-w-full overflow-x-auto">
-                        <pre class="font-mono text-sm whitespace-pre-wrap text-base-content/70" data-testid="event-attempt-stack">{{ attempt.stack }}</pre>
+                        <pre class="font-mono text-sm whitespace-pre-wrap {{ muted }}" data-testid="event-attempt-stack">{{ attempt.stack }}</pre>
                       </div>
                     </details>
                   {%- else -%}
@@ -302,16 +291,16 @@
                 <div class="timeline-middle">{{ icon({ name: 'circle-check', class: 'size-4 text-success' }) }}<span class="sr-only" data-testid="event-attempt-icon-name">Succeeded</span></div>
                 <div class="timeline-end mb-3 pt-0.5">
                   <div class="font-mono text-sm tabular-nums">
-                    <span class="font-medium text-base-content/70" data-testid="event-attempt-success-number">{{ attemptSuccess.number }}</span>
+                    <span class="font-medium {{ muted }}" data-testid="event-attempt-success-number">{{ attemptSuccess.number }}</span>
                     <span class="text-base-content/30" aria-hidden="true">·</span>
                     {% if attemptSuccess.precise %}
                       {{ timestamp(attemptSuccess.precise, attemptSuccess.instant, "", "event-attempt-success-when") }}
                     {% else %}
-                      <span class="text-base-content/70" data-testid="event-attempt-success-when">completion time not recorded</span>
+                      <span class="{{ muted }}" data-testid="event-attempt-success-when">completion time not recorded</span>
                     {% endif %}
                     {% if attemptSuccess.delta %}
                       <span class="text-base-content/30" aria-hidden="true">·</span>
-                      <span class="text-base-content/70" data-testid="event-attempt-success-delta">{{ attemptSuccess.delta }}</span>
+                      <span class="{{ muted }}" data-testid="event-attempt-success-delta">{{ attemptSuccess.delta }}</span>
                     {% endif %}
                   </div>
                 </div>
@@ -319,27 +308,27 @@
             {% endif %}
           </ul>
           {% if resubmittedSinceLastAttempt %}
-            <p class="text-sm text-base-content/70" data-testid="event-resubmitted">Last resubmitted {{ timestamp(lastResubmissionDate, lastResubmissionInstant, "", "event-resubmitted-at") }} — nothing recorded since.</p>
+            <p class="text-sm {{ muted }}" data-testid="event-resubmitted">Last resubmitted {{ timestamp(lastResubmissionDate, lastResubmissionInstant, "", "event-resubmitted-at") }} — nothing recorded since.</p>
           {% endif %}
         {% elif attemptsBlock == "redriven" %}
           <div class="flex flex-col gap-2 text-sm" data-testid="event-redriven">
-            <p class="text-base-content/70" data-testid="event-redriven-label">Redriven {{ timestamp(lastRedriveText, lastRedriveInstant, "font-mono tabular-nums") }}{% if lastRedriveBy %} by {{ lastRedriveBy }}{% endif %} — no attempts since.</p>
+            <p class="{{ muted }}" data-testid="event-redriven-label">Redriven {{ timestamp(lastRedriveText, lastRedriveInstant, "font-mono tabular-nums") }}{% if lastRedriveBy %} by {{ lastRedriveBy }}{% endif %} — no attempts since.</p>
             {% if errorName or errorMessage %}
               <div class="flex items-start gap-1.5" data-testid="event-last-error">
                 {{ icon({ name: 'circle-x', class: 'mt-0.5 size-4 shrink-0 text-warning' }) }}<span class="sr-only" data-testid="event-last-error-icon-name">Failed</span>
                 <div class="min-w-0">
-                  <div class="text-base-content/70" data-testid="event-last-error-label">Last error before redrive</div>
+                  <div class="{{ muted }}" data-testid="event-last-error-label">Last error before redrive</div>
                   <div class="font-mono wrap-anywhere" data-testid="event-error-message">{% if errorName %}<span class="font-medium" data-testid="event-error-name">{{ errorName }}</span>{% if errorMessage %}: {% endif %}{% endif %}{{ errorMessage }}</div>
-                  {% if errorAt %}<div class="font-mono text-base-content/70" data-testid="event-error-at">at {{ timestamp(errorAt, errorAtInstant) }}</div>{% endif %}
+                  {% if errorAt %}<div class="font-mono {{ muted }}" data-testid="event-error-at">at {{ timestamp(errorAt, errorAtInstant) }}</div>{% endif %}
                 </div>
               </div>
             {% endif %}
           </div>
         {% elif attemptsBlock == "notYet" %}
-          <p class="text-sm text-base-content/70" data-testid="event-attempts-empty">No attempts recorded yet.</p>
+          <p class="text-sm {{ muted }}" data-testid="event-attempts-empty">No attempts recorded yet.</p>
         {% endif %}
         {% if noAttemptsSinceEdit %}
-          <p class="text-sm text-base-content/70" data-testid="event-no-attempts-since-edit">No attempts since the payload was edited.</p>
+          <p class="text-sm {{ muted }}" data-testid="event-no-attempts-since-edit">No attempts since the payload was edited.</p>
         {% endif %}
       </div>
     </section>
@@ -511,13 +500,13 @@
             {% endif %}
 
             {% if payloadReview.diff.tooLong %}
-              <p class="text-sm text-base-content/70" data-testid="event-payload-diff-too-long">Too many changes to show; the whole payload is below.</p>
+              <p class="text-sm {{ muted }}" data-testid="event-payload-diff-too-long">Too many changes to show; the whole payload is below.</p>
             {% else %}
               {# Colour and a sign for each changed line, and words for a screen reader, which is told neither. #}
               <div class="max-h-[30rem] w-full overflow-auto rounded-box border border-base-300 bg-base-200 py-2 font-mono text-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-base-content" tabindex="0" role="region" aria-label="What changed" data-testid="event-payload-diff">
                 {% for row in payloadReview.diff.rows %}
                   {% if row.op == "skipped" %}
-                    <pre class="flex gap-3 bg-base-300/50 px-3 text-base-content/70 italic" data-testid="event-payload-diff-skipped"><span class="w-9 shrink-0" aria-hidden="true"></span><span class="w-9 shrink-0" aria-hidden="true"></span><span class="w-3 shrink-0" aria-hidden="true"></span><code>{{ row.text }}</code></pre>
+                    <pre class="flex gap-3 bg-base-300/50 px-3 {{ muted }} italic" data-testid="event-payload-diff-skipped"><span class="w-9 shrink-0" aria-hidden="true"></span><span class="w-9 shrink-0" aria-hidden="true"></span><span class="w-3 shrink-0" aria-hidden="true"></span><code>{{ row.text }}</code></pre>
                   {% elif row.op == "removed" %}
                     <pre class="flex gap-3 bg-error/15 px-3" data-testid="event-payload-diff-removed"><span class="w-9 shrink-0 text-right tabular-nums text-base-content/50" aria-hidden="true">{{ row.a }}</span><span class="w-9 shrink-0" aria-hidden="true"></span><span class="w-3 shrink-0 font-bold text-error" aria-hidden="true">−</span><code><span class="sr-only">Removed line {{ row.a }}: </span>{{ row.text }}</code></pre>
                   {% elif row.op == "added" %}
@@ -585,7 +574,7 @@
           {% if payloadView %}
             {{ jsonViewer({ view: payloadView, label: "Payload", testId: "event-payload" }) }}
           {% else %}
-            <p class="py-6 text-center text-sm text-base-content/70" data-testid="event-payload-empty">This event carries no payload.</p>
+            <p class="py-6 text-center text-sm {{ muted }}" data-testid="event-payload-empty">This event carries no payload.</p>
           {% endif %}
 
           {% if originalPayloadView %}
