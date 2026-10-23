@@ -1960,10 +1960,33 @@ describe('the grant Raw tab', () => {
     const { $ } = await viewPage(`${grantPath}?tab=raw`)
 
     expect(textOf($, 'grant-raw-caption')).toBe(
-      'Grant definition as GAS stored it. GAS keeps only the keys it reads, so the published file may have more. Agreement and payment JSON are under their own tabs.'
+      'Grant definition as GAS stored it. GAS keeps only the keys it reads, so the published file may have more. The agreement and payment definitions are on the Agreement and Payment tabs.'
     )
+    expect(
+      part($, 'grant-raw-caption')
+        .find('a')
+        .toArray()
+        .map((link) => $(link).attr('href'))
+    ).toEqual([
+      expect.stringContaining('tab=agreement'),
+      expect.stringContaining('tab=payment')
+    ])
     expect(part($, 'grant-raw-caption').next().attr('data-testid')).toBe(
       'grant-raw-card'
+    )
+  })
+
+  test('names only the other tabs the version offers', async () => {
+    givenGrant({
+      header: { ...grantHeader, files: { grant: fetched, agreement: fetched } },
+      overview: undefined,
+      definition: grantDefinition
+    })
+
+    const { $ } = await viewPage(`${grantPath}?tab=raw`)
+
+    expect(textOf($, 'grant-raw-caption')).toBe(
+      'Grant definition as GAS stored it. GAS keeps only the keys it reads, so the published file may have more. The agreement definition is on the Agreement tab.'
     )
   })
 
@@ -1986,6 +2009,9 @@ describe('the grant Raw tab', () => {
 
     expect(part($, 'grant-tab').last().text()).toBe('Raw')
     expect(part($, 'grant-raw')).toHaveLength(1)
+    expect(textOf($, 'grant-raw-caption')).toBe(
+      'Grant definition as GAS stored it. GAS keeps only the keys it reads, so the published file may have more.'
+    )
   })
 
   test('says the grant definition is not stored, and nothing else', async () => {
@@ -2114,16 +2140,19 @@ describe('the grant Questions tab', () => {
 
     expect(titles.toArray().map((title) => flatten($(title).text()))).toEqual([
       'Pre-award PRE_AWARD',
-      'Post-award POST_AWARD Not checked on submission'
+      'Post-award POST_AWARD Not checked on submission',
+      'Closure CLOSURE Not checked on submission'
     ])
     expect(titles.first().find('[data-code] .font-mono').text()).toBe(
       'PRE_AWARD'
     )
-    expect(part($, 'grant-questions-not-checked')).toHaveLength(1)
-    expect(part($, 'grant-questions-not-checked').attr('title')).toBe(
+    expect(part($, 'grant-questions-not-checked')).toHaveLength(2)
+    expect(part($, 'grant-questions-not-checked').first().attr('title')).toBe(
       "GAS validates submissions against the first phase only. It still compiles these on arrival, and a version whose questions don't compile is rejected."
     )
-    expect(textOf($, 'grant-questions-none')).toBe('CLOSURE: no questions.')
+    expect(textOf($, 'grant-questions-none')).toBe(
+      'No questions in this phase.'
+    )
   })
 
   test("gives the schema's title and description as the card's subtitle", async () => {
@@ -2187,7 +2216,7 @@ describe('the grant Questions tab', () => {
         '(root) and every closed object',
         'Fields not listed under a closed object are removed on submission.'
       ],
-      ['(root)', 'a + b must equal hectares']
+      ['(root)', 'The sum of a + b must equal hectares']
     ])
   })
 

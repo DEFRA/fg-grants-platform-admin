@@ -149,7 +149,7 @@ describe('grantEntitlements: the Claims card', () => {
     const $ = renderTab({ nothing: true, templates: [] })
 
     expect(textOf($, 'nothing')).toBe(
-      'Nothing can be claimed on this version: it has no entitlement templates.'
+      'No entitlement templates in this version, so nothing can be claimed on it.'
     )
     expect(part($, 'claims')).toHaveLength(0)
     expect(part($, 'empty')).toHaveLength(0)

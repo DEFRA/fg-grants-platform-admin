@@ -756,7 +756,9 @@ describe('the workflow Tasks tab', () => {
 
     const { $ } = await viewPage(`${path}?tab=tasks`)
 
-    expect(textOf($, 'workflow-tasks-empty')).toBe('No task groups.')
+    expect(textOf($, 'workflow-tasks-empty')).toBe(
+      'No task groups in this version.'
+    )
   })
 
   test('says the workflow definition is not stored, under the banner, and nothing else', async () => {
