@@ -16,8 +16,11 @@ import type {
 } from '../use-cases/get-grant-page.use-case.ts'
 import { getGrantPageUseCase } from '../use-cases/get-grant-page.use-case.ts'
 import { getGrantVersionsUseCase } from '../use-cases/get-grant-versions.use-case.ts'
+import { getCatalogueUseCase } from '../use-cases/get-catalogue.use-case.ts'
 import {
   agreementDefinition,
+  applicationsBucket,
+  catalogue,
   woodlandDefinition
 } from '../use-cases/test-fixtures.ts'
 import { getWorkflowPageUseCase } from '../use-cases/get-workflow-page.use-case.ts'
@@ -487,6 +490,29 @@ describe('the Overview tab', () => {
     const { $ } = await viewPage()
 
     expect(part($, 'application-grant-from')).toHaveLength(0)
+  })
+
+  test('links the grant to its version page, which leads back here', async () => {
+    const from = '/dev-ops/applications?grant=frps-private-beta'
+    const { $ } = await viewPage(`${path}?back=${encodeURIComponent(from)}`)
+
+    const link = part($, 'application-grant')
+    expect(link.is('a')).toBe(true)
+    expect(link.attr('href')).toBe(
+      `/dev-ops/grants/frps-private-beta/1.4.2?back=${encodeURIComponent(`${path}?back=${encodeURIComponent(from)}`)}`
+    )
+    expect(link.attr('class')).toContain('link')
+    expect(link.attr('target')).toBeUndefined()
+    expect(textOf($, 'application-grant-from')).toBe('from 1.4.0')
+  })
+
+  test('leaves the grant unlinked when it has no version', async () => {
+    givenPage({ overview: { ...overview, currentConfigVersion: null } })
+
+    const { $ } = await viewPage()
+
+    expect(part($, 'application-grant').is('span')).toBe(true)
+    expect(textOf($, 'application-grant')).toBe('frps-private-beta')
   })
 
   test('spells each date out in UK time, as the event page does', async () => {
@@ -1130,6 +1156,29 @@ describe('the case page', () => {
     expect(textOf($, 'case-size')).toBe('4 KiB')
   })
 
+  test('links the workflow to its version page, which leads back here', async () => {
+    const from = '/dev-ops/cases?workflow=woodland'
+    const { $ } = await viewPage(`${casePath}?back=${encodeURIComponent(from)}`)
+
+    const link = part($, 'case-workflow')
+    expect(link.is('a')).toBe(true)
+    expect(link.attr('href')).toBe(
+      `/dev-ops/workflows/woodland/1.4.2?back=${encodeURIComponent(`${casePath}?back=${encodeURIComponent(from)}`)}`
+    )
+    expect(link.attr('class')).toContain('link')
+    expect(link.attr('target')).toBeUndefined()
+    expect(textOf($, 'case-workflow-from')).toBe('from 1.3.5')
+  })
+
+  test('leaves the workflow unlinked when it has no version', async () => {
+    givenCase({ overview: { ...caseOverview, currentConfigVersion: null } })
+
+    const { $ } = await viewPage(casePath)
+
+    expect(part($, 'case-workflow').is('span')).toBe(true)
+    expect(textOf($, 'case-workflow')).toBe('woodland')
+  })
+
   test('shows the stored closing date of a case not marked closed', async () => {
     givenCase({
       overview: { ...caseOverview, closedAt: '2026-09-29T15:02:44.000Z' }
@@ -1671,7 +1720,13 @@ describe('the grant Overview tab', () => {
         'Admin role',
         'Definitions'
       ],
-      ['Workflow', 'Who can apply', 'Versions', 'Definition size']
+      [
+        'Workflow',
+        'Applications',
+        'Who can apply',
+        'Versions',
+        'Definition size'
+      ]
     ])
     expect(textOf($, 'grant-description')).toBe(
       'Funding to plant new woodland on agricultural land.'
@@ -1763,8 +1818,51 @@ describe('the grant Overview tab', () => {
     const { $ } = await viewPage(grantPath)
 
     expect(part($, 'grant-fact-workflow')).toHaveLength(0)
-    expect(part($, 'grant-fact-who-can-apply')).toHaveLength(1)
+    expect(part($, 'grant-fact-applications')).toHaveLength(1)
   })
+
+  test("links to the applications on this version, as the catalogue spells the list's filters", async () => {
+    givenGrant()
+
+    const { $ } = await viewPage(grantPath)
+
+    expect(part($, 'grant-applications').attr('href')).toBe(
+      '/dev-ops/applications?grant=woodland-creation&version=1.2.0'
+    )
+    expect(textOf($, 'grant-applications')).toBe(
+      'View applications (opens in a new tab)'
+    )
+  })
+
+  test.each([
+    [
+      'does not filter applications by version',
+      {
+        ...catalogue,
+        buckets: [
+          {
+            ...applicationsBucket,
+            facts: applicationsBucket.facts.filter(
+              ({ name }) => name !== 'currentConfigVersion'
+            )
+          }
+        ]
+      }
+    ],
+    ['has no applications list', { ...catalogue, buckets: [] }],
+    ['could not be read', null]
+  ])(
+    'reads a dash for Applications when the catalogue %s',
+    async (_, answer) => {
+      givenGrant()
+      vi.mocked(getCatalogueUseCase).mockResolvedValueOnce(answer)
+
+      const { $ } = await viewPage(grantPath)
+
+      expect(textOf($, 'grant-applications-none')).toBe('—')
+      expect(part($, 'grant-applications').attr('href')).toBeUndefined()
+    }
+  )
 
   test('opens the allow list on its Who can apply tab', async () => {
     givenGrant()
@@ -1802,11 +1900,12 @@ describe('the grant Overview tab', () => {
       '2026-09-10T15:25:00Z'
     )
     expect(
-      ['workflow', 'who-can-apply'].map((id) =>
+      ['workflow', 'applications', 'who-can-apply'].map((id) =>
         part($, `grant-${id}`).attr('href')
       )
     ).toEqual([
       '/dev-ops/workflows/woodland-creation/1.2.0',
+      '/dev-ops/applications?grant=woodland-creation&version=1.2.0',
       '/grant-ops/grants/woodland-creation/admin#who-can-apply'
     ])
   })

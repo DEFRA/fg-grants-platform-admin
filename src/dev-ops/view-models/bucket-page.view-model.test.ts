@@ -99,6 +99,18 @@ const path = '/dev-ops/events/gas/outbox'
 
 const searchId = '0b7c1d1e-0000-4000-8000-000000000001'
 
+/** An application list read for one version of its chosen grant, with another filter beside them. */
+const versioned = () =>
+  page(
+    read(),
+    {
+      code: 'example-grant',
+      currentConfigVersion: '1.2.0',
+      archived: 'false'
+    },
+    applicationsBucket
+  )
+
 describe('toSearchQuery', () => {
   test('stores the kind and the value as one', () => {
     expect(toSearchQuery(outboxBucket, 'trace', 'abc-123:xyz@example._')).toBe(
@@ -474,6 +486,49 @@ describe('toBucketPage', () => {
         clearHref: `${path}?status=DEAD_LETTER`
       }
     ])
+  })
+
+  test('notes a version of the chosen grant, and clears it alone, keeping the grant', () => {
+    expect(versioned().notes).toEqual([
+      {
+        fact: 'currentConfigVersion',
+        label: 'Version',
+        value: '1.2.0',
+        clearHref: '/dev-ops/applications?grant=example-grant&archived=false'
+      }
+    ])
+  })
+
+  test('drops the version from every choice of grant, All among them', () => {
+    expect(versioned().menus[0].items.map(({ href }) => href)).toEqual([
+      '/dev-ops/applications?archived=false',
+      '/dev-ops/applications?grant=example-grant&archived=false'
+    ])
+  })
+
+  test('keeps the version on a choice of another fact', () => {
+    expect(versioned().menus[1].items[1].href).toBe(
+      '/dev-ops/applications?grant=example-grant&version=1.2.0&archived=true'
+    )
+  })
+
+  test('keeps the version on the time range and the search', () => {
+    const { timeRange, search } = versioned()
+    const kept = [
+      { name: 'grant', value: 'example-grant' },
+      { name: 'version', value: '1.2.0' },
+      { name: 'archived', value: 'false' }
+    ]
+
+    expect(timeRange.hiddenFields).toEqual(kept)
+    expect(search?.hiddenFields).toEqual(kept)
+  })
+
+  test('keeps an open filter when a tile is chosen', () => {
+    expect(
+      page(read(), { 'lastError.name': 'MongoServerError' }).tiles?.items[2]
+        .href
+    ).toBe(`${path}?status=DEAD_LETTER&error=MongoServerError`)
   })
 
   test('sets the time range on the list, keeping the filters', () => {

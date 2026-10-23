@@ -30,6 +30,8 @@ export interface BucketFact {
   /** Null for an open fact: one with no list to choose from. */
   values: BucketFactValue[] | null
   toggle: BucketToggle | null
+  /** The fact this one is scoped to, as a version is to its grant; choosing that fact clears this one. */
+  within: string | null
 }
 
 export interface BucketRefKind {

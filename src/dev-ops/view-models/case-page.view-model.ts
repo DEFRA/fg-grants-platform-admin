@@ -14,19 +14,24 @@ import {
   toRecordPage,
   toSeriesData,
   toSizeFact,
-  toVersionedFact
+  toVersionedFact,
+  toVersionLinkOf
 } from './record-page.view-model.ts'
 import type { Fact, RecordPageModel } from './record-page.view-model.ts'
+import { toWorkflowHref } from './workflows-page.view-model.ts'
 
 const toFacts = (
   overview: CaseOverview,
-  applicationHref: string | null
+  applicationHref: string | null,
+  workflowHref: string | null
 ): Fact[][] => [
   [
-    toVersionedFact('workflow', 'Workflow', {
-      ...overview,
-      code: overview.workflowCode
-    }),
+    toVersionedFact(
+      'workflow',
+      'Workflow',
+      { ...overview, code: overview.workflowCode },
+      workflowHref
+    ),
     ...toCounterpartFacts(applicationType, applicationHref),
     toDateFact('created', 'Created', overview.createdAt),
     toDateFact('closed-at', 'Closed at', overview.closedAt)
@@ -55,7 +60,17 @@ export const toCasePage = (
       href: toCaseHref(page.header),
       position: page.header.position,
       facts: page.overview
-        ? toFacts(page.overview, toCounterpartHref(page))
+        ? toFacts(
+            page.overview,
+            toCounterpartHref(page),
+            toVersionLinkOf(
+              toWorkflowHref,
+              page.overview.workflowCode,
+              page.overview.currentConfigVersion,
+              toCaseHref(page.header),
+              from
+            )
+          )
         : null,
       series: page.overview
         ? toSeriesData(

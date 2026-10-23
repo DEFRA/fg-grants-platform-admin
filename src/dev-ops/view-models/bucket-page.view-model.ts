@@ -225,11 +225,22 @@ interface Context {
   now: Date
 }
 
+/** A fact's values mean nothing under another choice of the fact they are within, so that choice drops them. */
 const hrefWith = (
   { bucket, filters }: Context,
   fact: string,
   value: string | undefined
-): string => toBucketHref(bucket, { ...filters, [fact]: value })
+): string => {
+  const cleared = bucket.facts
+    .filter(({ within }) => within === fact)
+    .map(({ name }) => [name, undefined])
+
+  return toBucketHref(bucket, {
+    ...filters,
+    ...Object.fromEntries(cleared),
+    [fact]: value
+  })
+}
 
 const hasValues = (
   fact: BucketFact
