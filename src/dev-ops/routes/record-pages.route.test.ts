@@ -1340,6 +1340,33 @@ describe('the grant page', () => {
     expect($('title').text()).toContain('Grant woodland-creation')
   })
 
+  test.each([
+    { tab: 'Overview', query: '' },
+    { tab: 'Raw', query: '?tab=raw' }
+  ])(
+    'titles the document with the open tab, $tab, and the version',
+    async ({ tab, query }) => {
+      const { $ } = await viewPage(`${grantPath}${query}`)
+
+      expect($('title').text().split(' | ')[0]).toBe(
+        `${tab} – Grant woodland-creation 1.2.0`
+      )
+    }
+  )
+
+  test('titles a version GAS has not got as not found, with its version', async () => {
+    vi.mocked(getGrantPageUseCase).mockResolvedValue({
+      outcome: 'not-found',
+      page: null
+    })
+
+    const { $ } = await viewPage('/dev-ops/grants/woodland-creation/9.9.9')
+
+    expect($('title').text().split(' | ')[0]).toBe(
+      'Not found – Grant woodland-creation 9.9.9'
+    )
+  })
+
   test('shows the status, then the version switcher, under the title', async () => {
     const { $ } = await viewPage(grantPath)
     const line = part($, 'grant-version')

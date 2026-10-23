@@ -6,7 +6,7 @@
 
 {%- set testId = params.testId -%}
 <do-json-viewer class="relative flex flex-col" data-testid="{{ testId }}-viewer">
-  <div class="absolute top-2 right-2 z-1" hidden data-json-viewer-tools>
+  <div class="absolute top-2 right-5 z-1" hidden data-json-viewer-tools>
     <button class="btn btn-xs" type="button" data-json-viewer-copy data-testid="{{ testId }}-copy"><span data-json-viewer-copy-label>Copy</span><span class="sr-only"> {{ params.label | lower }}</span></button>
   </div>
   <div class="max-h-[30rem] w-full overflow-auto rounded-box border border-base-300 bg-base-200 py-2 font-mono text-sm {{ lines }} focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-base-content" tabindex="0" role="region" aria-label="{{ params.label }}" data-testid="{{ testId }}">
