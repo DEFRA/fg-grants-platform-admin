@@ -1425,7 +1425,7 @@ describe('the version lists', () => {
       'w-[22%] sm:w-[26%]',
       'w-[17%] sm:w-[14%]',
       'w-[34%] sm:w-[22%]',
-      'w-[14%] hidden sm:table-cell',
+      'w-[14%] max-sm:hidden',
       'w-[27%] sm:w-[24%]'
     ])
     expect(part($, 'bucket-head').find('th').eq(3).attr('class')).toBe(
