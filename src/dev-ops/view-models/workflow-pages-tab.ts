@@ -11,9 +11,18 @@ import {
   toCaseTabs
 } from './workflow-external-actions.ts'
 import type { ActionCall, CaseTab } from './workflow-external-actions.ts'
+import { toMappingValue } from './mapping-table.ts'
+import type { MappingValue } from './mapping-table.ts'
 
-/** A stored path: an empty one is shown as such, so it never reads as missing. */
-type StoredText = { kind: 'value' | 'empty'; text: string } | { kind: 'none' }
+/**
+ * A stored path: an empty one is shown as such, so it never reads as missing.
+ * CW evaluates every `jsonata:` string (`resolve-json.js`); anything else
+ * follows CW's own rules, not GAS's, so only an expression is a mapping value.
+ */
+type StoredText =
+  | { kind: 'value' | 'empty'; text: string }
+  | { kind: 'expression'; value: MappingValue }
+  | { kind: 'none' }
 
 interface SummaryRow {
   key: string
@@ -45,6 +54,10 @@ export interface WorkflowPagesTab {
 const toStoredText = (text: string | undefined): StoredText => {
   if (text === undefined) {
     return { kind: 'none' }
+  }
+
+  if (text.startsWith('jsonata:')) {
+    return { kind: 'expression', value: toMappingValue(text) }
   }
 
   return text === '' ? { kind: 'empty', text: '""' } : { kind: 'value', text }

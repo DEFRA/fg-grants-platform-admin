@@ -97,16 +97,29 @@ describe('schema-tree component', () => {
     ).toEqual(['Property', 'Type', 'Required', 'Constraints'])
   })
 
-  test('names the column heads for assistive technology', () => {
-    const head = tree(nested)('[data-testid="tree-head"]')
+  test('hides the column heads from assistive technology, which has no table to read them in', () => {
+    const $ = tree(nested)
 
-    expect(head.attr('role')).toBe('row')
-    expect(
-      head
-        .children()
-        .toArray()
-        .map((cell) => head.find(cell).attr('role'))
-    ).toEqual(['columnheader', 'columnheader', 'columnheader', 'columnheader'])
+    expect($('[data-testid="tree-head"]').attr('aria-hidden')).toBe('true')
+    expect($('[role]')).toHaveLength(0)
+  })
+
+  test('labels the type and the constraints in each row for assistive technology', () => {
+    const $ = tree(nested)
+    const row = $('[data-testid="tree-row"]').eq(2)
+    const hidden = row.find('.sr-only')
+
+    expect(hidden.toArray().map((label) => $(label).text())).toEqual([
+      'Type: ',
+      'Constraints: '
+    ])
+    expect(hidden.eq(0).next().is('[data-testid="tree-type"]')).toBe(true)
+    expect(hidden.eq(1).next().is('[data-testid="tree-constraints"]')).toBe(
+      true
+    )
+    expect(row.text().replace(/\s+/g, ' ').trim()).toBe(
+      'name Type: string Optional Constraints: length ≤ 100'
+    )
   })
 
   test('says Required in words only, and Optional muted', () => {

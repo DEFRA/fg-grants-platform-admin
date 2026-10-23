@@ -74,42 +74,37 @@ const statuses: Record<VersionSummary['status'], StatusBadge> = {
 
 const mainFiles: VersionFileType[] = ['grant', 'workflow']
 
-/** The grant or workflow file is stored, so no older version need be offered in its place. */
+/** The grant or workflow file is stored, so no other version need be offered in its place. */
 const isMainStored = ({ files }: VersionPageHeader): boolean =>
   mainFiles.some((type) => files[type]?.stored === true)
 
-/** The newest version after this one, in the header's newest-first order, with every file stored. */
-const toOlderStored = (
+/** The newest other version with every file stored, from the header's newest-first list. */
+const findNewestStored = (
   header: VersionPageHeader
-): VersionSummary | undefined => {
-  const at = header.versions.findIndex(
-    ({ version }) => version === header.version
+): VersionSummary | undefined =>
+  header.versions.find(
+    ({ version, stored }) => stored && version !== header.version
   )
 
-  return at < 0
-    ? undefined
-    : header.versions.slice(at + 1).find(({ stored }) => stored)
-}
-
-/** An older version with every file stored, linked on the same tab, while this one's main file is not stored. */
+/** The newest other version with every file stored, linked on the same tab, while this one's main file is not stored. */
 const toNewestStored = (
   record: RecordType,
   header: VersionPageHeader,
   tab: string,
   back: string
 ): Words => {
-  const older = isMainStored(header) ? undefined : toOlderStored(header)
+  const newest = isMainStored(header) ? undefined : findNewestStored(header)
 
-  return older === undefined
+  return newest === undefined
     ? []
     : [
         'Newest stored version: ',
         {
-          link: `${older.version} ›`,
+          link: `${newest.version} ›`,
           href: toTabHref(
             toVersionPath(record, {
               code: header.code,
-              version: older.version
+              version: newest.version
             }),
             tab,
             back

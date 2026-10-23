@@ -7,6 +7,11 @@ import type { Schema } from 'joi'
 import { getApplicationPageUseCase } from '../use-cases/get-application-page.use-case.ts'
 import { getCasePageUseCase } from '../use-cases/get-case-page.use-case.ts'
 import { getGrantPageUseCase } from '../use-cases/get-grant-page.use-case.ts'
+import type {
+  GrantVersionPage,
+  GrantVersionRef
+} from '../use-cases/get-grant-page.use-case.ts'
+import type { GrantTabId } from '../use-cases/grant-tabs.ts'
 import { getGrantVersionsUseCase } from '../use-cases/get-grant-versions.use-case.ts'
 import { getWorkflowPageUseCase } from '../use-cases/get-workflow-page.use-case.ts'
 import { getWorkflowVersionsUseCase } from '../use-cases/get-workflow-versions.use-case.ts'
@@ -20,7 +25,9 @@ import { toCasePage } from '../view-models/case-page.view-model.ts'
 import { caseType } from '../view-models/cases-page.view-model.ts'
 import { toSafeFrom } from '../view-models/event-page.view-model.ts'
 import { definitionFetchNoticeKey } from '../view-models/definition-fetch.ts'
+import type { DefinitionFetchFlash } from '../view-models/definition-fetch.ts'
 import { toGrantPage } from '../view-models/grant-page.view-model.ts'
+import type { GrantPageQuery } from '../view-models/grant-page.view-model.ts'
 import { grantType } from '../view-models/grants-page.view-model.ts'
 import { recordPageCache } from '../view-models/list-filters.ts'
 import {
@@ -51,7 +58,12 @@ interface RecordPageRoute<K, P, T extends string, N, Q> {
     page: P,
     tab: T,
     from: string,
-    options: { notice?: N; query: Q; catalogue: Catalogue | null }
+    options: {
+      notice?: N
+      query: Q
+      catalogue: Catalogue | null
+      roles: string[]
+    }
   ) => RecordPageModel
   /** Where a write leaves its outcome for the one render after it. */
   noticeKey?: keyof YarFlashes
@@ -131,6 +143,10 @@ const toQuerySchema = (
     back: backSchema,
     ...query
   })
+
+/** Hapi types the credentials scope as either one role or many. */
+const rolesOf = (request: Request): string[] =>
+  [request.auth.credentials.scope ?? []].flat()
 
 /** A version the service has no record of keeps the record's shell, and says where a rejected one went. */
 const missingVersionView = async (
@@ -226,7 +242,8 @@ const recordPageRoute = <K, P, T extends string, N = never, Q = object>({
     const model = toPage(page, tab, from, {
       notice,
       query: extra as Q,
-      catalogue
+      catalogue,
+      roles: rolesOf(request)
     })
 
     return h.view(record.view, {
@@ -310,12 +327,22 @@ export const viewCaseRoute = recordPageRoute({
   toPage: (page, tab, from) => toCasePage(page, tab, from)
 })
 
-export const viewGrantRoute = recordPageRoute({
+export const viewGrantRoute = recordPageRoute<
+  GrantVersionRef,
+  GrantVersionPage,
+  GrantTabId,
+  DefinitionFetchFlash,
+  GrantPageQuery
+>({
   record: grantType,
   params: { code: slugFilterSchema, version: versionSchema },
   query: { status: statusSchema },
   read: getGrantPageUseCase,
-  toPage: toGrantPage,
+  toPage: (page, tab, from, { roles, ...options }) =>
+    toGrantPage(page, tab, from, {
+      ...options,
+      canAdministerGrants: roles.includes('FCP.GrantApplicationsAdmin')
+    }),
   noticeKey: definitionFetchNoticeKey,
   versioned: true
 })
