@@ -1,0 +1,73 @@
+{% extends "record.njk" %}
+
+{% from "code-text/macro.njk" import codeText %}
+{% from "muted/macro.njk" import muted %}
+{% from "agreement-definition/macro.njk" import agreementDefinition %}
+{% from "grant-actions/macro.njk" import grantActions %}
+{% from "grant-entitlements/macro.njk" import grantEntitlements %}
+{% from "grant-questions/macro.njk" import grantQuestions %}
+{% from "icon/macro.njk" import icon %}
+{% from "state-graph/macro.njk" import stateGraph %}
+{% from "grant-status-panel/macro.njk" import grantStatusPanel %}
+{% from "payment-definition/macro.njk" import paymentDefinition %}
+{% from "raw-details/macro.njk" import rawDetails %}
+{% from "version-banner/macro.njk" import versionBanner %}
+{% from "version-status/macro.njk" import versionStatus %}
+
+{% macro errorAlert(text, testId) %}
+  <div role="alert" class="alert alert-error alert-soft text-sm" data-testid="{{ testId }}">
+    {{ icon({ name: 'exclamation-circle', class: 'size-4 shrink-0' }) }}
+    <span class="min-w-0 break-words">{{ text }}</span>
+  </div>
+{% endmacro %}
+
+{% block recordHeader %}
+  {% if versionHeader %}
+    {{ versionStatus({ header: versionHeader, testId: record.itemId }) }}
+  {% endif %}
+{% endblock %}
+
+{% block beforeTabs %}
+  {{ versionBanner({ notices: notices, banner: versionHeader.banner, testId: record.itemId }) }}
+{% endblock %}
+
+{% block tabBody %}
+  {% if sectionError %}
+    {{ super() }}
+  {% elif notStored %}
+    <div class="card card-border bg-base-100" data-testid="{{ record.itemId }}-not-stored">
+      <p class="px-4 py-10 text-center text-sm {{ muted }}">{{ notStored.text }}</p>
+    </div>
+  {% elif tab == "phases" and phases.kind == "unreadable" %}
+    <div role="alert" class="alert alert-error alert-soft text-sm" data-testid="grant-phases-unreadable">
+      {{ icon({ name: 'exclamation-circle', class: 'size-4 shrink-0' }) }}
+      <span class="min-w-0 break-words">GAS cannot load this grant definition, so its phases cannot be shown: {{ codeText(phases.problem) }}.</span>
+    </div>
+  {% elif tab == "phases" and phases %}
+    <p class="mb-3 text-sm {{ muted }}" data-testid="grant-phases-note">Arrows show the moves GAS allows. A move happens only when CW or Agreements sends a status, when the last claim is submitted, or when a GAS process sets a status itself (outside the arrows), as listed in <strong class="font-semibold">Triggered by</strong>.</p>
+    {% call stateGraph({ graphs: phases.graphs, legend: phases.legend, testId: 'grant-phases' }) %}
+      {% if phases.panel %}
+        {{ grantStatusPanel({ panel: phases.panel, testId: 'grant-phases' }) }}
+      {% endif %}
+    {% endcall %}
+  {% elif tab == "questions" and questions.kind == "no-phases" %}
+    {{ errorAlert("The grant definition has no phases: every submission throws.", "grant-questions-no-phases") }}
+  {% elif tab == "questions" and questions %}
+    {{ grantQuestions({ questions: questions, testId: "grant-questions" }) }}
+  {% elif tab == "actions" and actions %}
+    {{ grantActions({ actions: actions, testId: "grant-actions" }) }}
+  {% elif tab == "entitlements" and entitlements %}
+    {{ grantEntitlements({ view: entitlements, testId: "grant-entitlements" }) }}
+  {% elif tab == "agreement" and agreement %}
+    {{ agreementDefinition({ tab: agreement, environment: environmentLabel, testId: "grant-agreement" }) }}
+    {{ rawDetails({ view: agreement.raw, label: "Agreement definition", summary: "Raw agreement definition (JSON)", open: agreement.problem !== null, testId: "grant-agreement-raw" }) }}
+  {% elif tab == "payment" and payment.view %}
+    {{ paymentDefinition({ view: payment.view, testId: "grant-payment" }) }}
+    {{ rawDetails({ view: payment.raw.view, label: "Payment definition", summary: "Raw payment definition (JSON)", testId: "grant-payment-raw" }) }}
+  {% elif tab == "raw" and raw.view %}
+    <p class="mb-3 text-sm {{ muted }}" data-testid="grant-raw-caption">Grant definition as GAS stored it. GAS keeps only the keys it reads, so the published file may have more. Agreement and payment JSON are under their own tabs.</p>
+    {{ super() }}
+  {% else %}
+    {{ super() }}
+  {% endif %}
+{% endblock %}
