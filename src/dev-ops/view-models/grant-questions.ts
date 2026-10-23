@@ -128,12 +128,17 @@ interface Resolved {
   /** A ref that cannot be followed: remote, missing, or a cycle. */
   unresolved: string | null
   /** Constraints set both beside a ref and in its target: Ajv applies both, so neither replaces the other. */
-  also: Schema | null
+  also: Schema[]
   walk: Walk
 }
 
 /** A field's constraints set on both sides of a ref, kept beside the field it was merged into. */
-const alsoOf = new WeakMap<Schema, Schema>()
+const alsoOf = new WeakMap<Schema, Schema[]>()
+
+const savedAlso = (schema: Schema): Schema[] => alsoOf.get(schema) ?? []
+
+const withAlso = (schema: Schema, also: Schema | null): Schema[] =>
+  also ? [...savedAlso(schema), also] : savedAlso(schema)
 
 const bothField = (target: unknown, sibling: unknown): unknown => {
   if (!isSchema(target) || !isSchema(sibling)) {
@@ -141,9 +146,10 @@ const bothField = (target: unknown, sibling: unknown): unknown => {
   }
 
   const { merged, also } = splitSiblings(target, sibling)
+  const kept = withAlso(target, also)
 
-  if (also) {
-    alsoOf.set(merged, also)
+  if (kept.length) {
+    alsoOf.set(merged, kept)
   }
 
   return merged
@@ -197,7 +203,7 @@ const unreferenced = (schema: Schema, walk: Walk): Resolved => ({
   schema,
   from: null,
   unresolved: null,
-  also: alsoOf.get(schema) ?? null,
+  also: savedAlso(schema),
   walk
 })
 
@@ -213,7 +219,13 @@ const resolve = (schema: Schema, walk: Walk): Resolved => {
   const { $ref: _, ...siblings } = schema
 
   if (!target) {
-    return { schema, from: null, unresolved: ref, also: null, walk }
+    return {
+      schema,
+      from: null,
+      unresolved: ref,
+      also: savedAlso(schema),
+      walk
+    }
   }
 
   const { merged, also } = splitSiblings(target, siblings)
@@ -222,7 +234,7 @@ const resolve = (schema: Schema, walk: Walk): Resolved => {
     schema: merged,
     from: ref.slice(2),
     unresolved: null,
-    also,
+    also: withAlso(schema, also),
     walk: { ...walk, seen: [...walk.seen, ref] }
   }
 }
@@ -454,7 +466,7 @@ const toResolvedConstraints = ({
   also
 }: Pick<Resolved, 'schema' | 'also'>): Words[] => [
   ...toConstraints(schema),
-  ...(also ? toConstraints(also) : [])
+  ...also.flatMap(toConstraints)
 ]
 
 const defaultOf = (property: Schema): string | null =>
@@ -466,7 +478,7 @@ interface Scope {
   walk: Walk
   suffix: '' | '[]'
   /** The items' constraints set both beside their ref and in its target. */
-  also: Schema | null
+  also: Schema[]
 }
 
 const declaresFields = (schema: Schema): boolean =>
@@ -487,7 +499,7 @@ const scopeOf = (property: Schema, walk: Walk): Scope | null => {
   }
 
   return declaresFields(property)
-    ? { schema: property, walk, suffix: '', also: null }
+    ? { schema: property, walk, suffix: '', also: [] }
     : null
 }
 
