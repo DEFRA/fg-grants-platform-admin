@@ -132,6 +132,22 @@ interface Resolved {
   walk: Walk
 }
 
+const bothProperties = (target: unknown, siblings: unknown): Schema =>
+  isSchema(target) && isSchema(siblings)
+    ? { properties: { ...target, ...siblings } }
+    : {}
+
+const bothRequired = (target: unknown, siblings: unknown): Schema =>
+  Array.isArray(target) && Array.isArray(siblings)
+    ? { required: [...new Set([...namesIn(target), ...namesIn(siblings)])] }
+    : {}
+
+/** Fields and required names set both beside a ref and in its target: Ajv applies both, so they add up. */
+const combinedFields = (target: Schema, siblings: Schema): Schema => ({
+  ...bothProperties(target.properties, siblings.properties),
+  ...bothRequired(target.required, siblings.required)
+})
+
 const splitSiblings = (
   target: Schema,
   siblings: Schema
@@ -145,7 +161,7 @@ const splitSiblings = (
   )
 
   return {
-    merged: { ...target, ...kept },
+    merged: { ...target, ...kept, ...combinedFields(target, siblings) },
     also: clashing.length ? also : null
   }
 }
@@ -229,15 +245,24 @@ const countOf = (value: unknown, floor: boolean): number | null => {
   return floor && count === 0 ? null : count
 }
 
+const isStronger = (
+  open: number | null,
+  closed: number | null,
+  stronger: (open: number, closed: number) => boolean
+): open is number =>
+  open !== null && (closed === null || stronger(open, closed))
+
+/** The stronger of an exclusive and an inclusive bound, as Ajv applies both. */
 const bound = (
   exclusive: unknown,
   inclusive: unknown,
-  [strict, loose]: [string, string]
+  [strict, loose]: [string, string],
+  stronger: (open: number, closed: number) => boolean
 ): string | null => {
   const open = numberOf(exclusive)
   const closed = numberOf(inclusive)
 
-  if (open !== null) {
+  if (isStronger(open, closed, stronger)) {
     return `${strict} ${open}`
   }
 
@@ -259,8 +284,18 @@ const toNumberRange = (schema: Schema): Words[] => {
   }
 
   const bounds = [
-    bound(exclusiveMinimum, minimum, ['>', '≥']),
-    bound(exclusiveMaximum, maximum, ['<', '≤'])
+    bound(
+      exclusiveMinimum,
+      minimum,
+      ['>', '≥'],
+      (open, closed) => open >= closed
+    ),
+    bound(
+      exclusiveMaximum,
+      maximum,
+      ['<', '≤'],
+      (open, closed) => open <= closed
+    )
   ].filter((part) => part !== null)
 
   return bounds.length ? [[bounds.join(' and ')]] : []

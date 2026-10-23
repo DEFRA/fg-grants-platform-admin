@@ -437,6 +437,33 @@ describe('toGrantQuestions schema tree', () => {
     expect(field.constraints.map(said)).toEqual(['10–500', '≥ 0'])
   })
 
+  test('keeps the fields and required names of both a ref and its siblings, as GAS applies both', () => {
+    const { rows } = schemaCard({
+      $defs: {
+        address: {
+          type: 'object',
+          properties: { postcode: { type: 'string' } },
+          required: ['postcode']
+        }
+      },
+      properties: {
+        address: {
+          $ref: '#/$defs/address',
+          properties: { line1: { type: 'string' } },
+          required: ['line1']
+        }
+      }
+    })
+
+    expect(
+      fieldsOf(rows).map(({ name, required }) => [name, required])
+    ).toEqual([
+      ['address', false],
+      ['postcode', true],
+      ['line1', true]
+    ])
+  })
+
   test("keeps both sets of an array's item constraints too", () => {
     expect(
       rulesOf({
@@ -496,6 +523,10 @@ describe('toGrantQuestions schema tree', () => {
     [{ exclusiveMinimum: 0, maximum: 30000 }, ['> 0 and ≤ 30000']],
     [{ minimum: 0.01 }, ['≥ 0.01']],
     [{ exclusiveMaximum: 10 }, ['< 10']],
+    [{ minimum: 10, exclusiveMinimum: 0 }, ['≥ 10']],
+    [{ minimum: 0, exclusiveMinimum: 0 }, ['> 0']],
+    [{ maximum: 5, exclusiveMaximum: 10 }, ['≤ 5']],
+    [{ maximum: 10, exclusiveMaximum: 10 }, ['< 10']],
     [{ minLength: 2, maxLength: 100 }, ['length 2–100']],
     [{ minLength: 0, maxLength: 80 }, ['length ≤ 80']],
     [{ minLength: 1 }, ['length ≥ 1']],
