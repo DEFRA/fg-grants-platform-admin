@@ -162,6 +162,41 @@ describe('toCaseTabs', () => {
     expect(tabOf(withTabs({ empty: {} }), 'empty')?.components).toEqual([])
   })
 
+  test.each([
+    [
+      { urlTemplate: '/cases/{caseId}/notes?from=land#top' },
+      '/cases/{caseId}/notes'
+    ],
+    [
+      { urlTemplate: 'https://user:secret@land.example/%ENVIRONMENT%/parcels' },
+      'https://land.example/%ENVIRONMENT%/parcels'
+    ],
+    [{ urlTemplate: '\\$.notAPath' }, '$.notAPath'],
+    [{ urlTemplate: '$.supplementaryData.landUrl' }, null],
+    [{ urlTemplate: 'jsonata:$.links.land' }, null]
+  ])('takes a tab linking to %j elsewhere, shown as %j', (href, address) => {
+    expect(
+      tabOf(withTabs({ land: { link: { href } } }), 'land')?.linksElsewhere
+    ).toEqual({ address })
+  })
+
+  test.each([
+    [{ link: {} }],
+    [{ link: { href: {} } }],
+    [{ link: { href: { urlTemplate: '' } } }]
+  ])('takes a tab with %j to its own page', (tab) => {
+    expect(tabOf(withTabs({ land: tab }), 'land')?.linksElsewhere).toBeNull()
+  })
+
+  test("ignores a built-in tab's link, as CW does", () => {
+    expect(
+      tabOf(
+        withTabs({ 'case-details': { link: { href: { urlTemplate: '/x' } } } }),
+        'case-details'
+      )?.linksElsewhere
+    ).toBeNull()
+  })
+
   test('reads a stored null link, action and content as absent, as CW does', () => {
     const workflow = withTabs({
       land: { link: null, renderIf: null, action: null, content: null }
@@ -173,7 +208,8 @@ describe('toCaseTabs', () => {
       builtIn: false,
       renderIf: null,
       fires: [],
-      components: []
+      components: [],
+      linksElsewhere: null
     })
   })
 

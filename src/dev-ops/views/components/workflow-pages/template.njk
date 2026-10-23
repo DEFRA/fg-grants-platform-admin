@@ -73,12 +73,17 @@
             {% for row in tab.tabs %}
               <tr class="hover:bg-base-200 [&>td]:align-top" id="tab-{{ row.key }}" data-testid="{{ testId }}-tab-row">
                 <td>{{ codeText(row.order | string, "text-sm") }}</td>
-                <td>{{ row.label }}{% if row.builtIn %}{{ inlineBadge({ text: "built in", class: "ml-1.5", testId: testId ~ "-built-in" }) }}{% endif %}</td>
+                <td>
+                  {{- row.label }}{% if row.builtIn %}{{ inlineBadge({ text: "built in", class: "ml-1.5", testId: testId ~ "-built-in" }) }}{% endif %}
+                  {%- if row.linksElsewhere %}
+                    <div class="{{ note }}" data-testid="{{ testId }}-links-elsewhere">link goes to {% if row.linksElsewhere.address %}{{ codeText(row.linksElsewhere.address, "text-sm") }}{% else %}an address worked out from the case{% endif %}, not this tab</div>
+                  {%- endif -%}
+                </td>
                 <td data-testid="{{ testId }}-shown-when">{% if row.shownWhen %}when {{ codeText(row.shownWhen, "text-sm") }} is set and not null, false, 0 or "" (an empty list or object counts as set){% else %}Always{% endif %}</td>
                 <td>
                   {%- for call in row.fires -%}
                     {{ actionCell(call, testId ~ "-action", environment) }}
-                    <div class="{{ note }} mb-1.5" data-testid="{{ testId }}-action-when">every time the tab opens · result not stored</div>
+                    <div class="{{ note }} mb-1.5" data-testid="{{ testId }}-action-when">every time the tab{{ "'s own page" if row.linksElsewhere }} opens · result not stored</div>
                   {%- else -%}
                     {{ noValue({}) }}
                   {%- endfor -%}

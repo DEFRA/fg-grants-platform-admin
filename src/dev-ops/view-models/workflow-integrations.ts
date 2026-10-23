@@ -10,18 +10,21 @@ import {
   addressOf,
   endpointCodeOf,
   findExternalAction,
+  literalOf,
+  sourceOfText,
   toActionAnchor,
   toBannerButtons,
   toCall,
   toCaseTabs
 } from './workflow-external-actions.ts'
-import type { ActionCall } from './workflow-external-actions.ts'
+import type { ActionCall, CaseTab } from './workflow-external-actions.ts'
 
 /** Who runs the action in the case view, linked to where Pages shows it. */
 interface Trigger {
   kind: 'button' | 'tab'
   label: string
   href: string
+  linksElsewhere: CaseTab['linksElsewhere']
 }
 
 interface Call {
@@ -31,7 +34,7 @@ interface Call {
   address: ServiceAddress
 }
 
-/** A literal is sent as written; a `$.` path is read from the case; a `jsonata:` expression is computed. */
+/** A literal is sent as written; a `$.` or `@.` ref, alone or among words, is read from the case; a `jsonata:` expression is computed. */
 interface Send {
   kind: 'PATH' | 'BODY' | 'HEADER'
   name: string
@@ -88,6 +91,7 @@ interface TabFire {
   tabKey: string
   key: string
   actionCode: unknown
+  linksElsewhere: CaseTab['linksElsewhere']
 }
 
 /** The parameter kinds CW's resolver sends, as each is named on a row. */
@@ -97,18 +101,33 @@ const sentKinds = new Map<string, Send['kind']>([
   ['HEADERS', 'HEADER']
 ])
 
-const computedPrefix = 'jsonata:'
+const stringsIn = (value: unknown): string[] => {
+  if (typeof value === 'string') {
+    return [value]
+  }
 
+  return typeof value === 'object' && value !== null
+    ? Object.values(value).flatMap(stringsIn)
+    : []
+}
+
+/** CW resolves each string inside a list or object as it would on its own. */
 const toSource = (value: unknown): Send['source'] => {
+  if (typeof value === 'string') {
+    return sourceOfText(value)
+  }
+
+  return stringsIn(value).some((text) => sourceOfText(text) !== 'fixed')
+    ? 'case'
+    : 'fixed'
+}
+
+const toSendText = (value: unknown, source: Send['source']): string => {
   if (typeof value !== 'string') {
-    return 'fixed'
+    return JSON.stringify(value)
   }
 
-  if (value.startsWith(computedPrefix)) {
-    return 'computed'
-  }
-
-  return value.startsWith('$') ? 'case' : 'fixed'
+  return source === 'fixed' ? JSON.stringify(literalOf(value)) : value
 }
 
 const toSend =
@@ -120,7 +139,7 @@ const toSend =
       kind,
       name,
       source,
-      text: source === 'fixed' ? JSON.stringify(value) : String(value)
+      text: toSendText(value, source)
     }
   }
 
@@ -134,8 +153,15 @@ const toSends = ({ endpoint }: StoredExternalAction): Send[] =>
   })
 
 const toTabFires = (workflow: StoredWorkflow): TabFire[] =>
-  toCaseTabs(workflow).flatMap(({ key: tabKey, label, fires }) =>
-    fires.map(({ key, actionCode }) => ({ label, tabKey, key, actionCode }))
+  toCaseTabs(workflow).flatMap(
+    ({ key: tabKey, label, fires, linksElsewhere }) =>
+      fires.map(({ key, actionCode }) => ({
+        label,
+        tabKey,
+        key,
+        actionCode,
+        linksElsewhere
+      }))
   )
 
 /** How CW reaches an action: only the first action with a code ever runs. */
@@ -179,14 +205,16 @@ const toTriggers = (
         {
           kind: 'button' as const,
           label: action.name,
-          href: `${pagesHref}#banner`
+          href: `${pagesHref}#banner`,
+          linksElsewhere: null
         }
       ]
     : []),
-  ...fires.map(({ label, tabKey }) => ({
+  ...fires.map(({ label, tabKey, linksElsewhere }) => ({
     kind: 'tab' as const,
     label,
-    href: `${pagesHref}#tab-${encodeURIComponent(tabKey)}`
+    href: `${pagesHref}#tab-${encodeURIComponent(tabKey)}`,
+    linksElsewhere
   }))
 ]
 
