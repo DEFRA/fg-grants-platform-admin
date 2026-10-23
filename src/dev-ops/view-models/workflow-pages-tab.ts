@@ -31,7 +31,7 @@ interface CaseTabRow {
   shownWhen: string | null
   fires: ActionLink[]
   components: string[]
-  linksElsewhere: CaseTab['linksElsewhere']
+  customLink: CaseTab['customLink']
 }
 
 /** What CW calls for an action, linked to its Integrations card when it is defined. */
@@ -71,15 +71,7 @@ const toActionLink =
 const toCaseTabRow =
   (definition: WorkflowDefinition, toLink: (call: ActionCall) => ActionLink) =>
   (
-    {
-      key,
-      label,
-      builtIn,
-      renderIf,
-      fires,
-      components,
-      linksElsewhere
-    }: CaseTab,
+    { key, label, builtIn, renderIf, fires, components, customLink }: CaseTab,
     index: number
   ): CaseTabRow => ({
     order: index + 1,
@@ -91,7 +83,7 @@ const toCaseTabRow =
       toLink(toActionCall(definition, actionCode))
     ),
     components,
-    linksElsewhere
+    customLink
   })
 
 /** The case view CW builds from this workflow: its banner, then its tabs in order. */

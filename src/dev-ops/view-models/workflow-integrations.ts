@@ -24,7 +24,7 @@ interface Trigger {
   kind: 'button' | 'tab'
   label: string
   href: string
-  linksElsewhere: CaseTab['linksElsewhere']
+  customLink: CaseTab['customLink']
 }
 
 interface Call {
@@ -91,7 +91,7 @@ interface TabFire {
   tabKey: string
   key: string
   actionCode: unknown
-  linksElsewhere: CaseTab['linksElsewhere']
+  customLink: CaseTab['customLink']
 }
 
 /** The parameter kinds CW's resolver sends, as each is named on a row. */
@@ -153,15 +153,14 @@ const toSends = ({ endpoint }: StoredExternalAction): Send[] =>
   })
 
 const toTabFires = (workflow: StoredWorkflow): TabFire[] =>
-  toCaseTabs(workflow).flatMap(
-    ({ key: tabKey, label, fires, linksElsewhere }) =>
-      fires.map(({ key, actionCode }) => ({
-        label,
-        tabKey,
-        key,
-        actionCode,
-        linksElsewhere
-      }))
+  toCaseTabs(workflow).flatMap(({ key: tabKey, label, fires, customLink }) =>
+    fires.map(({ key, actionCode }) => ({
+      label,
+      tabKey,
+      key,
+      actionCode,
+      customLink
+    }))
   )
 
 /** How CW reaches an action: only the first action with a code ever runs. */
@@ -206,15 +205,15 @@ const toTriggers = (
           kind: 'button' as const,
           label: action.name,
           href: `${pagesHref}#banner`,
-          linksElsewhere: null
+          customLink: null
         }
       ]
     : []),
-  ...fires.map(({ label, tabKey, linksElsewhere }) => ({
+  ...fires.map(({ label, tabKey, customLink }) => ({
     kind: 'tab' as const,
     label,
     href: `${pagesHref}#tab-${encodeURIComponent(tabKey)}`,
-    linksElsewhere
+    customLink
   }))
 ]
 

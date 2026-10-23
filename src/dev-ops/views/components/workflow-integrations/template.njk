@@ -17,15 +17,15 @@
   {%- endfor -%}
 {% endmacro %}
 
-{% macro elsewhere(link) %}
+{% macro linkAddress(link) %}
   {%- if link.address -%}{{ codeText(link.address) }}{%- else -%}an address worked out from the case{%- endif -%}
 {% endmacro %}
 
 {% macro trigger(item) %}
   {%- if item.kind == "button" -%}
     Caseworker presses <a class="link font-semibold" href="{{ item.href }}">{{ item.label }}</a> in the case banner
-  {%- elif item.linksElsewhere -%}
-    Every time a caseworker opens the <a class="link font-semibold" href="{{ item.href }}">{{ item.label }}</a> tab's own page. The tab's link in the case view goes to {{ elsewhere(item.linksElsewhere) }} instead.
+  {%- elif item.customLink -%}
+    Every time a caseworker opens the <a class="link font-semibold" href="{{ item.href }}">{{ item.label }}</a> tab. Its link in the case view goes to {{ linkAddress(item.customLink) }}.
   {%- else -%}
     Every time a caseworker opens the <a class="link font-semibold" href="{{ item.href }}">{{ item.label }}</a> tab
   {%- endif -%}

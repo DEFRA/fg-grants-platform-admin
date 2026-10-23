@@ -82,7 +82,7 @@ describe('toWorkflowIntegrations', () => {
               kind: 'button',
               label: 'Recalculate payment',
               href: `${pagesHref}#banner`,
-              linksElsewhere: null
+              customLink: null
             }
           ],
           call: {
@@ -121,7 +121,7 @@ describe('toWorkflowIntegrations', () => {
               kind: 'tab',
               label: 'Land',
               href: `${pagesHref}#tab-land-parcels`,
-              linksElsewhere: null
+              customLink: null
             }
           ],
           call: {
@@ -214,7 +214,7 @@ describe('toWorkflowIntegrations triggers', () => {
         kind: 'button',
         label: 'Action A',
         href: `${pagesHref}#banner`,
-        linksElsewhere: null
+        customLink: null
       }
     ])
   })
@@ -256,12 +256,12 @@ describe('toWorkflowIntegrations triggers', () => {
         kind: 'tab',
         label: 'Application',
         href: `${pagesHref}#tab-case-details`,
-        linksElsewhere: null
+        customLink: null
       }
     ])
   })
 
-  test("says where a tab's link goes when it is not the tab's own page", () => {
+  test("says where a tab's link goes when the workflow sets it", () => {
     expect(
       cardOf({
         endpoints: [parcels],
@@ -278,7 +278,7 @@ describe('toWorkflowIntegrations triggers', () => {
         kind: 'tab',
         label: 'Land',
         href: `${pagesHref}#tab-land`,
-        linksElsewhere: { address: '/cases/{caseId}/notes' }
+        customLink: { address: '/cases/{caseId}/notes' }
       }
     ])
   })
@@ -295,7 +295,7 @@ describe('toWorkflowIntegrations triggers', () => {
         kind: 'tab',
         label: 'Land Parcels',
         href: `${pagesHref}#tab-land-parcels`,
-        linksElsewhere: null
+        customLink: null
       }
     ])
   })
@@ -636,7 +636,7 @@ describe('toWorkflowIntegrations duplicate codes', () => {
         kind: 'button',
         label: 'Action A',
         href: `${pagesHref}#banner`,
-        linksElsewhere: null
+        customLink: null
       }
     ])
     expect(writesOf(integrations.cards[0])).toEqual([

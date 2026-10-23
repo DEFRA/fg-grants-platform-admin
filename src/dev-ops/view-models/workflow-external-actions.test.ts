@@ -174,9 +174,9 @@ describe('toCaseTabs', () => {
     [{ urlTemplate: '\\$.notAPath' }, '$.notAPath'],
     [{ urlTemplate: '$.supplementaryData.landUrl' }, null],
     [{ urlTemplate: 'jsonata:$.links.land' }, null]
-  ])('takes a tab linking to %j elsewhere, shown as %j', (href, address) => {
+  ])('takes a tab whose link is set to %j, shown as %j', (href, address) => {
     expect(
-      tabOf(withTabs({ land: { link: { href } } }), 'land')?.linksElsewhere
+      tabOf(withTabs({ land: { link: { href } } }), 'land')?.customLink
     ).toEqual({ address })
   })
 
@@ -184,8 +184,8 @@ describe('toCaseTabs', () => {
     [{ link: {} }],
     [{ link: { href: {} } }],
     [{ link: { href: { urlTemplate: '' } } }]
-  ])('takes a tab with %j to its own page', (tab) => {
-    expect(tabOf(withTabs({ land: tab }), 'land')?.linksElsewhere).toBeNull()
+  ])('takes a tab with %j to its own page, as CW does', (tab) => {
+    expect(tabOf(withTabs({ land: tab }), 'land')?.customLink).toBeNull()
   })
 
   test("ignores a built-in tab's link, as CW does", () => {
@@ -193,7 +193,7 @@ describe('toCaseTabs', () => {
       tabOf(
         withTabs({ 'case-details': { link: { href: { urlTemplate: '/x' } } } }),
         'case-details'
-      )?.linksElsewhere
+      )?.customLink
     ).toBeNull()
   })
 
@@ -209,7 +209,7 @@ describe('toCaseTabs', () => {
       renderIf: null,
       fires: [],
       components: [],
-      linksElsewhere: null
+      customLink: null
     })
   })
 
