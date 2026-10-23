@@ -626,6 +626,27 @@ describe('toStateGraphs: names and labels', () => {
     })
   })
 
+  test('names the CW theme in the label, before any finding, when the status has one', () => {
+    const themed: StateMap = {
+      ...named,
+      phases: named.phases.map((phase) => ({
+        ...phase,
+        stages: phase.stages.map((stage) => ({
+          ...stage,
+          statuses: stage.statuses.map((status) => ({
+            ...status,
+            theme: 'WARN'
+          }))
+        }))
+      }))
+    }
+
+    expect(graphsOf(themed).phases[0].nodes.map(({ label }) => label)).toEqual([
+      'A rather long status name (P:S:A), CW theme WARN, finding: unreachable, dead end',
+      'Bee (P:S:B), CW theme WARN'
+    ])
+  })
+
   test("widens a band to its label, the stage's name then its code", () => {
     const map: StateMap = {
       phases: [

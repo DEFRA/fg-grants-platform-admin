@@ -73,7 +73,7 @@
         <span class="min-w-0">{% if item.href %}<a class="{{ monoLink }}" href="{{ item.href }}">{{ codeText(item.code) }}</a>{% else %}{{ codeText(item.code) }}{% endif %} — while the application is in {{ item.stageName }}{% if item.missingStage %}<span class="block" data-testid="{{ testId }}-missing-stage">⚠ applies only to applications still in {{ codeText(item.missingStage) }} from an earlier version: this version has no such stage.</span>{% endif %}</span>
       {%- elif item.kind == "claim" -%}
         {{ inlineBadge({ text: "Claim", class: "shrink-0" }) }}
-        <span class="min-w-0"><a class="link" href="{{ item.href }}">Last claim submitted</a> — while the application is at <span title="{{ item.at.position }}">{{ item.at.name }}</span>{% if item.at.stageName %} <span class="{{ muted }}">· {{ item.at.stageName }}</span>{% endif %}</span>
+        <span class="min-w-0"><a class="link" href="{{ item.href }}">Last claim submitted</a> — while the application is at <span title="{{ item.at.position }}">{{ item.at.name }}</span>{% if item.at.stageName and item.at.stageName != item.at.name %} <span class="{{ muted }}">· {{ item.at.stageName }}</span>{% endif %}</span>
       {%- else -%}
         {{ inlineBadge({ text: "GAS", class: "shrink-0" }) }}
         <span class="min-w-0">{{ codeText(item.process) }} — on entering {{ item.onEntering }}{% if item.onlyWhen %}, when {{ item.onlyWhen }}{% endif %}</span>

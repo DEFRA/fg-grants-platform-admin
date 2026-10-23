@@ -11,6 +11,8 @@ export interface StateStatus {
   findings?: string[]
   /** Drawn as a chip under the node. */
   chip?: 'any status' | 'start'
+  /** The CW theme behind `tone`, said so the colour is never the only cue. */
+  theme?: string
 }
 
 export interface StateStage {
@@ -894,9 +896,12 @@ class PhaseLayout {
   }
 }
 
-/** `Approve (PRE_AWARD:REVIEW:APPROVED), finding: unreachable, dead end`. */
-const toNodeLabel = ({ name, findings }: StateStatus, position: string) =>
-  `${name} (${position})${findings?.length ? `, finding: ${findings.join(', ')}` : ''}`
+/** `Approve (PRE_AWARD:REVIEW:APPROVED), CW theme WARN, finding: unreachable, dead end`. */
+const toNodeLabel = (
+  { name, findings, theme }: StateStatus,
+  position: string
+) =>
+  `${name} (${position})${theme ? `, CW theme ${theme}` : ''}${findings?.length ? `, finding: ${findings.join(', ')}` : ''}`
 
 const emptyGraph = { width: 0, height: 0, bands: [], nodes: [], edges: [] }
 
