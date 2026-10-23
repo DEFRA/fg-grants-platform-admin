@@ -99,8 +99,8 @@ export interface CaseTab {
   /** The tab's action map, in map order. */
   fires: { key: string; actionCode: unknown }[]
   components: string[]
-  /** Where the tab's link goes instead of its own page; a null address is worked out from the case. */
-  linksElsewhere: { address: string | null } | null
+  /** Where the workflow points the tab's link, the tab itself included; a null address is worked out from the case. */
+  customLink: { address: string | null } | null
 }
 
 interface BuiltInTab {
@@ -164,9 +164,7 @@ const fixedAddressOf = (template: unknown): string | null =>
     : null
 
 /** CW sends the tab's link to `href.urlTemplate` whenever one is set. */
-const toLinksElsewhere = (
-  link: StoredCaseTab['link']
-): CaseTab['linksElsewhere'] => {
+const toCustomLink = (link: StoredCaseTab['link']): CaseTab['customLink'] => {
   const template = link?.href?.urlTemplate
 
   return template ? { address: fixedAddressOf(template) } : null
@@ -195,7 +193,7 @@ const toBuiltInTab = (
   renderIf: null,
   fires: toFires(tab),
   components: toComponents(tab),
-  linksElsewhere: null
+  customLink: null
 })
 
 const toLink = (
@@ -216,7 +214,7 @@ const toDefinitionTab = (
   renderIf: renderIf ?? null,
   fires: toFires(tab),
   components: toComponents(tab),
-  linksElsewhere: toLinksElsewhere(link)
+  customLink: toCustomLink(link)
 })
 
 /** CW's own comparator: a tab with no index goes last, ties keep their order. */

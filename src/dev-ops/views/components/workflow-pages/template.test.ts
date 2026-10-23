@@ -27,7 +27,7 @@ const withWorkflow = (
 })
 
 describe('workflow-pages component', () => {
-  test("says where a tab's link goes when it is not the tab's own page", () => {
+  test("says where a tab's link goes when the workflow sets it", () => {
     const workflow = structuredClone(woodlandDefinition.workflow)
     const tab = workflow.pages!.cases!.details!.tabs!['land-parcels']
 
@@ -39,7 +39,7 @@ describe('workflow-pages component', () => {
     const $ = renderTab(withWorkflow(workflow))
 
     expect(flatten($('#tab-land-parcels').text())).toBe(
-      "3 Land link goes to /cases/{caseId}/notes, not this tab Always Refresh land parcels GET https://land-data.example/api/v2/parcels/{sbi} LAND_DATA every time the tab's own page opens · result not stored 1 component"
+      '3 Land link goes to /cases/{caseId}/notes Always Refresh land parcels GET https://land-data.example/api/v2/parcels/{sbi} LAND_DATA every time the tab opens · result not stored 1 component'
     )
   })
 
