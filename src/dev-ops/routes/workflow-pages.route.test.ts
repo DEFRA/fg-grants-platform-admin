@@ -227,6 +227,33 @@ describe('the workflow page', () => {
     expect($('title').text()).toContain('Workflow woodland-creation')
   })
 
+  test.each([
+    { tab: 'Overview', query: '' },
+    { tab: 'Tasks', query: '?tab=tasks' }
+  ])(
+    'titles the document with the open tab, $tab, and the version',
+    async ({ tab, query }) => {
+      const { $ } = await viewPage(`${path}${query}`)
+
+      expect($('title').text().split(' | ')[0]).toBe(
+        `${tab} – Workflow woodland-creation 1.2.0`
+      )
+    }
+  )
+
+  test('titles a version CW has not got as not found, with its version', async () => {
+    vi.mocked(getWorkflowPageUseCase).mockResolvedValue({
+      outcome: 'not-found',
+      page: null
+    })
+
+    const { $ } = await viewPage('/dev-ops/workflows/woodland-creation/9.9.9')
+
+    expect($('title').text().split(' | ')[0]).toBe(
+      'Not found – Workflow woodland-creation 9.9.9'
+    )
+  })
+
   test('shows the status, then the version switcher, under the title', async () => {
     const { $ } = await viewPage()
     const line = part($, 'workflow-version')
@@ -756,7 +783,9 @@ describe('the workflow Tasks tab', () => {
 
     const { $ } = await viewPage(`${path}?tab=tasks`)
 
-    expect(textOf($, 'workflow-tasks-empty')).toBe('No task groups.')
+    expect(textOf($, 'workflow-tasks-empty')).toBe(
+      'No task groups in this version.'
+    )
   })
 
   test('says the workflow definition is not stored, under the banner, and nothing else', async () => {

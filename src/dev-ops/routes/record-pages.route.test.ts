@@ -212,11 +212,11 @@ const liftedOver = ($: CheerioAPI, row: Cheerio<Element>) =>
 
 let server: Server
 
-const viewPage = async (url = path) => {
+const viewPage = async (url = path, scope = credentials.scope) => {
   const { result, statusCode, headers } = await server.inject({
     method: 'GET',
     url,
-    auth: { strategy: 'session', credentials }
+    auth: { strategy: 'session', credentials: { ...credentials, scope } }
   })
 
   return { $: load(result as unknown as string), statusCode, headers }
@@ -1311,6 +1311,8 @@ const givenGrant = (overrides: Partial<GrantVersionPage> = {}) =>
     }
   })
 
+const bothRoles = ['FCP.GrantOperationsAdmin', 'FCP.GrantApplicationsAdmin']
+
 const nothingStored = {
   ...grantHeader,
   status: 'draft',
@@ -1338,6 +1340,33 @@ describe('the grant page', () => {
     expect(textOf($, 'grant-title')).toBe('Grant woodland-creation')
     expect(part($, 'grant-ref').attr('class')).toContain('font-mono')
     expect($('title').text()).toContain('Grant woodland-creation')
+  })
+
+  test.each([
+    { tab: 'Overview', query: '' },
+    { tab: 'Raw', query: '?tab=raw' }
+  ])(
+    'titles the document with the open tab, $tab, and the version',
+    async ({ tab, query }) => {
+      const { $ } = await viewPage(`${grantPath}${query}`)
+
+      expect($('title').text().split(' | ')[0]).toBe(
+        `${tab} – Grant woodland-creation 1.2.0`
+      )
+    }
+  )
+
+  test('titles a version GAS has not got as not found, with its version', async () => {
+    vi.mocked(getGrantPageUseCase).mockResolvedValue({
+      outcome: 'not-found',
+      page: null
+    })
+
+    const { $ } = await viewPage('/dev-ops/grants/woodland-creation/9.9.9')
+
+    expect($('title').text().split(' | ')[0]).toBe(
+      'Not found – Grant woodland-creation 9.9.9'
+    )
   })
 
   test('shows the status, then the version switcher, under the title', async () => {
@@ -1866,16 +1895,28 @@ describe('the grant Overview tab', () => {
     }
   )
 
-  test('opens the allow list on its Who can apply tab', async () => {
+  test('opens the allow list on its Who can apply tab for a session holding the Grant Ops role', async () => {
     givenGrant()
 
-    const { $ } = await viewPage(grantPath)
+    const { $ } = await viewPage(grantPath, bothRoles)
 
     expect(part($, 'grant-who-can-apply').attr('href')).toBe(
       '/grant-ops/grants/woodland-creation/admin#who-can-apply'
     )
     expect(textOf($, 'grant-who-can-apply')).toBe(
       'Allow list (opens in a new tab)'
+    )
+  })
+
+  test('names the Grant Ops role in place of the allow list link for a session without it', async () => {
+    givenGrant()
+
+    const { $ } = await viewPage(grantPath)
+
+    expect(part($, 'grant-who-can-apply').attr('href')).toBeUndefined()
+    expect(textOf($, 'grant-who-can-apply')).toBe('Allow list')
+    expect(textOf($, 'grant-who-can-apply-note')).toBe(
+      '· needs the FCP.GrantApplicationsAdmin role'
     )
   })
 
@@ -1890,7 +1931,7 @@ describe('the grant Overview tab', () => {
       }
     })
 
-    const { $ } = await viewPage(grantPath)
+    const { $ } = await viewPage(grantPath, bothRoles)
 
     expect(part($, 'grant-not-stored')).toHaveLength(0)
     expect(
@@ -1960,10 +2001,33 @@ describe('the grant Raw tab', () => {
     const { $ } = await viewPage(`${grantPath}?tab=raw`)
 
     expect(textOf($, 'grant-raw-caption')).toBe(
-      'Grant definition as GAS stored it. GAS keeps only the keys it reads, so the published file may have more. Agreement and payment JSON are under their own tabs.'
+      'Grant definition as GAS stored it. GAS keeps only the keys it reads, so the published file may have more. The agreement and payment definitions are on the Agreement and Payment tabs.'
     )
+    expect(
+      part($, 'grant-raw-caption')
+        .find('a')
+        .toArray()
+        .map((link) => $(link).attr('href'))
+    ).toEqual([
+      expect.stringContaining('tab=agreement'),
+      expect.stringContaining('tab=payment')
+    ])
     expect(part($, 'grant-raw-caption').next().attr('data-testid')).toBe(
       'grant-raw-card'
+    )
+  })
+
+  test('names only the other tabs the version offers', async () => {
+    givenGrant({
+      header: { ...grantHeader, files: { grant: fetched, agreement: fetched } },
+      overview: undefined,
+      definition: grantDefinition
+    })
+
+    const { $ } = await viewPage(`${grantPath}?tab=raw`)
+
+    expect(textOf($, 'grant-raw-caption')).toBe(
+      'Grant definition as GAS stored it. GAS keeps only the keys it reads, so the published file may have more. The agreement definition is on the Agreement tab.'
     )
   })
 
@@ -1986,6 +2050,9 @@ describe('the grant Raw tab', () => {
 
     expect(part($, 'grant-tab').last().text()).toBe('Raw')
     expect(part($, 'grant-raw')).toHaveLength(1)
+    expect(textOf($, 'grant-raw-caption')).toBe(
+      'Grant definition as GAS stored it. GAS keeps only the keys it reads, so the published file may have more.'
+    )
   })
 
   test('says the grant definition is not stored, and nothing else', async () => {
@@ -2114,16 +2181,19 @@ describe('the grant Questions tab', () => {
 
     expect(titles.toArray().map((title) => flatten($(title).text()))).toEqual([
       'Pre-award PRE_AWARD',
-      'Post-award POST_AWARD Not checked on submission'
+      'Post-award POST_AWARD Not checked on submission',
+      'Closure CLOSURE Not checked on submission'
     ])
     expect(titles.first().find('[data-code] .font-mono').text()).toBe(
       'PRE_AWARD'
     )
-    expect(part($, 'grant-questions-not-checked')).toHaveLength(1)
-    expect(part($, 'grant-questions-not-checked').attr('title')).toBe(
+    expect(part($, 'grant-questions-not-checked')).toHaveLength(2)
+    expect(part($, 'grant-questions-not-checked').first().attr('title')).toBe(
       "GAS validates submissions against the first phase only. It still compiles these on arrival, and a version whose questions don't compile is rejected."
     )
-    expect(textOf($, 'grant-questions-none')).toBe('CLOSURE: no questions.')
+    expect(textOf($, 'grant-questions-none')).toBe(
+      'No questions in this phase.'
+    )
   })
 
   test("gives the schema's title and description as the card's subtitle", async () => {
@@ -2187,7 +2257,7 @@ describe('the grant Questions tab', () => {
         '(root) and every closed object',
         'Fields not listed under a closed object are removed on submission.'
       ],
-      ['(root)', 'a + b must equal hectares']
+      ['(root)', 'The sum of a + b must equal hectares']
     ])
   })
 
@@ -2678,23 +2748,23 @@ describe('the grant Payment tab', () => {
       'For each $.agreement.paymentSchedule.instalments'
     )
     expect(textOf($, 'grant-payment-due-fact-due-date')).toBe(
-      'Due date @.dueDatecopied'
+      'Due date @.dueDate copied'
     )
     expect(textOf($, 'grant-payment-due-fact-total')).toBe(
-      'Total (pence) @.totalAmountPencecopied'
+      'Total (pence) @.totalAmountPence copied'
     )
     expect(textOf($, 'grant-payment-for-each')).toBe(
       'One line per row of @.lineItems'
     )
     expect(cellsOf($, 'grant-payment-line')).toEqual([
       [
-        'CMOR1fixed',
-        'calculated ›',
-        '@.amountPencecopied',
-        'SOS710fixed',
-        'DRD10fixed',
-        'RP00fixed',
-        'calculated ›'
+        'CMOR1 fixed',
+        'calculated (see Calculated fields)',
+        '@.amountPence copied',
+        'SOS710 fixed',
+        'DRD10 fixed',
+        'RP00 fixed',
+        'calculated (see Calculated fields)'
       ]
     ])
     expect(part($, 'grant-payment-line-expressions')).toHaveLength(1)
@@ -2717,7 +2787,7 @@ describe('the grant Payment tab', () => {
         .contents()
         .toArray()
         .map((node) => node.type)
-    ).toEqual(['tag', 'tag'])
+    ).toEqual(['tag', 'text', 'tag'])
     expect(textOf($, 'grant-payment-line')).toContain(
       'Woodland Management Plan Payment'
     )
@@ -2755,7 +2825,7 @@ describe('the grant Payment tab', () => {
     const { $ } = await viewPage(paymentPath)
 
     expect(textOf($, 'grant-payment-from')).toBe(
-      'From $.agreement.paymentscopied'
+      'From $.agreement.payments copied'
     )
     expect(part($, 'grant-payment-lines')).toHaveLength(0)
   })
@@ -2772,9 +2842,9 @@ describe('the grant Payment tab', () => {
     const { $ } = await viewPage(paymentPath)
 
     expect(textOf($, 'grant-payment-lines-from')).toBe(
-      'Invoice lines from @.linescopied'
+      'Invoice lines from @.lines copied'
     )
-    expect(textOf($, 'grant-payment-line-from')).toBe('Line from @.linecopied')
+    expect(textOf($, 'grant-payment-line-from')).toBe('Line from @.line copied')
     expect(
       part($, 'grant-payment-line-from').children('td').attr('colspan')
     ).toBe('7')

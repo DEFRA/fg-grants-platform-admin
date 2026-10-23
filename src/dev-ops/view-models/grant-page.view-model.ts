@@ -64,6 +64,52 @@ export interface GrantPageQuery {
 const toAllowListHref = (code: string): string =>
   `${toAdminHref(code)}#who-can-apply`
 
+/** The version GAS administers the grant by: its newest active one. */
+const isCurrent = ({ version, versions }: GrantVersionHeader): boolean =>
+  versions.find(({ status }) => status === 'active')?.version === version
+
+/** A role not stored is unknown, never blank. */
+const isStoredBlank = (
+  { files }: GrantVersionHeader,
+  { adminRole }: GrantVersionOverview
+): boolean => files.grant?.stored === true && !adminRole?.trim()
+
+/** GAS refuses administration to everyone while that version's grant has no admin role. */
+const hasNoAdminRole = (
+  header: GrantVersionHeader,
+  overview: GrantVersionOverview
+): boolean => isCurrent(header) && isStoredBlank(header, overview)
+
+const toAllowListText = (note: string): Fact => ({
+  id: 'who-can-apply',
+  label: 'Who can apply',
+  kind: 'text',
+  text: 'Allow list',
+  note
+})
+
+/** The allow list's link, or why it would refuse when that is known before the click. */
+const toAllowListFact = (
+  header: GrantVersionHeader,
+  overview: GrantVersionOverview,
+  canAdministerGrants: boolean
+): Fact => {
+  if (hasNoAdminRole(header, overview)) {
+    return toAllowListText(
+      'the grant has no admin role, so GAS refuses administration to everyone'
+    )
+  }
+
+  return canAdministerGrants
+    ? toLinkFact(
+        'who-can-apply',
+        'Who can apply',
+        'Allow list',
+        toAllowListHref(header.code)
+      )
+    : toAllowListText('needs the FCP.GrantApplicationsAdmin role')
+}
+
 const applicationsBucket = 'gas.applications'
 
 const toApplicationsHref = (
@@ -80,7 +126,8 @@ const toApplicationsHref = (
 const toFacts = (
   header: GrantVersionHeader,
   overview: GrantVersionOverview,
-  catalogue: Catalogue | null
+  catalogue: Catalogue | null,
+  canAdministerGrants: boolean
 ): Fact[][] => [
   [
     toTextFact('description', 'Name', overview.description),
@@ -111,12 +158,7 @@ const toFacts = (
       'View applications',
       toApplicationsHref(catalogue, header)
     ),
-    toLinkFact(
-      'who-can-apply',
-      'Who can apply',
-      'Allow list',
-      toAllowListHref(header.code)
-    ),
+    toAllowListFact(header, overview, canAdministerGrants),
     toTextFact('versions', 'Versions', String(header.versions.length)),
     toSizeFact(overview.storedBytes, 'Definition size')
   ]
@@ -249,8 +291,10 @@ const toPhases = (
 
 const toOverviewFacts = (
   { header, overview }: GrantVersionPage,
-  catalogue: Catalogue | null
-): Fact[][] | null => (overview ? toFacts(header, overview, catalogue) : null)
+  catalogue: Catalogue | null,
+  canAdministerGrants: boolean
+): Fact[][] | null =>
+  overview ? toFacts(header, overview, catalogue, canAdministerGrants) : null
 
 export const toGrantPage = (
   page: GrantVersionPage,
@@ -259,11 +303,14 @@ export const toGrantPage = (
   {
     notice,
     query,
-    catalogue
+    catalogue,
+    canAdministerGrants
   }: {
     notice?: DefinitionFetchFlash
     query: GrantPageQuery
     catalogue: Catalogue | null
+    /** The session holds the role every Grant Ops page needs. */
+    canAdministerGrants: boolean
   },
   now: Date = new Date()
 ): GrantPageModel => {
@@ -276,7 +323,7 @@ export const toGrantPage = (
     trail: [],
     tabs: toTabs(toOfferedGrantType(page.header), href, tab, from),
     tab,
-    facts: toOverviewFacts(page, catalogue),
+    facts: toOverviewFacts(page, catalogue, canAdministerGrants),
     series: null,
     seriesDetailed: false,
     events: toEvents(page.events, now, toTabHref(href, 'events', from)),

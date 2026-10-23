@@ -91,6 +91,61 @@ describe('workflow-pages component', () => {
     ])
   })
 
+  test('fits the summary table to the card, in fixed columns, with each label in the table text size', () => {
+    const $ = renderTab()
+    const table = $(`[data-testid="${testId}-summary"]`)
+
+    expect(table.attr('class')).toContain('table-fixed')
+    expect(table.attr('class')).toContain('w-full')
+    expect(table.find('col')).toHaveLength(4)
+    expect(
+      $(`[data-testid="${testId}-summary-row"]`)
+        .first()
+        .find('td')
+        .eq(1)
+        .attr('class')
+    ).toBe('text-sm')
+  })
+
+  test('says a jsonata: value is calculated, without its prefix, and shows any other path as stored', () => {
+    const definition = withWorkflow({
+      pages: {
+        cases: {
+          details: {
+            banner: {
+              title: { text: 'jsonata:$.payload.answers.name', type: 'string' },
+              summary: {
+                applicationId: {
+                  label: 'Application',
+                  text: 'jsonata:($task := $.tasks[0]; $task.id)',
+                  type: 'string'
+                },
+                sbi: {
+                  label: 'SBI',
+                  text: '$.payload.identifiers.sbi',
+                  type: 'string'
+                }
+              }
+            }
+          }
+        }
+      }
+    })
+    const $ = renderTab(definition)
+    const cells = $(`[data-testid="${testId}-summary-row"]`)
+      .toArray()
+      .map((row) => flatten($(row).find('td').eq(2).text()))
+
+    expect(cells).toEqual([
+      '($task := $.tasks[0]; $task.id) calculated',
+      '$.payload.identifiers.sbi'
+    ])
+    expect(flatten(part('title', definition).text())).toBe(
+      '$.payload.answers.name calculated'
+    )
+    expect($.text()).not.toContain('jsonata:')
+  })
+
   test('draws no summary table when the banner has no fields', () => {
     const definition = withWorkflow({
       pages: { cases: { details: { banner: { title: { type: 'string' } } } } }
@@ -109,6 +164,7 @@ describe('workflow-pages component', () => {
     expect(
       flatten(part('buttons', definition).children('span').first().text())
     ).toBe('—')
+    expect(part('buttons-who', definition)).toHaveLength(0)
   })
 
   test('lists the case tabs in order, with when each shows, what it fires and its components', () => {
@@ -174,7 +230,6 @@ describe('workflow-pages component', () => {
         .toArray()
         .map((dt) => $(dt).text())
     ).toEqual(['Heading from', 'Buttons', 'Summary'])
-    expect(part('summary').attr('class')).toContain('max-w-3xl')
   })
 
   test('warns of an action that is not defined, and of one with no endpoint', () => {

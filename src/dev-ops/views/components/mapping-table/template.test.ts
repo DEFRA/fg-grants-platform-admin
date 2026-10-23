@@ -71,9 +71,29 @@ describe('mapping-table component', () => {
     })
     const rows = part($, 'row')
 
-    expect(flatten(rows.first().text())).toBe(
-      'actions For each $.application.annualActions for each'
+    expect(flatten(rows.first().find('td').eq(1).text())).toBe(
+      '$.application.annualActions for each'
     )
+    expect(
+      rows.first().find('td').eq(1).find('[data-comes-from]').attr('class')
+    ).toContain('sm:hidden')
+    expect(flatten(part($, 'comes-from').first().text())).toBe('for each')
     expect(part($, 'field').eq(1).attr('class')).toBe('block text-sm pl-4')
+  })
+
+  test('says a list with no items is empty', () => {
+    const $ = tableOf({ actions: [] })
+
+    expect(flatten(part($, 'row').first().find('td').eq(1).text())).toBe(
+      'empty list'
+    )
+  })
+
+  test('separates a value from where it comes from in its text', () => {
+    const $ = tableOf({ sbi: '$.claim.sbi' })
+
+    expect(flatten(part($, 'row').first().find('td').eq(1).text())).toBe(
+      '$.claim.sbi copied'
+    )
   })
 })

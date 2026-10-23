@@ -21,10 +21,10 @@
             <td>{{ mappingValue(row.value, "phone") }}</td>
             <td class="{{ comesFromCell }}" data-testid="{{ testId }}-comes-from">{{ row.value.comesFrom }}</td>
           {% elif row.kind == "each" %}
-            <td><span class="text-sm"><span class="{{ muted }}">For each</span> {{ codeText(row.forEach) }}</span></td>
+            <td><span class="text-sm">{{ codeText(row.forEach) }}</span>{{ " " }}<span class="ml-1.5 text-xs sm:hidden {{ muted }}" data-comes-from>for each</span></td>
             <td class="{{ comesFromCell }}" data-testid="{{ testId }}-comes-from">for each</td>
           {% elif row.kind == "list" %}
-            <td></td>
+            <td>{% if row.empty %}<span class="text-sm {{ muted }}">empty list</span>{% endif %}</td>
             <td class="{{ comesFromCell }}" data-testid="{{ testId }}-comes-from">list</td>
           {% else %}
             <td></td>

@@ -692,7 +692,7 @@ describe('toGrantQuestions rules', () => {
       ['`contact`', 'Needs at least one of: `email`, `phone`'],
       [
         '`landUse`',
-        '`arableHectares` + `grasslandHectares` must equal `totalHectares`'
+        'The sum of `arableHectares` + `grasslandHectares` must equal `totalHectares`'
       ]
     ])
   })
@@ -719,7 +719,7 @@ describe('toGrantQuestions rules', () => {
   test('words the maximum sum against its target field', () => {
     expect(
       rulesOf({ fgSumMax: { fields: ['a', 'b'], targetField: 'c' } })
-    ).toEqual([['(root)', '`a` + `b` must be at most `c`']])
+    ).toEqual([['(root)', 'The sum of `a` + `b` must be at most `c`']])
   })
 
   test('shows a sum it cannot read as its JSON', () => {

@@ -25,56 +25,52 @@
 
 {%- set testId = params.testId -%}
 {% for card in params.questions.cards %}
-  {% if card.kind == "none" %}
-    <section class="{{ cardClass }}" data-testid="{{ testId }}-phase">
-      <p class="card-body p-5 text-sm {{ muted }}" data-testid="{{ testId }}-none">{{ card.title.code }}: no questions.</p>
-    </section>
-  {% else %}
-    <section class="{{ cardClass }}" aria-labelledby="{{ testId }}-{{ loop.index }}" data-testid="{{ testId }}-phase">
-      <div class="card-body gap-3 p-5">
-        <div>
-          <h2 class="card-title flex-wrap text-base" id="{{ testId }}-{{ loop.index }}">{{ title(card) }}{% if not card.usedByGas %} <span class="text-sm font-normal">{{ inlineBadge({ text: "Not checked on submission", title: notChecked, testId: testId ~ "-not-checked" }) }}</span>{% endif %}</h2>
-          {% if card.subtitle %}<p class="mt-1 text-sm {{ muted }}" data-testid="{{ testId }}-subtitle">{{ card.subtitle }}</p>{% endif %}
-        </div>
-        {% if card.kind != "not-an-object" and not card.title.code %}
-          {{ errorAlert("This phase has no code.", testId ~ "-no-code") }}
-        {% endif %}
-        {% if card.kind == "not-an-object" %}
-          {{ errorAlert("This phase is not an object.", testId ~ "-not-an-object") }}
-        {% elif card.kind == "missing" %}
-          {{ errorAlert("No questions: every submission throws.", testId ~ "-missing") }}
-        {% elif card.kind == "not-a-schema" %}
-          {{ errorAlert("Questions are not a JSON Schema object.", testId ~ "-not-a-schema") }}
-        {% elif card.kind == "rejects-all" %}
-          {{ errorAlert("Every answer is rejected.", testId ~ "-rejects-all") }}
-        {% elif card.kind == "accepts-any" %}
-          <p class="text-sm {{ muted }}" data-testid="{{ testId }}-any">Any answers accepted.</p>
-        {% elif card.rows | length %}
-          {{ schemaTree({ rows: card.rows, checked: card.usedByGas, testId: testId ~ "-tree" }) }}
-        {% else %}
-          <p class="text-sm {{ muted }}" data-testid="{{ testId }}-empty">No properties.</p>
-        {% endif %}
-        {% if card.rules | length %}
-          <h3 class="mt-2 text-sm font-semibold">Rules</h3>
-          {% call(rule, index) stackedRows({
-            columns: [{ label: "Applies to", width: "w-[26%]" }, { label: "Rule", width: "w-[74%]" }],
-            rows: card.rules,
-            tableClass: rulesTable,
-            testId: testId ~ "-rules"
-          }) %}
-            {%- if index == 0 -%}
-              <span class="text-sm break-words">{{ words(rule.appliesTo) }}</span>
-            {%- else -%}
-              <span class="text-sm">{{ words(rule.text) }}</span>
-              {%- if rule.items | length -%}
-                <ul class="mt-1 list-disc pl-5 text-sm">
-                  {%- for item in rule.items %}<li>{{ words(item) }}</li>{% endfor -%}
-                </ul>
-              {%- endif -%}
-            {%- endif -%}
-          {% endcall %}
-        {% endif %}
+  <section class="{{ cardClass }}" aria-labelledby="{{ testId }}-{{ loop.index }}" data-testid="{{ testId }}-phase">
+    <div class="card-body gap-3 p-5">
+      <div>
+        <h2 class="card-title flex-wrap text-base" id="{{ testId }}-{{ loop.index }}">{{ title(card) }}{% if not card.usedByGas %} <span class="text-sm font-normal">{{ inlineBadge({ text: "Not checked on submission", title: notChecked, testId: testId ~ "-not-checked" }) }}</span>{% endif %}</h2>
+        {% if card.subtitle %}<p class="mt-1 text-sm {{ muted }}" data-testid="{{ testId }}-subtitle">{{ card.subtitle }}</p>{% endif %}
       </div>
-    </section>
-  {% endif %}
+      {% if card.kind != "not-an-object" and not card.title.code %}
+        {{ errorAlert("This phase has no code.", testId ~ "-no-code") }}
+      {% endif %}
+      {% if card.kind == "not-an-object" %}
+        {{ errorAlert("This phase is not an object.", testId ~ "-not-an-object") }}
+      {% elif card.kind == "none" %}
+        <p class="text-sm {{ muted }}" data-testid="{{ testId }}-none">No questions in this phase.</p>
+      {% elif card.kind == "missing" %}
+        {{ errorAlert("No questions: every submission throws.", testId ~ "-missing") }}
+      {% elif card.kind == "not-a-schema" %}
+        {{ errorAlert("Questions are not a JSON Schema object.", testId ~ "-not-a-schema") }}
+      {% elif card.kind == "rejects-all" %}
+        {{ errorAlert("Every answer is rejected.", testId ~ "-rejects-all") }}
+      {% elif card.kind == "accepts-any" %}
+        <p class="text-sm {{ muted }}" data-testid="{{ testId }}-any">Any answers accepted.</p>
+      {% elif card.rows | length %}
+        {{ schemaTree({ rows: card.rows, checked: card.usedByGas, testId: testId ~ "-tree" }) }}
+      {% else %}
+        <p class="text-sm {{ muted }}" data-testid="{{ testId }}-empty">No properties.</p>
+      {% endif %}
+      {% if card.rules | length %}
+        <h3 class="mt-2 text-sm font-semibold">Rules</h3>
+        {% call(rule, index) stackedRows({
+          columns: [{ label: "Applies to", width: "w-[26%]" }, { label: "Rule", width: "w-[74%]" }],
+          rows: card.rules,
+          tableClass: rulesTable,
+          testId: testId ~ "-rules"
+        }) %}
+          {%- if index == 0 -%}
+            <span class="text-sm break-words">{{ words(rule.appliesTo) }}</span>
+          {%- else -%}
+            <span class="text-sm">{{ words(rule.text) }}</span>
+            {%- if rule.items | length -%}
+              <ul class="mt-1 list-disc pl-5 text-sm">
+                {%- for item in rule.items %}<li>{{ words(item) }}</li>{% endfor -%}
+              </ul>
+            {%- endif -%}
+          {%- endif -%}
+        {% endcall %}
+      {% endif %}
+    </div>
+  </section>
 {% endfor %}
