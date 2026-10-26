@@ -43,6 +43,7 @@ jobs:
         uses: DEFRA/cdp-build-action/build-hotfix@main
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
+          push-dockerhub: false
 
 #      - name: SonarCloud Scan
 #        uses: SonarSource/sonarqube-scan-action@v5.3.1 #  (or check latest version on https://github.com/marketplace/actions/official-sonarqube-scan)
