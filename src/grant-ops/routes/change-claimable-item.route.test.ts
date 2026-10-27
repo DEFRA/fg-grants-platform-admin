@@ -70,7 +70,7 @@ const banner = {
 }
 
 const submittedClaim: SubmittedClaim = {
-  clientClaimRef: 'WMP-TU3-LBJ-C07',
+  clientClaimRef: 'WMP-EXAMPLE-002-C07',
   claimCode: 'ENT_CS_CAPITAL_PA4',
   name: 'PA4 entitlement',
   quantity: null,

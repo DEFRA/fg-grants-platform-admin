@@ -76,7 +76,7 @@ const claimableEntitlement = (
 const submittedClaim = (
   overrides: Partial<SubmittedClaim> = {}
 ): SubmittedClaim => ({
-  clientClaimRef: 'WMP-TU3-LBJ-C07',
+  clientClaimRef: 'WMP-EXAMPLE-002-C07',
   claimCode: 'ENT_CS_CAPITAL_PA3',
   name: 'PA3 Woodland Management Plan entitlement',
   quantity: { value: 23, unit: 'HA' },
@@ -441,7 +441,7 @@ describe('viewClaimsRoute', () => {
       'PA3 Woodland Management Plan entitlement'
     )
     expect($('[data-testid="claimed-claim-reference"]').text().trim()).toBe(
-      'WMP-TU3-LBJ-C07'
+      'WMP-EXAMPLE-002-C07'
     )
     expect($('[data-testid="claimed-claim-quantity"]').text().trim()).toBe(
       '23 ha'
