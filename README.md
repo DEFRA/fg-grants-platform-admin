@@ -257,3 +257,12 @@ information providers in the public sector to license the use and re-use of thei
 licence.
 
 It is designed to encourage use and re-use of information freely and flexibly, with only a few conditions.
+
+## Synthetic test data
+
+Customer identifiers, business names and agreement references in test fixtures are invented examples.
+The `900000…` SBI/CRN values and `910000…` business references are generated
+locally; they are not assigned or reserved RPA identifiers. No relationship to a
+real customer is intended. Keep fixtures synthetic and coordinate shared examples
+with consuming services. Explicit placeholders and validation boundary values may
+remain in tests.
