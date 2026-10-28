@@ -66,7 +66,7 @@ const awaitingClaim = (
 const submittedClaim = (
   overrides: Partial<SubmittedClaim> = {}
 ): SubmittedClaim => ({
-  clientClaimRef: 'WMP-TU3-LBJ-C07',
+  clientClaimRef: 'WMP-EXAMPLE-002-C07',
   claimCode: 'ENT_CS_CAPITAL_PA3',
   name: 'PA3 Woodland Management Plan entitlement',
   quantity: { value: 23, unit: 'HA' },
@@ -392,7 +392,7 @@ describe('the claimed section', () => {
     expect(claimed([submittedClaim()])).toEqual([
       {
         name: 'PA3 Woodland Management Plan entitlement',
-        clientClaimRef: 'WMP-TU3-LBJ-C07',
+        clientClaimRef: 'WMP-EXAMPLE-002-C07',
         quantity: '23 ha',
         value: '£1,500',
         requiresApproval: 'No',
@@ -473,14 +473,14 @@ describe('the claimed section', () => {
     const rows = claimed([
       submittedClaim(),
       submittedClaim({
-        clientClaimRef: 'WMP-TU3-LBJ-C08',
+        clientClaimRef: 'WMP-EXAMPLE-002-C08',
         paymentScheduled: false
       })
     ])
 
     expect(rows.map((row) => row.clientClaimRef)).toEqual([
-      'WMP-TU3-LBJ-C07',
-      'WMP-TU3-LBJ-C08'
+      'WMP-EXAMPLE-002-C07',
+      'WMP-EXAMPLE-002-C08'
     ])
     expect(rows.map((row) => row.paymentStatus)).toEqual([
       'Payment scheduled',

@@ -2,7 +2,7 @@ import { render } from '#test/utils.ts'
 
 const claim = (overrides = {}) => ({
   name: 'PA3 Woodland Management Plan entitlement',
-  clientClaimRef: 'WMP-TU3-LBJ-C07',
+  clientClaimRef: 'WMP-EXAMPLE-002-C07',
   quantity: '23 ha',
   value: '£1,500',
   requiresApproval: 'No',
@@ -49,7 +49,7 @@ describe('claimed claims component', () => {
       'PA3 Woodland Management Plan entitlement'
     ])
     expect(cells($section, 'claimed-claim-reference')).toEqual([
-      'WMP-TU3-LBJ-C07'
+      'WMP-EXAMPLE-002-C07'
     ])
   })
 
@@ -70,7 +70,7 @@ describe('claimed claims component', () => {
       claimed: [
         claim(),
         claim({
-          clientClaimRef: 'WMP-TU3-LBJ-C08',
+          clientClaimRef: 'WMP-EXAMPLE-002-C08',
           requiresApproval: 'Yes',
           paymentStatus: ''
         })
