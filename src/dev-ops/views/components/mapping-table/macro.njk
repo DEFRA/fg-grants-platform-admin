@@ -3,7 +3,7 @@
     {%- include "./template.njk" -%}
 {% endmacro %}
 
-{# One mapping value, with what it comes from as a muted suffix: `suffix` "always", or "phone" below `sm` only. #}
-{% macro mappingValue(value, suffix) %}
+{# One mapping value, with what it comes from as a muted suffix: `suffix` "always", or "phone" below `sm` only. `whole` shows a long expression in full rather than in two lines that open. #}
+{% macro mappingValue(value, suffix, whole) %}
     {%- include "./value.njk" -%}
 {% endmacro %}

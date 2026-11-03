@@ -356,6 +356,17 @@ describe('state-graph component', () => {
     expect(items.eq(2).find('span').attr('class')).toContain('border-dashed')
   })
 
+  test('draws the legend sample for a move matched by status code that runs a process like its edge', () => {
+    const $ = graph({
+      legend: [{ kind: 'strong-dotted', label: 'Matched and runs' }]
+    })
+    const line = $('[data-testid="phases-legend-item"] line')
+
+    expect(line.attr('class')).toBe('stroke-info')
+    expect(line.attr('stroke-width')).toBe('2')
+    expect(line.attr('stroke-dasharray')).toBe('1 3')
+  })
+
   test('scrolls each graph at full size in one named region a keyboard can reach, with no fade', () => {
     const $ = graph()
     const region = $('[data-testid="phases-graph"]').first().parent()

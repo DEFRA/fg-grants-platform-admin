@@ -462,6 +462,31 @@ describe('agreement-definition component: Processes', () => {
     expect(part($, 'processes').text()).not.toContain('jsonata:')
   })
 
+  test('shows a long output expression in full, not cut to two lines', () => {
+    const expression =
+      "$fromMillis($toMillis($.application.agreementStartDate) + 3 * 365 * 86400000, '[Y0001]-[M01]-[D01]')"
+    const $ = withDefinition({
+      processDefinitions: {
+        LOOK_UP_END_DATE: {
+          type: 'endpoint',
+          endpoint: { method: 'GET', path: '/health', service: 'QA_HEALTH' },
+          request: { body: {} },
+          output: { endDate: `jsonata:${expression}` }
+        }
+      },
+      create: {
+        target: 'offered',
+        application: '$.input.answers',
+        processes: ['LOOK_UP_END_DATE']
+      }
+    })
+    const output = part($, 'process-output')
+
+    expect(flatten(output.text())).toBe(`endDate ← ${expression}`)
+    expect(output.find('[data-expression]')).toHaveLength(0)
+    expect(output.find('[class*="line-clamp"]')).toHaveLength(0)
+  })
+
   test("shows a section's condition without its jsonata: prefix", () => {
     const $ = withDefinition({
       pages: {

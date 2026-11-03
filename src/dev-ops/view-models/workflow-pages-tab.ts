@@ -37,7 +37,7 @@ interface CaseTabRow {
   label: string
   builtIn: boolean
   /** Null when the tab is always shown. */
-  shownWhen: string | null
+  shownWhen: StoredText | null
   fires: ActionLink[]
   components: string[]
   customLink: CaseTab['customLink']
@@ -91,7 +91,7 @@ const toCaseTabRow =
     key,
     label,
     builtIn,
-    shownWhen: renderIf,
+    shownWhen: renderIf ? toStoredText(renderIf) : null,
     fires: fires.map(({ actionCode }) =>
       toLink(toActionCall(definition, actionCode))
     ),
