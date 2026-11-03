@@ -1639,7 +1639,7 @@ describe('the not-stored banner', () => {
     expect(part($, 'grant-banner')).toHaveLength(0)
   })
 
-  test('says each file not stored in a sentence of its own, above the tabs, on every tab', async () => {
+  test('says the files not stored above the tabs, on every tab, agreement and payment in one sentence', async () => {
     givenGrant({ header: nothingStored, overview: null, definition: null })
 
     for (const query of ['', '?tab=raw']) {
@@ -1653,8 +1653,7 @@ describe('the not-stored banner', () => {
       ).toEqual([
         "Draft: GAS won't pick this version for new work until the config broker publishes it as active",
         'Grant definition not stored yet',
-        'Agreement definition not stored yet',
-        'Payment definition not stored yet'
+        'Agreement and payment definitions not stored yet'
       ])
       expect(banner.attr('role')).toBe('status')
       expect(banner.attr('class')).toContain('alert-info')

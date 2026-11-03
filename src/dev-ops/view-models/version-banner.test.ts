@@ -287,6 +287,29 @@ describe('toBannerLines', () => {
     ])
   })
 
+  test('says the agreement and payment files not stored yet in one sentence', () => {
+    expect(lines({ agreement: file({}), payment: file({}) })).toEqual([
+      'Agreement and payment definitions not stored yet. GAS fetches each from S3 the first time an agreement or claim on 1.1.0 needs it. Fetch definitions stores them now.'
+    ])
+  })
+
+  test('keeps the grant file not stored yet apart, since GAS fetches it differently', () => {
+    expect(
+      lines({ grant: file({}), agreement: file({}), payment: file({}) })?.map(
+        (line) => line.split(' not stored yet.')[0]
+      )
+    ).toEqual(['Grant definition', 'Agreement and payment definitions'])
+  })
+
+  test('on a draft, names the agreement and payment files not stored yet once', () => {
+    expect(
+      lines(
+        { agreement: file({}), payment: file({}) },
+        { status: 'draft' }
+      )?.slice(1)
+    ).toEqual(['Agreement and payment definitions not stored yet.'])
+  })
+
   test('keeps the grant file stored but not loaded apart, since GAS ignores its copy', () => {
     expect(
       lines({

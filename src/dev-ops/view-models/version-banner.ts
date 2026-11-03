@@ -127,9 +127,12 @@ const hasNewerUsable = ({ version, versions }: BannerVersion): boolean => {
 }
 
 /** The main file is fetched only for the newest usable version of a major; the others whenever an agreement or claim on the version needs them. */
-const whenFetched = ({ record, type, version }: Context): string => {
+const whenFetched = (
+  { record, type, version }: Context,
+  many: boolean
+): string => {
   if (!isMainFile(type)) {
-    return `${record.source} fetches it from S3 the first time an agreement or claim on ${version.version} needs it.`
+    return `${record.source} fetches ${many ? 'each' : 'it'} from S3 the first time an agreement or claim on ${version.version} needs it.`
   }
 
   const fetched = `${record.source} fetches it from S3 when it first needs it.`
@@ -139,14 +142,29 @@ const whenFetched = ({ record, type, version }: Context): string => {
     : fetched
 }
 
-const notStoredYet = (context: Context): Words => {
-  const first = `${fileNames[context.type]} not stored yet.`
+/** "Agreement and payment definitions". */
+const namesOf = (types: VersionFileType[]): string => {
+  if (types.length === 1) {
+    return fileNames[types[0]]
+  }
+
+  const labels = types.map((type, at) =>
+    at ? fileLabels[type].toLowerCase() : fileLabels[type]
+  )
+
+  return `${labels.slice(0, -1).join(', ')} and ${labels.at(-1)} definitions`
+}
+
+/** One sentence for the files not stored yet that the service fetches alike. */
+const notStoredYet = (context: Context, types: VersionFileType[]): Words => {
+  const many = types.length > 1
+  const first = `${namesOf(types)} not stored yet.`
 
   return isDraft(context)
     ? [first]
     : [
         first,
-        ` ${whenFetched(context)} ${toFetchLabel(context.record)} stores it now.`
+        ` ${whenFetched(context, many)} ${toFetchLabel(context.record)} stores ${many ? 'them' : 'it'} now.`
       ]
 }
 
@@ -180,19 +198,6 @@ const whenUsed = ({ record, type }: Context, many: boolean): string => {
   return many
     ? ` ${record.source} uses each stored copy the first time it needs it.`
     : ` ${record.source} uses this stored copy the first time it needs it.`
-}
-
-/** "Agreement and payment definitions". */
-const namesOf = (types: VersionFileType[]): string => {
-  if (types.length === 1) {
-    return fileNames[types[0]]
-  }
-
-  const labels = types.map((type, at) =>
-    at ? fileLabels[type].toLowerCase() : fileLabels[type]
-  )
-
-  return `${labels.slice(0, -1).join(', ')} and ${labels.at(-1)} definitions`
 }
 
 /** One sentence for the stored files not yet loaded that the service treats alike. */
@@ -234,7 +239,7 @@ const failed = (context: Context): Words => [
 const unstoredWords = (context: Context): Words =>
   context.file.fetchStatus === 'transient_error'
     ? fetchError(context)
-    : notStoredYet(context)
+    : notStoredYet(context, [context.type])
 
 /** The one sentence a file needs, or none for a file stored and loaded. */
 const toFileWords = (context: Context): Words | null => {
@@ -274,14 +279,30 @@ export interface BannerLines {
   lines: Words[]
 }
 
-/** Stored files not yet loaded that the service treats alike, side by side, as one. */
+const isNotStoredYet = ({ stored, fetchStatus }: DefinitionFile) =>
+  !stored &&
+  fetchStatus !== 'transient_error' &&
+  fetchStatus !== 'permanent_error'
+
+/** The files whose sentences join when the service treats them alike: stored but not loaded, or not stored yet. */
+const joinOf = (
+  file: DefinitionFile
+): 'stored-not-loaded' | 'not-stored' | null => {
+  if (isStoredNotLoaded(file)) {
+    return 'stored-not-loaded'
+  }
+
+  return isNotStoredYet(file) ? 'not-stored' : null
+}
+
+/** Files side by side that join alike, as one. */
 const joinsLast = (contexts: Context[], { type, file }: Context): boolean => {
   const last = contexts.at(-1)
 
   return (
     last !== undefined &&
-    isStoredNotLoaded(last.file) &&
-    isStoredNotLoaded(file) &&
+    joinOf(file) !== null &&
+    joinOf(last.file) === joinOf(file) &&
     isMainFile(last.type) === isMainFile(type)
   )
 }
@@ -295,15 +316,19 @@ const toGroups = (contexts: Context[]): Context[][] =>
       : [...groups, [context]]
   }, [])
 
-const toGroupWords = (group: Context[]): Words | null =>
-  group.length > 1
-    ? storedNotLoaded(
-        group[0],
-        group.map(({ type }) => type)
-      )
-    : toFileWords(group[0])
+const toGroupWords = (group: Context[]): Words | null => {
+  if (group.length === 1) {
+    return toFileWords(group[0])
+  }
 
-/** One sentence per file that needs one, files in order, stored ones not yet loaded together; none when every file is stored and loaded. */
+  const types = group.map(({ type }) => type)
+
+  return isStoredNotLoaded(group[0].file)
+    ? storedNotLoaded(group[0], types)
+    : notStoredYet(group[0], types)
+}
+
+/** One sentence per file that needs one, files in order, those the service treats alike together; none when every file is stored and loaded. */
 export const toBannerLines = (
   record: RecordType,
   version: BannerVersion

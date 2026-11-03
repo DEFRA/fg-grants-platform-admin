@@ -7,7 +7,7 @@
   {{ noValue({}) }}
 {%- elif value.empty -%}
   <span class="font-mono text-sm {{ muted }}">""</span>
-{%- elif value.kind == "expression" -%}
+{%- elif value.kind == "expression" and not whole -%}
   {#- Two lines, and the whole expression on opening. -#}
   <details class="group inline-block max-w-full align-top" data-expression><summary class="cursor-pointer list-none [&::-webkit-details-marker]:hidden"><span class="line-clamp-2 text-sm group-open:line-clamp-none" title="{{ value.text }}">{{ codeText(value.text) }}</span></summary></details>
 {%- else -%}

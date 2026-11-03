@@ -10,6 +10,33 @@ describe('toCodeBreaks', () => {
     ])
   })
 
+  test('splits a path after each dot and before each index, never inside a name', () => {
+    expect(
+      toCodeBreaks('$.payload.answers.landUse.totalHectares[0].areaHa')
+    ).toEqual([
+      '$.',
+      'payload.',
+      'answers.',
+      'landUse.',
+      'totalHectares',
+      '[0].',
+      'areaHa'
+    ])
+  })
+
+  test('splits an expression after each opening bracket', () => {
+    expect(toCodeBreaks('$sum($.items.amount)')).toEqual([
+      '$sum(',
+      '$.',
+      'items.',
+      'amount)'
+    ])
+  })
+
+  test('keeps a version whole', () => {
+    expect(toCodeBreaks('woodland@1.2.0')).toEqual(['woodland@1.2.0'])
+  })
+
   test('keeps a code with no break as one part', () => {
     expect(toCodeBreaks('woodland')).toEqual(['woodland'])
   })

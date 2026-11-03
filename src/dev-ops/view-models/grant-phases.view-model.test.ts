@@ -698,7 +698,7 @@ describe('a way matched by a bare status code', () => {
     })
   })
 
-  test('draws its edge in the process colour and dotted when it runs a process, keeping both legend items', () => {
+  test('draws its edge in the process colour and dotted when it runs a process, and keys that line in the legend', () => {
     const tab = phasesOf(undefined, null, bare)
 
     expect(bareEdge(bare)).toEqual(
@@ -708,9 +708,11 @@ describe('a way matched by a bare status code', () => {
           'PRE_AWARD:REVIEW:IN_REVIEW → PRE_AWARD:APPLICATION:AMEND: NOTIFY'
       })
     )
-    expect(tab.legend.map(({ kind }) => kind)).toEqual(
-      expect.arrayContaining(['strong', 'dotted'])
-    )
+    expect(tab.legend.at(-1)).toEqual({
+      kind: 'strong-dotted',
+      label: 'Matched by status code only, in any stage, and runs a GAS process'
+    })
+    expect(tab.legend.map(({ kind }) => kind)).not.toContain('dotted')
   })
 
   test('reads the processes GAS-16 names when it knows them', () => {

@@ -85,7 +85,15 @@
                     <div class="{{ note }}" data-testid="{{ testId }}-custom-link">link goes to {% if row.customLink.address %}{{ codeText(row.customLink.address, "text-sm") }}{% else %}an address worked out from the case{% endif %}</div>
                   {%- endif -%}
                 </td>
-                <td data-testid="{{ testId }}-shown-when">{% if row.shownWhen %}when {{ codeText(row.shownWhen, "text-sm") }} is set and not null, false, 0 or "" (an empty list or object counts as set){% else %}Always{% endif %}</td>
+                <td data-testid="{{ testId }}-shown-when">
+                  {%- if row.shownWhen.kind == "expression" -%}
+                    when {{ mappingValue(row.shownWhen.value, "always") }} gives a result that is not null, false, 0 or "" (an empty list or object counts as a result)
+                  {%- elif row.shownWhen -%}
+                    when {{ codeText(row.shownWhen.text, "text-sm") }} is set and not null, false, 0 or "" (an empty list or object counts as set)
+                  {%- else -%}
+                    Always
+                  {%- endif -%}
+                </td>
                 <td>
                   {%- for call in row.fires -%}
                     {{ actionCell(call, testId ~ "-action", environment) }}

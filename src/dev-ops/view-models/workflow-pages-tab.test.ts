@@ -242,7 +242,7 @@ describe('toWorkflowPagesTab', () => {
         order: 6,
         label: 'Agreement',
         builtIn: false,
-        shownWhen: '$.supplementaryData.agreements',
+        shownWhen: { kind: 'value', text: '$.supplementaryData.agreements' },
         components: ['table']
       }
     ])

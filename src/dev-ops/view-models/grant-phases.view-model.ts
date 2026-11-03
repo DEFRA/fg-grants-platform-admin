@@ -126,10 +126,13 @@ interface GrantPhasesOptions {
 
 const nothingSetsIt = 'nothing in this version sets it'
 
-const bareCodeLegend: LegendItem = {
-  kind: 'dotted',
-  label: 'Matched by status code only, in any stage'
-}
+const bareCodeLegends: LegendItem[] = [
+  { kind: 'dotted', label: 'Matched by status code only, in any stage' },
+  {
+    kind: 'strong-dotted',
+    label: 'Matched by status code only, in any stage, and runs a GAS process'
+  }
+]
 
 const flaggedLegend: LegendItem = {
   kind: 'flagged',
@@ -149,7 +152,7 @@ const toBareCode = (
     ? { code: statusCodeOf(position), said: names.repeated(position) }
     : null
 
-const toLegend = ({ waysIn }: GrantLifecycle, map: StateMap): LegendItem[] => [
+const toLegend = (map: StateMap): LegendItem[] => [
   { kind: 'strong', label: 'Runs a GAS process on the move' },
   { kind: 'dashed', label: 'Move only' },
   { kind: 'other-phase', label: 'Other phase' },
@@ -158,9 +161,9 @@ const toLegend = ({ waysIn }: GrantLifecycle, map: StateMap): LegendItem[] => [
   )
     ? [flaggedLegend]
     : []),
-  ...(waysIn.some((wayIn) => isMove(wayIn) && isBare(wayIn))
-    ? [bareCodeLegend]
-    : [])
+  ...bareCodeLegends.filter(({ kind }) =>
+    map.moves.some((move) => move.kind === kind)
+  )
 ]
 
 const badgeTexts: Record<BadgeLabel, string> = {
@@ -500,7 +503,7 @@ export const toGrantPhases = (
   return {
     kind: 'graph',
     graphs,
-    legend: toLegend(lifecycle, map),
+    legend: toLegend(map),
     panel:
       graphs.selected &&
       toPanel(

@@ -190,6 +190,47 @@ describe('workflow-pages component', () => {
     ).toHaveLength(1)
   })
 
+  test('says a jsonata: tab condition is calculated, without its prefix, and when CW shows the tab', () => {
+    const workflow = structuredClone(woodlandDefinition.workflow)
+    workflow.pages!.cases!.details!.tabs!['land-parcels'].renderIf =
+      'jsonata:$count($.supplementaryData.parcels) > 0'
+    const $ = renderTab(withWorkflow(workflow))
+    const cell = $(
+      '#tab-land-parcels [data-testid="workflow-pages-shown-when"]'
+    )
+
+    expect(flatten(cell.text())).toBe(
+      'when $count($.supplementaryData.parcels) > 0 calculated gives a result that is not null, false, 0 or "" (an empty list or object counts as a result)'
+    )
+    expect(cell.find('[data-comes-from]').text()).toBe('calculated')
+    expect($.text()).not.toContain('jsonata:')
+  })
+
+  test('lets a long Value from path wrap only after a dot', () => {
+    const definition = withWorkflow({
+      pages: {
+        cases: {
+          details: {
+            banner: {
+              summary: {
+                hectares: {
+                  label: 'Hectares',
+                  text: '$.payload.answers.landUse.totalHectares',
+                  type: 'number'
+                }
+              }
+            }
+          }
+        }
+      }
+    })
+    const $ = renderTab(definition)
+
+    expect(
+      $(`[data-testid="${testId}-summary-row"] td`).eq(2).find('span').html()
+    ).toBe('$.<wbr>payload.<wbr>answers.<wbr>landUse.<wbr>totalHectares')
+  })
+
   test('writes paths in mono through the code break, and Always in sans', () => {
     const $ = renderTab()
 
