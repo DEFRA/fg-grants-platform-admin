@@ -14,6 +14,22 @@ describe('toBucketPath', () => {
 })
 
 describe('toNavSections', () => {
+  const gasTokens = {
+    id: 'clients-gas',
+    ids: ['clients-gas'],
+    label: 'Access tokens',
+    srPrefix: 'GAS',
+    href: '/dev-ops/clients/gas',
+    icon: 'key'
+  }
+  const cwTokens = {
+    id: 'clients-cw',
+    ids: ['clients-cw'],
+    label: 'Access tokens',
+    srPrefix: 'CW',
+    href: '/dev-ops/clients/cw',
+    icon: 'key'
+  }
   const cwOutbox = {
     ...outboxBucket,
     id: 'cw.outbox',
@@ -46,7 +62,8 @@ describe('toNavSections', () => {
             label: 'Grants',
             href: '/dev-ops/grants',
             icon: 'scroll-text'
-          }
+          },
+          gasTokens
         ]
       },
       {
@@ -65,7 +82,8 @@ describe('toNavSections', () => {
             label: 'Workflows',
             href: '/dev-ops/workflows',
             icon: 'workflow'
-          }
+          },
+          cwTokens
         ]
       }
     ])
@@ -96,10 +114,12 @@ describe('toNavSections', () => {
         label: 'Applications',
         href: '/dev-ops/applications',
         icon: 'file-text'
-      }
+      },
+      gasTokens
     ])
     expect(sections[1].items.map(({ ids }) => ids)).toEqual([
-      ['cw.outbox', 'cw.inbox']
+      ['cw.outbox', 'cw.inbox'],
+      ['clients-cw']
     ])
   })
 
@@ -112,8 +132,8 @@ describe('toNavSections', () => {
     expect(
       sections.map(({ title, items }) => [title, items.map(({ id }) => id)])
     ).toEqual([
-      ['GAS', ['gas.outbox', 'gas.applications']],
-      ['CW', ['cw.outbox']]
+      ['GAS', ['gas.outbox', 'gas.applications', 'clients-gas']],
+      ['CW', ['cw.outbox', 'clients-cw']]
     ])
   })
 
@@ -138,8 +158,22 @@ describe('toNavSections', () => {
     expect(items[0].icon).toBe('folder')
   })
 
-  test('draws no navigation without a catalogue', () => {
-    expect(toNavSections(null)).toEqual([])
+  test('still draws each service with its access tokens without a catalogue', () => {
+    expect(toNavSections(null)).toEqual([
+      { title: 'GAS', items: [gasTokens] },
+      { title: 'CW', items: [cwTokens] }
+    ])
+  })
+
+  test('adds a section for a service the catalogue does not name', () => {
+    expect(
+      toNavSections({ buckets: [outboxBucket], sourceErrors: [] }).map(
+        ({ title, items }) => [title, items.map(({ id }) => id)]
+      )
+    ).toEqual([
+      ['GAS', ['gas.outbox', 'clients-gas']],
+      ['CW', ['clients-cw']]
+    ])
   })
 })
 

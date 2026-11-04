@@ -20,7 +20,7 @@
 {# A link that stands for several lists is the current one on any of them. #}
 {% macro navItem(item) %}
   {%- set current = navActive in item.ids -%}
-  <li><a class="gap-3{% if current %} menu-active{% endif %}" href="{{ item.href }}"{% if current %} aria-current="page"{% endif %} data-testid="do-nav-{{ item.id }}">{{ icon({ name: item.icon, class: 'size-4.5 shrink-0' }) }}{{ item.label }}</a></li>
+  <li><a class="gap-3{% if current %} menu-active{% endif %}" href="{{ item.href }}"{% if current %} aria-current="page"{% endif %} data-testid="do-nav-{{ item.id }}">{{ icon({ name: item.icon, class: 'size-4.5 shrink-0' }) }}{% if item.srPrefix %}<span class="sr-only">{{ item.srPrefix }} </span>{% endif %}{{ item.label }}</a></li>
 {% endmacro %}
 
 <!DOCTYPE html>

@@ -7,7 +7,7 @@
 Admin frontend for the Farming Grants platform. It has two areas:
 
 - **Grant ops**: view an application's claims, and add or change its claimable items until a claim is made against them.
-- **Dev ops**: browse platform events, applications and cases.
+- **Dev ops**: browse platform events, applications and cases, and manage the access tokens other services call GAS and Caseworking with.
 
 - [Running with other services](#running-with-other-services)
 - [Requirements](#requirements)

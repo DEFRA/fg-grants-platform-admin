@@ -1418,8 +1418,10 @@ describe('the version lists', () => {
       'do-nav-gas.outbox',
       'do-nav-gas.applications',
       'do-nav-gas.grants',
+      'do-nav-clients-gas',
       'do-nav-cw.cases',
-      'do-nav-cw.workflows'
+      'do-nav-cw.workflows',
+      'do-nav-clients-cw'
     ])
     expect(
       part($, 'do-nav-gas.grants').find('[data-testid="do-icon-scroll-text"]')
@@ -1729,7 +1731,11 @@ describe('a list GAS would not or could not read', () => {
     expect(statusCode).toBe(statusCodes.ok)
     expect(textOf($, 'bucket-error')).toBe('GAS outbox could not be loaded.')
     expect(part($, 'bucket-error').attr('role')).toBe('alert')
-    expect(part($, 'do-nav').find('a')).toHaveLength(catalogue.buckets.length)
+    expect(
+      part($, 'do-nav').find(
+        'a[data-testid^="do-nav-gas."], a[data-testid^="do-nav-cw."]'
+      )
+    ).toHaveLength(catalogue.buckets.length)
   })
 })
 
