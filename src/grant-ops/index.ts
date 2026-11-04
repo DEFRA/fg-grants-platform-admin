@@ -1,6 +1,7 @@
 import type { Server } from '@hapi/hapi'
 
 import { asOperator } from '../common/as-operator.ts'
+import { roles } from '../common/roles.ts'
 import { scopedTo } from '../server/plugins/auth/scoped-to.ts'
 import { viewOptions } from '../server/plugins/views/index.ts'
 import {
@@ -32,7 +33,7 @@ export const grantOps = {
 
       server.route(
         scopedTo(
-          'FCP.GrantApplicationsAdmin',
+          roles.grantApplicationsAdmin,
           asOperator([
             viewGrantOpsRoute,
             viewAllowListRoute,

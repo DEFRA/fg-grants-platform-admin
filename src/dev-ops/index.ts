@@ -2,6 +2,7 @@ import type { Server } from '@hapi/hapi'
 
 import { scopedTo } from '../server/plugins/auth/scoped-to.ts'
 import { asOperator } from '../common/as-operator.ts'
+import { roles } from '../common/roles.ts'
 import {
   searchBucketRoute,
   viewBucketRoute,
@@ -38,7 +39,7 @@ export const devOps = {
 
       server.route(
         scopedTo(
-          'FCP.GrantOperationsAdmin',
+          roles.grantOperationsAdmin,
           asOperator([
             viewDevOpsRoute,
             viewBucketRoute,
