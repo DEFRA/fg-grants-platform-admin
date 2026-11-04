@@ -1,11 +1,9 @@
 import Boom from '@hapi/boom'
 import type { Request, ResponseToolkit, ServerRoute } from '@hapi/hapi'
 
+import { roles } from '../../common/roles.ts'
+
 /**
- * The role names are copied rather than shared because `import-x/
- * no-restricted-paths` bars a route from importing them, and the repo answers
- * that by copying — see the same choice in dev-ops/routes/redrive-event.route.
- *
  * Each area's front door, not the page behind it: an area decides for itself
  * what its own root means, so moving the Dev Ops landing page is one change
  * there rather than two. That costs a hop through `/dev-ops`, which is the
@@ -17,8 +15,8 @@ import type { Request, ResponseToolkit, ServerRoute } from '@hapi/hapi'
  * revisit rather than a precedent.
  */
 const areas = [
-  { role: 'FCP.GrantOperationsAdmin', entrance: '/dev-ops' },
-  { role: 'FCP.GrantApplicationsAdmin', entrance: '/grant-ops' }
+  { role: roles.grantOperationsAdmin, entrance: '/dev-ops' },
+  { role: roles.grantApplicationsAdmin, entrance: '/grant-ops' }
 ]
 
 /** Hapi types the credentials scope as either one role or many. */
@@ -36,8 +34,8 @@ export const viewRootRoute: ServerRoute = {
     auth: { strategy: 'session' }
   },
   handler(request: Request, h: ResponseToolkit) {
-    const roles = rolesOf(request)
-    const area = areas.find(({ role }) => roles.includes(role))
+    const held = rolesOf(request)
+    const area = areas.find(({ role }) => held.includes(role))
 
     if (!area) {
       throw Boom.forbidden('Insufficient scope')

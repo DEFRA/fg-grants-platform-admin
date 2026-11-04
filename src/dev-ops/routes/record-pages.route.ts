@@ -42,6 +42,7 @@ import {
 } from '../view-models/record-filters.ts'
 import { toTabHref } from '../view-models/record-page.view-model.ts'
 import type { RecordPageModel } from '../view-models/record-page.view-model.ts'
+import { roles as appRoles } from '../../common/roles.ts'
 import type { RecordType } from '../view-models/record-type.ts'
 import { toVersionPath } from '../view-models/record-type.ts'
 import { toWorkflowPage } from '../view-models/workflow-page.view-model.ts'
@@ -341,7 +342,7 @@ export const viewGrantRoute = recordPageRoute<
   toPage: (page, tab, from, { roles, ...options }) =>
     toGrantPage(page, tab, from, {
       ...options,
-      canAdministerGrants: roles.includes('FCP.GrantApplicationsAdmin')
+      canAdministerGrants: roles.includes(appRoles.grantApplicationsAdmin)
     }),
   noticeKey: definitionFetchNoticeKey,
   versioned: true
