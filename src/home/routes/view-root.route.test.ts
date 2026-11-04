@@ -52,9 +52,12 @@ describe('viewRootRoute', () => {
     expect(headers.location).toBe('/auth/login')
   })
 
-  test('answers as it always has a user holding no roles', async () => {
-    const { statusCode } = await visit([])
+  test('shows the refusal page to a signed in user holding no roles', async () => {
+    const { statusCode, payload } = await visit([])
 
-    expect(statusCode).toBe(statusCodes.notFound)
+    expect(statusCode).toBe(statusCodes.forbidden)
+    expect(payload).toContain(
+      'You do not have access to this part of the service'
+    )
   })
 })

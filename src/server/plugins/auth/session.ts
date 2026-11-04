@@ -57,3 +57,16 @@ export const toCredentials = (session: OidcToken): Credentials => {
 
   return { user, scope: user.roles }
 }
+
+type SessionHolder = { yar?: { id?: string | null; get(key: string): unknown } }
+
+/**
+ * Read from the session, not `request.auth.credentials`, which is empty on a
+ * request that matched no route. Yar has no id until it loads the store, and
+ * reading the store before then throws.
+ */
+export const getSessionRoles = (request: SessionHolder): string[] => {
+  const session = request.yar?.id ? request.yar.get(sessionKey) : undefined
+
+  return toRoles(claimsOf((session ?? {}) as OidcToken).roles)
+}

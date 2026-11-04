@@ -25,9 +25,9 @@ const areas = [
 const rolesOf = (request: Request) => [request.auth.credentials.scope].flat()
 
 /**
- * Do not give this route a scope: anonymous has to reach sign in from here,
- * and a user with no role has to get the 404 this path has always given rather
- * than a 403 telling them a door exists.
+ * Do not give this route a scope: anonymous has to reach sign in from here. A
+ * signed in user with no role gets the refusal page, as hapi would give one
+ * refused an area.
  */
 export const viewRootRoute: ServerRoute = {
   method: 'GET',
@@ -40,7 +40,7 @@ export const viewRootRoute: ServerRoute = {
     const area = areas.find(({ role }) => roles.includes(role))
 
     if (!area) {
-      throw Boom.notFound()
+      throw Boom.forbidden('Insufficient scope')
     }
 
     return h.redirect(area.entrance)

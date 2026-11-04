@@ -1,0 +1,23 @@
+{% extends 'layouts/page.njk' %}
+
+{% block content %}
+  {{ appHeading({
+    text: heading
+  }) }}
+
+  <div class="govuk-grid-row">
+    <div class="govuk-grid-column-two-thirds">
+      <p class="govuk-body">
+        Your account does not have the role needed to use this part of Grants
+        Platform Administration.
+      </p>
+      <p class="govuk-body">
+        This may be because the role has not been added to your account yet, or
+        because it has since been removed.
+      </p>
+      <p class="govuk-body">
+        If you think you should have access, contact your line manager.
+      </p>
+    </div>
+  </div>
+{% endblock %}
