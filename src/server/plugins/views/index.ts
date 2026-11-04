@@ -23,6 +23,7 @@ export type ViewContextRequest = {
   path?: string
   state?: Record<string, unknown>
   auth?: { credentials?: { user?: unknown } | null }
+  yar?: { id?: string | null; get(key: string): unknown }
 }
 
 export const buildViewOptions = (

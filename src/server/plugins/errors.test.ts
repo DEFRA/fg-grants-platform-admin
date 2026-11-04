@@ -1,3 +1,4 @@
+import Boom from '@hapi/boom'
 import type { Request, ResponseToolkit, Server } from '@hapi/hapi'
 
 import { catchAll } from './errors.ts'
@@ -9,6 +10,17 @@ describe('errors', () => {
 
   beforeAll(async () => {
     server = await createServer()
+
+    // Raised directly: the page is under test, not the scope check.
+    server.route({
+      method: 'GET',
+      path: '/refused',
+      options: { auth: false },
+      handler() {
+        throw Boom.forbidden('Insufficient scope')
+      }
+    })
+
     await server.initialize()
   })
 
@@ -27,22 +39,62 @@ describe('errors', () => {
     )
     expect(statusCode).toBe(statusCodes.notFound)
   })
+
+  test('renders the refusal page for a forbidden request', async () => {
+    const { result, statusCode } = await server.inject({
+      method: 'GET',
+      url: '/refused'
+    })
+
+    expect(result).toEqual(
+      expect.stringContaining(
+        'You do not have access to this part of the service'
+      )
+    )
+    expect(result).toEqual(expect.stringContaining('contact your line manager'))
+    expect(statusCode).toBe(statusCodes.forbidden)
+  })
+
+  test('keeps the reason for a refusal off the page', async () => {
+    const { result } = await server.inject({
+      method: 'GET',
+      url: '/refused'
+    })
+
+    expect(result).not.toEqual(expect.stringContaining('Insufficient scope'))
+    expect(result).not.toEqual(expect.stringContaining('403'))
+  })
+
+  test('offers no navigation to areas a refused user cannot open', async () => {
+    const { result } = await server.inject({
+      method: 'GET',
+      url: '/refused'
+    })
+
+    expect(result).not.toEqual(expect.stringContaining('Operations Admin'))
+    expect(result).not.toEqual(expect.stringContaining('Applications Admin'))
+  })
 })
 
 describe('catchAll', () => {
   const mockErrorLogger = vi.fn()
+  const mockWarnLogger = vi.fn()
   const mockStack = 'Mock error stack'
+  const mockMessage = 'Insufficient scope'
+  const mockPath = '/grant-ops'
   const errorPage = 'error'
-  const mockRequest = (statusCode: number) =>
+  const mockRequest = (statusCode: number, message = mockMessage) =>
     ({
+      path: mockPath,
       response: {
         isBoom: true,
         stack: mockStack,
+        message,
         output: {
           statusCode
         }
       },
-      logger: { error: mockErrorLogger }
+      logger: { error: mockErrorLogger, warn: mockWarnLogger }
     }) as unknown as Request
   const mockToolkitView = vi.fn()
   const mockToolkitCode = vi.fn()
@@ -67,6 +119,30 @@ describe('catchAll', () => {
     catchAll(mockRequest(statusCodes.forbidden), mockToolkit)
 
     expect(mockErrorLogger).not.toHaveBeenCalledWith(mockStack)
+    expect(mockToolkitView).toHaveBeenCalledWith('forbidden', {
+      pageTitle: 'You do not have access to this part of the service',
+      heading: 'You do not have access to this part of the service'
+    })
+    expect(mockToolkitCode).toHaveBeenCalledWith(statusCodes.forbidden)
+  })
+
+  test('logs why a refused request was refused rather than showing it', () => {
+    catchAll(mockRequest(statusCodes.forbidden), mockToolkit)
+
+    expect(mockWarnLogger).toHaveBeenCalledWith(
+      `Refused ${mockPath}: ${mockMessage}`
+    )
+  })
+
+  test('renders the generic page for a forbidden request that is not about a role', () => {
+    catchAll(
+      mockRequest(
+        statusCodes.forbidden,
+        'You do not have access to administration for this grant'
+      ),
+      mockToolkit
+    )
+
     expect(mockToolkitView).toHaveBeenCalledWith(errorPage, {
       pageTitle: 'Forbidden',
       heading: statusCodes.forbidden,
