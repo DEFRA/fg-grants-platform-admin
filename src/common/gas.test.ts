@@ -1,10 +1,21 @@
 import { config } from './config.ts'
 import { asGasActor } from './gas-actor.ts'
-import { getFromGas, postToGas, putToGas, toHeaderActor } from './gas.ts'
+import {
+  deleteFromGas,
+  getFromGas,
+  postToGas,
+  putToGas,
+  toHeaderActor
+} from './gas.ts'
 import { wreck } from './wreck.ts'
 
 vi.mock(import('./wreck.ts'), () => ({
-  wreck: { get: vi.fn(), post: vi.fn(), put: vi.fn() } as never
+  wreck: {
+    get: vi.fn(),
+    post: vi.fn(),
+    put: vi.fn(),
+    delete: vi.fn()
+  } as never
 }))
 
 describe('getFromGas', () => {
@@ -306,6 +317,35 @@ describe('putToGas', () => {
       expect.objectContaining({
         headers: expect.objectContaining({ 'x-actor': 'Ada Lovelace' })
       })
+    )
+  })
+})
+
+describe('deleteFromGas', () => {
+  beforeEach(() => {
+    vi.mocked(wreck.delete).mockResolvedValue({ payload: null } as never)
+  })
+
+  test('sends a DELETE to the given path, presenting the service token', async () => {
+    await deleteFromGas('/grant-admin/clients/gas/grants-ui/tokens/1')
+
+    expect(wreck.delete).toHaveBeenCalledWith(
+      `${config.get('gas.apiUrl')}/grant-admin/clients/gas/grants-ui/tokens/1`,
+      expect.objectContaining({
+        json: true,
+        timeout: config.get('gas.timeoutMs'),
+        headers: {
+          authorization: `Bearer ${config.get('gas.serviceToken')}`
+        }
+      })
+    )
+  })
+
+  test('sends no body', async () => {
+    await deleteFromGas('/grant-admin/clients/gas/grants-ui/tokens/1')
+
+    expect(vi.mocked(wreck.delete).mock.calls[0][1]).not.toHaveProperty(
+      'payload'
     )
   })
 })

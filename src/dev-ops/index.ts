@@ -1,8 +1,13 @@
 import type { Server } from '@hapi/hapi'
 
+import { sameOriginOnly } from '../server/plugins/auth/same-origin.ts'
 import { scopedTo } from '../server/plugins/auth/scoped-to.ts'
 import { asOperator } from '../common/as-operator.ts'
 import { roles } from '../common/roles.ts'
+import {
+  accessTokenWriteRoutes,
+  viewAccessTokensRoute
+} from './routes/access-tokens.route.ts'
 import {
   searchBucketRoute,
   viewBucketRoute,
@@ -56,7 +61,9 @@ export const devOps = {
             redriveEventRoute,
             purgeEventRoute,
             reviewPayloadRoute,
-            savePayloadRoute
+            savePayloadRoute,
+            viewAccessTokensRoute,
+            ...sameOriginOnly(accessTokenWriteRoutes)
           ])
         )
       )
