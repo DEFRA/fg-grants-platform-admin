@@ -25,16 +25,19 @@ const toRedirect = (key: EventKey, from: string): string => {
 }
 
 /**
- * The one write this app makes.
- *
  * No CSRF token, deliberately and not by omission — but the defence is the
  * cookie, not the harmlessness of the write. A forged request could redrive
  * ANY dead letter and put the victim's name on it, because `x-actor` is read
- * off their session: that is a real thing to stop, and what stops it is
- * `isSameSite: 'Strict'` on the session cookie, pinned explicitly in
- * server/plugins/session-cache/index.ts so it cannot drift into a default.
- * A cross-site POST simply arrives without the cookie, so it never reaches
- * the scope check, let alone the queue.
+ * off their session: that is a real thing to stop, and what stops a
+ * cross-site one is `isSameSite: 'Strict'` on the session cookie, pinned
+ * explicitly in server/plugins/session-cache/index.ts so it cannot drift into
+ * a default. A cross-site POST simply arrives without the cookie, so it never
+ * reaches the scope check, let alone the queue.
+ *
+ * A same-site one still carries it: every `*.cdp-int.defra.cloud` frontend is
+ * the same site as this app. The access token writes close that with
+ * server/plugins/auth/same-origin.ts; this write doesn't yet, an accepted gap
+ * until it is given the same check.
  *
  * A crumb here would be a token in one place out of one, which is the shape
  * of a defence that quietly stops working.

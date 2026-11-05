@@ -2,6 +2,12 @@ import type {
   BucketEntry,
   Catalogue
 } from '../use-cases/get-catalogue.use-case.ts'
+import {
+  clientServices,
+  serviceWords,
+  toClientsPath,
+  toNavActive
+} from './access-token-services.ts'
 
 export const devOpsPath = '/dev-ops'
 
@@ -21,6 +27,8 @@ interface NavItem {
   /** Every list the link stands for: it is the current one on any of them. */
   ids: string[]
   label: string
+  /** Read before the label, so two links of one name still tell apart. */
+  srPrefix?: string
   href: string
   icon: string
 }
@@ -57,15 +65,44 @@ const toNavItems = (buckets: BucketEntry[]): NavItem[] => {
   return [...items.values()]
 }
 
-/** One section per service, in the order the catalogue first names it; no catalogue is no navigation. */
+/** Not a bucket: a page of its own, so it is there whether or not the catalogue answers. */
+const toAccessTokensItem = (service: 'gas' | 'cw'): NavItem => ({
+  id: toNavActive(service),
+  ids: [toNavActive(service)],
+  label: 'Access tokens',
+  srPrefix: serviceWords[service].short,
+  href: toClientsPath(service),
+  icon: 'key'
+})
+
+/** Last in its service's section, which is made when the catalogue names none. */
+const withItem = (
+  sections: NavSection[],
+  title: string,
+  item: NavItem
+): NavSection[] =>
+  sections.some((section) => section.title === title)
+    ? sections.map((section) =>
+        section.title === title
+          ? { ...section, items: [...section.items, item] }
+          : section
+      )
+    : [...sections, { title, items: [item] }]
+
+/** One section per service, in the order the catalogue first names it, each ending with that service's access tokens. */
 export const toNavSections = (catalogue: Catalogue | null): NavSection[] => {
   const buckets = catalogue?.buckets ?? []
   const services = [...new Set(buckets.map(({ service }) => service))]
-
-  return services.map((title) => ({
+  const sections = services.map((title) => ({
     title,
     items: toNavItems(buckets.filter(({ service }) => service === title))
   }))
+
+  return clientServices.reduce(
+    (drawn, service) =>
+      withItem(drawn, serviceWords[service].short, toAccessTokensItem(service)),
+    sections
+  )
 }
 
 /** A record's page carries the list it was opened from as its own `back`. */

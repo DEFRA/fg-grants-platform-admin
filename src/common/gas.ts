@@ -39,7 +39,7 @@ export const getFromGas = async <T>(path: string): Promise<T> => {
 }
 
 const writeToGas = async <T>(
-  method: 'post' | 'put',
+  method: 'post' | 'put' | 'delete',
   path: string,
   { payload, actor, headers = {} }: GasWriteOptions = {}
 ): Promise<T> => {
@@ -73,3 +73,12 @@ export const putToGas = async <T>(
   path: string,
   options?: GasWriteOptions
 ): Promise<T> => writeToGas<T>('put', path, options)
+
+/**
+ * A non-2xx rejects with wreck's Boom unchanged: callers read the status and body from it.
+ * @param path An absolute path, with its segments already escaped.
+ */
+export const deleteFromGas = async <T>(
+  path: string,
+  options?: GasWriteOptions
+): Promise<T> => writeToGas<T>('delete', path, options)

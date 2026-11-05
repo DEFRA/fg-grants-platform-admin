@@ -59,11 +59,13 @@ export const sessionCache = {
             password: sessionConfig.cookie.password,
             ttl: sessionConfig.cookie.ttl,
             isSecure: config.get('session.cookie.secure'),
-            // Tightened from yar's own default of Lax, because this is the
-            // whole of the app's CSRF defence: the one write it makes carries
-            // no token, on the reasoning that no cross-site request can arrive
-            // with this cookie attached. ../auth/continue-page.ts is what then
-            // gets the user out of the Entra ID callback and into a session.
+            // Tightened from yar's own default of Lax, because this is most
+            // of the app's CSRF defence: its writes carry no token, on the
+            // reasoning that no cross-site request can arrive with this
+            // cookie attached. Same-site ones can, so the access token writes
+            // also check where they came from (../auth/same-origin.ts).
+            // ../auth/continue-page.ts is what then gets the user out of the
+            // Entra ID callback and into a session.
             isSameSite: 'Strict',
             clearInvalid: true
           }

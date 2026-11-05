@@ -4,6 +4,7 @@ import type {
   StoredSearch,
   StoredSearchKey
 } from '../../dev-ops/view-models/stored-search.ts'
+import type { TokenNotice } from '../../dev-ops/view-models/access-token-toasts.ts'
 import type { DefinitionFetchFlash } from '../../dev-ops/view-models/definition-fetch.ts'
 import type {
   EventNotice,
@@ -21,6 +22,8 @@ declare module '@hapi/yar' {
     redriveOutcome: EventNotice
     purgeForm: PurgeFormNotice
     definitionFetchOutcome: DefinitionFetchFlash
+    /** Every access token write but a reveal; never the token itself. */
+    accessTokenNotice: TokenNotice
   }
 
   interface YarValues {
