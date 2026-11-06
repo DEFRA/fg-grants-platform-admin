@@ -1,27 +1,27 @@
 import { assets } from './assets.ts'
+import { roles } from '../../../common/roles.ts'
 import { getSessionRoles } from '../auth/session.ts'
 import type { ViewContextRequest } from './index.ts'
 
-// Role names are copied, as in home/routes/view-root.route.
 const areas = [
   {
     text: 'Operations Admin',
     href: '/dev-ops',
-    role: 'FCP.GrantOperationsAdmin'
+    role: roles.grantOperationsAdmin
   },
   {
     text: 'Applications Admin',
     href: '/grant-ops',
-    role: 'FCP.GrantApplicationsAdmin'
+    role: roles.grantApplicationsAdmin
   }
 ]
 
 // Only the areas the user can open, so the nav never links into a 403.
 const buildNavigation = (request?: ViewContextRequest) => {
-  const roles = getSessionRoles(request ?? {})
+  const held = getSessionRoles(request ?? {})
 
   return areas
-    .filter(({ role }) => roles.includes(role))
+    .filter(({ role }) => held.includes(role))
     .map(({ text, href }) => ({
       text,
       href,

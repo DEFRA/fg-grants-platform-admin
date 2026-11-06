@@ -50,7 +50,8 @@ export default [
                 '**/use-cases/**',
                 '**/view-models/**',
                 '**/common/config.ts',
-                '**/common/logger.ts'
+                '**/common/logger.ts',
+                '**/common/roles.ts'
               ],
               message:
                 'Routes should only import use cases, view models, and common helpers'

@@ -44,6 +44,7 @@ import { toFileLines } from './version-banner.ts'
 import { toNotStored, toVersionShell } from './version-page.ts'
 import type { NotStored, VersionShell } from './version-page.ts'
 import { toWorkflowHref, workflowType } from './workflows-page.view-model.ts'
+import { roles } from '../../common/roles.ts'
 
 export interface GrantPageModel extends RecordPageModel, VersionShell {
   notStored: NotStored | null
@@ -107,7 +108,7 @@ const toAllowListFact = (
         'Allow list',
         toAllowListHref(header.code)
       )
-    : toAllowListText('needs the FCP.GrantApplicationsAdmin role')
+    : toAllowListText(`needs the ${roles.grantApplicationsAdmin} role`)
 }
 
 const applicationsBucket = 'gas.applications'
