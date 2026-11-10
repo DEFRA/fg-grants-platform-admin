@@ -1,0 +1,5 @@
+{#- Dialog({ id, title, size: sm|md|lg, tone: danger, open, resetOnOpen (each time it's opened from the page, its fields go back to what the server drew), dismissible (false: no ×, Esc and the overlay do nothing), actions (html: Cancel first, the action last), headingLevel, closeHref (no-script close), closeLabel, describedBy, titleTestId, bodyHtml (instead of a caller) }) caller = body. A native modal <dialog>; <au-dialog> opens it from any [data-au-open="<id>"] (or on arrival with `open`, which also draws it open without a script; closing one that arrived open puts the address back to `closeHref`, so a reload doesn't open it again), moves focus in, locks the page's scroll, closes with the exit animation and hands focus back. -#}
+{% macro Dialog(p) -%}
+  {%- set __html %}{% include "./template.njk" %}{% endset -%}
+  {{- __html | trim | safe -}}
+{%- endmacro %}

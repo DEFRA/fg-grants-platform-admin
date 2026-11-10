@@ -1,0 +1,5 @@
+{#- Checkbox({ id, name, value, label|html, checked, indeterminate, disabled, size: sm, invalid, describedBy, ariaLabel, inputAttributes }) -#}
+{% macro Checkbox(p) -%}
+  {%- set __html %}{% include "./template.njk" %}{% endset -%}
+  {{- __html | trim | safe -}}
+{%- endmacro %}

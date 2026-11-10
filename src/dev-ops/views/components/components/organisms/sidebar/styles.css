@@ -1,0 +1,23 @@
+.au-sidebar { display: flex; flex-direction: column; flex: none; width: var(--size-sidebar); min-height: 100%; border-inline-end: var(--border-width-hairline) solid var(--border-default); background: var(--bg-surface); }
+.au-sidebar-brand { display: flex; align-items: center; gap: var(--gap-inline-md); height: var(--size-header); padding: 0 var(--inset-sidebar-brand); border-bottom: var(--border-width-hairline) solid var(--border-subtle); }
+.au-sidebar-nav { flex: 1; display: flex; flex-direction: column; gap: var(--gap-stack-lg); padding: var(--inset-sidebar); overflow-y: auto; }
+.au-sidebar-title { padding: var(--inset-tag-xs) var(--inset-menuitem-x) var(--inset-menuitem-y); color: var(--fg-subtle); }
+.au-sidebar-section ul { display: flex; flex-direction: column; gap: var(--gap-stack-2xs); margin: 0; padding: 0; list-style: none; }
+.au-sidebar-foot { display: flex; align-items: center; justify-content: space-between; gap: var(--gap-inline-md); padding: var(--inset-field) var(--inset-sidebar); border-top: var(--border-width-hairline) solid var(--border-subtle); }
+/* In the sidebar the account fills the footer like a nav item, its chevron at the far edge. */
+.au-sidebar:not(.is-rail) .au-sidebar-foot > .au-dropdown:only-child { flex: 1; min-width: 0; }
+.au-sidebar:not(.is-rail) .au-sidebar-foot .au-account:not(.au-account-compact) { width: 100%; max-width: none; }
+.au-sidebar:not(.is-rail) .au-sidebar-foot .au-account > .au-truncate { flex: 1; text-align: start; }
+.au-sidebar.is-rail { width: var(--size-rail); min-width: var(--size-rail); }
+.au-sidebar.is-rail .au-sidebar-brand { justify-content: center; padding: 0; }
+.au-sidebar-mark { display: inline-flex; align-items: center; justify-content: center; width: var(--size-rail-mark); height: var(--size-rail-mark); border-radius: var(--radius-lg); background: var(--bg-emphasis); color: var(--fg-on-emphasis); font-size: var(--font-size-md); font-weight: 700; }
+.au-sidebar.is-rail .au-sidebar-nav { align-items: stretch; padding: var(--inset-sidebar) var(--gap-inline-sm); }
+.au-sidebar.is-rail .au-sidebar-title { padding: 0 0 var(--gap-stack-xs); text-align: center; }
+.au-sidebar.is-rail .au-sidebar-section + .au-sidebar-section { padding-top: var(--gap-stack-lg); border-top: var(--border-width-hairline) solid var(--border-subtle); }
+.au-sidebar.is-rail .au-navitem { position: relative; flex-direction: column; justify-content: center; gap: var(--gap-stack-2xs); height: auto; min-height: var(--size-control-xl); padding: var(--gap-stack-xs) var(--gap-inline-2xs); font-size: var(--font-size-sm); line-height: var(--line-height-sm); text-align: center; }
+.au-sidebar.is-rail .au-navitem-label { flex: none; width: 100%; }
+.au-sidebar.is-rail .au-navitem > .au-badge { position: absolute; top: var(--gap-stack-2xs); inset-inline-end: var(--gap-inline-xs); }
+.au-sidebar.is-rail .au-sidebar-foot { justify-content: center; padding-inline: 0; }
+
+/* ── Server-rendered markup: joined after every component's rules above (build.cjs) ── */
+.au-sidebar-product { color: inherit; text-decoration: none; }

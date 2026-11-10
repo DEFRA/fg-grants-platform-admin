@@ -1,0 +1,46 @@
+dialog.au-dialog-layer { width: auto; height: auto; max-width: none; max-height: none; margin: 0; border: 0; background: transparent; color: inherit; overflow: visible; }
+dialog.au-dialog-layer::backdrop { background: transparent; }
+dialog.au-dialog-layer:not([open]) { display: none; }
+.au-dialog:focus { outline-color: transparent; }
+
+.au-dialog-layer { position: fixed; inset: 0; z-index: var(--z-dialog); display: flex; align-items: flex-start; justify-content: center; padding: var(--inset-overlay-top) var(--inset-page-compact) var(--inset-page-compact); }
+/* inline: the layer fills its container instead of the window (previews, panels, split views). */
+.au-dialog-layer.is-inline { position: relative; inset: auto; height: 100%; min-height: 100%; }
+.au-overlay { position: absolute; inset: 0; background: var(--bg-overlay); }
+.au-dialog { position: relative; display: flex; flex-direction: column; width: 100%; min-width: min(var(--size-dialog-min-width), 100%); max-height: calc(100vh - var(--inset-overlay-top) - var(--inset-page-compact)); border-radius: var(--radius-xl); background: var(--bg-surface-raised); box-shadow: var(--elevation-modal); }
+.au-dialog-sm { max-width: var(--size-dialog-sm); } .au-dialog-md { max-width: var(--size-dialog-md); } .au-dialog-lg { max-width: var(--size-dialog-lg); }
+.au-dialog-head { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--gap-inline-xl); padding-block: var(--inset-dialog-y) var(--inset-tag-xs); padding-inline: var(--inset-dialog) var(--inset-dialog-close); }
+/* Close: an md (36px) target with a 16px glyph, pulled up 4px so it centres on the 28px title line; the glyph sits 24px from the right edge, like the title from the left. */
+.au-dialog-close { flex: none; margin-top: calc(var(--space-4) * -1); }
+.au-dialog-head h2 { margin: 0; }
+.au-dialog-body { display: flex; flex-direction: column; gap: var(--gap-stack-xl); padding: var(--inset-alert-y) var(--inset-dialog) var(--inset-dialog-y); overflow-y: auto; font-size: var(--font-size-md); line-height: var(--line-height-md); }
+.au-dialog-body p { margin: 0; }
+.au-dialog-foot { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--gap-inline-md); padding: var(--inset-dialog-head-end) var(--inset-dialog) var(--inset-dialog-y); border-top: var(--border-width-hairline) solid var(--border-subtle); }
+.au-dialog-layer:has(.au-drawer) { z-index: var(--z-drawer); justify-content: flex-end; align-items: stretch; padding: 0; }
+.au-dialog-layer > .au-overlay { animation: au-fade-in var(--duration-slow) var(--easing-enter) both; }
+.au-dialog-layer > .au-dialog { animation: au-dialog-in var(--duration-slow) var(--easing-enter) both; }
+/* A drawer travels its whole width (480px), so it gets its own timing: the dialog curve front-loads the move and reads as a jump. */
+.au-dialog-layer > .au-drawer { animation: au-drawer-in 280ms cubic-bezier(0.32, 0.72, 0, 1) both; }
+.au-dialog-layer:not(.is-leaving):has(> .au-drawer) > .au-overlay { animation-duration: 280ms; animation-timing-function: ease-out; }
+[dir="rtl"] .au-dialog-layer > .au-drawer { animation-name: au-drawer-in-rtl; }
+.au-dialog-layer.is-leaving { pointer-events: none; }
+.au-dialog-layer.is-leaving > .au-overlay { animation: au-fade-out var(--duration-exit) var(--easing-exit) both; }
+.au-dialog-layer.is-leaving > .au-dialog { animation: au-dialog-out var(--duration-exit) var(--easing-exit) both; }
+.au-dialog-layer.is-leaving > .au-drawer { animation: au-drawer-out 200ms var(--easing-exit) both; }
+.au-dialog-layer.is-leaving:has(> .au-drawer) > .au-overlay { animation-duration: 200ms; }
+[dir="rtl"] .au-dialog-layer.is-leaving > .au-drawer { animation-name: au-drawer-out-rtl; }
+/* Reduced motion: a short fade only, no movement. */
+@media (prefers-reduced-motion: reduce) {
+  .au-dialog-layer > .au-dialog, .au-dialog-layer > .au-drawer, [dir="rtl"] .au-dialog-layer > .au-drawer { animation: au-fade-in var(--duration-fast) linear both; }
+  .au-dialog-layer.is-leaving > .au-dialog, .au-dialog-layer.is-leaving > .au-drawer, .au-dialog-layer.is-leaving > .au-overlay { animation: none; }
+}
+/* clip, not hidden: in Chrome a top-layer <dialog> with overflow: hidden keeps painting the drawer where it ends up, so its slide never shows. */
+.au-dialog-layer:has(.au-drawer) { overflow: clip; }
+
+/* ── Server-rendered markup: joined after every component's rules above (build.cjs) ── */
+/* ── Dialogs and drawers on <dialog> ── */
+.au-dialog-close-form { display: contents; }
+
+/* ── Dialogs with a form inside ── */
+.au-dialog-alert { padding: 0 var(--inset-dialog); }
+.au-dialog .au-plaintext { margin: 0; }

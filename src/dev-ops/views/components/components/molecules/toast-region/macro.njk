@@ -1,0 +1,5 @@
+{#- ToastRegion({ label ('Notifications') }) caller = Toast() calls — one per page, where flash messages land. It floats in the top layer and follows open dialogs. -#}
+{% macro ToastRegion(p) -%}
+  {%- set __html %}{% include "./template.njk" %}{% endset -%}
+  {{- __html | trim | safe -}}
+{%- endmacro %}

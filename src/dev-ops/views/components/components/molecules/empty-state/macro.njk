@@ -1,0 +1,5 @@
+{#- EmptyState({ icon, title, text|html|caller, compact, actions (html) }) — what an empty list or card says. -#}
+{% macro EmptyState(p) -%}
+  {%- set __html %}{% include "./template.njk" %}{% endset -%}
+  {{- __html | trim | safe -}}
+{%- endmacro %}

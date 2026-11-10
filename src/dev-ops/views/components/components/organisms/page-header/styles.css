@@ -1,0 +1,11 @@
+.au-pageheader { display: flex; flex-direction: column; gap: var(--gap-stack-md); }
+.au-pageheader-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--gap-inline-xl); min-height: var(--size-control-lg); }
+.au-pageheader-row.has-meta { align-items: flex-end; }
+.au-pageheader-titles { display: flex; flex-direction: column; gap: var(--gap-stack-xs); min-width: 0; }
+.au-pageheader-titles h1 { margin: 0; overflow-wrap: anywhere; }
+/* Every item starts with a hairline; the row is pulled left by one hairline + gap and the wrapper clips its left edge,
+   so the separator that starts each line (first item, or after a wrap) is hidden and none ever dangles */
+.au-pageheader-metawrap { clip-path: inset(-8px -8px -8px 0); }
+.au-pageheader-metawrap > .au-pageheader-meta { margin-left: calc(-1 * (var(--border-width-hairline) + var(--gap-inline-md))); }
+.au-pageheader-meta { display: flex; flex-wrap: wrap; align-items: center; gap: var(--gap-inline-md); font-size: var(--font-size-md); line-height: var(--line-height-md); }
+.au-pageheader-aside { margin-inline-start: auto; }

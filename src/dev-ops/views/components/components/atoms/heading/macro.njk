@@ -1,0 +1,5 @@
+{#- Heading({ text|html, level: 1-6, size: xl|lg|md|sm|xs, variant, mono, id }) -#}
+{% macro Heading(p) -%}
+  {%- set __html %}{% include "./template.njk" %}{% endset -%}
+  {{- __html | trim | safe -}}
+{%- endmacro %}

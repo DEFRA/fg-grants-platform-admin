@@ -1,0 +1,5 @@
+{#- Avatar({ name, size: sm|md, decorative }) -#}
+{% macro Avatar(p) -%}
+  {%- set __html %}{% include "./template.njk" %}{% endset -%}
+  {{- __html | trim | safe -}}
+{%- endmacro %}

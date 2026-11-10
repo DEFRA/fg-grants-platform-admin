@@ -1,0 +1,7 @@
+.au-truncate { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.au-text-default { color: var(--fg-default); } .au-text-muted { color: var(--fg-muted); } .au-text-subtle { color: var(--fg-subtle); } .au-text-faint { color: var(--fg-faint); }
+.au-text-success { color: var(--fg-success); } .au-text-warning { color: var(--fg-warning); } .au-text-danger { color: var(--fg-danger); } .au-text-info { color: var(--fg-info); } .au-text-link { color: var(--fg-link); }
+/* Code sits on its own ground, so it never takes the subtle colour of the text around it. */
+:where(.au-text-subtle) .au-code-inline { color: var(--fg-muted); }
+
+:where(.au-text-default, .au-text-muted, .au-text-subtle, .au-text-faint, .au-text-danger, .au-text-success, .au-text-warning, .au-text-info, .au-text-link) { margin: 0; }

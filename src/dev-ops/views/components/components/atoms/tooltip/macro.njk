@@ -1,0 +1,6 @@
+{#- Tooltip({ text, side: top|bottom, focusable, id (of the description, with focusable) }) caller = the trigger — a short label shown on hover and keyboard focus. The trigger must take focus;
+    for one that doesn't (a StatusDot, a Badge) set focusable: a wrapper takes focus, and the text is its description even without a script. -#}
+{% macro Tooltip(p) -%}
+  {%- set __html %}{% include "./template.njk" %}{% endset -%}
+  {{- __html | trim | safe -}}
+{%- endmacro %}

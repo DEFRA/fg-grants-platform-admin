@@ -1,0 +1,5 @@
+{#- Button({ text|html|caller, variant: default|primary|secondary|tertiary|danger|danger-solid|link, size: xs|sm|md|lg, href, type, name, value, form, disabled, disabledReason (off but focusable, the reason its description and tooltip), loading, loadingOnSubmit (the spinner once its form submits), block, iconStart, iconEnd, iconOnly, label (aria-label), title, external, pressed, expanded, controls, haspopup }) -#}
+{% macro Button(p) -%}
+  {%- set __html %}{% include "./template.njk" %}{% endset -%}
+  {{- __html | trim | safe -}}
+{%- endmacro %}

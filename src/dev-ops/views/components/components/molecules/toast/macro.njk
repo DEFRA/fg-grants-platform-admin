@@ -1,0 +1,5 @@
+{#- Toast({ tone: success|info|warning|danger, text|html|caller, icon, action, actionHref, dismissible (true), dismissLabel, timeout (ms, 6000; 0 keeps it) }) — inside toastRegion; the au-toast element times it out. -#}
+{% macro Toast(p) -%}
+  {%- set __html %}{% include "./template.njk" %}{% endset -%}
+  {{- __html | trim | safe -}}
+{%- endmacro %}

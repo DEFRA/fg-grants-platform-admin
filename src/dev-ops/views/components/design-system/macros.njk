@@ -1,0 +1,64 @@
+{#-
+  Design system for Nunjucks: every macro copied here, under one import.
+
+    {% import "design-system/macros.njk" as au %}
+    {{ au.Button({ text: "Save", variant: "primary", type: "submit" }) }}
+
+  Or import one from its folder: {% from "components/atoms/button/macro.njk" import Button %}.
+  Each macro takes attributes, testId and classes for its root element; content is `text`, `html` or the call block.
+  Written by the design system's add command; it lists the macros and holds no markup.
+-#}
+{%- from "../core/macros.njk" import attrs as _attrs, cls as _cls, body as _body, vh as _vh, describedBy as _describedBy, iconTemplate as _iconTemplate -%}
+{%- set attrs = _attrs -%}
+{%- set cls = _cls -%}
+{%- set body = _body -%}
+{%- set vh = _vh -%}
+{%- set describedBy = _describedBy -%}
+{%- set iconTemplate = _iconTemplate -%}
+{%- from "../components/atoms/icon/macro.njk" import Icon as _Icon -%}{%- set Icon = _Icon -%}
+{%- from "../components/atoms/text/macro.njk" import Text as _Text -%}{%- set Text = _Text -%}
+{%- from "../components/atoms/button/macro.njk" import Button as _Button -%}{%- set Button = _Button -%}
+{%- from "../components/atoms/icon-button/macro.njk" import IconButton as _IconButton -%}{%- set IconButton = _IconButton -%}
+{%- from "../components/atoms/link/macro.njk" import Link as _Link -%}{%- set Link = _Link -%}
+{%- from "../components/atoms/spinner/macro.njk" import Spinner as _Spinner -%}{%- set Spinner = _Spinner -%}
+{%- from "../components/atoms/badge/macro.njk" import Badge as _Badge -%}{%- set Badge = _Badge -%}
+{%- from "../components/atoms/avatar/macro.njk" import Avatar as _Avatar -%}{%- set Avatar = _Avatar -%}
+{%- from "../components/atoms/divider/macro.njk" import Divider as _Divider -%}{%- set Divider = _Divider -%}
+{%- from "../components/atoms/label/macro.njk" import Label as _Label -%}{%- set Label = _Label -%}
+{%- from "../components/atoms/checkbox/macro.njk" import Checkbox as _Checkbox -%}{%- set Checkbox = _Checkbox -%}
+{%- from "../components/atoms/radio/macro.njk" import Radio as _Radio -%}{%- set Radio = _Radio -%}
+{%- from "../components/atoms/tooltip/macro.njk" import Tooltip as _Tooltip -%}{%- set Tooltip = _Tooltip -%}
+{%- from "../components/atoms/menu-item/macro.njk" import MenuItem as _MenuItem -%}{%- set MenuItem = _MenuItem -%}
+{%- from "../components/molecules/field/macro.njk" import Field as _Field -%}{%- set Field = _Field -%}
+{%- from "../components/molecules/menu-heading/macro.njk" import MenuHeading as _MenuHeading -%}{%- set MenuHeading = _MenuHeading -%}
+{%- from "../components/molecules/menu-divider/macro.njk" import MenuDivider as _MenuDivider -%}{%- set MenuDivider = _MenuDivider -%}
+{%- from "../components/molecules/menu/macro.njk" import Menu as _Menu -%}{%- set Menu = _Menu -%}
+{%- from "../components/molecules/dropdown/macro.njk" import Dropdown as _Dropdown -%}{%- set Dropdown = _Dropdown -%}
+{%- from "../components/molecules/segmented-control/macro.njk" import SegmentedControl as _SegmentedControl -%}{%- set SegmentedControl = _SegmentedControl -%}
+{%- from "../components/molecules/back-link/macro.njk" import BackLink as _BackLink -%}{%- set BackLink = _BackLink -%}
+{%- from "../components/molecules/alert/macro.njk" import Alert as _Alert -%}{%- set Alert = _Alert -%}
+{%- from "../components/molecules/empty-state/macro.njk" import EmptyState as _EmptyState -%}{%- set EmptyState = _EmptyState -%}
+{%- from "../components/molecules/theme-toggle/macro.njk" import ThemeToggle as _ThemeToggle -%}{%- set ThemeToggle = _ThemeToggle -%}
+{%- from "../components/molecules/toast/macro.njk" import Toast as _Toast -%}{%- set Toast = _Toast -%}
+{%- from "../components/molecules/toast-region/macro.njk" import ToastRegion as _ToastRegion -%}{%- set ToastRegion = _ToastRegion -%}
+{%- from "../components/atoms/nav-item/macro.njk" import NavItem as _NavItem -%}{%- set NavItem = _NavItem -%}
+{%- from "../components/organisms/sidebar/macro.njk" import Sidebar as _Sidebar -%}{%- set Sidebar = _Sidebar -%}
+{%- from "../components/organisms/account-menu/macro.njk" import AccountMenu as _AccountMenu -%}{%- set AccountMenu = _AccountMenu -%}
+{%- from "../components/organisms/page-header/macro.njk" import PageHeader as _PageHeader -%}{%- set PageHeader = _PageHeader -%}
+{%- from "../components/organisms/card/macro.njk" import Card as _Card -%}{%- set Card = _Card -%}
+{%- from "../components/organisms/card-body/macro.njk" import CardBody as _CardBody -%}{%- set CardBody = _CardBody -%}
+{%- from "../components/organisms/dialog/macro.njk" import Dialog as _Dialog -%}{%- set Dialog = _Dialog -%}
+{%- from "../components/organisms/drawer/macro.njk" import Drawer as _Drawer -%}{%- set Drawer = _Drawer -%}
+{%- from "../components/templates/app-shell/macro.njk" import AppShell as _AppShell -%}{%- set AppShell = _AppShell -%}
+{%- from "../components/atoms/heading/macro.njk" import Heading as _Heading -%}{%- set Heading = _Heading -%}
+{%- from "../components/atoms/field-message/macro.njk" import FieldMessage as _FieldMessage -%}{%- set FieldMessage = _FieldMessage -%}
+{%- from "../components/atoms/code/macro.njk" import Code as _Code -%}{%- set Code = _Code -%}
+{%- from "../components/atoms/visually-hidden/macro.njk" import VisuallyHidden as _VisuallyHidden -%}{%- set VisuallyHidden = _VisuallyHidden -%}
+{%- from "../components/molecules/breadcrumbs/macro.njk" import Breadcrumbs as _Breadcrumbs -%}{%- set Breadcrumbs = _Breadcrumbs -%}
+{%- from "../components/molecules/radio-group/macro.njk" import RadioGroup as _RadioGroup -%}{%- set RadioGroup = _RadioGroup -%}
+{%- from "../components/layouts/hidden-field/macro.njk" import HiddenField as _HiddenField -%}{%- set HiddenField = _HiddenField -%}
+{%- from "../components/layouts/form/macro.njk" import Form as _Form -%}{%- set Form = _Form -%}
+{%- from "../components/templates/page/macro.njk" import Page as _Page -%}{%- set Page = _Page -%}
+{%- from "../components/molecules/error-summary/macro.njk" import ErrorSummary as _ErrorSummary -%}{%- set ErrorSummary = _ErrorSummary -%}
+{%- from "../components/templates/status-page/macro.njk" import StatusPage as _StatusPage -%}{%- set StatusPage = _StatusPage -%}
+{%- from "../components/organisms/top-nav/macro.njk" import TopNav as _TopNav -%}{%- set TopNav = _TopNav -%}

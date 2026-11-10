@@ -1,0 +1,408 @@
+/* Design system — component styles. Every value is a token from tokens.css; spacing and sizes sit on the 2px grid. */
+
+/* ── Built-in code fonts, re-centred ──
+   Nothing is downloaded: each face points at a font the operating system already has (local()).
+   Consolas, Cascadia Mono and Liberation Mono sit their capitals about 1px above the centre of a line;
+   the overrides move each font's line box so capitals centre exactly, as Inter's do.
+   ascent = (1.21 + cap height) / 2, descent = (1.21 - cap height) / 2. SF Mono, Menlo and DejaVu already centre. */
+/* Inter's stand-in while it loads: Arial (or Liberation Sans, the same widths) scaled and placed to take Inter's room, so
+   text barely moves when Inter swaps in (Firefox often draws the first frame before even a cached font is ready).
+   Matched to InterVariable at 400 and 600 by English letter frequency: words come out within about 1% of Inter's width
+   (unadjusted Arial is 4–7% narrower) and lines the same height. */
+@font-face { font-family: "AU Sans Fallback"; src: local("Arial"), local("ArialMT"), local("Liberation Sans"), local("LiberationSans"); font-weight: 100 500; size-adjust: 106.91%; ascent-override: 90.61%; descent-override: 22.56%; line-gap-override: 0%; }
+@font-face { font-family: "AU Sans Fallback"; src: local("Arial Bold"), local("Arial-BoldMT"), local("Liberation Sans Bold"), local("LiberationSans-Bold"); font-weight: 600 900; size-adjust: 101.54%; ascent-override: 95.41%; descent-override: 23.76%; line-gap-override: 0%; }
+@font-face { font-family: "AU Mono Cascadia"; src: local("Cascadia Mono"), local("CascadiaMono-Regular"); font-weight: 400; ascent-override: 95.2%; descent-override: 25.8%; line-gap-override: 0%; }
+@font-face { font-family: "AU Mono Cascadia"; src: local("Cascadia Mono Bold"), local("CascadiaMono-Bold"); font-weight: 700; ascent-override: 95.2%; descent-override: 25.8%; line-gap-override: 0%; }
+@font-face { font-family: "AU Mono Consolas"; src: local("Consolas"); font-weight: 400; ascent-override: 92.4%; descent-override: 28.6%; line-gap-override: 0%; }
+@font-face { font-family: "AU Mono Consolas"; src: local("Consolas Bold"), local("Consolas-Bold"); font-weight: 700; ascent-override: 92.4%; descent-override: 28.6%; line-gap-override: 0%; }
+@font-face { font-family: "AU Mono Liberation"; src: local("Liberation Mono"), local("LiberationMono"); font-weight: 400; ascent-override: 93.4%; descent-override: 27.6%; line-gap-override: 0%; }
+@font-face { font-family: "AU Mono Liberation"; src: local("Liberation Mono Bold"), local("LiberationMono-Bold"); font-weight: 700; ascent-override: 93.4%; descent-override: 27.6%; line-gap-override: 0%; }
+
+/* Composed from motion tokens: the focus ring fades in and out. Add it to any component's own transition list. */
+:root { --transition-focus: outline-color var(--duration-normal) var(--easing-standard); }
+/* Code (Code, DiffViewer, Kbd, a mono Textarea) reads --font-code: the platform's monospaced font (--font-mono) unless an app
+   points it elsewhere. Identifiers stay in Inter (.au-mono). */
+:root { --font-code: var(--font-mono); --font-code-features: normal; }
+/* Code blocks, diffs and the code editor: 13px on 20px lines. 12px was hard to read in a monospaced font and 14px too big
+   beside 14px Inter (a monospaced font looks larger at the same size). The one odd font size, like the 1px hairline. */
+:root { --code-block-size: 13px; --code-block-line-height: 20px; }
+
+/* ── Base ── */
+html { -webkit-text-size-adjust: 100%; }
+body { margin: 0; background: var(--bg-page); color: var(--fg-default); font-family: var(--font-sans); font-size: var(--font-size-md); line-height: var(--line-height-md); -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; text-rendering: optimizeLegibility; font-feature-settings: "kern" 1, "calt" 1, "cv05" 1, "cv08" 1; font-optical-sizing: auto; }
+.au-count { font-variant-numeric: tabular-nums; }
+*, *::before, *::after { box-sizing: border-box; }
+a { color: var(--fg-link); }
+a:hover:where(:not(:disabled, [aria-disabled="true"], .is-disabled)) { color: var(--fg-link-hover); }
+/* At rest the ring is off (style none), not a transparent solid line: a page whose stylesheet arrives after its first
+   paint (Firefox on a slow load) then fades nothing from the browser's default currentColor, and leaving focus never
+   shows a ring fading out. The ring still fades in on :focus-visible. */
+:where(button, a, input, select, textarea, summary, [tabindex]) { outline-style: none; outline-color: transparent; outline-width: var(--focus-ring-width); outline-offset: var(--focus-ring-offset); }
+:where(button, a, input, select, textarea, summary, [tabindex]) { transition: var(--transition-focus); }
+.au-focus-inset { outline-offset: var(--focus-ring-offset-inset); }
+:where(button, a, input, select, textarea, summary, [tabindex]):focus-visible { outline: var(--focus-ring-width) solid var(--border-focus); outline-offset: var(--focus-ring-offset); }
+/* Focus, one system: a solid 2px ring (border-focus, 2px off the edge) that fades in, on every interactive element
+   from the rule above. No glows.
+   Opt-in variants for custom components:
+   .au-focus-inset — the ring drawn inside the edge (flush rows, list items, tiles inside a grid).
+   .au-focus-thick — a 4px ring for large targets. */
+.au-focus-inset:focus-visible { outline: var(--focus-ring-width) solid var(--border-focus); outline-offset: var(--focus-ring-offset-inset); }
+.au-focus-thick:focus-visible { outline-width: var(--focus-ring-width-thick); }
+/* Identifiers (IDs, references, keys, codes): Inter with a slashed zero and distinct l and I. The code font is only for code (CodeViewer, DiffViewer, Code, Kbd, a mono Textarea). */
+.au-mono { font-family: var(--font-sans); font-feature-settings: "zero" 1, "cv05" 1, "cv08" 1; font-variant-ligatures: none; }
+.au-count { margin-inline-start: var(--gap-inline-sm); font-weight: 400; color: var(--fg-subtle); font-variant-numeric: tabular-nums; }
+/* Separator between inline items: a short hairline, never a typed character (no ·, |, •) */
+.au-sep { display: inline-block; flex: none; width: var(--border-width-hairline); height: 1em; background: var(--border-default); align-self: center; }
+.au-chevron { flex: none; opacity: var(--opacity-muted); transition: transform 120ms ease; }
+[aria-expanded="true"] > .au-chevron { transform: rotate(180deg); }
+.au-demo-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-8); padding: var(--space-16); }
+.au-demo-col { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-12); padding: var(--space-16); }
+.au-demo-grid { display: grid; gap: var(--space-16); padding: var(--space-16); }
+@keyframes au-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .au-chevron { transition: none; } }
+@keyframes au-pulse { 50% { opacity: .5; } }
+/* Floating layer: menus, listboxes and tooltips are portalled out of their trigger and placed by script (useFloating). */
+/* Placed by script from the left edge (physical, in any direction): right stays auto, or a right-to-left menu would stretch. */
+.au-float { position: fixed; left: 0; right: auto; top: 0; z-index: var(--z-dropdown); }
+/* Top layer: undo the browser's popover and modal-dialog box styles; the component classes style the box. */
+:where(.au-float[popover]) { inset: auto; width: auto; height: auto; margin: 0; padding: 0; border: 0; background: transparent; color: inherit; overflow: visible; }
+.au-float.au-tooltip { z-index: var(--z-tooltip); }
+
+/* ── Organisms ── */
+.au-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--gap-inline-md); }
+.au-actions-sm { gap: var(--gap-inline-sm); }
+.au-meta-item { display: inline-flex; align-items: center; gap: var(--gap-inline-md); }
+
+/* Focus without motion, and in Windows high-contrast mode (where a transparent outline would show). */
+@media (prefers-reduced-motion: reduce) { :where(button, a, input, select, textarea, summary, [tabindex]) { transition: none; }}
+@media (forced-colors: active) { :where(button, a, input, select, textarea, summary, [tabindex]) { outline-style: none; } :where(button, a, input, select, textarea, summary, [tabindex]):focus-visible { outline: var(--focus-ring-width) solid Highlight; }}
+.au-align-start { align-items: flex-start; } .au-align-center { align-items: center; } .au-align-end { align-items: flex-end; } .au-align-stretch { align-items: stretch; } .au-align-baseline { align-items: baseline; }
+.au-justify-start { justify-content: flex-start; } .au-justify-center { justify-content: center; } .au-justify-end { justify-content: flex-end; } .au-justify-between { justify-content: space-between; }
+.au-cq { container-type: inline-size; min-width: 0; }
+.au-group { margin: 0; padding: 0; border: 0; }
+.au-group > legend { padding: 0; margin-bottom: var(--gap-stack-sm); }
+.au-group-options { display: flex; flex-direction: column; gap: var(--gap-stack-md); }
+.au-group-row { flex-direction: row; flex-wrap: wrap; gap: var(--gap-inline-xl) var(--gap-columns); }
+@keyframes au-indeterminate { from { transform: translateX(-100%); } to { transform: translateX(250%); } }
+
+/* ───────────── Right-to-left ─────────────
+   Layout uses logical properties (inline-start/end), so it mirrors under dir="rtl". Icons that point a way flip too. */
+[dir="rtl"] .au-dir-icon { transform: scaleX(-1); }
+/* Identifiers, numbers, dates and typed values keep their own reading order inside right-to-left text. */
+[dir="rtl"] :is(.au-mono, .au-cell-mono, .au-num, .au-select-value, .au-timeline-meta, .au-menuitem-meta, .au-navitem-meta, input, textarea) { unicode-bidi: plaintext; }
+/* Stages that don't fit scroll sideways. So that's never missed, the edge with more beyond it fades out, and stops fading
+   once you reach it (a scroll-driven animation: nothing to run, nothing when it all fits). The scrollbar always shows. */
+@property --au-fade-start { syntax: "<length>"; inherits: false; initial-value: 0px; }
+@property --au-fade-end { syntax: "<length>"; inherits: false; initial-value: 0px; }
+@keyframes au-statemap-fade { from { --au-fade-start: 0px; --au-fade-end: 48px; } 4% { --au-fade-start: 48px; } 96% { --au-fade-end: 48px; } to { --au-fade-start: 48px; --au-fade-end: 0px; } }
+/* ── Heights a block of code or a diff scrolls past (Code and DiffViewer maxHeight; so markup sticks to these) ── */
+.au-maxh-120 { max-height: 120px; }
+.au-maxh-160 { max-height: 160px; }
+.au-maxh-200 { max-height: 200px; }
+.au-maxh-240 { max-height: 240px; }
+.au-maxh-280 { max-height: 280px; }
+.au-maxh-320 { max-height: 320px; }
+.au-maxh-360 { max-height: 360px; }
+.au-maxh-400 { max-height: 400px; }
+.au-maxh-480 { max-height: 480px; }
+.au-maxh-560 { max-height: 560px; }
+.au-maxh-640 { max-height: 640px; }
+
+/* ── Dialog and Drawer: enter and exit (2.5) ── */
+@keyframes au-fade-in { from { opacity: 0; } }
+@keyframes au-fade-out { to { opacity: 0; } }
+@keyframes au-dialog-in { from { opacity: 0; transform: translateY(var(--space-8)) scale(0.98); } }
+@keyframes au-dialog-out { to { opacity: 0; transform: translateY(var(--space-4)) scale(0.98); } }
+@keyframes au-drawer-in { from { transform: translateX(100%); } }
+@keyframes au-drawer-out { to { transform: translateX(100%); } }
+@keyframes au-drawer-in-rtl { from { transform: translateX(-100%); } }
+@keyframes au-drawer-out-rtl { to { transform: translateX(-100%); } }
+
+/* ── Server-rendered markup: joined after every component's rules above (build.cjs) ── */
+/*
+ * Design system — the server-rendered variants.
+ *
+ * The macros write one markup for every page wherever
+ * they can. Where a page has to work before (or without) a script, they use the
+ * platform instead, and these rules draw that markup the same way:
+ *   menus        <details> + <summary>          (scripted: a button and a layer)
+ *   dialogs      <dialog>                       (scripted: a layer and an overlay)
+ *   tabs         links with aria-current        (scripted: buttons with aria-selected)
+ *   accordions   <details>                      (scripted: buttons and regions)
+ *   tables       <table class="au-htable">      (scripted: a grid of divs)
+ *   selects      a native <select>              (scripted: a listbox)
+ * Nothing here adds a new look: each rule copies one the scripted markup already has.
+ */
+
+/* Hidden means hidden, whatever display a class gives the element. */
+[hidden] { display: none !important; }
+/* Each dropdown names its own trigger as the anchor (anchor-scope keeps the name inside it), so CSS places the menu
+   where the browser has anchor positioning even before the script, and the script's placing changes nothing. */
+au-dropdown { anchor-scope: --au-dropdown; }
+au-dropdown [popovertarget] { anchor-name: --au-dropdown; }
+/* An empty fact or cell: a dash, read as "Not set". */
+.au-novalue { color: var(--fg-faint); }
+.au-actions-end { justify-content: flex-end; }
+
+/* ── Stats that filter a list ── */
+.au-stats { display: flex; flex-wrap: wrap; gap: var(--gap-inline-md); }
+details .au-when-open, details[open] .au-when-closed { display: none; }
+details[open] .au-when-open { display: inline; }
+details[open] > summary .au-chevron { transform: rotate(180deg); }
+
+/* A wrapper the layout should not see. */
+.au-contents { display: contents; }
+.au-cols-events { grid-template-columns: minmax(200px, 1.4fr) minmax(220px, 1.6fr) minmax(130px, 1fr) var(--size-column-date) var(--size-column-chevron); }
+.au-cols-applications { grid-template-columns: minmax(180px, 1.4fr) minmax(200px, 1.4fr) var(--size-column-date) var(--size-column-chevron); }
+.au-cols-versions { grid-template-columns: minmax(180px, 1.6fr) var(--size-column-mark) minmax(150px, 1fr) minmax(90px, 0.6fr) var(--size-column-date) var(--size-column-chevron); }
+.au-cols-cases { grid-template-columns: minmax(170px, 1.3fr) minmax(170px, 1.2fr) var(--size-column-mark) var(--size-column-date) var(--size-column-chevron); }
+.au-cols-record-events { grid-template-columns: minmax(200px, 1.4fr) minmax(90px, 0.6fr) minmax(130px, 1fr) var(--size-column-date) var(--size-column-chevron); }
+.au-cols-series { grid-template-columns: minmax(180px, 1.4fr) minmax(130px, 1fr) var(--size-column-date) var(--size-column-chevron); }
+.au-cols-series-closed { grid-template-columns: minmax(180px, 1.4fr) minmax(130px, 1fr) var(--size-column-date) var(--size-column-date) var(--size-column-chevron); }
+.au-cols-series-refs { grid-template-columns: minmax(180px, 1fr) var(--size-column-chevron); }
+.au-cols-tokens { grid-template-columns: minmax(220px, 2fr) var(--size-column-mark) minmax(140px, 1fr) var(--size-column-date) var(--size-column-chevron); }
+.au-cols-errors { grid-template-columns: minmax(280px, 2.6fr) 110px minmax(190px, 0.9fr) minmax(190px, 0.9fr) var(--size-column-chevron); }
+.au-cols-files2 { grid-template-columns: minmax(180px, 1fr) minmax(140px, 1.6fr); }
+.au-cols-files { grid-template-columns: minmax(180px, 1fr) minmax(260px, 2fr) minmax(140px, 0.8fr); }
+.au-cols-n1 { grid-template-columns: repeat(1, minmax(120px, 1fr)) var(--size-column-date) var(--size-column-chevron); }
+.au-cols-n2 { grid-template-columns: repeat(2, minmax(120px, 1fr)) var(--size-column-date) var(--size-column-chevron); }
+.au-cols-n3 { grid-template-columns: repeat(3, minmax(120px, 1fr)) var(--size-column-date) var(--size-column-chevron); }
+.au-cols-n4 { grid-template-columns: repeat(4, minmax(120px, 1fr)) var(--size-column-date) var(--size-column-chevron); }
+.au-cols-n5 { grid-template-columns: repeat(5, minmax(120px, 1fr)) var(--size-column-date) var(--size-column-chevron); }
+.au-cols-n6 { grid-template-columns: repeat(6, minmax(120px, 1fr)) var(--size-column-date) var(--size-column-chevron); }
+.au-cols-n7 { grid-template-columns: repeat(7, minmax(120px, 1fr)) var(--size-column-date) var(--size-column-chevron); }
+
+/* ── Theme switch drawn before its script runs: both icons are there, the theme picks one ── */
+au-theme-toggle:has(> [role="menuitemcheckbox"]) { display: contents; }
+
+/* ── Copy buttons appear once their script can copy ── */
+au-copy { display: inline-flex; }
+/* Copying needs the script: no button where scripts can't run, nor once 4s have passed without it (failed or blocked). */
+@media (scripting: none) { au-copy [data-au-copy] { display: none; } }
+@media (scripting: enabled) { au-copy:not(:defined) [data-au-copy] { animation: au-ssr-fallback 0s 4s forwards; } }
+.au-break { overflow-wrap: anywhere; }
+.au-rowtitle { display: block; font-weight: 600; }
+.au-show-narrow { display: none; }
+@media (max-width: 639px) {
+  .au-hide-narrow { display: none; }
+  .au-show-narrow { display: inline; }
+}
+/* A switch among filter chips stands as tall as they do. */
+.au-chiplike { height: var(--size-control-md); padding: 0 var(--inset-tag); border-radius: var(--radius-md); }
+.au-chiplike:hover { background: var(--bg-hover); }
+
+/* ── App wrappers that only carry behaviour draw nothing of their own ── */
+.au-filter, .au-choice { display: contents; }
+.au-summary-scroll { max-height: 24rem; overflow: auto; border-top: var(--border-width-hairline) solid var(--border-subtle); }
+
+/* ── Record pages ── */
+.au-backnav { display: flex; }
+.au-subcard { display: flex; flex-direction: column; gap: var(--gap-stack-md); padding: var(--inset-card); border: var(--border-width-hairline) solid var(--border-subtle); border-radius: var(--radius-md); background: var(--bg-sunken); }
+.au-subcard > :is(h3, p) { margin: 0; }
+h2:focus, h3:focus { outline-color: transparent; }
+.au-plaintext { margin: 0; }
+
+/* ── JSON that folds: Code, with each object and array a <details> ── */
+.au-json { position: relative; display: flex; flex-direction: column; min-width: 0; }
+.au-json-tools { position: absolute; top: var(--space-6); inset-inline-end: var(--space-12); z-index: 1; }
+.au-json-body { display: block; max-height: 30rem; padding-block: var(--inset-code-y); }
+.au-json-body:focus-visible { outline: var(--focus-ring-width) solid var(--border-focus); outline-offset: var(--focus-ring-offset); }
+.au-json-line { position: relative; display: flex; margin: 0; padding-inline: 0 var(--inset-code-x); font: inherit; white-space: pre; }
+.au-json-line-in { display: flex; }
+.au-json [data-line] { flex: none; width: var(--size-code-gutter); padding-inline-end: var(--inset-code-x); color: var(--fg-faint); text-align: end; font-variant-numeric: tabular-nums; user-select: none; }
+.au-json [data-line]::before { content: attr(data-line); }
+.au-json code { font: inherit; white-space: pre; }
+summary.au-json-line { list-style: none; cursor: pointer; }
+summary.au-json-line::-webkit-details-marker { display: none; }
+summary.au-json-line:hover { background: var(--bg-hover); }
+summary.au-json-line:focus-visible { outline: var(--focus-ring-width) solid var(--border-focus); outline-offset: var(--focus-ring-offset-inset); }
+.au-json-toggle { position: absolute; top: 0; inset-inline-start: calc(var(--size-code-gutter) - var(--space-4)); display: flex; align-items: center; height: var(--line-height-md); color: var(--fg-subtle); transform: translateX(-100%); }
+details.au-json-fold[open] > summary .au-json-toggle { transform: translateX(-100%) rotate(90deg); }
+details.au-json-fold[open] > summary .au-json-folded { display: none; }
+
+/* An identifier set after a title, smaller and quieter, selected whole with one click. */
+.au-title-id { font-size: var(--font-size-md); line-height: var(--line-height-md); font-weight: 400; color: var(--fg-muted); overflow-wrap: anywhere; user-select: all; }
+.au-attempt-error { display: flex; align-items: flex-start; gap: var(--gap-inline-xs); list-style: none; cursor: pointer; color: var(--fg-default); }
+.au-attempt-error::-webkit-details-marker { display: none; }
+.au-attempt-error > .au-disclosure-chevron { margin-top: var(--space-2); color: var(--fg-subtle); }
+/* A record list drawn as a list on a phone. */
+.au-list { margin: 0; padding: 0; list-style: none; }
+@media (max-width: 639px) { .au-wide-only { display: none; } }
+@media (min-width: 640px) { .au-narrow-only { display: none; } }
+/* The position of a record in its workflow: phase, stage, status. */
+.au-trail { display: flex; flex-wrap: wrap; align-items: center; gap: var(--gap-inline-xs); margin: 0; color: var(--fg-muted); }
+.au-trail > [aria-current], .au-trail > .is-current { color: var(--fg-default); font-weight: 500; }
+.au-trail > .au-icon { color: var(--fg-faint); }
+
+/* ── Column widths and table minimum widths: classes, since the content security policy refuses inline styles ── */
+.au-w-5 { width: 5%; } .au-w-6 { width: 6%; } .au-w-7 { width: 7%; } .au-w-8 { width: 8%; } .au-w-9 { width: 9%; } .au-w-10 { width: 10%; } .au-w-11 { width: 11%; } .au-w-12 { width: 12%; } .au-w-13 { width: 13%; } .au-w-14 { width: 14%; } .au-w-15 { width: 15%; } .au-w-16 { width: 16%; } .au-w-17 { width: 17%; } .au-w-18 { width: 18%; } .au-w-19 { width: 19%; } .au-w-20 { width: 20%; } .au-w-21 { width: 21%; } .au-w-22 { width: 22%; } .au-w-23 { width: 23%; } .au-w-24 { width: 24%; } .au-w-25 { width: 25%; } .au-w-26 { width: 26%; } .au-w-27 { width: 27%; } .au-w-28 { width: 28%; } .au-w-29 { width: 29%; } .au-w-30 { width: 30%; } .au-w-31 { width: 31%; } .au-w-32 { width: 32%; } .au-w-33 { width: 33%; } .au-w-34 { width: 34%; } .au-w-35 { width: 35%; } .au-w-36 { width: 36%; } .au-w-37 { width: 37%; } .au-w-38 { width: 38%; } .au-w-39 { width: 39%; } .au-w-40 { width: 40%; } .au-w-41 { width: 41%; } .au-w-42 { width: 42%; } .au-w-43 { width: 43%; } .au-w-44 { width: 44%; } .au-w-45 { width: 45%; } .au-w-46 { width: 46%; } .au-w-47 { width: 47%; } .au-w-48 { width: 48%; } .au-w-49 { width: 49%; } .au-w-50 { width: 50%; } .au-w-51 { width: 51%; } .au-w-52 { width: 52%; } .au-w-53 { width: 53%; } .au-w-54 { width: 54%; } .au-w-55 { width: 55%; } .au-w-56 { width: 56%; } .au-w-57 { width: 57%; } .au-w-58 { width: 58%; } .au-w-59 { width: 59%; } .au-w-60 { width: 60%; }
+.au-minw-32 { min-width: 32rem; } .au-minw-40 { min-width: 40rem; } .au-minw-44 { min-width: 44rem; } .au-minw-48 { min-width: 48rem; } .au-minw-56 { min-width: 56rem; } .au-minw-64 { min-width: 64rem; }
+
+/* ── Definition pages ── */
+.au-small { font-size: var(--font-size-sm); line-height: var(--line-height-sm); letter-spacing: var(--tracking-sm); }
+.au-strong { font-weight: 500; }
+.au-namecode { display: flex; flex-direction: column; min-width: 0; }
+.au-namecode-code { display: block; }
+.au-indent-1 { padding-inline-start: var(--space-16); } .au-indent-2 { padding-inline-start: calc(var(--space-16) * 2); } .au-indent-3 { padding-inline-start: calc(var(--space-16) * 3); } .au-indent-4 { padding-inline-start: calc(var(--space-16) * 4); } .au-indent-5 { padding-inline-start: calc(var(--space-16) * 5); } .au-indent-6 { padding-inline-start: calc(var(--space-16) * 6); }
+.au-clamp { display: inline-block; max-width: 100%; vertical-align: top; }
+.au-clamp > summary { list-style: none; cursor: pointer; }
+.au-clamp > summary::-webkit-details-marker { display: none; }
+.au-clamp:not([open]) .au-clamp-text { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
+.au-version { margin-top: var(--gap-stack-xs); }
+.au-bullets { margin: var(--gap-stack-xs) 0 0; padding-inline-start: var(--space-20); }
+/* A JSON Schema as a tree of properties: Property, Type, Required, Constraints. */
+.au-schema { font-size: var(--font-size-md); line-height: var(--line-height-md); }
+.au-schema-row { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1.3fr) minmax(0, 1fr) minmax(0, 2.4fr); gap: var(--gap-columns); align-items: start; padding-block: var(--space-8); }
+.au-schema-head { padding-block: 0 var(--space-8); border-bottom: var(--border-width-hairline) solid var(--border-default); color: var(--fg-muted); font-size: var(--font-size-sm); font-weight: 500; }
+.au-schema-line { display: block; border-bottom: var(--border-width-hairline) solid var(--border-subtle); }
+summary.au-schema-line { list-style: none; cursor: pointer; }
+summary.au-schema-line::-webkit-details-marker { display: none; }
+summary.au-schema-line:hover { background: var(--bg-hover); }
+summary.au-schema-line:focus-visible { outline: var(--focus-ring-width) solid var(--border-focus); outline-offset: var(--focus-ring-offset-inset); }
+.au-schema-group { padding: var(--space-16) 0 var(--space-8); border-bottom: var(--border-width-hairline) solid var(--border-subtle); font-weight: 600; }
+.au-schema-name { display: flex; align-items: flex-start; gap: var(--gap-inline-xs); min-width: 0; }
+.au-schema-chevron { flex: none; margin-top: var(--space-4); color: var(--fg-subtle); transition: transform var(--duration-normal) var(--easing-standard); }
+details.au-schema-fold[open] > summary .au-schema-chevron { transform: rotate(90deg); }
+.au-schema-spacer { flex: none; width: var(--size-icon-sm); }
+.au-schema-rest { display: contents; }
+@media (max-width: 639px) {
+  .au-schema-row { display: block; }
+  .au-schema-head { display: none; }
+  .au-schema-rest { display: flex; flex-wrap: wrap; gap: var(--gap-stack-2xs) var(--gap-inline-md); margin-top: var(--gap-stack-2xs); margin-inline-start: calc(var(--size-icon-sm) + var(--gap-inline-xs)); }
+}
+
+/* ── A state graph: phases drawn as SVG, statuses as nodes, moves as edges ── */
+.au-sg { display: flex; flex-direction: column; gap: var(--gap-stack-lg); }
+.au-sg-layout { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--gap-stack-xl); align-items: start; }
+.au-sg-panel { order: -1; }
+@media (min-width: 1024px) {
+  .au-sg-layout { grid-template-columns: minmax(0, 1fr) 24rem; }
+  .au-sg-panel { order: 0; position: sticky; top: 0; }
+}
+.au-sg-legend { display: flex; flex-wrap: wrap; gap: var(--gap-stack-2xs) var(--gap-inline-lg); margin-inline-start: auto; font-size: var(--font-size-sm); line-height: var(--line-height-sm); color: var(--fg-muted); font-weight: 400; }
+.au-sg-key-box { display: inline-block; width: 24px; height: 16px; border-radius: var(--radius-sm); }
+.au-sg-key-flagged { border: 2px solid var(--fg-warning); }
+.au-sg-key-other { border: var(--border-width-hairline) dashed var(--border-strong); }
+.au-sg-scroller { overflow-x: auto; padding-bottom: var(--space-8); }
+.au-sg-scroller:focus-visible { outline: var(--focus-ring-width) solid var(--border-focus); outline-offset: var(--focus-ring-offset); }
+.au-sg-svg { display: block; max-width: none; color: var(--fg-muted); font-family: var(--font-sans); }
+.au-sg-edge { stroke: var(--fg-subtle); }
+.au-sg-edge-strong { stroke: var(--fg-info); }
+.au-sg-fill-edge { fill: var(--fg-subtle); }
+.au-sg-fill-strong { fill: var(--fg-info); }
+.au-sg-band { fill: var(--bg-sunken); stroke: var(--border-subtle); }
+.au-sg-plate { fill: var(--bg-surface); }
+.au-sg-text { fill: var(--fg-default); }
+.au-sg-code { fill: var(--fg-muted); font-feature-settings: "zero" 1, "cv05" 1, "cv08" 1; }
+.au-sg-node { fill: var(--bg-surface); }
+.au-sg-node-plain { stroke: var(--border-default); }
+.au-sg-node-selected { stroke: var(--border-selected); }
+.au-sg-node-flagged { stroke: var(--fg-warning); }
+.au-sg-nodelink:hover .au-sg-node { fill: var(--bg-hover); }
+.au-sg-nodelink:focus { outline-color: transparent; }
+.au-sg-nodelink:focus-visible .au-sg-node { stroke: var(--border-focus); stroke-width: 3; }
+.au-sg-dot-neutral { fill: var(--status-neutral); } .au-sg-dot-info { fill: var(--status-info); } .au-sg-dot-warning { fill: var(--status-warning); } .au-sg-dot-success { fill: var(--status-success); } .au-sg-dot-danger { fill: var(--status-danger); }
+.au-sg-finding { color: var(--fg-warning); }
+
+/* ── Small text helpers the macros' props stand for ── */
+.au-normal { font-weight: 400; }
+.au-pointer { cursor: pointer; }
+.au-prewrap { white-space: pre-wrap; overflow-wrap: anywhere; }
+.au-pt-0 { padding-top: 0 !important; }
+.au-hide-empty:empty { display: none; }
+.au-push-end { margin-inline-start: auto; }
+.au-cols-2 { display: grid; gap: var(--gap-stack-md) var(--gap-columns); }
+@media (min-width: 1024px) { .au-cols-2 { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }
+.au-choices { display: flex; flex-direction: column; gap: var(--gap-stack-sm); }
+.au-choice-card { display: flex; flex-direction: column; gap: var(--space-2); padding: var(--space-10, 10px) var(--space-12); border: var(--border-width-hairline) solid var(--border-default); border-radius: var(--radius-md); background: var(--bg-surface); cursor: pointer; }
+.au-choice-card:hover { border-color: var(--border-strong); }
+.au-choice-card:has(:checked) { border-color: var(--border-selected); box-shadow: inset 0 0 0 1px var(--border-selected); }
+.au-choice-card:has(:disabled) { opacity: var(--opacity-disabled); cursor: not-allowed; }
+.au-choice-card:has(:focus-visible) { outline: var(--focus-ring-width) solid var(--border-focus); outline-offset: var(--focus-ring-offset); }
+.au-actions-fill { width: 100%; }
+
+/* ── Web components that upgrade platform markup ── */
+au-disclosure, au-accordion, au-tooltip, au-dismiss { display: contents; }
+
+/* Fixed widths a `width` parameter asks for (px, steps of 20 from 80 to 640): the content security policy refuses inline styles. */
+.au-width-80 { width: 80px; } .au-width-100 { width: 100px; } .au-width-120 { width: 120px; } .au-width-140 { width: 140px; } .au-width-160 { width: 160px; } .au-width-180 { width: 180px; } .au-width-200 { width: 200px; } .au-width-220 { width: 220px; } .au-width-240 { width: 240px; } .au-width-260 { width: 260px; } .au-width-280 { width: 280px; } .au-width-300 { width: 300px; } .au-width-320 { width: 320px; } .au-width-340 { width: 340px; } .au-width-360 { width: 360px; } .au-width-380 { width: 380px; } .au-width-400 { width: 400px; } .au-width-420 { width: 420px; } .au-width-440 { width: 440px; } .au-width-460 { width: 460px; } .au-width-480 { width: 480px; } .au-width-500 { width: 500px; } .au-width-520 { width: 520px; } .au-width-540 { width: 540px; } .au-width-560 { width: 560px; } .au-width-580 { width: 580px; } .au-width-600 { width: 600px; } .au-width-620 { width: 620px; } .au-width-640 { width: 640px; }
+.au-ncols-1 { --au-cols-auto: repeat(1, auto); }
+.au-ncols-1.has-chevron { --au-cols-auto: repeat(1, auto) var(--size-column-chevron); }
+.au-ncols-1.has-check { --au-cols-auto: var(--size-column-check) repeat(1, auto); }
+.au-ncols-1.has-check.has-chevron { --au-cols-auto: var(--size-column-check) repeat(1, auto) var(--size-column-chevron); }
+.au-ncols-2 { --au-cols-auto: repeat(2, auto); }
+.au-ncols-2.has-chevron { --au-cols-auto: repeat(2, auto) var(--size-column-chevron); }
+.au-ncols-2.has-check { --au-cols-auto: var(--size-column-check) repeat(2, auto); }
+.au-ncols-2.has-check.has-chevron { --au-cols-auto: var(--size-column-check) repeat(2, auto) var(--size-column-chevron); }
+.au-ncols-3 { --au-cols-auto: repeat(3, auto); }
+.au-ncols-3.has-chevron { --au-cols-auto: repeat(3, auto) var(--size-column-chevron); }
+.au-ncols-3.has-check { --au-cols-auto: var(--size-column-check) repeat(3, auto); }
+.au-ncols-3.has-check.has-chevron { --au-cols-auto: var(--size-column-check) repeat(3, auto) var(--size-column-chevron); }
+.au-ncols-4 { --au-cols-auto: repeat(4, auto); }
+.au-ncols-4.has-chevron { --au-cols-auto: repeat(4, auto) var(--size-column-chevron); }
+.au-ncols-4.has-check { --au-cols-auto: var(--size-column-check) repeat(4, auto); }
+.au-ncols-4.has-check.has-chevron { --au-cols-auto: var(--size-column-check) repeat(4, auto) var(--size-column-chevron); }
+.au-ncols-5 { --au-cols-auto: repeat(5, auto); }
+.au-ncols-5.has-chevron { --au-cols-auto: repeat(5, auto) var(--size-column-chevron); }
+.au-ncols-5.has-check { --au-cols-auto: var(--size-column-check) repeat(5, auto); }
+.au-ncols-5.has-check.has-chevron { --au-cols-auto: var(--size-column-check) repeat(5, auto) var(--size-column-chevron); }
+.au-ncols-6 { --au-cols-auto: repeat(6, auto); }
+.au-ncols-6.has-chevron { --au-cols-auto: repeat(6, auto) var(--size-column-chevron); }
+.au-ncols-6.has-check { --au-cols-auto: var(--size-column-check) repeat(6, auto); }
+.au-ncols-6.has-check.has-chevron { --au-cols-auto: var(--size-column-check) repeat(6, auto) var(--size-column-chevron); }
+.au-ncols-7 { --au-cols-auto: repeat(7, auto); }
+.au-ncols-7.has-chevron { --au-cols-auto: repeat(7, auto) var(--size-column-chevron); }
+.au-ncols-7.has-check { --au-cols-auto: var(--size-column-check) repeat(7, auto); }
+.au-ncols-7.has-check.has-chevron { --au-cols-auto: var(--size-column-check) repeat(7, auto) var(--size-column-chevron); }
+.au-ncols-8 { --au-cols-auto: repeat(8, auto); }
+.au-ncols-8.has-chevron { --au-cols-auto: repeat(8, auto) var(--size-column-chevron); }
+.au-ncols-8.has-check { --au-cols-auto: var(--size-column-check) repeat(8, auto); }
+.au-ncols-8.has-check.has-chevron { --au-cols-auto: var(--size-column-check) repeat(8, auto) var(--size-column-chevron); }
+.au-ncols-9 { --au-cols-auto: repeat(9, auto); }
+.au-ncols-9.has-chevron { --au-cols-auto: repeat(9, auto) var(--size-column-chevron); }
+.au-ncols-9.has-check { --au-cols-auto: var(--size-column-check) repeat(9, auto); }
+.au-ncols-9.has-check.has-chevron { --au-cols-auto: var(--size-column-check) repeat(9, auto) var(--size-column-chevron); }
+.au-ncols-10 { --au-cols-auto: repeat(10, auto); }
+.au-ncols-10.has-chevron { --au-cols-auto: repeat(10, auto) var(--size-column-chevron); }
+.au-ncols-10.has-check { --au-cols-auto: var(--size-column-check) repeat(10, auto); }
+.au-ncols-10.has-check.has-chevron { --au-cols-auto: var(--size-column-check) repeat(10, auto) var(--size-column-chevron); }
+.au-ncols-11 { --au-cols-auto: repeat(11, auto); }
+.au-ncols-11.has-chevron { --au-cols-auto: repeat(11, auto) var(--size-column-chevron); }
+.au-ncols-11.has-check { --au-cols-auto: var(--size-column-check) repeat(11, auto); }
+.au-ncols-11.has-check.has-chevron { --au-cols-auto: var(--size-column-check) repeat(11, auto) var(--size-column-chevron); }
+.au-ncols-12 { --au-cols-auto: repeat(12, auto); }
+.au-ncols-12.has-chevron { --au-cols-auto: repeat(12, auto) var(--size-column-chevron); }
+.au-ncols-12.has-check { --au-cols-auto: var(--size-column-check) repeat(12, auto); }
+.au-ncols-12.has-check.has-chevron { --au-cols-auto: var(--size-column-check) repeat(12, auto) var(--size-column-chevron); }
+
+/* Input Clear and the SearchField kind picker */
+au-clearable, au-search-kind { display: contents; }
+au-toast-region, au-list-page { display: contents; }
+
+/* ProgressBar fill (no inline styles) */
+.au-pct-0 { width: 0%; } .au-pct-1 { width: 1%; } .au-pct-2 { width: 2%; } .au-pct-3 { width: 3%; } .au-pct-4 { width: 4%; } .au-pct-5 { width: 5%; } .au-pct-6 { width: 6%; } .au-pct-7 { width: 7%; } .au-pct-8 { width: 8%; } .au-pct-9 { width: 9%; } .au-pct-10 { width: 10%; } .au-pct-11 { width: 11%; } .au-pct-12 { width: 12%; } .au-pct-13 { width: 13%; } .au-pct-14 { width: 14%; } .au-pct-15 { width: 15%; } .au-pct-16 { width: 16%; } .au-pct-17 { width: 17%; } .au-pct-18 { width: 18%; } .au-pct-19 { width: 19%; } .au-pct-20 { width: 20%; } .au-pct-21 { width: 21%; } .au-pct-22 { width: 22%; } .au-pct-23 { width: 23%; } .au-pct-24 { width: 24%; } .au-pct-25 { width: 25%; } .au-pct-26 { width: 26%; } .au-pct-27 { width: 27%; } .au-pct-28 { width: 28%; } .au-pct-29 { width: 29%; } .au-pct-30 { width: 30%; } .au-pct-31 { width: 31%; } .au-pct-32 { width: 32%; } .au-pct-33 { width: 33%; } .au-pct-34 { width: 34%; } .au-pct-35 { width: 35%; } .au-pct-36 { width: 36%; } .au-pct-37 { width: 37%; } .au-pct-38 { width: 38%; } .au-pct-39 { width: 39%; } .au-pct-40 { width: 40%; } .au-pct-41 { width: 41%; } .au-pct-42 { width: 42%; } .au-pct-43 { width: 43%; } .au-pct-44 { width: 44%; } .au-pct-45 { width: 45%; } .au-pct-46 { width: 46%; } .au-pct-47 { width: 47%; } .au-pct-48 { width: 48%; } .au-pct-49 { width: 49%; } .au-pct-50 { width: 50%; } .au-pct-51 { width: 51%; } .au-pct-52 { width: 52%; } .au-pct-53 { width: 53%; } .au-pct-54 { width: 54%; } .au-pct-55 { width: 55%; } .au-pct-56 { width: 56%; } .au-pct-57 { width: 57%; } .au-pct-58 { width: 58%; } .au-pct-59 { width: 59%; } .au-pct-60 { width: 60%; } .au-pct-61 { width: 61%; } .au-pct-62 { width: 62%; } .au-pct-63 { width: 63%; } .au-pct-64 { width: 64%; } .au-pct-65 { width: 65%; } .au-pct-66 { width: 66%; } .au-pct-67 { width: 67%; } .au-pct-68 { width: 68%; } .au-pct-69 { width: 69%; } .au-pct-70 { width: 70%; } .au-pct-71 { width: 71%; } .au-pct-72 { width: 72%; } .au-pct-73 { width: 73%; } .au-pct-74 { width: 74%; } .au-pct-75 { width: 75%; } .au-pct-76 { width: 76%; } .au-pct-77 { width: 77%; } .au-pct-78 { width: 78%; } .au-pct-79 { width: 79%; } .au-pct-80 { width: 80%; } .au-pct-81 { width: 81%; } .au-pct-82 { width: 82%; } .au-pct-83 { width: 83%; } .au-pct-84 { width: 84%; } .au-pct-85 { width: 85%; } .au-pct-86 { width: 86%; } .au-pct-87 { width: 87%; } .au-pct-88 { width: 88%; } .au-pct-89 { width: 89%; } .au-pct-90 { width: 90%; } .au-pct-91 { width: 91%; } .au-pct-92 { width: 92%; } .au-pct-93 { width: 93%; } .au-pct-94 { width: 94%; } .au-pct-95 { width: 95%; } .au-pct-96 { width: 96%; } .au-pct-97 { width: 97%; } .au-pct-98 { width: 98%; } .au-pct-99 { width: 99%; } .au-pct-100 { width: 100%; }
+au-error-summary, au-number, au-time-input, au-segmented, au-file-upload { display: contents; }
+au-date-picker, au-date-range-picker, au-date-time-picker, au-date-range-chip, au-combobox { display: contents; }
+au-calendar { display: block; }
+
+/* Chart colours as classes (no inline styles) */
+.au-bg-chart-1 { background: var(--chart-1); } .au-bg-chart-2 { background: var(--chart-2); } .au-bg-chart-3 { background: var(--chart-3); } .au-bg-chart-4 { background: var(--chart-4); } .au-bg-chart-5 { background: var(--chart-5); } .au-bg-chart-6 { background: var(--chart-6); } .au-bg-chart-7 { background: var(--chart-7); } .au-bg-chart-8 { background: var(--chart-8); }
+au-chart { display: block; }
+au-tree, au-state-map { display: contents; }
+au-popover, au-split, au-confirm { display: contents; }
+
+/* ── Two drawings of one control: the one its element takes over (data-au-ssr) and the native one (data-au-native).
+   Which shows depends on whether the page can run scripts, decided by CSS before the first paint, never by the
+   script arriving. (A browser without the scripting query shows the native one until the element swaps them.) ── */
+@media (scripting: enabled) {
+  :defined > [data-au-native] { display: none !important; }
+  /* Until the element is defined. The server's drawing is inert (it can't be used or heard; it's only the look), and
+     if the script still hasn't arrived after 4s (it failed to load, or was blocked) the native control comes back, so
+     the page still works. */
+  /* (Not display: none, which would stop the animation ever running: out of the flow and invisible instead.) */
+  :not(:defined) > [data-au-native] { position: absolute; visibility: hidden; pointer-events: none; animation: au-native-fallback 0s 4s forwards; }
+  :not(:defined) > [data-au-ssr] { animation: au-ssr-fallback 0s 4s forwards; }
+}
+@keyframes au-native-fallback { to { position: relative; visibility: visible; pointer-events: auto; } }
+@keyframes au-ssr-fallback { to { display: none; } }
+@media not (scripting: enabled) { [data-au-ssr] { display: none !important; } }

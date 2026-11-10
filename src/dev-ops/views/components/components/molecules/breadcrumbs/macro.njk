@@ -1,0 +1,5 @@
+{#- Breadcrumbs({ label, items: [{ text, href }] }) — the last item is the current one, never a link. -#}
+{% macro Breadcrumbs(p) -%}
+  {%- set __html %}{% include "./template.njk" %}{% endset -%}
+  {{- __html | trim | safe -}}
+{%- endmacro %}

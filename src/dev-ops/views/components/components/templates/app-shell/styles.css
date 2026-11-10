@@ -1,0 +1,83 @@
+/* ── Templates ── */
+/* AppShell fills whatever contains it, top to bottom: give that container a height (100vh, or 100% down from html/body). The sidebar always spans the full height; only the content column scrolls. */
+.au-shell { display: flex; height: 100%; min-height: 0; overflow: hidden; background: var(--bg-page); }
+.au-shell > .au-sidebar { min-height: 0; overflow-y: auto; }
+.au-main { flex: 1; min-width: 0; min-height: 0; overflow-y: auto; padding: var(--inset-page-top) var(--inset-page-x) var(--inset-page-bottom); }
+.au-content { display: flex; flex-direction: column; gap: var(--gap-stack-xl); width: 100%; max-width: var(--size-content-max); margin: 0 auto; }
+.au-content > .au-pageheader { margin-bottom: var(--gap-stack-md); }
+/* The shell responds to its own width, not the window's, so it behaves the same in a page, a panel or a preview.
+   Wide: a fixed 240px sidebar (it never shrinks). Narrow (< 640px): a top bar — brand and account on one row, the pages in one scrolling row below. */
+.au-shell-frame { container: au-shell / inline-size; height: 100%; min-height: 100%; }
+.au-shell > .au-sidebar { min-width: var(--size-sidebar); }
+@container au-shell (max-width: 639px) {
+  .au-shell { flex-direction: column; }
+  .au-shell > .au-sidebar { flex: none; flex-direction: row; flex-wrap: wrap; align-items: center; align-content: flex-start; width: 100%; min-width: 0; min-height: 0; border-inline-end: 0; border-bottom: var(--border-width-hairline) solid var(--border-default); }
+  .au-shell .au-sidebar-brand { flex: 1; min-width: 0; border-bottom: 0; }
+  .au-shell .au-sidebar-foot { order: 2; padding: 0 var(--inset-sidebar); border-top: 0; }
+  .au-shell .au-sidebar-nav { order: 3; flex: 1 0 100%; flex-direction: row; gap: var(--gap-inline-sm); padding: 0 var(--inset-sidebar) var(--inset-sidebar); overflow-x: auto; scrollbar-width: none; }
+  .au-shell .au-sidebar-section { display: contents; }
+  .au-shell .au-sidebar-title { display: none; }
+  .au-shell .au-sidebar-section ul { flex-direction: row; gap: var(--gap-inline-sm); }
+  .au-shell .au-navitem { white-space: nowrap; }
+  .au-shell .au-account > .au-truncate { display: none; }
+  .au-shell .au-sidebar:not(.is-rail) .au-account-chevron { transform: rotate(180deg); }  /* in the top bar the menu opens downwards */
+  .au-shell .au-sidebar:not(.is-rail) [aria-expanded="true"] > .au-account-chevron { transform: none; }
+  /* Turned only while someone presses it: a late style (a slow stylesheet, the element arriving) snaps, never spins. */
+  .au-shell .au-sidebar:not(.is-rail) .au-account:not(:hover, :focus-visible, :active) > .au-account-chevron { transition: none; }
+  /* In the top bar the menu opens down from the account, held 8px inside the window as the script holds it (before the script too). */
+  .au-shell .au-sidebar:not(.is-rail) au-dropdown[data-placement="top"] .au-dropdown-pop[popover]:not(.is-placed) { top: anchor(bottom); bottom: auto; left: auto; right: var(--space-8); margin-top: var(--space-4); margin-bottom: 0; }
+  .au-shell .au-sidebar:not(.is-rail) .au-sidebar-foot > .au-dropdown:only-child { flex: none; }
+  .au-shell .au-sidebar:not(.is-rail) .au-sidebar-foot .au-account:not(.au-account-compact) { width: auto; }
+  .au-main { padding: var(--inset-page-compact); }
+  .au-shell .au-main .au-listpage-top { position: static; margin-top: 0; padding-top: 0; padding-bottom: 0; margin-bottom: 0; }
+  .au-shell .au-main .au-listpage .au-thead, .au-shell .au-main .au-listpage .au-bulkbar { top: 0; }
+}
+.au-main .au-listpage-top { position: sticky; top: calc(var(--inset-page-top) * -1); z-index: calc(var(--z-sticky) + 2); margin-top: calc(var(--inset-page-top) * -1); padding-top: var(--inset-page-top); padding-bottom: var(--gap-stack-xl); margin-bottom: calc(var(--gap-stack-xl) * -1); background: var(--bg-page); }
+.au-main .au-listpage .au-thead, .au-main .au-listpage .au-bulkbar { top: calc(var(--au-list-top, 0px) - var(--inset-page-top)); }
+/* A list's header keeps its rounded top corners while it sticks. The table clips only its bottom corners, and the header
+   draws the table's top border and corners itself (the page around them), so a table scrolled a few pixels never cuts
+   the header's corners, and rows passing under it never show beside them. Pixel for pixel the same at rest. */
+.au-main .au-listpage .au-table { overflow: visible; border-top: 0; border-top-left-radius: 0; border-top-right-radius: 0; clip-path: inset(0 round 0 0 var(--radius-lg) var(--radius-lg)); }
+.au-main .au-listpage .au-thead { --au-cap-in: calc(var(--radius-lg) - var(--border-width-hairline)); padding-top: calc(var(--inset-cell-head-y) + var(--border-width-hairline)); min-height: calc(var(--size-table-head) + var(--border-width-hairline));
+  background: linear-gradient(var(--border-subtle), var(--border-subtle)) top / 100% var(--border-width-hairline) no-repeat, linear-gradient(var(--bg-sunken), var(--bg-sunken)) 0 var(--border-width-hairline) / 100% 100% no-repeat, var(--bg-surface); }
+.au-main .au-listpage .au-thead > .au-sticky-col { margin-top: calc(var(--inset-cell-head-y) * -1 - var(--border-width-hairline)); padding-top: calc(var(--inset-cell-head-y) + var(--border-width-hairline)); }
+.au-main .au-listpage .au-thead::before, .au-main .au-listpage .au-thead::after { --au-at: 100% 100%; content: ""; position: absolute; top: 0; left: calc(var(--border-width-hairline) * -1); width: var(--radius-lg); height: var(--radius-lg); pointer-events: none;
+  background: radial-gradient(circle at var(--au-at), transparent calc(var(--au-cap-in) - 0.5px), var(--border-subtle) var(--au-cap-in), var(--border-subtle) calc(var(--radius-lg) - 0.5px), transparent var(--radius-lg)),
+              radial-gradient(circle at var(--au-at), transparent calc(var(--au-cap-in) - 0.5px), var(--bg-surface) var(--au-cap-in), var(--bg-surface) calc(var(--radius-lg) - 0.5px), var(--bg-page) var(--radius-lg)); }
+.au-main .au-listpage .au-thead::after { --au-at: 0 100%; left: auto; right: calc(var(--border-width-hairline) * -1); }
+@media (forced-colors: active) { .au-main .au-listpage .au-thead::before, .au-main .au-listpage .au-thead::after { content: none; } }
+/* Keep the content still when a page starts or stops scrolling (switching tabs, filtering). */
+.au-main { scrollbar-gutter: stable; }
+@media (max-height: 560px) { .au-main .au-listpage-top { position: static; } .au-main .au-listpage .au-thead, .au-main .au-listpage .au-bulkbar { top: 0; } }
+.au-content > .au-page { margin-top: 0; }
+
+/* ───────────── Banner, status pages ───────────── */
+.au-shell-frame:has(.au-shell-banner) { display: flex; flex-direction: column; }
+.au-shell-frame:has(.au-shell-banner) > .au-shell { flex: 1; min-height: 0; }
+/* AppShell nav="none": no navigation, for pages before sign-in and the status pages around them. The product sits on top. */
+.au-shell-bare { width: 100%; max-width: var(--size-content-max); margin: 0 auto; padding: var(--space-32) var(--space-16); }
+.au-shell-bare-brand { display: flex; align-items: center; gap: var(--gap-inline-md); margin-bottom: var(--space-48); }
+.au-shell-bare-brand a { color: inherit; text-decoration: none; }
+.au-shell > .au-sidebar.is-rail { min-width: var(--size-rail); }
+.au-shell-body { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; }
+.au-shell-bar { flex: none; display: flex; align-items: center; gap: var(--gap-inline-xl); min-height: var(--size-header); padding: var(--gap-stack-sm) var(--inset-page-x); border-bottom: var(--border-width-hairline) solid var(--border-default); background: var(--bg-surface); }
+.au-shell-bar-start { flex: 1; min-width: 0; }
+.au-shell-bar-search { flex: 0 1 var(--size-shell-search); min-width: 0; }
+.au-shell-top { flex-direction: column; }
+@container au-shell (max-width: 639px) {
+  .au-shell > .au-sidebar.is-rail { width: 100%; }
+  .au-shell .au-sidebar.is-rail .au-sidebar-title { display: none; }
+  .au-shell .au-sidebar.is-rail .au-sidebar-section + .au-sidebar-section { padding-top: 0; border-top: 0; }
+  .au-shell .au-sidebar.is-rail .au-sidebar-brand { flex: 1; justify-content: flex-start; padding: 0 var(--inset-sidebar-brand); }
+  .au-shell-bar { flex-wrap: wrap; padding: var(--gap-stack-sm) var(--inset-page-compact); }
+  .au-shell-bar-search { flex: 1 0 100%; order: 3; }}
+/* AppShell: skip link */
+.au-skiplink { position: absolute; inset-inline-start: var(--gap-inline-md); top: var(--gap-stack-md); z-index: var(--z-toast); padding: var(--inset-tag-xs) var(--inset-menuitem-x); border-radius: var(--radius-md); background: var(--bg-surface-raised); box-shadow: var(--elevation-overlay); transform: translateY(-200%); }
+.au-skiplink:focus { transform: none; }
+
+/* ── Server-rendered markup: joined after every component's rules above (build.cjs) ── */
+/* The first stop for a keyboard: hidden until focused. */
+
+/* A page that scrolls inside the shell needs the document not to. */
+html:has(.au-shell-frame), html:has(.au-shell-frame) > body { height: 100%; }
+.au-main:focus { outline-color: transparent; }

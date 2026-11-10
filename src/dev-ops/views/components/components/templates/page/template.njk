@@ -1,0 +1,2 @@
+{%- from "../../../core/macros.njk" import attrs, cls -%}
+<div class="{{ cls('au-page' ~ (' au-page-narrow' if p.narrow else ''), p) }}"{{ attrs(p) }}>{{ caller() }}</div>

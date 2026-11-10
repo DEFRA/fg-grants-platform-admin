@@ -1,0 +1,5 @@
+{#- Link({ text|html, href, external, subtle, size: sm, iconStart, iconEnd }) -#}
+{% macro Link(p) -%}
+  {%- set __html %}{% include "./template.njk" %}{% endset -%}
+  {{- __html | trim | safe -}}
+{%- endmacro %}

@@ -1,0 +1,5 @@
+{#- Divider({ vertical, strong }) — a rule between blocks; vertical: a short line between things in a row (Inline, a toolbar). -#}
+{% macro Divider(p) -%}
+  {%- set __html %}{% include "./template.njk" %}{% endset -%}
+  {{- __html | trim | safe -}}
+{%- endmacro %}

@@ -1,0 +1,8 @@
+{#-
+  AppShell({ nav: sidebar|rail|top|none (no navigation: signed out, the status pages around sign-in; the product and env on top), banner (html), header (html, the bar's start), search (html), mainId, skipText,
+             and the navigation's params: product, productHref, env, sections, active, userName, userEmail, signOutHref, theme, account (html) … }) caller = the page
+-#}
+{% macro AppShell(p) -%}
+  {%- set __html %}{% include "./template.njk" %}{% endset -%}
+  {{- __html | trim | safe -}}
+{%- endmacro %}

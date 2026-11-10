@@ -1,0 +1,2 @@
+{%- from "../../../core/macros.njk" import attrs, cls -%}
+<au-toast-region><div class="{{ cls('au-toast-region', p or {}) }}" role="region" aria-label="{{ (p and p.label) or 'Notifications' }}" aria-live="polite"{{ attrs(p or {}) }}>{% if caller %}{{ caller() }}{% endif %}</div></au-toast-region>

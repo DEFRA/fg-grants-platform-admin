@@ -1,0 +1,12 @@
+/* position: relative holds the visually hidden srPrefix inside the item: without it, in the narrow top bar's scrolling row, the hidden text sat off-screen and widened the page. */
+.au-navitem { position: relative; display: flex; align-items: center; gap: var(--gap-inline-lg); height: var(--size-target-comfortable); padding: 0 var(--inset-menuitem-x); border-radius: var(--radius-md); color: var(--nav-item-fg); font-size: var(--font-size-md); font-weight: 500; text-decoration: none; }
+.au-navitem .au-icon { color: var(--fg-muted); }
+.au-navitem:hover:where(:not(:disabled, [aria-disabled="true"], .is-disabled)) { background: var(--nav-item-bg-hover); color: var(--nav-item-fg); }
+.au-navitem[aria-current="page"] { background: var(--nav-item-bg-active); color: var(--nav-item-fg-active); }
+.au-navitem[aria-current="page"] .au-icon { color: inherit; }
+/* A badge on the current item sits on the item's solid ground: give it the surface back so its tone still reads. */
+.au-navitem[aria-current="page"] .au-badge { background: var(--bg-surface); }
+/* NavItem */
+.au-navitem-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.au-navitem-meta { flex: none; font-feature-settings: "zero" 1, "cv05" 1, "cv08" 1; font-size: var(--font-size-sm); line-height: var(--line-height-sm); color: var(--fg-subtle); font-variant-numeric: tabular-nums; }
+.au-navitem[aria-current="page"] .au-navitem-meta { color: inherit; opacity: var(--opacity-muted); }

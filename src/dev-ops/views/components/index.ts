@@ -1,40 +1,98 @@
-import '../../client/focus-on-arrival.ts'
-import { Back } from './back/back.element.ts'
-import { CharCount } from './char-count/char-count.element.ts'
-import { ClientField } from './client-field/client-field.element.ts'
-import { ConfirmField } from './confirm-field/confirm-field.element.ts'
-import { ExpiryPicker } from './expiry-picker/expiry-picker.element.ts'
-import { ChoiceMenu } from './filter-menu/choice-menu.element.ts'
-import { FilterMenu } from './filter-menu/filter-menu.element.ts'
-import { FilterSwitch } from './filter-switch/filter-switch.element.ts'
-import { JsonViewer } from './json-viewer/json-viewer.element.ts'
-import { LoadMore } from './load-more/load-more.element.ts'
-import { PayloadEditor } from './payload-editor/payload-editor.element.ts'
-import { StateGraph } from './state-graph/state-graph.element.ts'
-import { StickyTop } from './sticky-top/sticky-top.element.ts'
-import { TabStrip } from './tab-strip/tab-strip.element.ts'
-import { ThemeToggle } from './theme-toggle/theme-toggle.element.ts'
-import { Modal } from './token-dialog/modal.element.ts'
-import { TokenDrawer } from './token-drawer/token-drawer.element.ts'
-import { TokenReveal } from './token-reveal/token-reveal.element.ts'
-import { TokenToast } from './token-toast/token-toast.element.ts'
+import { AuDialog } from './components/organisms/dialog/web-component.ts'
+import { AuDismiss } from './components/molecules/alert/web-component.ts'
+import { AuDropdown } from './components/molecules/dropdown/web-component.ts'
+import { AuErrorSummary } from './components/molecules/error-summary/web-component.ts'
+import { AuSegmented } from './components/molecules/segmented-control/web-component.ts'
+import { AuThemeToggle } from './components/molecules/theme-toggle/web-component.ts'
+import { AuToastRegion } from './components/molecules/toast-region/web-component.ts'
+import { AuToast } from './components/molecules/toast/web-component.ts'
+import { AuTooltip } from './components/atoms/tooltip/web-component.ts'
 
-customElements.define('do-back', Back)
-customElements.define('do-char-count', CharCount)
-customElements.define('do-choice-menu', ChoiceMenu)
-customElements.define('do-client-field', ClientField)
-customElements.define('do-confirm-field', ConfirmField)
-customElements.define('do-expiry-picker', ExpiryPicker)
-customElements.define('do-filter-menu', FilterMenu)
-customElements.define('do-filter-switch', FilterSwitch)
-customElements.define('do-json-viewer', JsonViewer)
-customElements.define('do-load-more', LoadMore)
-customElements.define('do-modal', Modal)
-customElements.define('do-payload-editor', PayloadEditor)
-customElements.define('do-state-graph', StateGraph)
-customElements.define('do-sticky-top', StickyTop)
-customElements.define('do-tab-strip', TabStrip)
-customElements.define('do-theme-toggle', ThemeToggle)
-customElements.define('do-token-drawer', TokenDrawer)
-customElements.define('do-token-reveal', TokenReveal)
-customElements.define('do-token-toast', TokenToast)
+/**
+ * Design system's custom elements: the behaviour the Nunjucks components need a script for, so a server-rendered
+ * page behaves fully. Every one enhances markup that already works without it. Import once per
+ * page; defining twice is harmless.
+ */
+const elements: [string, CustomElementConstructor][] = [
+  ['au-dialog', AuDialog],
+  ['au-dismiss', AuDismiss],
+  ['au-dropdown', AuDropdown],
+  ['au-error-summary', AuErrorSummary],
+  ['au-segmented', AuSegmented],
+  ['au-theme-toggle', AuThemeToggle],
+  ['au-toast-region', AuToastRegion],
+  ['au-toast', AuToast],
+  ['au-tooltip', AuTooltip]
+]
+
+for (const [name, element] of elements) {
+  if (!customElements.get(name)) customElements.define(name, element)
+}
+
+/**
+ * Behaviour on plain markup, not worth an element of its own:
+ * - checkboxes drawn half-ticked (`data-au-indeterminate`; HTML has no attribute for it);
+ * - an Alert with `focusOnArrival` takes focus when the page loads (the answer to what you just did);
+ * - a Field `count: { max }` follows its control as you type;
+ * - a Button with `loadingOnSubmit` shows its spinner and goes off once its form submits;
+ * - a Button with `disabledReason` does nothing when pressed.
+ */
+const upgrade = (root: ParentNode) => {
+  for (const input of root.querySelectorAll<HTMLInputElement>('input[data-au-indeterminate]')) input.indeterminate = true
+  const arrived = root.querySelector<HTMLElement>('[data-focus-on-arrival]')
+  if (arrived && root === document) {
+    arrived.focus({ preventScroll: true })
+    arrived.scrollIntoView?.({ block: 'nearest' })
+  }
+  for (const count of root.querySelectorAll<HTMLElement>('[data-au-count-for]')) {
+    const control = document.getElementById(count.dataset.auCountFor ?? '') as HTMLInputElement | HTMLTextAreaElement | null
+    if (control && 'value' in control) count.textContent = `${control.value.length} / ${count.dataset.max}`
+  }
+}
+
+document.addEventListener('input', (event) => {
+  const control = event.target as HTMLInputElement | HTMLTextAreaElement
+  if (!control.id || !('value' in control)) return
+  for (const count of document.querySelectorAll<HTMLElement>(`[data-au-count-for="${CSS.escape(control.id)}"]`)) count.textContent = `${control.value.length} / ${count.dataset.max}`
+})
+
+document.addEventListener('submit', (event) => {
+  const button = (event as SubmitEvent).submitter as HTMLButtonElement | null
+  if (!button?.hasAttribute('data-au-loading-on-submit')) return
+  // After the submit has gone (a later task), so the button's own name and value still go with the form.
+  window.setTimeout(() => {
+    if (event.defaultPrevented) return
+    button.setAttribute('aria-busy', 'true')
+    button.disabled = true
+    const spinner = document.createElement('span')
+    spinner.className = 'au-spinner au-spinner-sm'
+    spinner.setAttribute('aria-hidden', 'true')
+    spinner.dataset.auSubmitSpinner = ''
+    // The spinner takes the start icon's place.
+    const lead = button.firstElementChild
+    if (lead?.matches('svg.au-icon')) {
+      lead.setAttribute('hidden', '')
+      lead.setAttribute('data-au-submit-hidden', '')
+    }
+    button.prepend(spinner)
+  }, 0)
+})
+
+// Back to a page the browser kept (bfcache): the submit that set the button off never finished here.
+window.addEventListener('pageshow', (event) => {
+  if (!event.persisted) return
+  for (const button of document.querySelectorAll<HTMLButtonElement>('[data-au-loading-on-submit][aria-busy="true"]')) {
+    button.disabled = false
+    button.removeAttribute('aria-busy')
+    button.querySelector('[data-au-submit-spinner]')?.remove()
+    button.querySelector('[data-au-submit-hidden]')?.removeAttribute('hidden')
+  }
+})
+
+document.addEventListener('click', (event) => {
+  if ((event.target as Element).closest?.('[data-au-off]')) event.preventDefault()
+}, true)
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => upgrade(document))
+else upgrade(document)
+
+export { AuDialog, AuDismiss, AuDropdown, AuErrorSummary, AuSegmented, AuThemeToggle, AuToastRegion, AuToast, AuTooltip }

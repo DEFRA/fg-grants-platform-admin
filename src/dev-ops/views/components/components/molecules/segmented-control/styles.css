@@ -1,0 +1,16 @@
+.au-segmented { display: inline-flex; gap: var(--gap-inline-2xs); padding: var(--gap-inline-2xs); border-radius: var(--radius-md); background: var(--bg-hover); }
+.au-segmented button { display: inline-flex; align-items: center; justify-content: center; gap: var(--gap-inline-sm); height: var(--size-control-sm); padding: 0 var(--inset-control-sm); border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--fg-muted); font: inherit; font-size: var(--font-size-md); font-weight: 500; cursor: pointer; }
+.au-segmented-sm button { height: var(--size-control-xs); padding: 0 var(--inset-field-sm); font-size: var(--font-size-sm); letter-spacing: var(--tracking-sm); }
+.au-segmented button[aria-checked="true"] { background: var(--bg-surface-raised); color: var(--fg-default); box-shadow: var(--elevation-raised); }
+.au-segmented .au-count { margin-inline-start: 0; }
+/* SegmentedControl options drawn as links (server-rendered sections) */
+.au-segmented a { display: inline-flex; align-items: center; justify-content: center; text-align: center; gap: var(--gap-inline-sm); height: var(--size-control-sm); padding: 0 var(--inset-control-sm); border-radius: var(--radius-sm); color: var(--fg-muted); font-size: var(--font-size-md); font-weight: 500; text-decoration: none; }
+.au-segmented-sm a { height: var(--size-control-xs); padding: 0 var(--inset-field-sm); font-size: var(--font-size-sm); letter-spacing: var(--tracking-sm); }
+.au-segmented a[aria-checked="true"] { background: var(--bg-surface-raised); color: var(--fg-default); box-shadow: var(--elevation-raised); }
+
+/* ── Server-rendered markup: joined after every component's rules above (build.cjs) ── */
+/* SegmentedControl from radios */
+.au-segment { display: inline-flex; align-items: center; height: var(--size-control-sm); padding: 0 var(--inset-control-sm); border-radius: var(--radius-sm); color: var(--fg-muted); font-weight: 500; cursor: pointer; }
+.au-segment:has(:checked) { background: var(--bg-surface-raised); color: var(--fg-default); box-shadow: var(--elevation-raised); }
+.au-segment:has(:focus-visible) { outline: var(--focus-ring-width) solid var(--border-focus); outline-offset: var(--focus-ring-offset); }
+.au-segmented:has(.au-segment) { flex-wrap: wrap; }

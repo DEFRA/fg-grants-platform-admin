@@ -1,0 +1,5 @@
+{#- TopNav({ product, env, sections: [{ title, items: [{ id, text, href, icon, badge (html), current }] }], active, label ('Main'), switchLabel ('Sections'), search (html), userName, userEmail, accountItems, signOutHref, theme, themeCookie }) — the navigation across the top: the sections as a switch, then the current section's pages. -#}
+{% macro TopNav(p) -%}
+  {%- set __html %}{% include "./template.njk" %}{% endset -%}
+  {{- __html | trim | safe -}}
+{%- endmacro %}

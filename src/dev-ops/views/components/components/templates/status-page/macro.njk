@@ -1,0 +1,5 @@
+{#- StatusPage({ kind: not-found|no-access|error|offline|maintenance, title, text|html|caller, icon, code (false hides it), actions (html), reference }) — a whole-page message: not found, no access, an error. -#}
+{% macro StatusPage(p) -%}
+  {%- set __html %}{% include "./template.njk" %}{% endset -%}
+  {{- __html | trim | safe -}}
+{%- endmacro %}

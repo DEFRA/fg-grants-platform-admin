@@ -1,0 +1,5 @@
+{#- Form({ action, method (post), id, label, wide, novalidate (true), errors: [{ id, text }], errorTitle, enctype, csrf: { name, value }, hidden: [{ name, value }] }) caller = sections, rows, fields and formActions -#}
+{% macro Form(p) -%}
+  {%- set __html %}{% include "./template.njk" %}{% endset -%}
+  {{- __html | trim | safe -}}
+{%- endmacro %}

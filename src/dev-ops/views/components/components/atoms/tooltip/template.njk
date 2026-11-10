@@ -1,0 +1,7 @@
+{%- from "../../../core/macros.njk" import attrs -%}
+{%- if p.focusable -%}
+    {%- set tid = p.id or auId('tip') -%}
+    <au-tooltip text="{{ p.text }}"{% if p.side %} side="{{ p.side }}"{% endif %}{{ attrs(p) }}><span class="au-tooltip-trigger" tabindex="0" aria-describedby="{{ tid }}">{{ caller() }}</span><span class="au-vh" id="{{ tid }}">{{ p.text }}</span></au-tooltip>
+  {%- else -%}
+  <au-tooltip text="{{ p.text }}"{% if p.side %} side="{{ p.side }}"{% endif %}{{ attrs(p) }}>{{ caller() }}</au-tooltip>
+  {%- endif -%}

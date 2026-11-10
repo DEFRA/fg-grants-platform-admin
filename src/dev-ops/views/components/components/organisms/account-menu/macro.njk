@@ -1,0 +1,6 @@
+{#- AccountMenu({ name, email, signOutHref, theme, themeCookie, placement: top|bottom, compact, items: [{ text, href, icon, meta, testId, attributes }] })
+    — an item with attributes { 'data-au-open': '<dialog id>' } opens that dialog, and goes to its href without a script. -#}
+{% macro AccountMenu(p) -%}
+  {%- set __html %}{% include "./template.njk" %}{% endset -%}
+  {{- __html | trim | safe -}}
+{%- endmacro %}

@@ -1,0 +1,5 @@
+{#- HiddenField({ name, value, form }) — a value the form carries that nobody edits. -#}
+{% macro HiddenField(p) -%}
+  {%- set __html %}{% include "./template.njk" %}{% endset -%}
+  {{- __html | trim | safe -}}
+{%- endmacro %}
