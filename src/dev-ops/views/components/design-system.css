@@ -1875,6 +1875,18 @@ dialog.au-dialog-layer:not([open]) { display: none; }
   .au-range-presets { flex-direction: row; flex-wrap: wrap; padding-inline-end: 0; padding-bottom: var(--gap-stack-md); border-inline-end: 0; border-bottom: var(--border-width-hairline) solid var(--border-subtle); }
 }
 
+/* ── components/molecules/date-picker/styles.css ── */
+.au-datefield { justify-content: flex-start; font: inherit; text-align: start; cursor: pointer; }
+.au-datefield .au-select-value { flex: 1; min-width: 0; font-size: var(--font-size-md); line-height: var(--line-height-md); }
+.au-datefield[aria-expanded="true"] .au-select-chevron { transform: rotate(180deg); }
+/* ───────────── Typed dates, times, month view ───────────── */
+.au-datefield-typed { padding-inline-end: var(--inset-tag-xs); }
+.au-datefield-typed input { font-variant-numeric: tabular-nums; }
+.au-datefield-typed .au-dropdown { margin-inline-start: auto; }
+@supports (-webkit-touch-callout: none) {
+  .au-datefield-typed input { font-size: var(--font-size-lg); }
+}
+
 /* ── components/molecules/bulk-action-bar/styles.css ── */
 .au-bulkbar { position: sticky; top: 0; z-index: calc(var(--z-sticky) + 1); display: flex; flex-wrap: wrap; align-items: center; gap: var(--gap-inline-xl); min-height: var(--size-row); padding: var(--inset-card-head-y) var(--inset-card); border-bottom: var(--border-width-hairline) solid var(--table-divider); background: var(--bg-selected); }
 .au-bulkbar-count { font-size: var(--font-size-md); line-height: var(--line-height-md); font-weight: 600; font-variant-numeric: tabular-nums; }
@@ -1939,6 +1951,10 @@ dialog.au-dialog-layer:not([open]) { display: none; }
 .au-errorsummary:focus-visible { outline: var(--focus-ring-width) solid var(--border-focus); outline-offset: var(--focus-ring-offset); }
 .au-errorsummary-list { display: flex; flex-direction: column; gap: var(--gap-stack-xs); margin: var(--gap-stack-xs) 0 0; padding-inline-start: var(--inset-card); }
 .au-errorsummary-list .au-link { color: var(--fg-danger); }
+
+/* ── components/organisms/confirm-dialog/styles.css ── */
+/* ConfirmDialog's body is a form, so fields in it submit with Confirm; it takes no space of its own. */
+.au-confirm-form { display: contents; }
 
 /* ── components/templates/status-page/styles.css ── */
 :where(.au-statuspage-ref) .au-code-inline { color: var(--fg-muted); }

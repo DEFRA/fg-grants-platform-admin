@@ -1,0 +1,30 @@
+{% import "design-system/macros.njk" as au %}
+{% import "partials/access-tokens/forms.njk" as forms %}
+
+{#- New token: the client and its expiry. A client that already has active tokens is warned about once, on Issue; issuing again goes ahead. -#}
+{% macro newTokenDialog(d, prod) -%}
+  {%- call au.Dialog({ id: d.id, title: 'New token', size: 'md', open: d.open, resetOnOpen: true, closeHref: d.cancelHref, actions: forms.dialogActions(d, 'Issue token') }) -%}
+    {%- call au.Form({ id: d.formId, action: d.action, wide: true, label: 'New token', errors: d.errors, hidden: d.hidden }) -%}
+      {{ forms.prodNote(prod) }}
+      {{ forms.refusal(d.refusal) }}
+      {%- set hint = 'The calling service, usually its CDP name. Lowercase letters, digits and hyphens.' -%}
+      {%- call au.Field({ id: d.client.id, label: 'Client ID', hint: hint, error: d.client.error, warning: d.client.warning }) -%}
+        {{ au.Input({ id: d.client.id, name: 'clientId', value: d.client.value, mono: true, placeholder: 'grants-ui', autocomplete: 'off', invalid: d.client.error, describedBy: au.describedBy({ id: d.client.id, hint: hint, error: d.client.error, warning: d.client.warning }) }) }}
+      {%- endcall -%}
+      {{ forms.expiryChoices(d.expiry) }}
+    {%- endcall -%}
+  {%- endcall -%}
+{%- endmacro %}
+
+{#- The one time a token's value is shown: in the answer to the POST that issued it. -#}
+{% macro issuedDialog(r) -%}
+  {%- set done = au.Button({ text: 'Done', variant: 'primary', href: r.doneHref, testId: 'token-issued-done' }) -%}
+  {%- call au.Dialog({ id: r.id, title: 'Token issued', size: 'md', open: true, dismissible: false, actions: done }) -%}
+    {%- call au.Stack({ gap: 'lg' }) -%}
+      {{ au.Alert({ tone: 'warning', title: 'Copy it now.', text: 'This is the only time the token is shown. Only its hash is stored.' }) }}
+      {%- call au.Field({ id: 'token-issued-value', label: 'Token for ' ~ r.clientId }) -%}
+        {{ au.Input({ id: 'token-issued-value', value: r.raw, mono: true, readonly: true, autocomplete: 'off', suffixHtml: au.CopyButton({ value: r.raw }) }) }}
+      {%- endcall -%}
+    {%- endcall -%}
+  {%- endcall -%}
+{%- endmacro %}

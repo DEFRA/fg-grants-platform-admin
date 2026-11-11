@@ -1,0 +1,7 @@
+{#- ConfirmDialog({ id, title, text|html|caller, tone: danger, size (sm), confirmLabel ('Confirm'), cancelLabel ('Cancel'), cancelHref (where Cancel goes without a script), requireText, requireTextName ('confirmText'), requireTextValue (what was typed, handed back), requireTextError (the server's answer: "That doesn't match."), resetOnOpen, action, method (post), csrf: { name, value }, hidden: [{ name, value }], open, attributes, classes })
+    — "are you sure?". The body is a form, so fields in it (a reason, a note) submit with Confirm. With requireText the typed field submits as requireTextName: check it on the server.
+    The script keeps Confirm off until the text is typed; without one Confirm stays on and the server is the check. -#}
+{% macro ConfirmDialog(p) -%}
+  {%- set __html %}{% include "./template.njk" %}{% endset -%}
+  {{- __html | trim | safe -}}
+{%- endmacro %}

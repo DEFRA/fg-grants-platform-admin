@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import type nunjucks from 'nunjucks'
-import { calendarMonth, formatRange } from './core/dates.ts'
+import { calendarMonth, formatDate, formatRange } from './core/dates.ts'
 import { diffLines } from './core/diff.ts'
 
 export { calendarMonth, formatDate, formatRange, parseDate } from './core/dates.ts'
@@ -46,6 +46,7 @@ export const addDesignSystem = (environment: nunjucks.Environment) => {
   environment.addGlobal('auIconName', iconName)
   environment.addGlobal('auId', nextId)
   environment.addGlobal('auDiff', diffLines)
+  environment.addGlobal('auFormatDate', formatDate)
   environment.addGlobal('auFormatRange', formatRange)
   environment.addGlobal('auCalendarMonth', calendarMonth)
   return environment

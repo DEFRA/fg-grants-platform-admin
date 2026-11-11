@@ -1,8 +1,10 @@
 import { AuAccordion } from './components/molecules/accordion/web-component.ts'
 import { AuCalendar } from './components/molecules/calendar/web-component.ts'
 import { AuClearable } from './components/atoms/input/web-component.ts'
+import { AuConfirm } from './components/organisms/confirm-dialog/web-component.ts'
 import { AuCopy } from './components/molecules/copy-button/web-component.ts'
 import { AuDataTable } from './components/organisms/data-table/web-component.ts'
+import { AuDatePicker } from './components/molecules/date-picker/web-component.ts'
 import { AuDateRangeChip } from './components/molecules/date-range-chip/web-component.ts'
 import { AuDialog } from './components/organisms/dialog/web-component.ts'
 import { AuDisclosure } from './components/molecules/disclosure/web-component.ts'
@@ -30,8 +32,10 @@ const elements: [string, CustomElementConstructor][] = [
   ['au-accordion', AuAccordion],
   ['au-calendar', AuCalendar],
   ['au-clearable', AuClearable],
+  ['au-confirm', AuConfirm],
   ['au-copy', AuCopy],
   ['au-data-table', AuDataTable],
+  ['au-date-picker', AuDatePicker],
   ['au-date-range-chip', AuDateRangeChip],
   ['au-dialog', AuDialog],
   ['au-disclosure', AuDisclosure],
@@ -121,4 +125,4 @@ document.addEventListener('click', (event) => {
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => upgrade(document))
 else upgrade(document)
 
-export { AuAccordion, AuCalendar, AuClearable, AuCopy, AuDataTable, AuDateRangeChip, AuDialog, AuDisclosure, AuDismiss, AuDropdown, AuErrorSummary, AuListPage, AuLoadMore, AuPopover, AuSearchKind, AuSegmented, AuStateMap, AuTabs, AuThemeToggle, AuToastRegion, AuToast, AuTooltip }
+export { AuAccordion, AuCalendar, AuClearable, AuConfirm, AuCopy, AuDataTable, AuDatePicker, AuDateRangeChip, AuDialog, AuDisclosure, AuDismiss, AuDropdown, AuErrorSummary, AuListPage, AuLoadMore, AuPopover, AuSearchKind, AuSegmented, AuStateMap, AuTabs, AuThemeToggle, AuToastRegion, AuToast, AuTooltip }
