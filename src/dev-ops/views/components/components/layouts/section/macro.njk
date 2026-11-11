@@ -1,0 +1,5 @@
+{#- Section({ title, description, actions, headingLevel, id }) caller -#}
+{% macro Section(p) -%}
+  {%- set __html %}{% include "./template.njk" %}{% endset -%}
+  {{- __html | trim | safe -}}
+{%- endmacro %}

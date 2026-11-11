@@ -1,0 +1,150 @@
+{% import "design-system/macros.njk" as au %}
+{#- What an application's and a case's pages draw alike: the alert, the Overview's cards, and the Events and Raw tabs. -#}
+
+{#- A stored time: a `<time>` for an instant, as stored for anything else, the sign for a missing value for none. -#}
+{% macro recordTime(time) -%}
+  {%- if not time -%}{{ au.NoValue() }}
+  {%- elif time.datetime -%}{{ au.Time({ datetime: time.datetime, text: time.text, title: time.title }) }}
+  {%- else -%}{{ time.text }}{%- endif -%}
+{%- endmacro %}
+
+{% macro recordAlert(alert) -%}
+  {%- set actions = au.Button({ text: alert.action.text, size: 'sm', iconEnd: 'arrow-right', href: alert.action.href }) if alert.action else '' -%}
+  {{ au.Alert({ tone: 'info', title: alert.title, text: alert.text, actions: actions, testId: 'record-alert' }) }}
+{%- endmacro %}
+
+{#- A tab with nothing to show: why it failed, with Try again, or that the source sent nothing. -#}
+{% macro tabNotice(notice) -%}
+  {%- if notice.kind == 'error' -%}
+    {{ au.Alert({ tone: 'danger', title: notice.error.title, text: notice.error.text, testId: 'record-tab-error',
+      actions: au.Button({ text: 'Try again', size: 'sm', iconStart: 'refresh-cw', href: notice.error.retryHref }) }) }}
+  {%- else -%}
+    {{ au.Alert({ tone: 'info', title: notice.title, testId: 'record-tab-nothing' }) }}
+  {%- endif -%}
+{%- endmacro %}
+
+{#- Where the record is: the phases as steps and its stage; without the phases to place it in, the facts alone. -#}
+{% macro whereCard(title, where) -%}
+  {%- if where.kind == 'stepper' -%}
+    {%- call au.Card({ padded: true, title: title, testId: 'record-where' }) -%}
+      {%- call au.Stack({ gap: 'xl' }) -%}
+        {{ au.Stepper({ label: 'Phase', steps: where.steps, current: where.current }) }}
+        {%- call au.FactsList() -%}{{ au.Fact({ label: 'Stage', text: where.stage }) }}{%- endcall -%}
+      {%- endcall -%}
+    {%- endcall -%}
+  {%- else -%}
+    {{ au.FactsCard({ title: title, facts: where.facts, testId: 'record-where' }) }}
+  {%- endif -%}
+{%- endmacro %}
+
+{#- The other service's record: a way to open it, or why there's none. -#}
+{% macro counterpartCard(card) -%}
+  {%- call au.Card({ title: card.title, testId: 'record-counterpart' }) -%}
+    {%- if card.kind == 'link' -%}
+      {%- call au.CardBody() -%}
+        {%- call au.Inline({ between: true }) -%}
+          {{ au.Text({ text: card.text }) }}
+          {{ au.Button({ text: card.button.text, size: 'sm', iconEnd: 'arrow-right', href: card.button.href }) }}
+        {%- endcall -%}
+      {%- endcall -%}
+    {%- else -%}
+      {%- set actions = au.Button({ text: card.button.text, size: 'sm', href: card.button.href }) if card.button else '' -%}
+      {{ au.EmptyState({ compact: true, icon: card.empty.icon, title: card.empty.title, text: card.empty.text, actions: actions }) }}
+    {%- endif -%}
+  {%- endcall -%}
+{%- endmacro %}
+
+{#- Records that replace one another, oldest first. Rows don't open: the references are the links. -#}
+{% macro seriesSection(series) -%}
+  {%- set columns = [{ key: 'ref', label: 'Reference', width: 'auto' }] -%}
+  {%- if series.detailed -%}
+    {%- set columns = (columns.push({ key: 'created', label: 'Created', width: 'max-content', align: 'right' }), columns) -%}
+    {%- if series.showClosed %}{% set columns = (columns.push({ key: 'closed', label: 'Closed', width: 'max-content', align: 'right' }), columns) %}{% endif -%}
+  {%- endif -%}
+  {%- call au.Section({ title: 'Series', description: series.description, testId: 'record-series' }) -%}
+    {%- call au.DataTable({ styleNonce: styleNonce, label: 'Series', columns: columns }) -%}
+      {%- for row in series.rows -%}
+        {%- call au.TableRow({ selected: row.current }) -%}
+          <td role="cell">
+            {%- call au.Inline({ gap: 'sm', wrap: false }) -%}
+              {%- if row.current -%}
+                {{ au.Text({ text: row.ref, mono: true, variant: 'label-md' }) }}
+                {{ au.Badge({ text: 'Viewing', size: 'sm', tone: 'info', variant: 'outline' }) }}
+              {%- else -%}
+                {{ au.Link({ href: row.href, html: au.Text({ text: row.ref, mono: true, tone: 'link' }) }) }}
+                {%- if row.replaced %}{{ au.Badge({ text: 'Replaced', size: 'sm' }) }}{% endif -%}
+              {%- endif -%}
+            {%- endcall -%}
+          </td>
+          {%- if series.detailed -%}
+            <td role="cell" class="au-right">{{ recordTime(row.created) }}</td>
+            {%- if series.showClosed -%}
+              <td role="cell" class="au-right">{% if row.closed or not row.known %}{{ recordTime(row.closed) }}{% else %}{{ au.Text({ text: 'Still open', tone: 'subtle' }) }}{% endif %}</td>
+            {%- endif -%}
+          {%- endif -%}
+        {%- endcall -%}
+      {%- endfor -%}
+    {%- endcall -%}
+  {%- endcall -%}
+{%- endmacro %}
+
+{#- The grant version a record is on: a link to it, or the code alone. -#}
+{% macro versionFact(version) -%}
+  {%- if version.href -%}
+    {{ au.Link({ href: version.href, html: au.Text({ text: version.text, mono: true, tone: 'link' }) }) }}
+  {%- else -%}
+    {{ au.Text({ text: version.text, tone: 'subtle' }) }}
+  {%- endif -%}
+{%- endmacro %}
+
+{#- Every event either service holds for the record, newest first. -#}
+{% macro eventsTab(events) -%}
+  {%- if events.kind == 'table' -%}
+    {%- call au.Stack({ gap: 'lg' }) -%}
+      {%- if events.unavailable -%}
+        {{ au.Alert({ tone: 'warning', title: 'Some event sources are unavailable: ' + events.unavailable + '.', text: 'Showing the rest.', testId: 'record-events-partial' }) }}
+      {%- endif -%}
+      {%- call au.DataTable({
+        styleNonce: styleNonce,
+        label: 'Events',
+        link: true,
+        testId: 'record-events',
+        empty: events.empty if not events.rows.length,
+        after: au.ListFooter({ state: 'end', text: events.more }) if events.more,
+        columns: [
+          { key: 'type', label: 'Event', width: 'auto' },
+          { key: 'queue', label: 'Queue', width: 'auto' },
+          { key: 'status', label: 'Status', width: 'auto' },
+          { key: 'created', label: 'Created', width: 'max-content', align: 'right' }
+        ]
+      }) -%}
+        {%- for row in events.rows -%}
+          {%- call au.TableRow({ link: true }) -%}
+            <td role="cell">{{ au.RowLink({ text: row.type, href: row.href }) }}</td>
+            <td role="cell">{{ row.queue }}</td>
+            <td role="cell">{{ au.StatusDot({ text: row.status.text, tone: row.status.tone }) }}</td>
+            <td role="cell" class="au-right">{{ recordTime(row.created) }}</td>
+            {{ au.RowChevron() }}
+          {%- endcall -%}
+        {%- endfor -%}
+      {%- endcall -%}
+    {%- endcall -%}
+  {%- else -%}
+    {{ tabNotice(events) }}
+  {%- endif -%}
+{%- endmacro %}
+
+{#- The document as stored, or why it isn't shown. -#}
+{% macro rawTab(raw) -%}
+  {%- if raw.kind == 'document' -%}
+    {%- call au.Card({ title: 'Stored document', actions: au.CopyButton({ value: raw.json, text: 'Copy' }), testId: 'record-raw' }) -%}
+      {{ au.Code({ block: true, code: raw.json, label: 'Stored document' }) }}
+    {%- endcall -%}
+  {%- elif raw.kind == 'too-large' -%}
+    {%- call au.Card({ testId: 'record-raw' }) -%}
+      {{ au.EmptyState({ icon: 'file-exclamation-point', title: 'Too large to show', text: raw.text }) }}
+    {%- endcall -%}
+  {%- else -%}
+    {{ tabNotice(raw) }}
+  {%- endif -%}
+{%- endmacro %}
