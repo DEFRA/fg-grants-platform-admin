@@ -1,0 +1,10 @@
+{% import "design-system/macros.njk" as au %}
+
+{#- The Details row for the event the version arrived as. -#}
+{% macro eventFact(event) -%}
+  {%- if event.kind == 'held' -%}
+    {{ au.Link({ html: au.Text({ text: event.eventId, mono: true, tone: 'link' }), href: event.href, testId: 'version-event' }) }}
+  {%- else -%}
+    {{ au.Text({ text: event.text, tone: 'subtle', testId: 'version-event' }) }}
+  {%- endif -%}
+{%- endmacro %}

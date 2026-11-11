@@ -1,0 +1,105 @@
+{% import "design-system/macros.njk" as au %}
+{% from "workflow/pages-call.njk" import serviceLine %}
+{% from "version/words.njk" import words %}
+
+{%- macro trigger(item) -%}
+  {%- call au.Inline({ gap: 'xs', align: 'center' }) -%}
+    {%- if item.kind == 'button' -%}
+      {{ au.Text({ text: 'Caseworker presses' }) }}{{ au.Badge({ text: item.label, size: 'sm', variant: 'outline' }) }}{{ au.Text({ text: 'in the case banner' }) }}
+    {%- else -%}
+      {%- set after -%}
+        tab.{% if item.customLink %} Its link in the case view goes to {% if item.customLink.address %}{{ au.Code({ text: item.customLink.address }) }}{% else %}an address worked out from the case{% endif %}.{% endif %}
+      {%- endset -%}
+      {{ au.Text({ text: 'Every time a caseworker opens the' }) }}{{ au.Badge({ text: item.label, size: 'sm', variant: 'outline' }) }}{{ au.Text({ html: after }) }}
+    {%- endif -%}
+  {%- endcall -%}
+{%- endmacro -%}
+
+{%- macro sendValue(send) -%}
+  {%- if send.source == 'computed' -%}
+    {%- call au.Stack({ gap: '2xs' }) -%}
+      {{ au.Badge({ text: 'computed', size: 'sm', tone: 'info' }) }}
+      {%- call au.Disclosure({ text: 'Show expression', hideText: 'Hide expression' }) -%}
+        {{ au.Code({ block: true, framed: true, lineNumbers: false, code: send.text, label: 'Expression' }) }}
+      {%- endcall -%}
+    {%- endcall -%}
+  {%- else -%}
+    {%- call au.Inline({ gap: 'xs' }) -%}
+      {{ au.Text({ text: send.text, mono: true }) }}{{ au.Text({ text: 'fixed' if send.source == 'fixed' else 'from case', tone: 'subtle' }) }}
+    {%- endcall -%}
+  {%- endif -%}
+{%- endmacro -%}
+
+{%- if integrations.cards | length -%}
+  {%- call au.Accordion({ framed: true, testId: 'workflow-integrations' }) -%}
+    {%- for card in integrations.cards -%}
+      {%- call au.AccordionItem({
+        title: card.name,
+        open: loop.first,
+        leading: au.StatusMark({ tone: 'warning', label: 'Has a problem' }) if card.problems | length,
+        metaHtml: au.Badge({ text: 'API only', size: 'sm' }) if card.apiOnly,
+        testId: 'workflow-integration'
+      }) -%}
+        {%- call au.Stack({ gap: 'lg' }) -%}
+          {%- if card.description %}{{ au.Text({ text: card.description }) }}{% endif -%}
+          {%- for problem in card.problems %}{{ au.Alert({ tone: 'warning', title: problem, testId: 'workflow-integration-problem' }) }}{% endfor -%}
+
+          {%- set triggers -%}
+            {%- if card.triggers | length -%}
+              {%- call au.Stack({ gap: 'xs' }) -%}{%- for item in card.triggers %}{{ trigger(item) }}{% endfor -%}{%- endcall -%}
+            {%- else -%}
+              {{ au.Text({ text: 'No button or tab runs this in the case view. CW’s page-action API can still run it.' if card.apiOnly else 'Nothing runs this: CW runs only the first action with this code.', tone: 'subtle' }) }}
+            {%- endif -%}
+          {%- endset -%}
+          {%- set calls -%}
+            {%- if card.call -%}
+              {%- call au.Stack({ gap: '2xs' }) -%}
+                {%- call au.Inline({ gap: 'xs' }) -%}{{ au.Badge({ text: card.call.method, size: 'sm', mono: true }) }}{{ au.Text({ text: card.call.url, mono: true }) }}{%- endcall -%}
+                {%- set line %}{{ serviceLine(card.call, environmentLabel) }}, endpoint {{ au.Code({ text: card.call.endpoint }) }}{% endset -%}
+                {{ au.Text({ html: line, tone: 'subtle' if card.call.hasUrl else 'warning' }) }}
+              {%- endcall -%}
+            {%- else -%}
+              {{ au.NoValue() }}
+            {%- endif -%}
+          {%- endset -%}
+          {%- set writes -%}
+            {%- if card.writes | length -%}
+              {%- call au.Stack({ gap: 'xs' }) -%}{%- for line in card.writes %}{{ au.Text({ html: words(line) }) }}{% endfor -%}{%- endcall -%}
+            {%- else -%}
+              {{ au.Text({ text: 'Nothing', tone: 'subtle' }) }}
+            {%- endif -%}
+          {%- endset -%}
+          {%- call au.FactsList() -%}
+            {{ au.Fact({ label: 'Trigger', html: triggers }) }}
+            {{ au.Fact({ label: 'Calls', html: calls }) }}
+            {{ au.Fact({ label: 'Writes', html: writes }) }}
+          {%- endcall -%}
+
+          {%- if card.sends | length -%}
+            {%- call au.DataTable({ styleNonce: styleNonce, label: card.name ~ ': what it sends', columns: [
+              { key: 'kind', label: 'Sends as', width: 'minmax(80px, 0.5fr)' },
+              { key: 'name', label: 'Name', width: 'minmax(120px, 0.8fr)', mono: true },
+              { key: 'text', label: 'Value', width: 'minmax(260px, 2.4fr)' }
+            ] }) -%}
+              {%- for send in card.sends -%}
+                {%- call au.TableRow({ testId: 'workflow-integration-send' }) -%}
+                  <td role="cell">{{ au.Badge({ text: send.kind, size: 'sm', variant: 'outline' }) }}</td>
+                  <td role="cell" class="au-cell-mono">{{ send.name }}</td>
+                  <td role="cell">{{ sendValue(send) }}</td>
+                {%- endcall -%}
+              {%- endfor -%}
+            {%- endcall -%}
+          {%- endif -%}
+          {%- if card.headersService -%}
+            {%- set note %}Headers set in CW’s {{ au.Code({ text: card.headersService ~ '_HEADERS' }) }} replace same-named ones.{% endset -%}
+            {{ au.Text({ html: note, tone: 'muted' }) }}
+          {%- endif -%}
+        {%- endcall -%}
+      {%- endcall -%}
+    {%- endfor -%}
+  {%- endcall -%}
+{%- else -%}
+  {%- call au.Card({ testId: 'workflow-integrations-none' }) -%}
+    {{ au.EmptyState({ icon: 'plug', title: 'No integrations', text: 'This workflow version defines no actions that call another service.' }) }}
+  {%- endcall -%}
+{%- endif -%}

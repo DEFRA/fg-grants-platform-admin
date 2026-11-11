@@ -1,0 +1,35 @@
+{%- if taskGroups | length -%}
+  {%- call au.Accordion({ framed: true, testId: 'workflow-tasks' }) -%}
+    {%- for group in taskGroups -%}
+      {%- call au.AccordionItem({ title: group.name, open: loop.first, id: group.anchor, testId: 'workflow-task-group' }) -%}
+        {%- call au.Stack({ gap: 'lg' }) -%}
+          {%- call au.FactsList() -%}
+            {{ au.Fact({ label: 'Stage', text: group.stageName }) }}
+            {{ au.Fact({ label: 'Completes with', text: group.completesWith | join(', ') }) }}
+          {%- endcall -%}
+          {%- call au.DataTable({ styleNonce: styleNonce, label: group.name ~ ' tasks', columns: [
+            { key: 'name', label: 'Task', width: 'auto' },
+            { key: 'mandatory', label: 'Required', width: 'auto' },
+            { key: 'answers', label: 'Answers', width: 'auto' }
+          ] }) -%}
+            {%- for task in group.tasks -%}
+              {%- call au.TableRow({ testId: 'workflow-task' }) -%}
+                <td role="cell">{{ task.name }}</td>
+                <td role="cell">{% if task.mandatory %}{{ au.Text({ text: 'Yes' }) }}{% else %}{{ au.Text({ text: 'No', tone: 'subtle' }) }}{% endif %}</td>
+                <td role="cell">
+                  {%- call au.Inline({ gap: 'xs' }) -%}
+                    {%- for answer in task.answers %}{{ au.Badge({ text: answer, size: 'sm', variant: 'outline' }) }}{% endfor -%}
+                  {%- endcall -%}
+                </td>
+              {%- endcall -%}
+            {%- endfor -%}
+          {%- endcall -%}
+        {%- endcall -%}
+      {%- endcall -%}
+    {%- endfor -%}
+  {%- endcall -%}
+{%- else -%}
+  {%- call au.Card({ testId: 'workflow-tasks-none' }) -%}
+    {{ au.EmptyState({ icon: 'list-checks', title: 'No tasks', text: 'This workflow version defines no task groups, so caseworkers have nothing to complete.' }) }}
+  {%- endcall -%}
+{%- endif -%}

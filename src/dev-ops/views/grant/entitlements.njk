@@ -1,0 +1,128 @@
+{% from "version/words.njk" import words %}
+
+{%- set onSubmitTexts = {
+  'waits-for-approval': 'On submit: Waits for approval',
+  'requests-payment': 'On submit: Requests payment',
+  'no-payment-file': 'On submit: No payment file'
+} -%}
+
+{%- macro yesNo(value) -%}{% if value %}Yes{% else %}No{% endif %}{%- endmacro -%}
+
+{%- macro positions(chips) -%}
+  {%- if chips | length -%}
+    {%- for chip in chips -%}
+      {{ ', ' if not loop.first }}{{ au.Link({ text: chip.label, href: chip.href, title: chip.code }) }}{% if chip.any %} {{ au.Text({ text: 'any status' if chip.any == 'status' else 'any stage, any status', tone: 'subtle' }) }}{% endif %}
+    {%- endfor -%}
+  {%- else -%}{{ au.NoValue() }}{%- endif -%}
+{%- endmacro -%}
+
+{%- macro roleLines(roles) -%}
+  {%- call au.Stack({ gap: 'xs' }) -%}
+    {%- if roles.allOf | length -%}{% set line %}All of: {% for role in roles.allOf %}{{ ', ' if not loop.first }}{{ au.Code({ text: role }) }}{% endfor %}{% endset %}{{ au.Text({ html: line }) }}{%- endif -%}
+    {%- if roles.anyOf | length -%}{% set line %}Any of: {% for role in roles.anyOf %}{{ ', ' if not loop.first }}{{ au.Code({ text: role }) }}{% endfor %}{% endset %}{{ au.Text({ html: line }) }}{%- endif -%}
+  {%- endcall -%}
+{%- endmacro -%}
+
+{%- macro warning(template, item) -%}
+  {%- if item.kind == 'no-claimable-at' -%}
+    {#- The error code GAS answers with, which nothing names. -#}
+    {# au-lint-disable-next-line code-in-text #}
+    {%- set text %}Its claim rules list no “Claimable at” status, so GAS rejects every claim ({{ au.Code({ text: 'WRONG_POSITION' }) }}). Publish a version that sets {{ au.Code({ text: 'claim.claimableAt' }) }}.{% endset -%}
+    {{ au.Alert({ tone: 'danger', title: template.name ~ ' can’t be claimed.', html: text, testId: 'entitlements-problem' }) }}
+  {%- elif item.kind == 'materialised-claim' -%}
+    {{ au.Alert({ tone: 'warning', title: template.name ~ ' can’t be claimed.', text: 'It is materialised, which GAS doesn’t derive yet, so its claim rules never apply.', testId: 'entitlements-problem' }) }}
+  {%- else -%}
+    {%- set text %}Claim payments can only read {{ au.Code({ text: '$.claim' }) }} and {{ au.Code({ text: '$.execution' }) }}, but the {{ au.Link({ text: 'payment definition', href: item.paymentHref }) }} reads {{ au.Code({ text: '$.agreement' }) }}, so those fields resolve empty and GAS refuses the payment.{% endset -%}
+    {{ au.Alert({ tone: 'warning', title: 'Claim payments for ' ~ template.name ~ ' fail.', html: text, testId: 'entitlements-problem' }) }}
+  {%- endif -%}
+{%- endmacro -%}
+
+{%- if entitlements.nothing -%}
+  {%- call au.Card() -%}
+    {{ au.EmptyState({ icon: 'ticket', title: 'No entitlement templates', text: 'No entitlement templates in this version, so nothing can be claimed on it.', testId: 'entitlements-none' }) }}
+  {%- endcall -%}
+{%- else -%}
+  {%- set claims = entitlements.claims -%}
+  {%- set afterLast -%}
+    {%- if claims.move -%}
+      {%- call au.Inline({ gap: 'xs' }) -%}
+        {{ au.Link({ text: claims.move.from.label, href: claims.move.from.href, title: claims.move.from.code }) }}{{ au.Icon({ name: 'arrow-right', size: 'sm', label: 'moves to', classes: 'au-dir-icon' }) }}{{ au.Link({ text: claims.move.to.label, href: claims.move.to.href, title: claims.move.to.code }) }}
+      {%- endcall -%}
+    {%- endif -%}
+  {%- endset -%}
+  {{ au.FactsCard({ title: 'Claims (all templates)', testId: 'entitlements-claims', facts: [
+    { label: 'After the last claim', html: afterLast if claims.move },
+    { label: 'Payment definition', text: 'Payment definition' if claims.paymentHref, href: claims.paymentHref },
+    { label: 'Claim roles', html: roleLines(claims.roles) if claims.roles else 'Any operator' }
+  ] }) }}
+
+  {%- call au.Accordion({ framed: true, testId: 'entitlements-templates' }) -%}
+    {%- for template in entitlements.templates -%}
+      {%- set cantClaim = template.onSubmit.kind == 'cant-claim' -%}
+      {%- set meta -%}
+        {%- if cantClaim -%}{{ au.Badge({ text: 'Can’t be claimed', tone: 'danger', size: 'sm' }) }}
+        {%- else -%}{{ au.Badge({ text: onSubmitTexts[template.onSubmit.kind], tone: 'warning' if template.onSubmit.kind == 'no-payment-file' else 'neutral', size: 'sm' }) }}{%- endif -%}
+      {%- endset -%}
+      {%- call au.AccordionItem({
+        title: template.name,
+        leading: au.StatusMark({ tone: 'warning', label: 'Can’t be claimed' }) if cantClaim,
+        metaHtml: meta,
+        open: loop.first,
+        testId: 'entitlements-template'
+      }) -%}
+        {%- call au.Stack({ gap: 'lg' }) -%}
+          {%- if template.description %}{{ au.Text({ text: template.description, tone: 'muted' }) }}{% endif -%}
+          {%- for item in template.warnings %}{{ warning(template, item) }}{% endfor -%}
+          {%- call au.Grid({ columns: 2, gap: 'xl' }) -%}
+            {%- call au.Section({ title: 'How it’s created', headingLevel: 4 }) -%}
+              {%- call au.FactsList() -%}
+                {{ au.Fact({ label: 'Created by', text: 'Materialised: projected from the application’s position and past claims, which GAS doesn’t derive yet' if template.materialised else 'An operator (claimable item)' }) }}
+                {{ au.Fact({ label: 'Max per application', text: template.maxEntitlements | string }) }}
+                {{ au.Fact({ label: 'Can be created at', html: positions(template.availableAt) }) }}
+              {%- endcall -%}
+            {%- endcall -%}
+            {%- call au.Section({ title: 'Claiming', headingLevel: 4 }) -%}
+              {%- set claim = template.claim -%}
+              {%- call au.FactsList() -%}
+                {{ au.Fact({ label: 'Claimable at', html: positions(claim.claimableAt) if claim }) }}
+                {{ au.Fact({ label: 'Max claims', text: (claim.maximumClaims ~ ' per entitlement') if claim }) }}
+                {{ au.Fact({ label: 'Partial', text: yesNo(claim.partial) if claim }) }}
+                {{ au.Fact({ label: 'Approval', text: yesNo(claim.approval) if claim }) }}
+                {{ au.Fact({ label: 'Evidence', text: yesNo(claim.evidence) if claim }) }}
+              {%- endcall -%}
+            {%- endcall -%}
+          {%- endcall -%}
+          {%- if template.fields | length -%}
+            {%- call au.DataTable({ styleNonce: styleNonce, label: template.name ~ ' fields', columns: [
+              { key: 'field', label: 'Field', width: 'minmax(140px, 1fr)', mono: true },
+              { key: 'source', label: 'Source', width: 'minmax(120px, 0.8fr)' },
+              { key: 'value', label: 'Label or value', width: 'minmax(180px, 1.4fr)' },
+              { key: 'unit', label: 'Unit', width: 'minmax(70px, 0.5fr)' },
+              { key: 'bounds', label: 'Bounds', width: 'minmax(110px, 0.7fr)' }
+            ] }) -%}
+              {%- for field in template.fields -%}
+                {%- call au.TableRow({ testId: 'entitlements-field' }) -%}
+                  <td role="cell" class="au-cell-mono">{{ field.name }}</td>
+                  <td role="cell">{{ field.source }}</td>
+                  <td role="cell">{% if field.text %}{{ au.Text({ text: field.text, mono: field.text.startsWith('$') }) }}{% else %}{{ au.NoValue() }}{% endif %}</td>
+                  <td role="cell">{{ field.unit }}</td>
+                  <td role="cell">{% if field.bounds | length %}{{ field.bounds | join(', ') }}{% else %}{{ au.NoValue() }}{% endif %}</td>
+                {%- endcall -%}
+              {%- endfor -%}
+            {%- endcall -%}
+          {%- endif -%}
+          {%- if template.help -%}
+            {%- call au.Disclosure({ text: 'Help: ' ~ template.help.summary, hideText: 'Hide help', testId: 'entitlements-help' }) -%}
+              {%- call au.Stack({ gap: 'sm' }) -%}
+                {%- for block in template.help.content -%}
+                  {%- if block.text %}{{ au.Text({ text: block.text, as: 'p' }) }}
+                  {%- else %}{% for item in block.items %}{{ au.Text({ text: item, as: 'p' }) }}{% endfor %}{% endif -%}
+                {%- endfor -%}
+              {%- endcall -%}
+            {%- endcall -%}
+          {%- endif -%}
+        {%- endcall -%}
+      {%- endcall -%}
+    {%- endfor -%}
+  {%- endcall -%}
+{%- endif -%}

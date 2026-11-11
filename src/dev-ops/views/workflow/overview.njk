@@ -1,0 +1,27 @@
+{% from "version/event.njk" import eventFact %}
+{% from "version/files.njk" import versionFiles with context %}
+{% from "version/words.njk" import words %}
+
+{%- set receivedHtml %}{% if received %}{{ au.Time(received) }}{% endif %}{% endset -%}
+{%- set grantHtml -%}
+  {%- if details.grant.kind == 'link' -%}
+    {{ au.Link({ html: au.Text({ text: details.grant.text, mono: true, tone: 'link' }), href: details.grant.href, testId: 'workflow-grant' }) }}
+  {%- else -%}
+    {{ au.Text({ text: details.grant.text, tone: 'subtle', testId: 'workflow-grant' }) }}
+  {%- endif -%}
+{%- endset -%}
+{%- set rolesHtml -%}
+  {%- if details.roles -%}
+    {%- call au.Stack({ gap: 'xs', testId: 'workflow-roles' }) -%}
+      {%- for line in details.roles %}{{ au.Text({ html: words(line) }) }}{% endfor -%}
+    {%- endcall -%}
+  {%- endif -%}
+{%- endset -%}
+{{ au.FactsCard({ title: 'Details', testId: 'version-details', facts: [
+  { label: 'Grant', html: grantHtml },
+  { label: 'Who can work cases', html: rolesHtml if details.roles },
+  { label: 'Received', html: receivedHtml if received },
+  { label: 'Event', html: eventFact(details.event) }
+] }) }}
+
+{{ versionFiles(files) }}

@@ -1,0 +1,8 @@
+{#- StateMap({ label ('States'), name, form, submit, panels (id), selected (id), legend: [{ kind, label }], phases: [{ id, label, meta, stages: [{ id, label, states: [{ id, label, tone, kind, icon, iconLabel, iconTone, badge, badgeTone, disabled }] }] }] })
+    — a workflow's states by phase and stage, one of them picked. Without a script each state submits name=id; <au-state-map> picks in place (arrows move and pick) and fires `au-change`.
+    What the pick shows, on a server-drawn page: `submit` sends the form on a pick (a press, Enter or Space; arrows only move), so the server draws the page for that state;
+    or `panels` names an element holding one child per state, [data-state="<id>"], drawn by the server with all but the picked one hidden: the pick shows its panel. -#}
+{% macro StateMap(p) -%}
+  {%- set __html %}{% include "./template.njk" %}{% endset -%}
+  {{- __html | trim | safe -}}
+{%- endmacro %}

@@ -1,0 +1,49 @@
+.au-accordion-trigger { outline-offset: var(--focus-ring-offset-inset); }
+
+/* ── Accordion ── */
+.au-accordion { display: flex; flex-direction: column; }
+.au-accordion-item + .au-accordion-item { border-top: var(--border-width-hairline) solid var(--border-subtle); }
+.au-accordion-framed { overflow: hidden; border: var(--border-width-hairline) solid var(--border-subtle); border-radius: var(--radius-lg); background: var(--bg-surface); }
+.au-accordion-heading { margin: 0; font: inherit; }
+.au-accordion-trigger { display: grid; grid-template-columns: [chevron] auto [leading] auto [title] minmax(0, 1fr) [meta] auto; align-items: start; align-content: center; width: 100%; min-height: var(--size-row); margin: 0; padding: var(--space-8) 0; border: 0; background: transparent; color: var(--fg-default); font: inherit; font-size: var(--font-size-md); line-height: var(--line-height-md); font-weight: 500; text-align: start; cursor: pointer; }
+.au-accordion-framed .au-accordion-trigger { padding-inline-start: var(--inset-card); padding-inline-end: var(--inset-card); }
+.au-accordion-framed .au-accordion-trigger:hover:where(:not(:disabled, [aria-disabled="true"], .is-disabled)) { background: var(--bg-hover); }
+.au-accordion-trigger:hover:where(:not(:disabled, [aria-disabled="true"], .is-disabled)) .au-accordion-chevron { color: var(--fg-default); }
+.au-accordion-trigger:focus-visible { outline: var(--focus-ring-width) solid var(--border-focus); outline-offset: var(--focus-ring-offset-inset); }
+.au-accordion-trigger:disabled { opacity: var(--opacity-disabled); cursor: not-allowed; }
+.au-accordion-chevron { grid-column: chevron; margin-block: calc((var(--au-accordion-line) - var(--size-icon-sm)) / 2); color: var(--fg-muted); transition: transform 120ms ease, color 120ms ease; }
+.au-accordion-item.is-open > .au-accordion-heading .au-accordion-chevron { transform: rotate(90deg); }
+/* One row: chevron, leading, title, meta. The title takes the room left and wraps its own text there,
+   lined up after the leading slot; the others stay on its first line, centred on it (each sits in a first line as tall
+   as a md tag). An empty slot takes no room: the gaps are margins on what follows the chevron. Only a word longer than
+   the title's room breaks. */
+.au-accordion-trigger { --au-accordion-line: var(--size-tag-md); }
+.au-accordion-leading { grid-column: leading; display: inline-flex; align-items: center; min-height: var(--au-accordion-line); margin-inline-start: var(--gap-inline-md); font-weight: 400; }
+.au-accordion-title { grid-column: title; min-width: 0; margin-inline-start: var(--gap-inline-md); padding-block: calc((var(--au-accordion-line) - 1lh) / 2); overflow-wrap: anywhere; }
+.au-accordion-meta { grid-column: meta; display: inline-flex; align-items: center; min-height: var(--au-accordion-line); margin-inline-start: var(--gap-inline-md); font-feature-settings: "zero" 1, "cv05" 1, "cv08" 1; font-size: var(--font-size-sm); line-height: var(--line-height-sm); font-weight: 400; color: var(--fg-subtle); font-variant-numeric: tabular-nums; }
+/* In a narrow accordion (a phone) the meta goes under the title, lined up with it, so the title keeps the row's width. */
+.au-accordion { container: au-accordion / inline-size; }
+@container au-accordion (max-width: 420px) { .au-accordion-meta { grid-column: title; grid-row: 2; justify-self: start; min-height: 0; margin-block-start: var(--gap-stack-2xs); } }
+/* The panel lines up with whatever follows the chevron. */
+.au-accordion-panel { padding-block: 0 var(--inset-card); padding-inline: calc(var(--size-icon-sm) + var(--gap-inline-md)) 0; font-size: var(--font-size-md); line-height: var(--line-height-md); }
+.au-accordion-framed .au-accordion-panel { padding-block: 0 var(--inset-card); padding-inline: calc(var(--inset-card) + var(--size-icon-sm) + var(--gap-inline-md)) var(--inset-card); }
+.au-accordion-panel > p { margin: 0; }
+.au-accordion-sm .au-accordion-trigger { --au-accordion-line: var(--size-tag-sm); min-height: var(--size-control-lg); padding-top: var(--space-6); padding-bottom: var(--space-6); font-size: var(--font-size-sm); line-height: var(--line-height-sm); letter-spacing: var(--tracking-sm); }
+@media (prefers-reduced-motion: reduce) { .au-accordion-chevron { transition: none; } }
+@media (forced-colors: active) { .au-accordion-trigger { outline-style: none; } .au-accordion-trigger:focus-visible { outline: var(--focus-ring-width) solid Highlight; }}
+[dir="rtl"] .au-accordion-chevron { transform: scaleX(-1); }
+[dir="rtl"] .au-accordion-item.is-open > .au-accordion-heading .au-accordion-chevron { transform: scaleX(-1) rotate(90deg); }
+.au-accordion-panel, .au-accordion-panel > * { min-width: 0; }
+
+/* ── Server-rendered markup: joined after every component's rules above (build.cjs) ── */
+/* ── Accordions and disclosures on <details> ── */
+details.au-accordion-item > summary { list-style: none; cursor: pointer; }
+details.au-accordion-item > summary::-webkit-details-marker { display: none; }
+details.au-accordion-item[open] > summary .au-accordion-chevron { transform: rotate(90deg); }
+[dir="rtl"] details.au-accordion-item[open] > summary .au-accordion-chevron { transform: scaleX(-1) rotate(90deg); }
+.au-accordion-details > summary { list-style: none; cursor: pointer; }
+.au-accordion-details > summary::-webkit-details-marker { display: none; }
+.au-accordion-details[open] > summary .au-accordion-chevron { transform: rotate(90deg); }
+.au-accordion-note { display: flex; align-items: center; gap: var(--gap-inline-sm); margin: 0; min-height: var(--size-control-lg); padding: var(--space-6) var(--inset-card); font-size: var(--font-size-sm); line-height: var(--line-height-sm); color: var(--fg-muted); letter-spacing: var(--tracking-sm); }
+.au-accordion-framed .au-accordion-panel.au-accordion-panel-flush { padding: 0; }
+.au-accordion-panel[hidden] { display: none; }

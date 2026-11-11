@@ -1,0 +1,5 @@
+{#- StatusMark({ tone, label, icon }) — a status as a filled icon, named for screen readers. -#}
+{% macro StatusMark(p) -%}
+  {%- set __html %}{% include "./template.njk" %}{% endset -%}
+  {{- __html | trim | safe -}}
+{%- endmacro %}

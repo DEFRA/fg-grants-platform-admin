@@ -1,0 +1,2 @@
+.au-mark { display: inline-flex; justify-content: center; }
+.au-mark-success { color: var(--status-success); } .au-mark-neutral { color: var(--status-neutral); } .au-mark-warning { color: var(--status-warning); } .au-mark-danger { color: var(--status-danger); } .au-mark-info { color: var(--status-info); }
