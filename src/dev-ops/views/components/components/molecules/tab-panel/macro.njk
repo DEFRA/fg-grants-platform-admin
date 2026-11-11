@@ -1,0 +1,5 @@
+{#- TabPanel({ id, label }) caller — the content one in-page tab shows. -#}
+{% macro TabPanel(p) -%}
+  {%- set __html %}{% include "./template.njk" %}{% endset -%}
+  {{- __html | trim | safe -}}
+{%- endmacro %}

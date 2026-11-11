@@ -1,0 +1,62 @@
+{% import "design-system/macros.njk" as au %}
+{#- The attempts: the one error they failed with and its stack, then each attempt on asking. -#}
+{%- if attempts -%}
+  {%- set errorsAction -%}
+    {%- if attempts.errorsHref %}{{ au.Button({ text: 'Events with this error', size: 'sm', variant: 'tertiary', iconEnd: 'arrow-right', href: attempts.errorsHref, testId: 'event-errors-link' }) }}{% endif -%}
+  {%- endset -%}
+  {%- call au.Card({ padded: true, title: 'Attempts', count: attempts.count, actions: errorsAction, testId: 'event-attempts', countTestId: 'event-attempts-count' }) -%}
+    {%- call au.Stack({ gap: 'md' }) -%}
+      {%- if attempts.redriven -%}
+        {%- set redriven -%}Redriven {% if attempts.redriven.at %}{{ au.Time(attempts.redriven.at) }}{% endif %} by {{ attempts.redriven.by }} — waiting for {{ attempts.redriven.service }}’s poller. No attempts since.{%- endset -%}
+        {{ au.Text({ html: redriven, testId: 'event-redriven' }) }}
+        {%- if attempts.redriven.error -%}
+          {{ au.Text({ tone: 'muted', text: 'Before the redrive, all ' ~ attempts.redriven.allowed ~ ' attempts failed with:' if attempts.redriven.allowed else 'Before the redrive, the attempts failed with:' }) }}
+          {{ au.Code({ block: true, framed: true, lineNumbers: false, code: attempts.redriven.error, label: 'Error' }) }}
+        {%- endif -%}
+      {%- else -%}
+        {%- if attempts.lead -%}
+          {%- call au.Inline({ gap: 'sm', wrap: true }) -%}
+            {{ au.Text({ variant: 'label-md', text: attempts.lead, testId: 'event-attempts-lead' }) }}
+            {%- if attempts.lastAt -%}
+              {%- set lastAt %}the last at {{ au.Time(attempts.lastAt) }}{% endset -%}
+              {{ au.Text({ tone: 'subtle', html: lastAt }) }}
+            {%- endif -%}
+          {%- endcall -%}
+        {%- endif -%}
+        {%- if attempts.block -%}
+          {{ au.Code({ block: true, framed: true, lineNumbers: false, maxHeight: 200, code: attempts.block, label: 'Last error and stack trace', testId: 'event-last-error' }) }}
+        {%- endif -%}
+        {%- if attempts.items.length -%}
+          {%- call au.Disclosure({ text: 'Show each attempt', hideText: 'Hide attempts', summaryTestId: 'event-attempts-toggle' }) -%}
+            {%- call au.Timeline({ label: 'Attempts' }) -%}
+              {%- for item in attempts.items -%}
+                {%- set meta -%}{% if item.clock %}{{ au.Time(item.clock) }}{% if item.gap %}, {% endif %}{% endif %}{{ item.gap or '' }}{%- endset -%}
+                {%- if item.differs or item.sameAsLast -%}
+                  {%- call au.TimelineItem({ tone: item.tone, title: item.title, metaHtml: meta, testId: 'event-attempt' }) -%}
+                    {%- if item.differs -%}
+                      {%- call au.Stack({ gap: 'xs' }) -%}
+                        {{ au.Text({ text: item.differs.message, mono: true, tone: 'danger' }) }}
+                        {%- if item.differs.stack -%}
+                          {%- call au.Disclosure({ text: 'Stack trace', hideText: 'Hide stack trace' }) -%}
+                            {{ au.Code({ block: true, framed: true, code: item.differs.stack, label: 'Stack trace' }) }}
+                          {%- endcall -%}
+                        {%- endif -%}
+                      {%- endcall -%}
+                    {%- else -%}
+                      {{ au.Text({ tone: 'subtle', text: 'Same as the last error' }) }}
+                    {%- endif -%}
+                  {%- endcall -%}
+                {%- else -%}
+                  {{ au.TimelineItem({ tone: item.tone, title: item.title, metaHtml: meta, testId: 'event-attempt' }) }}
+                {%- endif -%}
+              {%- endfor -%}
+            {%- endcall -%}
+          {%- endcall -%}
+        {%- endif -%}
+      {%- endif -%}
+      {%- if attempts.noAttemptsSinceEdit -%}
+        {{ au.Text({ tone: 'muted', text: 'No attempts since the payload was edited.', testId: 'event-no-attempts-since-edit' }) }}
+      {%- endif -%}
+    {%- endcall -%}
+  {%- endcall -%}
+{%- endif -%}

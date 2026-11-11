@@ -1,0 +1,5 @@
+{#- Table({ label, minWidth: 40|48|56|64 (rem) }) caller=<colgroup>, <thead>, <tbody> — a native table drawn like DataTable. -#}
+{% macro Table(p) -%}
+  {%- set __html %}{% include "./template.njk" %}{% endset -%}
+  {{- __html | trim | safe -}}
+{%- endmacro %}

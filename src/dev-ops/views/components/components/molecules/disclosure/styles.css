@@ -1,0 +1,18 @@
+.au-disclosure { position: relative; }
+.au-disclosure::after { content: ""; position: absolute; inset-inline-start: calc(var(--inset-tag-xs) * -1); inset-inline-end: calc(var(--inset-tag-xs) * -1); top: 50%; height: var(--size-target-min); transform: translateY(-50%); }
+
+.au-disclosure { display: inline-flex; align-items: center; gap: var(--gap-inline-xs); padding: 0; border: 0; background: none; color: var(--fg-link); font: inherit; font-size: var(--font-size-md); line-height: var(--line-height-md); cursor: pointer; }
+.au-disclosure:hover:where(:not(:disabled, [aria-disabled="true"], .is-disabled)) { color: var(--fg-link-hover); }
+
+/* ── Server-rendered markup: joined after every component's rules above (build.cjs) ── */
+.au-disclosure-details > summary { list-style: none; cursor: pointer; }
+.au-disclosure-details > summary::-webkit-details-marker { display: none; }
+.au-disclosure-details[open] > summary .au-disclosure-chevron { transform: rotate(180deg); }
+.au-disclosure-chevron { flex: none; transition: transform var(--duration-normal) var(--easing-standard); }
+.au-disclosure-panel { margin-top: var(--gap-stack-sm); min-width: 0; }
+@media (prefers-reduced-motion: reduce) { .au-disclosure-chevron { transition: none; } }
+.au-disclosure-boxed { border: var(--border-width-hairline) solid var(--border-subtle); border-radius: var(--radius-md); }
+.au-disclosure-boxed > summary.au-disclosure { display: flex; width: 100%; justify-content: space-between; padding: var(--space-8) var(--inset-card); font-weight: 500; }
+.au-disclosure-boxed > .au-disclosure-panel { margin: 0; padding: 0 var(--inset-card) var(--inset-card); }
+.au-disclosure-panel.is-upgraded { display: contents; }
+.au-disclosure-panel.is-upgraded[hidden] { display: none; }

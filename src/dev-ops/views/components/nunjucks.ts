@@ -1,6 +1,11 @@
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import type nunjucks from 'nunjucks'
+import { calendarMonth, formatRange } from './core/dates.ts'
+import { diffLines } from './core/diff.ts'
+
+export { calendarMonth, formatDate, formatRange, parseDate } from './core/dates.ts'
+export { diffLines } from './core/diff.ts'
 
 /**
  * Design system's Nunjucks half. Add `designSystemViews` to an environment's search path
@@ -40,5 +45,8 @@ export const addDesignSystem = (environment: nunjucks.Environment) => {
   environment.addGlobal('auIconNodes', iconNodes)
   environment.addGlobal('auIconName', iconName)
   environment.addGlobal('auId', nextId)
+  environment.addGlobal('auDiff', diffLines)
+  environment.addGlobal('auFormatRange', formatRange)
+  environment.addGlobal('auCalendarMonth', calendarMonth)
   return environment
 }

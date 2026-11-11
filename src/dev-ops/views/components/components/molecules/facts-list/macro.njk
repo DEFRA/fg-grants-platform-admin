@@ -1,0 +1,5 @@
+{#- FactsList({ stacked }) caller = Fact() calls — label/value pairs (the FactsList). -#}
+{% macro FactsList(p) -%}
+  {%- set __html %}{% include "./template.njk" %}{% endset -%}
+  {{- __html | trim | safe -}}
+{%- endmacro %}

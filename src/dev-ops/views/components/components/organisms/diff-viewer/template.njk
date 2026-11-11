@@ -1,0 +1,15 @@
+{%- from "../../../core/macros.njk" import attrs, cls, vh -%}
+{%- from "../../atoms/icon/macro.njk" import Icon -%}
+{%- set d = p if p.lines else auDiff(p.before, p.after, 3 if p.context is not defined else p.context) -%}
+  <div class="{{ cls('au-diff' ~ (' au-code-framed' if p.framed !== false else '') ~ (' au-maxh-' ~ p.maxHeight if p.maxHeight else ''), p) }}"{{ attrs(p) }}>
+    <div class="au-diff-summary"><span class="au-diff-count-add">{{ d.added }} {{ 'line' if d.added == 1 else 'lines' }} added</span><span class="au-diff-count-del">{{ d.removed }} {{ 'line' if d.removed == 1 else 'lines' }} removed</span></div>
+    <div class="au-diff-body" tabindex="0" role="region" aria-label="{{ p.label or 'Changes' }}">
+      {%- if d.added + d.removed == 0 %}<div class="au-diff-none">No changes.</div>{% else %}<div class="au-diff-rows">
+      {%- for l in d.lines -%}
+        {%- if l.kind == 'gap' -%}<div class="au-diff-line is-gap"><span class="au-diff-num"></span><span class="au-diff-num"></span><span class="au-diff-sign"></span><span class="au-diff-text">{{ l.text }}</span></div>
+        {%- else -%}<div class="au-diff-line is-{{ l.kind }}"><span class="au-diff-num" aria-hidden="true">{{ l.before }}</span><span class="au-diff-num" aria-hidden="true">{{ l.after }}</span><span class="au-diff-sign">{% if l.kind == 'add' %}{{ Icon({ name: 'plus', size: 'xs' }) }}{{ vh('Added: ') }}{% elif l.kind == 'del' %}{{ Icon({ name: 'minus', size: 'xs' }) }}{{ vh('Removed: ') }}{% endif %}</span><span class="au-diff-text">{{ l.text or ' ' }}</span></div>
+        {%- endif -%}
+      {%- endfor -%}
+      </div>{% endif -%}
+    </div>
+  </div>

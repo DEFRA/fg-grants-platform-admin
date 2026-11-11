@@ -1,0 +1,2 @@
+{%- from "../../../core/macros.njk" import attrs, cls -%}
+<div class="au-cq"><div class="{{ cls('au-grid au-gap-' ~ (p.gap or 'xl') ~ ((' au-grid-' ~ p.columns) if p.columns else (' au-grid-min-' ~ (p.min or 'md'))), p) }}"{{ attrs(p) }}>{{ caller() }}</div></div>

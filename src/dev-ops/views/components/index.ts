@@ -1,8 +1,19 @@
+import { AuCalendar } from './components/molecules/calendar/web-component.ts'
+import { AuClearable } from './components/atoms/input/web-component.ts'
+import { AuCopy } from './components/molecules/copy-button/web-component.ts'
+import { AuDataTable } from './components/organisms/data-table/web-component.ts'
+import { AuDateRangeChip } from './components/molecules/date-range-chip/web-component.ts'
 import { AuDialog } from './components/organisms/dialog/web-component.ts'
+import { AuDisclosure } from './components/molecules/disclosure/web-component.ts'
 import { AuDismiss } from './components/molecules/alert/web-component.ts'
 import { AuDropdown } from './components/molecules/dropdown/web-component.ts'
 import { AuErrorSummary } from './components/molecules/error-summary/web-component.ts'
+import { AuListPage } from './components/templates/list-page/web-component.ts'
+import { AuLoadMore } from './components/molecules/list-footer/web-component.ts'
+import { AuPopover } from './components/molecules/popover/web-component.ts'
+import { AuSearchKind } from './components/molecules/search-field/web-component.ts'
 import { AuSegmented } from './components/molecules/segmented-control/web-component.ts'
+import { AuTabs } from './components/molecules/tabs/web-component.ts'
 import { AuThemeToggle } from './components/molecules/theme-toggle/web-component.ts'
 import { AuToastRegion } from './components/molecules/toast-region/web-component.ts'
 import { AuToast } from './components/molecules/toast/web-component.ts'
@@ -14,11 +25,22 @@ import { AuTooltip } from './components/atoms/tooltip/web-component.ts'
  * page; defining twice is harmless.
  */
 const elements: [string, CustomElementConstructor][] = [
+  ['au-calendar', AuCalendar],
+  ['au-clearable', AuClearable],
+  ['au-copy', AuCopy],
+  ['au-data-table', AuDataTable],
+  ['au-date-range-chip', AuDateRangeChip],
   ['au-dialog', AuDialog],
+  ['au-disclosure', AuDisclosure],
   ['au-dismiss', AuDismiss],
   ['au-dropdown', AuDropdown],
   ['au-error-summary', AuErrorSummary],
+  ['au-list-page', AuListPage],
+  ['au-load-more', AuLoadMore],
+  ['au-popover', AuPopover],
+  ['au-search-kind', AuSearchKind],
   ['au-segmented', AuSegmented],
+  ['au-tabs', AuTabs],
   ['au-theme-toggle', AuThemeToggle],
   ['au-toast-region', AuToastRegion],
   ['au-toast', AuToast],
@@ -95,4 +117,4 @@ document.addEventListener('click', (event) => {
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => upgrade(document))
 else upgrade(document)
 
-export { AuDialog, AuDismiss, AuDropdown, AuErrorSummary, AuSegmented, AuThemeToggle, AuToastRegion, AuToast, AuTooltip }
+export { AuCalendar, AuClearable, AuCopy, AuDataTable, AuDateRangeChip, AuDialog, AuDisclosure, AuDismiss, AuDropdown, AuErrorSummary, AuListPage, AuLoadMore, AuPopover, AuSearchKind, AuSegmented, AuTabs, AuThemeToggle, AuToastRegion, AuToast, AuTooltip }

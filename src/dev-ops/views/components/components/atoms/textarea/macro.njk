@@ -1,0 +1,5 @@
+{#- Textarea({ id, name, value, rows, mono, invalid, describedBy, label, readonly, textareaAttributes }) -#}
+{% macro Textarea(p) -%}
+  {%- set __html %}{% include "./template.njk" %}{% endset -%}
+  {{- __html | trim | safe -}}
+{%- endmacro %}

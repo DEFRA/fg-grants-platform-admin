@@ -1,0 +1,5 @@
+{#- Tabs({ label, items: [{ text, href, current, count, icon, disabled, testId, attributes } | { text, panel (the id of a tabPanel), current, count, icon }] }) — page sections. Items with `href` are links, one address each; items with `panel` switch content on the page (<au-tabs>). -#}
+{% macro Tabs(p) -%}
+  {%- set __html %}{% include "./template.njk" %}{% endset -%}
+  {{- __html | trim | safe -}}
+{%- endmacro %}

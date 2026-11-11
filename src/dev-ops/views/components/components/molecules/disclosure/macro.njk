@@ -1,0 +1,5 @@
+{#- Disclosure({ text|html (the "show" label), hideText (the "hide" label), open, summaryTestId }) caller = what it shows. Without a script it is a <details>; <au-disclosure> turns it into a button. -#}
+{% macro Disclosure(p) -%}
+  {%- set __html %}{% include "./template.njk" %}{% endset -%}
+  {{- __html | trim | safe -}}
+{%- endmacro %}

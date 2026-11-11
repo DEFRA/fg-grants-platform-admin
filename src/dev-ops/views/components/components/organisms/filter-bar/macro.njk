@@ -1,0 +1,5 @@
+{#- FilterBar({ label, filtered (any filter set: shows Clear all), total ('1,284 events': how many the filters find; show it whenever the read is exact, searches included; leave it out on a bounded read that ends with “Keep looking”), applied: [{ label, value, removeHref, mono, testId }], clearAllHref }) caller = chips and search -#}
+{% macro FilterBar(p) -%}
+  {%- set __html %}{% include "./template.njk" %}{% endset -%}
+  {{- __html | trim | safe -}}
+{%- endmacro %}

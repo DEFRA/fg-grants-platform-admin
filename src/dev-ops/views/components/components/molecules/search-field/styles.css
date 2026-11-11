@@ -1,0 +1,43 @@
+.au-search { outline: var(--focus-ring-width) none transparent; outline-offset: var(--focus-ring-offset); }
+.au-search { border: var(--border-width-hairline) solid var(--input-border); border-radius: var(--radius-md); background: var(--input-bg); color: var(--fg-default); box-shadow: var(--elevation-raised); transition: border-color var(--duration-normal) ease, background-color var(--duration-normal) ease, var(--transition-focus); }
+.au-search:hover:where(:not(:disabled, [aria-disabled="true"], .is-disabled)) { border-color: var(--input-border-hover); }
+.au-search:not(:has(.au-search-kind)):has(:focus-visible) { border-color: var(--input-border-focus); outline: var(--focus-ring-width) solid var(--border-focus); outline-offset: var(--focus-ring-offset); }
+.au-search.is-invalid { border-color: var(--input-border-invalid); }
+.au-search.is-invalid:not(:has(.au-search-kind)):has(:focus-visible) { border-color: var(--input-border-invalid); outline-color: var(--input-border-invalid); }
+.au-search input { -webkit-appearance: none; appearance: none; flex: 1; min-width: 0; height: var(--line-height-md); padding: 0; margin: 0; border: 0; border-radius: 0; outline: none; box-shadow: none; background: transparent; color: inherit; font: inherit; font-size: var(--font-size-md); line-height: var(--line-height-md); }
+.au-search input::placeholder { color: var(--input-placeholder); opacity: 1; }
+.au-search:has(input:focus) .au-input-icon { color: var(--input-icon-focus); }
+
+.au-searchfield { display: flex; flex-direction: column; gap: var(--gap-stack-sm); width: 100%; min-width: var(--size-search-min-width); }
+.au-search { margin: 0; display: flex; align-items: center; gap: var(--gap-inline-md); height: var(--size-control-md); padding-inline-end: var(--inset-tag-xs); }
+.au-search:not(:has(.au-search-kind)) { padding-inline-start: var(--inset-field); }
+.au-search input { color: var(--fg-default); font-feature-settings: "zero" 1, "cv05" 1, "cv08" 1; }
+/* Empty search shows a sans placeholder: switch the whole input to sans while it is empty, so placeholder and caret share one font. */
+.au-search input:placeholder-shown { font-family: var(--font-sans); }
+.au-search-kind { display: inline-flex; align-items: center; gap: var(--gap-inline-xs); height: 100%; padding-block: 0 0; padding-inline: var(--inset-field) var(--inset-field-sm); border: 0; border-inline-end: var(--border-width-hairline) solid var(--border-default); border-start-start-radius: var(--radius-md); border-start-end-radius: 0; border-end-end-radius: 0; border-end-start-radius: var(--radius-md); background: var(--bg-sunken); color: var(--fg-default); font: inherit; font-size: var(--font-size-md); font-weight: 500; cursor: pointer; white-space: nowrap; }
+.au-search .au-dropdown { height: 100%; }
+/* Focus. Without a field picker the field is one box and gets the standard ring outside its edge. With a picker, the ring
+   is drawn inside the edge around just the part that has focus: the picker, or the box (the text and its Clear button).
+   The parts never draw their own outer rings; a focused Clear button is also marked with a darker fill. */
+.au-search :focus-visible { outline-color: transparent; }
+.au-search .au-search-kind:focus-visible { outline: var(--focus-ring-width) solid var(--border-focus); outline-offset: calc(var(--focus-ring-width) * -1); }
+.au-search:has(.au-search-kind) .au-input-bare::after { content: ""; position: absolute; inset-block: 0; inset-inline: calc(var(--gap-inline-md) * -1) calc(var(--inset-tag-xs) * -1); border-start-end-radius: calc(var(--radius-md) - var(--border-width-hairline)); border-end-end-radius: calc(var(--radius-md) - var(--border-width-hairline)); box-shadow: inset 0 0 0 var(--focus-ring-width) transparent; pointer-events: none; transition: box-shadow var(--duration-normal) var(--easing-standard); }
+.au-search:has(.au-search-kind):has(.au-search-submit) .au-input-bare::after { inset-inline-end: 0; border-radius: 0; }
+.au-search:has(.au-search-kind) .au-input-bare:has(:focus-visible)::after { box-shadow: inset 0 0 0 var(--focus-ring-width) var(--border-focus); }
+.au-search.is-invalid:has(.au-search-kind) .au-input-bare:has(:focus-visible)::after { box-shadow: inset 0 0 0 var(--focus-ring-width) var(--input-border-invalid); }
+.au-search-kind:focus-visible { background: var(--bg-pressed); }
+.au-search .au-btn:focus-visible { background: var(--button-tertiary-bg-hover); }
+@media (prefers-reduced-motion: reduce) { .au-search, .au-search .au-input-bare::after { transition: none; }}
+@media (forced-colors: active) { .au-search { outline-style: none; } .au-search:focus-within { outline: var(--focus-ring-width) solid Highlight; } .au-search .au-input-bare::after { display: none; } .au-search .au-search-kind:focus-visible { outline-style: none; }}
+/* SearchField's field picker is a tertiary Button. */
+.au-search .au-search-kind { min-width: 0; height: 100%; }
+.au-search .au-search-kind:focus-visible { background: var(--bg-pressed); }
+@supports (-webkit-touch-callout: none) {
+  .au-search input { font-size: var(--font-size-lg); }}
+
+/* ── Server-rendered markup: joined after every component's rules above (build.cjs) ── */
+/* ── Search ── */
+.au-searchfield { display: flex; flex-direction: column; gap: var(--gap-stack-xs); min-width: 0; }
+.au-search-submit { flex: none; border-radius: 0; border-inline-start: var(--border-width-hairline) solid var(--border-default); }
+.au-search-kind-native { appearance: auto; font: inherit; font-size: var(--font-size-md); color: var(--fg-default); background: transparent; cursor: pointer; }
+@media (scripting: enabled) { au-search-kind > .au-search-kind-native { display: none; } }

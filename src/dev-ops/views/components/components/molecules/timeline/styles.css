@@ -1,0 +1,17 @@
+.au-timeline { margin: 0; padding: 0; list-style: none; }
+.au-timeline-item { position: relative; display: flex; gap: var(--gap-inline-xl); padding-bottom: var(--gap-stack-xl); }
+.au-timeline-item:not(:last-child)::before { content: ""; position: absolute; inset-inline-start: calc(var(--size-timeline-mark) / 2); top: calc(var(--size-timeline-mark) + var(--gap-stack-xs)); bottom: var(--gap-stack-xs); width: var(--border-width-hairline); background: var(--border-default); }
+.au-timeline-mark { display: inline-flex; align-items: center; justify-content: center; flex: none; width: var(--size-timeline-mark); height: var(--size-timeline-mark); border-radius: var(--radius-full); }
+.au-timeline-mark:not(.has-icon) { background-clip: content-box; padding: calc((var(--size-timeline-mark) - var(--size-dot)) / 2); }
+.au-timeline-mark.has-icon { border: var(--border-width-hairline) solid var(--border-default); background: var(--bg-surface); color: var(--fg-muted); }
+.au-timeline-mark-success { color: var(--fg-success); } .au-timeline-mark-warning { color: var(--fg-warning); } .au-timeline-mark-danger { color: var(--fg-danger); } .au-timeline-mark-info { color: var(--fg-info); }
+.au-timeline-body { display: flex; flex-direction: column; gap: var(--gap-stack-xs); flex: 1; min-width: 0; }
+.au-timeline-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: var(--gap-inline-md); min-height: var(--size-timeline-mark); }
+.au-timeline-title { font-size: var(--font-size-md); line-height: var(--line-height-md); font-weight: 500; color: var(--fg-default); }
+.au-timeline-meta { font-variant-numeric: tabular-nums; font-size: var(--font-size-sm); line-height: var(--line-height-sm); color: var(--fg-subtle); }
+.au-timeline-content { font-size: var(--font-size-md); line-height: var(--line-height-md); color: var(--fg-muted); }
+
+/* ── Server-rendered markup: joined after every component's rules above (build.cjs) ── */
+/* ── Timeline items with an icon for a mark ── */
+.au-timeline-icon { display: inline-flex; align-items: center; justify-content: center; flex: none; width: var(--size-timeline-mark); height: var(--size-timeline-mark); }
+.au-timeline-link { margin-top: var(--gap-stack-xs); }

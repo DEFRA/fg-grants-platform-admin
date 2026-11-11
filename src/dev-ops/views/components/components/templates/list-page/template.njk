@@ -1,0 +1,10 @@
+{%- from "../../../core/macros.njk" import attrs, cls -%}
+{%- from "../../organisms/page-header/macro.njk" import PageHeader -%}
+<au-list-page><div class="{{ cls('au-page au-listpage', p) }}"{{ attrs(p) }}>
+    <div class="au-listpage-top">
+      {{- PageHeader({ title: p.title, actions: p.actions, meta: p.meta, breadcrumbs: p.breadcrumbs, titleTestId: p.titleTestId }) -}}
+      {{- p.alert | safe if p.alert -}}
+      {{- p.filters | safe if p.filters -}}
+    </div>
+    {%- if caller %}{{ caller() }}{% endif -%}
+  </div></au-list-page>

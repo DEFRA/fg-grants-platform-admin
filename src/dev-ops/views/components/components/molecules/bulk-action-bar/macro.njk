@@ -1,0 +1,5 @@
+{#- BulkActionBar({ count, actions (html), clearHref }) — what to do with the selected rows. -#}
+{% macro BulkActionBar(p) -%}
+  {%- set __html %}{% include "./template.njk" %}{% endset -%}
+  {{- __html | trim | safe -}}
+{%- endmacro %}

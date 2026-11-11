@@ -1,0 +1,5 @@
+{#- StatusDot({ tone, text, size: sm }) — a status as a dot and its word. -#}
+{% macro StatusDot(p) -%}
+  {%- set __html %}{% include "./template.njk" %}{% endset -%}
+  {{- __html | trim | safe -}}
+{%- endmacro %}

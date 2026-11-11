@@ -1,0 +1,18 @@
+.au-inline { display: flex; flex-wrap: wrap; align-items: center; min-width: 0; }
+.au-inline.au-nowrap { flex-wrap: nowrap; }
+.au-inline.au-gap-none { gap: 0; }
+.au-inline.au-gap-2xs { gap: var(--gap-inline-2xs); } .au-inline.au-gap-xs { gap: var(--gap-inline-xs); } .au-inline.au-gap-sm { gap: var(--gap-inline-sm); } .au-inline.au-gap-md { gap: var(--gap-inline-md); } .au-inline.au-gap-lg { gap: var(--gap-inline-lg); } .au-inline.au-gap-xl { gap: var(--gap-inline-xl); } .au-inline.au-gap-2xl { gap: var(--gap-stack-xl); } .au-inline.au-gap-section { gap: var(--gap-section); }
+
+/* ── Server-rendered markup: joined after every component's rules above (build.cjs) ── */
+/* ── Layout helpers ── */
+.au-inline-nowrap { flex-wrap: nowrap; }
+.au-inline-start { align-items: flex-start; }
+.au-inline-baseline { align-items: baseline; }
+.au-inline-between { justify-content: space-between; }
+
+/* A Disclosure among other inline things: its toggle sits in the row, what it shows takes the row below. Where ::details-content is unknown it takes a row of its own. */
+details.au-inline-disclosure { display: contents; }
+details.au-inline-disclosure::details-content { flex-basis: 100%; }
+details.au-inline-disclosure:not([open])::details-content { display: none; }
+@supports not selector(::details-content) { details.au-inline-disclosure { display: block; flex-basis: 100%; } }
+.au-inline-form { display: inline; }

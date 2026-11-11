@@ -1,0 +1,5 @@
+{#- DataTable({ label, columns: [{ key, label, align: start|center|right, width ('auto' | 'max-content' | any grid track), mono, sortable, sortHref }], styleNonce (the page's CSP nonce: the widths then come in a <style> every browser applies on load), sort: { key, dir: asc|desc }, link, selectable, selectName, bulkActions (html), stickyFirstColumn, narrow: wrap|scroll (on a phone; default wrap under five columns, scroll from five), loading, empty: { title, text, icon }, after (html: a ListFooter), cols (legacy: a column-template class), testId, tableTestId, headTestId, bodyId, bodyTestId }) caller = rows (tableRow). A real <table>: the rows share the table's column tracks (subgrid); <au-data-table> sets the track sizes and runs selection. -#}
+{% macro DataTable(p) -%}
+  {%- set __html %}{% include "./template.njk" %}{% endset -%}
+  {{- __html | trim | safe -}}
+{%- endmacro %}

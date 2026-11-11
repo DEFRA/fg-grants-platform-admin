@@ -1,0 +1,5 @@
+{#- Time({ datetime, text, title, mono }) — the view model formats; this marks it up. The day and month are kept together ("13 Oct" never breaks apart in a narrow column): a no-break space after the day. -#}
+{% macro Time(p) -%}
+  {%- set __html %}{% include "./template.njk" %}{% endset -%}
+  {{- __html | trim | safe -}}
+{%- endmacro %}

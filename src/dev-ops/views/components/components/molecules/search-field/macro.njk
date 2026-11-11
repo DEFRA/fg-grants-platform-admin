@@ -1,0 +1,6 @@
+{#- SearchField({ action, method: get|post, id, name, value, placeholder, noun ('records'), error, errorId, hidden: [{ name, value }], submitText (a visible Search button; Enter submits without it), testId, inputTestId,
+      kinds: { name, label ('Search by'), items: [{ text, value, checked }] } }) — a kind picker, the search box and its Clear button. Both are drawn: CSS shows the menu where scripting is on and the native <select> where it's off (`@media (scripting)`), so nothing swaps on load; <au-search-kind> makes the menu work and keeps the select's value. -#}
+{% macro SearchField(p) -%}
+  {%- set __html %}{% include "./template.njk" %}{% endset -%}
+  {{- __html | trim | safe -}}
+{%- endmacro %}

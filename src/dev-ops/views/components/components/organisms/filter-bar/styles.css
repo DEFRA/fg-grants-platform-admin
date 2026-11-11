@@ -1,0 +1,14 @@
+/* In a FilterBar row it grows to take the space the chips leave (the basis is a width only inside that row). */
+.au-filterbar-row > .au-searchfield { flex: 1 1 var(--size-search-basis); width: auto; }
+
+.au-filterbar { display: flex; flex-direction: column; gap: var(--gap-stack-md); }
+.au-filterbar-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--gap-inline-md); }
+.au-filterbar-applied { display: flex; flex-wrap: wrap; align-items: center; gap: var(--gap-inline-sm); }
+/* The total sits at the row's far end, apart from the filters it counts; the row keeps a tag's height, so the table
+   doesn't move as filters come and go. */
+.au-filterbar-applied { min-height: var(--size-control-xs); }
+.au-filterbar-total { margin-inline-start: auto; color: var(--fg-muted); font-size: var(--font-size-sm); line-height: var(--line-height-sm); font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+/* ── Server-rendered markup: joined after every component's rules above (build.cjs) ── */
+/* ── List pages ── */
+.au-filterbar-search { flex: 1 1 18rem; max-width: 32rem; margin-inline-start: auto; }

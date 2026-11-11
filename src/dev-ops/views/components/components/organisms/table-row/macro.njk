@@ -1,0 +1,5 @@
+{#- TableRow({ link (the table's rows open records), href (this one does), selectable + rowId + rowLabel + selectName (a checkbox cell first), selected, cols (legacy), testId }) caller = cells: <td role="cell"> each. -#}
+{% macro TableRow(p) -%}
+  {%- set __html %}{% include "./template.njk" %}{% endset -%}
+  {{- __html | trim | safe -}}
+{%- endmacro %}

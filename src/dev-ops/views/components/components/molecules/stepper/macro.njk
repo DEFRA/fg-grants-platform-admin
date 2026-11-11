@@ -1,0 +1,5 @@
+{#- Stepper({ label, steps: [{ label, description }], current (0-based), orientation: vertical }) -#}
+{% macro Stepper(p) -%}
+  {%- set __html %}{% include "./template.njk" %}{% endset -%}
+  {{- __html | trim | safe -}}
+{%- endmacro %}

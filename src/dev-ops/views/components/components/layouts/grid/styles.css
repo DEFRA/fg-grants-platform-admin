@@ -1,0 +1,42 @@
+.au-grid.au-gap-none { gap: 0; }
+.au-grid.au-gap-2xs, .au-grid.au-gap-xs { gap: var(--gap-stack-xs); } .au-grid.au-gap-sm, .au-grid.au-gap-md { gap: var(--gap-stack-md); } .au-grid.au-gap-lg { gap: var(--gap-stack-lg); } .au-grid.au-gap-xl { gap: var(--gap-columns); } .au-grid.au-gap-2xl { gap: var(--gap-stack-2xl); } .au-grid.au-gap-section { gap: var(--gap-section); }
+.au-grid { display: grid; min-width: 0; }
+.au-grid-1 { grid-template-columns: minmax(0, 1fr); } .au-grid-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); } .au-grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); } .au-grid-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.au-grid-min-sm { grid-template-columns: repeat(auto-fill, minmax(min(var(--size-grid-min-sm), 100%), 1fr)); }
+.au-grid-min-md { grid-template-columns: repeat(auto-fill, minmax(min(var(--size-grid-min-md), 100%), 1fr)); }
+.au-grid-min-lg { grid-template-columns: repeat(auto-fill, minmax(min(var(--size-grid-min-lg), 100%), 1fr)); }
+@container (max-width: 639px) { .au-grid-2, .au-grid-3, .au-grid-4 { grid-template-columns: minmax(0, 1fr); } }
+@container (min-width: 640px) and (max-width: 959px) { .au-grid-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+/* ── Server-rendered markup: joined after every component's rules above (build.cjs) ── */
+/* ── DataTable on <table> ──
+   Each row a grid (.au-tr) of the columns its list declares, the whole
+   row its first cell's link. Drawn on a real table, with the roles said outright, so assistive technology
+   keeps the table the grid display would otherwise take from it. The column templates are classes, from the
+   design's lists, because the content security policy refuses inline styles. */
+.au-grid-table { display: block; width: 100%; border-spacing: 0; }
+.au-grid-table > thead, .au-grid-table > tbody { display: block; }
+.au-grid-table th, .au-grid-table td { display: block; padding: 0; text-align: start; }
+/* Without subgrid each row is its own grid, so its cells give way; with it the cells size their tracks. */
+.au-grid-table:not(.is-subgrid) th, .au-grid-table:not(.is-subgrid) td { min-width: 0; }
+.au-grid-table th { font-weight: 500; }
+.au-grid-table :is(th, td).au-right { text-align: end; justify-self: end; }
+.au-grid-table :is(th, td).au-center { text-align: center; justify-self: center; }
+.au-grid-table td.au-row-chevron { display: flex; }
+.au-grid-table a.au-rowlink { display: inline-block; max-width: 100%; vertical-align: top; text-decoration: none; }
+.au-grid-table a.au-rowlink.au-mono { font-size: var(--font-size-md); }
+
+/* DataTable in a <table>: the rows share the table's tracks (subgrid). <au-data-table> sets --au-cols from the column widths; without it the columns fit their content (repeat(n, auto)). */
+.au-grid-table.is-subgrid { grid-template-columns: var(--au-cols, var(--au-cols-auto)); }
+@container (max-width: 719px) { .au-grid-table.is-subgrid.is-wrapping { grid-template-columns: var(--au-cols-narrow, var(--au-cols-auto)); } }  /* the narrow wrap outranks the line above */
+/* The column widths come from the markup, so the table is drawn right on load, before any script: where CSS can read a
+   typed attribute (Chrome, Edge), straight from data-au-cols; elsewhere from the nonce'd <style> DataTable writes with
+   styleNonce. <au-data-table> sets the same values as a last resort. */
+@supports (x: attr(x type(*))) {
+  .au-grid-table.is-subgrid[data-au-cols] { grid-template-columns: attr(data-au-cols type(*), var(--au-cols, var(--au-cols-auto))); }
+  @container (max-width: 719px) { .au-grid-table.is-subgrid.is-wrapping[data-au-cols-narrow] { grid-template-columns: attr(data-au-cols-narrow type(*), var(--au-cols-narrow, var(--au-cols-auto))); } }
+}
+.au-grid-table.is-subgrid > thead { display: contents; }
+.au-grid-table.is-subgrid > thead > .au-tr { grid-column: 1 / -1; display: grid; grid-template-columns: subgrid; }
+.au-grid-table.is-subgrid .au-cell-chevron { display: flex; align-items: center; }
+.au-grid-table.is-subgrid th:not(.label-sm) { font-weight: inherit; }

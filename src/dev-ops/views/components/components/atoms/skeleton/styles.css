@@ -1,0 +1,7 @@
+.au-skeleton { display: block; border-radius: var(--radius-sm); background: var(--bg-hover); animation: au-pulse 1600ms ease-in-out infinite; }
+.au-skeleton-circle { border-radius: var(--radius-full); }
+
+/* ── Server-rendered markup: joined after every component's rules above (build.cjs) ── */
+/* Skeleton sizes (no inline styles). */
+.au-skel-w-10 { width: 10%; } .au-skel-w-20 { width: 20%; } .au-skel-w-25 { width: 25%; } .au-skel-w-30 { width: 30%; } .au-skel-w-40 { width: 40%; } .au-skel-w-50 { width: 50%; } .au-skel-w-60 { width: 60%; } .au-skel-w-70 { width: 70%; } .au-skel-w-75 { width: 75%; } .au-skel-w-80 { width: 80%; } .au-skel-w-90 { width: 90%; } .au-skel-w-100 { width: 100%; }
+.au-skel-h-8 { height: 8px; } .au-skel-h-10 { height: 10px; } .au-skel-h-12 { height: 12px; } .au-skel-h-14 { height: 14px; } .au-skel-h-16 { height: 16px; } .au-skel-h-20 { height: 20px; } .au-skel-h-24 { height: 24px; } .au-skel-h-28 { height: 28px; } .au-skel-h-32 { height: 32px; } .au-skel-h-40 { height: 40px; } .au-skel-h-48 { height: 48px; } .au-skel-h-64 { height: 64px; }

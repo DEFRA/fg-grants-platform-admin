@@ -1,0 +1,6 @@
+/* ───────────── Overlays ───────────── */
+.au-popover { width: var(--size-popover-width); max-width: calc(100vw - 16px); overflow-y: auto; border: var(--border-width-hairline) solid var(--border-default); border-radius: var(--radius-lg); background: var(--bg-surface-raised); box-shadow: var(--elevation-overlay); outline: none; }
+.au-popover-padded { padding: var(--inset-field); }
+.au-popover-head { margin-bottom: var(--gap-stack-md); }
+.au-popover:has(.au-range) { width: max-content; }
+.au-popover:has(.au-calendar) { width: max-content; }

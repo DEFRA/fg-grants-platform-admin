@@ -1,0 +1,24 @@
+/* ── DiffViewer (2.3) ── */
+.au-diff { display: flex; flex-direction: column; width: 100%; min-width: 0; overflow: hidden; background: var(--code-bg); font-family: var(--font-code); font-feature-settings: var(--font-code-features); font-size: var(--code-block-size); line-height: var(--code-block-line-height); font-variant-ligatures: none; }
+.au-diff-summary { display: flex; flex-wrap: wrap; gap: var(--gap-inline-lg); padding: var(--inset-code-y) var(--inset-code-x); border-bottom: var(--border-width-hairline) solid var(--border-subtle); font-family: var(--font-sans); }
+.au-diff-count-add { color: var(--fg-success); } .au-diff-count-del { color: var(--fg-danger); }
+.au-diff-body { overflow: auto; min-height: 0; }
+.au-diff-body:focus-visible { outline: var(--focus-ring-width) solid var(--border-focus); outline-offset: var(--focus-ring-offset-inset); }
+.au-diff-rows { display: table; min-width: 100%; padding-block: var(--inset-code-y); }
+.au-diff-line { display: table-row; }
+.au-diff-line > span { display: table-cell; vertical-align: top; }
+.au-diff-num { width: var(--size-code-gutter); padding-inline: var(--inset-code-y); color: var(--code-gutter-fg); text-align: end; user-select: none; font-variant-numeric: tabular-nums; }
+.au-diff-sign { position: relative; width: var(--size-icon-md); padding-inline: var(--gap-inline-xs); text-align: center; }
+.au-diff-sign .au-icon { vertical-align: middle; }
+.au-diff-text { padding-inline-end: var(--inset-code-x); color: var(--fg-default); white-space: pre; }
+.au-diff-line.is-add { background: var(--bg-success-subtle); } .au-diff-line.is-add .au-diff-sign { color: var(--fg-success); }
+.au-diff-line.is-del { background: var(--bg-danger-subtle); } .au-diff-line.is-del .au-diff-sign { color: var(--fg-danger); }
+.au-diff-line.is-gap .au-diff-text { padding-block: var(--gap-stack-xs); color: var(--fg-muted); font-family: var(--font-sans); }
+.au-diff-none { padding: var(--inset-code-y) var(--inset-code-x); color: var(--fg-subtle); font-family: var(--font-sans); }
+@media (forced-colors: active) { .au-diff-line.is-add .au-diff-text, .au-diff-line.is-del .au-diff-text { text-decoration: underline; } }
+/* Contrast: secondary text on the sunken and selected fills needs the muted tone to reach 4.5:1 */
+.au-diff-none { color: var(--fg-muted); }
+
+/* ── Server-rendered markup: joined after every component's rules above (build.cjs) ── */
+/* ── Diff gaps (unchanged lines folded away) ── */
+.au-diff-gap { padding: var(--space-2) var(--inset-code-x); color: var(--fg-subtle); font-family: var(--font-sans); font-size: var(--font-size-sm); background: var(--bg-sunken); }

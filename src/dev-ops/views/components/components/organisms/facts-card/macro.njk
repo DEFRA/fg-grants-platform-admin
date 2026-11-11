@@ -1,0 +1,5 @@
+{#- FactsCard({ title, actions (html), facts: [{ label, text|html, mono, href, external, copy }], columns: [[fact, …], …] (several lists side by side) }) caller = Fact() calls instead of facts — label/value pairs in a card. -#}
+{% macro FactsCard(p) -%}
+  {%- set __html %}{% include "./template.njk" %}{% endset -%}
+  {{- __html | trim | safe -}}
+{%- endmacro %}

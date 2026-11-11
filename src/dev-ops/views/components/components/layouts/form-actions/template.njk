@@ -1,0 +1,2 @@
+{%- from "../../../core/macros.njk" import attrs, cls -%}
+<div class="{{ cls('au-formactions', p or {}) }}"{{ attrs(p or {}) }}><div class="au-actions">{{ caller() }}</div>{% if p and p.end %}<div class="au-formactions-end">{{ p.end | safe }}</div>{% endif %}</div>

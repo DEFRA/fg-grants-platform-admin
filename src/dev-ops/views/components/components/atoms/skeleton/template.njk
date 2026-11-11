@@ -1,0 +1,4 @@
+{%- from "../../../core/macros.njk" import attrs, cls -%}
+{%- set w = p.width or '100%' -%}
+  {%- set wcls = ('au-skel-w-' ~ (w | replace('%', ''))) if (w is string and '%' in w) else ('au-width-' ~ w) -%}
+  <span class="{{ cls('au-skeleton' ~ (' au-skeleton-circle' if p.circle else '') ~ ' ' ~ wcls ~ ' au-skel-h-' ~ (p.height or 16), p) }}" aria-hidden="true"{{ attrs(p) }}></span>

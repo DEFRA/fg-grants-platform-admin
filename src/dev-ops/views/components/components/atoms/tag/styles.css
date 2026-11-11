@@ -1,0 +1,13 @@
+/* Tag: a removable token (applied filters). The × is an xs IconButton, rounded to match. */
+.au-tag { display: inline-flex; align-items: center; gap: var(--gap-inline-xs); height: var(--size-control-xs); max-width: 100%; padding: 0 var(--inset-menuitem-x); border-radius: var(--radius-full); background: var(--bg-hover); font-size: var(--font-size-sm); line-height: var(--line-height-sm); color: var(--fg-muted); letter-spacing: var(--tracking-sm); }
+.au-tag:has(.au-tag-remove) { padding-inline-end: 0; }
+.au-tag-sm { height: var(--size-tag-sm); }
+.au-tag-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.au-tag strong { color: var(--fg-default); font-weight: 500; }
+.au-tag .au-tag-remove { border-radius: var(--radius-full); color: var(--fg-muted); }
+.au-tag .au-tag-remove:hover:where(:not(:disabled, [aria-disabled="true"], .is-disabled)) { background: var(--bg-pressed); color: var(--fg-default); }
+.au-tag-sm .au-tag-remove { width: var(--size-tag-sm); height: var(--size-tag-sm); }
+@media (pointer: coarse) {
+  .au-tag-remove { position: relative; }
+  .au-tag-remove::after { content: ""; position: absolute; inset: calc((var(--size-control-xs) - var(--size-target-comfortable)) / 2); }
+}

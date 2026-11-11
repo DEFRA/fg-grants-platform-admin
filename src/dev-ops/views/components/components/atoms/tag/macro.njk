@@ -1,0 +1,5 @@
+{#- Tag({ text|html, removeHref | removeName+removeValue (a submit), removeLabel, mono }) — a removable token. -#}
+{% macro Tag(p) -%}
+  {%- set __html %}{% include "./template.njk" %}{% endset -%}
+  {{- __html | trim | safe -}}
+{%- endmacro %}

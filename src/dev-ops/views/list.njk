@@ -1,0 +1,83 @@
+{% extends 'layouts/page.njk' %}
+{% import "design-system/macros.njk" as au %}
+
+{% block oldPage %}{% endblock %}
+
+{#- Every catalogue list: the page's tabs and filters, a message when there is one, then the rows. -#}
+{% block content %}
+  {%- set alertHtml -%}
+    {%- if alert -%}
+      {%- set alertActions -%}
+        {%- if alert.retryHref %}{{ au.Button({ text: 'Try again', size: 'sm', iconStart: 'refresh-cw', href: alert.retryHref, testId: 'list-retry' }) }}{% endif -%}
+        {%- if alert.startHref %}{{ au.Button({ text: 'Start again', size: 'sm', href: alert.startHref, testId: 'list-start-again' }) }}{% endif -%}
+      {%- endset -%}
+      {%- set alertBody -%}
+        {%- if alert.code %}{{ au.Code({ text: alert.code }) }} {% endif %}{{ alert.text }}
+      {%- endset -%}
+      {{ au.Alert({ tone: alert.tone, title: alert.title, html: alertBody, actions: alertActions, testId: 'list-alert' }) }}
+    {%- endif -%}
+  {%- endset -%}
+
+  {%- set filtersHtml -%}
+    {%- if range -%}
+      {%- call au.Stack({ gap: 'lg' }) -%}
+        {%- if tabs %}{{ au.Tabs({ label: tabs.label, items: tabs.items, testId: 'list-tabs' }) }}{% endif -%}
+        {%- call au.FilterBar({ label: filterLabel, total: total, applied: applied, filtered: filtered, clearAllHref: clearAllHref, appliedTestId: 'list-applied', clearAllTestId: 'list-clear-all' }) -%}
+          {%- for chip in chips -%}
+            {{ au.FilterChip({ label: chip.label, value: chip.value, multiple: true, items: chip.items, testId: 'list-chip-' ~ chip.fact }) }}
+          {%- endfor -%}
+          {{ au.DateRangeChip({ label: range.label, value: range.text if range.isSet else null, start: range.start, end: range.end, presets: range.presets, startName: 'from', endName: 'to', action: range.action, hidden: range.hidden, max: range.max, testId: 'list-range' }) }}
+          {%- if searchField -%}
+            {{ au.SearchField({ id: 'list-search', action: searchField.action, method: 'post', name: 'ref-value', value: searchField.value, noun: searchField.noun, error: searchField.error, hidden: searchField.hidden, kinds: { name: 'ref-kind', items: searchField.kinds }, testId: 'list-search', inputTestId: 'list-search-input', errorTestId: 'list-search-error' }) }}
+          {%- endif -%}
+        {%- endcall -%}
+      {%- endcall -%}
+    {%- endif -%}
+  {%- endset -%}
+
+  {%- call au.ListPage({ title: title, meta: meta, alert: alertHtml, filters: filtersHtml, titleTestId: 'list-title' }) -%}
+    {%- if table -%}
+      {%- set footer -%}
+        {%- if table.footer -%}
+          {{ au.ListFooter({ state: table.footer.state, text: table.footer.text, nextHref: table.footer.nextHref, retryHref: table.footer.retryHref, searchedTo: table.footer.searchedTo, keepLookingHref: table.footer.keepLookingHref, noun: table.footer.noun, testId: 'list-footer' }) }}
+        {%- endif -%}
+      {%- endset -%}
+      {%- call au.DataTable({ styleNonce: styleNonce, label: table.label, link: true, columns: table.columns, empty: table.empty, after: footer, bodyId: 'list-rows', testId: 'list-table' }) -%}
+        {%- for row in table.rows -%}
+          {%- call au.TableRow({ link: true, testId: 'list-row' }) -%}
+            {%- for cell in row.cells -%}
+              {%- set cellClass = ['au-right' if cell.align == 'right', 'au-cell-mono' if cell.kind == 'text' and cell.mono] | select | join(' ') -%}
+              <td role="cell"{% if cellClass %} class="{{ cellClass }}"{% endif %}>
+                {%- if cell.kind == 'link' and cell.subtitle -%}
+                  {%- call au.Stack({ gap: '2xs' }) -%}
+                    {{ au.RowLink({ text: cell.text, href: cell.href, mono: cell.mono }) }}{{ au.Text({ text: cell.subtitle, tone: 'subtle', variant: 'body-sm' }) }}
+                  {%- endcall -%}
+                {%- elif cell.kind == 'link' -%}
+                  {{ au.RowLink({ text: cell.text, href: cell.href, mono: cell.mono }) }}
+                {%- elif cell.kind == 'text' and cell.mono -%}
+                  {{ cell.text }}
+                {%- elif cell.kind == 'text' -%}
+                  {{ au.Text({ text: cell.text }) }}
+                {%- elif cell.kind == 'status' and cell.hint -%}
+                  {%- call au.Tooltip({ text: cell.hint, focusable: true }) %}{{ au.StatusDot({ text: cell.text, tone: cell.tone }) }}{% endcall -%}
+                {%- elif cell.kind == 'status' -%}
+                  {{ au.StatusDot({ text: cell.text, tone: cell.tone }) }}
+                {%- elif cell.kind == 'time' -%}
+                  {{ au.Time(cell.time) }}
+                {%- else -%}
+                  {{ au.NoValue() }}
+                {%- endif -%}
+              </td>
+            {%- endfor -%}
+            {%- if row.href %}{{ au.RowChevron() }}{% else %}<td role="cell"></td>{% endif -%}
+          {%- endcall -%}
+        {%- endfor -%}
+      {%- endcall -%}
+    {%- endif -%}
+  {%- endcall -%}
+
+  {%- if clearSearchForm -%}
+    {#- The search tag's remove button sends this form: the search lives in the session, so clearing it is a post, as setting it was. -#}
+    {{ au.Form({ id: clearSearchForm.id, action: clearSearchForm.action, method: 'post', label: 'Clear the search', hidden: clearSearchForm.hidden, attributes: { hidden: true } }) }}
+  {%- endif -%}
+{% endblock %}

@@ -1,0 +1,5 @@
+{#- CopyButton({ value, label, text }) — copies on click (<au-copy>). Drawn by the server where scripts run, so it's in place from the first paint; where they don't (or if the script hasn't arrived 4s after load) it isn't shown, having nothing to do. -#}
+{% macro CopyButton(p) -%}
+  {%- set __html %}{% include "./template.njk" %}{% endset -%}
+  {{- __html | trim | safe -}}
+{%- endmacro %}
