@@ -11,7 +11,9 @@ export type {
   BucketEntry,
   BucketFact,
   BucketFactValue,
+  BucketFields,
   BucketRefKind,
+  BucketSearchField,
   BucketSummary,
   Catalogue,
   FactValue

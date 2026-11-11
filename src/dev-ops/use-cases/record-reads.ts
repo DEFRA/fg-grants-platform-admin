@@ -15,18 +15,40 @@ export type {
 } from '../repositories/record-page.ts'
 export { recordTabs } from '../repositories/record-page.ts'
 
+const timedOutReason = 'TIMED_OUT'
+
 export interface ListResult<P> {
   page: P
   unavailable: boolean
   refused: boolean
   /** GAS's own reason for a refusal: fixed text that never repeats what was sent. */
   refusal: string | null
+  /** The read ran out of time in GAS or CW, which only a narrower one can mend. */
+  timedOut: boolean
 }
 
-const logListFailure = (name: string, refused: boolean, error: unknown) => {
+interface ListFailure {
+  refused: boolean
+  timedOut: boolean
+}
+
+/** A refusal and a read that ran out of time are answers the page explains, not outages. */
+const logListFailure = (
+  name: string,
+  { refused, timedOut }: ListFailure,
+  error: unknown
+) => {
   if (refused) {
     logger.warn(
       `fg-gas-backend refused the ${name} list parameters: ${describeError(error)}`
+    )
+
+    return
+  }
+
+  if (timedOut) {
+    logger.warn(
+      `fg-gas-backend ran out of time reading the ${name} list: ${describeError(error)}`
     )
 
     return
@@ -48,18 +70,21 @@ export const readList = async <P>(
       page: await read(),
       unavailable: false,
       refused: false,
-      refusal: null
+      refusal: null,
+      timedOut: false
     }
   } catch (error) {
     const refused = toGasStatusCode(error) === statusCodes.badRequest
+    const timedOut = toGasErrorField(error, 'reason') === timedOutReason
 
-    logListFailure(name, refused, error)
+    logListFailure(name, { refused, timedOut }, error)
 
     return {
       page: empty,
       unavailable: !refused,
       refused,
-      refusal: refused ? toGasErrorField(error, 'message') : null
+      refusal: refused ? toGasErrorField(error, 'message') : null,
+      timedOut
     }
   }
 }

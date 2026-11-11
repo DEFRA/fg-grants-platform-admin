@@ -333,6 +333,38 @@ export const casesBucket: BucketEntry = {
   ]
 }
 
+const declaredFields = {
+  'woodland-creation': [
+    { key: 'businessName', label: 'Business name', match: 'prefix' as const },
+    { key: 'landParcelId', label: 'Land parcel ID', match: 'exact' as const }
+  ],
+  'hedgerow-restoration': []
+}
+
+const declaringValues = [
+  { value: 'woodland-creation', label: 'woodland-creation' },
+  { value: 'hedgerow-restoration', label: 'hedgerow-restoration' }
+]
+
+/** Applications whose grants declare fields of their own, one of them none. */
+export const fieldsApplicationsBucket: BucketEntry = {
+  ...applicationsBucket,
+  facts: [
+    { ...applicationsBucket.facts[0], values: declaringValues },
+    ...applicationsBucket.facts.slice(1)
+  ],
+  fields: { fact: 'code', byValue: declaredFields }
+}
+
+export const fieldsCasesBucket: BucketEntry = {
+  ...casesBucket,
+  facts: [
+    { ...casesBucket.facts[0], values: declaringValues },
+    ...casesBucket.facts.slice(1)
+  ],
+  fields: { fact: 'workflowCode', byValue: declaredFields }
+}
+
 /** As CW declares them for a workflow version's one file. */
 const workflowFetchStatusValues: BucketFact['values'] = [
   {

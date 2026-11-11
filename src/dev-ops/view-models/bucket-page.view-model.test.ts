@@ -1,5 +1,6 @@
 import {
   applicationsBucket,
+  fieldsApplicationsBucket,
   grantsBucket,
   outboxBucket,
   toggledBucket
@@ -83,7 +84,8 @@ const read = (page: BucketResult | null = exact()): BucketListResult => ({
   page,
   unavailable: false,
   refused: false,
-  refusal: null
+  refusal: null,
+  timedOut: false
 })
 
 const page = (
@@ -111,11 +113,13 @@ const versioned = () =>
     applicationsBucket
   )
 
+const woodland = { code: 'woodland-creation' }
+
 describe('toSearchQuery', () => {
   test('stores the kind and the value as one', () => {
-    expect(toSearchQuery(outboxBucket, 'trace', 'abc-123:xyz@example._')).toBe(
-      'trace:abc-123:xyz@example._'
-    )
+    expect(
+      toSearchQuery(outboxBucket, {}, 'trace', 'abc-123:xyz@example._')
+    ).toEqual({ q: 'trace:abc-123:xyz@example._', error: null })
   })
 
   test.each([
@@ -126,7 +130,78 @@ describe('toSearchQuery', () => {
     ['an empty value', 'ref', ''],
     ['a value over 200 characters', 'ref', 'x'.repeat(201)]
   ])('refuses %s', (_name, kind, value) => {
-    expect(toSearchQuery(outboxBucket, kind, value)).toBeNull()
+    expect(toSearchQuery(outboxBucket, {}, kind, value)).toEqual({
+      q: null,
+      error: 'Enter an identifier using only letters, numbers and . _ : @ -'
+    })
+  })
+
+  test('stores a field the chosen grant declares, spaces and punctuation as typed', () => {
+    expect(
+      toSearchQuery(
+        fieldsApplicationsBucket,
+        woodland,
+        'field.businessName',
+        "O'Neill & Sons: Hilltop"
+      )
+    ).toEqual({ q: "field.businessName:O'Neill & Sons: Hilltop", error: null })
+  })
+
+  test('says why a field value cannot be searched for', () => {
+    expect(
+      toSearchQuery(
+        fieldsApplicationsBucket,
+        woodland,
+        'field.businessName',
+        'Hi'
+      )
+    ).toEqual({
+      q: null,
+      error: 'Enter at least 3 letters or numbers of the business name'
+    })
+  })
+
+  test.each([
+    ['no grant is chosen', {}],
+    ['the chosen grant does not declare it', { code: 'hedgerow-restoration' }]
+  ])('refuses a field when %s', (_name, filters) => {
+    expect(
+      toSearchQuery(
+        fieldsApplicationsBucket,
+        filters,
+        'field.businessName',
+        'Hilltop'
+      )
+    ).toEqual({ q: null, error: 'Choose a grant that declares this field' })
+  })
+
+  test('refuses a field beside another filter, saying to clear it', () => {
+    expect(
+      toSearchQuery(
+        fieldsApplicationsBucket,
+        { ...woodland, currentConfigVersion: '1.48.0' },
+        'field.businessName',
+        'Hilltop'
+      )
+    ).toEqual({
+      q: null,
+      error:
+        "Clear the other filters to search by woodland-creation's own fields"
+    })
+  })
+
+  test('takes a field kind on a list with no fields for an unknown identifier', () => {
+    expect(
+      toSearchQuery(
+        applicationsBucket,
+        woodland,
+        'field.businessName',
+        'Hilltop'
+      )
+    ).toEqual({
+      q: null,
+      error: 'Enter an identifier using only letters, numbers and . _ : @ -'
+    })
   })
 })
 
@@ -561,7 +636,8 @@ describe('toBucketPage', () => {
       value: '',
       error: null,
       hiddenFields: [{ name: 'status', value: 'DEAD_LETTER' }],
-      note: null
+      note: null,
+      fieldsHint: null
     })
   })
 
@@ -582,7 +658,99 @@ describe('toBucketPage', () => {
         { value: 'trace', active: true }
       ],
       value: 'urn:uuid:0b7c1d1e',
-      note: { label: 'Trace ID', value: 'urn:uuid:0b7c1d1e' }
+      note: { label: 'Trace ID', value: 'urn:uuid:0b7c1d1e', starting: false }
+    })
+  })
+
+  test('offers the fields the chosen grant declares after the identifiers', () => {
+    expect(
+      page(read(), woodland, fieldsApplicationsBucket).search
+    ).toMatchObject({
+      kinds: [
+        { value: 'ref', label: 'Reference', active: false },
+        { value: 'field.businessName', label: 'Business name', active: false },
+        { value: 'field.landParcelId', label: 'Land parcel ID', active: false }
+      ],
+      placeholder: 'Identifier or field value',
+      inputLabel: 'Identifier or field value',
+      fieldsHint: null
+    })
+  })
+
+  test.each([
+    ['no grant is chosen', {}, 'Choose a grant to search by its own fields'],
+    ['the chosen grant declares none', { code: 'hedgerow-restoration' }, null],
+    [
+      'another filter is set',
+      { ...woodland, currentConfigVersion: '1.48.0' },
+      "Clear the other filters to search by woodland-creation's own fields"
+    ]
+  ])('offers only the identifiers when %s', (_name, filters, fieldsHint) => {
+    expect(
+      page(read(), filters, fieldsApplicationsBucket).search
+    ).toMatchObject({
+      kinds: [{ value: 'ref', label: 'Reference', active: false }],
+      placeholder: 'Exact Reference',
+      fieldsHint
+    })
+  })
+
+  test.each([
+    [
+      'field.businessName:Hilltop',
+      { label: 'Business name', value: 'Hilltop', starting: true }
+    ],
+    [
+      'field.landParcelId:SX0679 9238',
+      { label: 'Land parcel ID', value: 'SX0679 9238', starting: false }
+    ]
+  ])('notes the field search %j that ran', (q, note) => {
+    const { search } = toBucketPage(
+      fieldsApplicationsBucket,
+      read(),
+      { filters: woodland },
+      { q, id: searchId },
+      now
+    )
+
+    expect(search).toMatchObject({ value: note.value, note })
+    expect(search?.kinds.find(({ active }) => active)?.label).toBe(note.label)
+  })
+
+  const fieldSearched = (total?: BucketResult['total']) =>
+    toBucketPage(
+      fieldsApplicationsBucket,
+      read(exact({ groups: [], ...(total !== undefined && { total }) })),
+      { filters: woodland },
+      { q: 'field.businessName:Hilltop', id: searchId },
+      now
+    ).search?.note?.totalLabel
+
+  test.each([
+    [{ count: 1, capped: false }, '1 application'],
+    [{ count: 48, capped: false }, '48 applications'],
+    [{ count: 0, capped: false }, '0 applications'],
+    [{ count: 10_000, capped: true }, '10,000+ applications']
+  ])('counts the field search that ran, %j', (total, label) => {
+    expect(fieldSearched(total)).toBe(label)
+  })
+
+  test('counts nothing when GAS answers no total', () => {
+    expect(fieldSearched(null)).toBeNull()
+    expect(fieldSearched()).toBeNull()
+  })
+
+  test('counts nothing beside a ref search', () => {
+    expect(searchedPage('trace:urn:uuid:0b7c1d1e').search?.note).toMatchObject({
+      totalLabel: null
+    })
+  })
+
+  test('offers no fields on a list whose catalogue entry has no fields', () => {
+    expect(Object.hasOwn(applicationsBucket, 'fields')).toBe(false)
+    expect(page(read(), woodland, applicationsBucket).search).toMatchObject({
+      kinds: [{ value: 'ref', label: 'Reference', active: false }],
+      fieldsHint: null
     })
   })
 
@@ -926,7 +1094,8 @@ describe('toBucketPage', () => {
         page: null,
         unavailable: false,
         refused: true,
-        refusal: 'A filter names a fact this bucket does not declare'
+        refusal: 'A filter names a fact this bucket does not declare',
+        timedOut: false
       })
     ).toMatchObject({
       refused: {
@@ -941,12 +1110,47 @@ describe('toBucketPage', () => {
     })
   })
 
+  test.each([
+    [
+      'a prefix field',
+      'field.businessName:hil',
+      {
+        by: null,
+        message:
+          'Too many applications have a business name starting "hil" to list in time. Type more of it',
+        startHref: '/dev-ops/applications'
+      }
+    ],
+    ['an exact field', 'field.landParcelId:SX0679', null],
+    ['an identifier', 'ref:abc-123', null]
+  ])(
+    'says what to do about a read that timed out for %s',
+    (_name, q, refused) => {
+      const drawn = toBucketPage(
+        fieldsApplicationsBucket,
+        {
+          page: null,
+          unavailable: true,
+          refused: false,
+          refusal: null,
+          timedOut: true
+        },
+        { filters: woodland },
+        { q, id: searchId },
+        now
+      )
+
+      expect(drawn).toMatchObject({ unavailable: true, refused })
+    }
+  )
+
   test('says the list is unavailable, still drawing its filters from the catalogue', () => {
     const drawn = page({
       page: null,
       unavailable: true,
       refused: false,
-      refusal: null
+      refusal: null,
+      timedOut: false
     })
 
     expect(drawn).toMatchObject({ unavailable: true, refused: null, rows: [] })
@@ -1054,6 +1258,37 @@ describe('toBucketPage', () => {
     expect(
       page(read(exact({ rows: [], groups: [] })), {}, grantsBucket).emptyText
     ).toBe('No grant versions found.')
+  })
+
+  test.each([
+    [
+      'a prefix field',
+      woodland,
+      'field.businessName:hil',
+      'No applications whose Grant is woodland-creation match Business name starting "hil".'
+    ],
+    [
+      'an exact field',
+      woodland,
+      'field.landParcelId:ZZ9999 9999',
+      'No applications whose Grant is woodland-creation match Land parcel ID "ZZ9999 9999".'
+    ],
+    [
+      'an identifier, with nothing chosen',
+      {},
+      'ref:abc-123',
+      'No applications match Reference "abc-123".'
+    ]
+  ])('names the search by %s that found nothing', (_name, filters, q, text) => {
+    expect(
+      toBucketPage(
+        fieldsApplicationsBucket,
+        read(exact({ rows: [], groups: [] })),
+        { filters },
+        { q, id: searchId },
+        now
+      ).emptyText
+    ).toBe(text)
   })
 
   test('gives each menu value its hint', () => {

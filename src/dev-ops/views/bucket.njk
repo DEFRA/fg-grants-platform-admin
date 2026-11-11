@@ -143,10 +143,15 @@
       </div>
     {% endcall %}
 
+    {% if search and search.fieldsHint %}
+      <p class="-mt-1 mb-3 text-sm {{ muted }}" data-testid="bucket-fields-hint">{{ search.fieldsHint }}</p>
+    {% endif %}
+
     {% if (search and search.note) or notes | length %}
       <div class="-mt-1 mb-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm" data-testid="bucket-filter-notes">
         {% if search and search.note %}
-          <span class="{{ muted }}" data-testid="bucket-note-search">Matching {{ search.note.label }} <span class="font-mono text-base-content/80">"{{ search.note.value }}"</span></span>
+          <span class="{{ muted }}" data-testid="bucket-note-search">Matching {{ search.note.label }}{% if search.note.starting %} starting{% endif %} <span class="font-mono text-base-content/80">"{{ search.note.value }}"</span></span>
+          {% if search.note.totalLabel %}<span class="text-base-content/30" aria-hidden="true">·</span><span class="{{ muted }} tabular-nums" data-testid="bucket-note-search-total">{{ search.note.totalLabel }}</span>{% endif %}
           {{ clearSearch(bucket, search) }}
         {% endif %}
         {% for note in notes %}
