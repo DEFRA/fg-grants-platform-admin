@@ -1,0 +1,2 @@
+{%- from "../../../core/macros.njk" import attrs, cls -%}
+<div class="au-cq"><div class="{{ cls('au-grid au-gap-xl au-grid-min-sm', p or {}) }}"{{ attrs(p or {}) }}>{{ caller() }}</div></div>

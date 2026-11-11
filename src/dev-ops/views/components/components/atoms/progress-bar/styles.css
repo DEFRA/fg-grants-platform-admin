@@ -1,0 +1,9 @@
+.au-num { font-variant-numeric: tabular-nums; }
+.au-progress { display: flex; flex-direction: column; gap: var(--gap-stack-xs); min-width: 0; }
+.au-progress-head { display: flex; justify-content: space-between; gap: var(--gap-inline-md); font-size: var(--font-size-sm); line-height: var(--line-height-sm); color: var(--fg-muted); letter-spacing: var(--tracking-sm); }
+.au-progress-track { position: relative; height: var(--size-progress); overflow: hidden; border-radius: var(--radius-full); background: var(--bg-hover); }
+.au-progress-fill { height: 100%; border-radius: inherit; background: var(--bg-accent); transition: width var(--duration-slow) var(--easing-standard); }
+.au-progress-success .au-progress-fill { background: var(--status-success); } .au-progress-warning .au-progress-fill { background: var(--status-warning); } .au-progress-danger .au-progress-fill { background: var(--status-danger); }
+.au-progress.is-indeterminate .au-progress-fill { width: 40%; animation: au-indeterminate 1.2s var(--easing-standard) infinite; }
+@media (prefers-reduced-motion: reduce) { .au-progress.is-indeterminate .au-progress-fill { animation-duration: 3s; } .au-progress-fill { transition: none; } }
+[dir="rtl"] .au-progress.is-indeterminate .au-progress-fill { animation-direction: reverse; }
