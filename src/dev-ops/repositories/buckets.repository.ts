@@ -67,6 +67,18 @@ export interface BucketPage {
   shortLabel: string
 }
 
+export interface BucketSearchField {
+  key: string
+  label: string
+  match: 'exact' | 'prefix'
+}
+
+/** The fields a record can be searched by, as each value of `fact` declares them. */
+export interface BucketFields {
+  fact: string
+  byValue: Record<string, BucketSearchField[]>
+}
+
 /** One list, as the service that owns it declares it. */
 export interface BucketEntry {
   id: string
@@ -91,6 +103,8 @@ export interface BucketEntry {
   audited: boolean
   timeline: boolean
   summaries: BucketSummary[]
+  /** Null, or absent from a GAS that has none, for a list whose records declare no fields. */
+  fields?: BucketFields | null
   /** The page it is a tab of, and its label there; null for a list with a page of its own. */
   page: BucketPage | null
   tab: string | null
@@ -107,6 +121,8 @@ export interface BucketQuery {
   show?: string[]
   /** One `kind:value`. */
   ref?: string
+  /** One `key:value`, for a field the chosen `where` value declares. */
+  field?: string
   from?: string
   to?: string
   cursor?: string
@@ -167,6 +183,8 @@ export interface BucketResult {
   rows: BucketRow[]
   page: BucketPaging
   groups: BucketGroup[]
+  /** A field search's matches; null on a later page or when they could not be counted in time, and absent for any other read. */
+  total?: ListTotal | null
 }
 
 export interface SummaryEntry {

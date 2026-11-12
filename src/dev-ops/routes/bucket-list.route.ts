@@ -17,11 +17,13 @@ import { toBucketHref } from '../view-models/bucket-links.ts'
 import type { BucketFilters } from '../view-models/bucket-links.ts'
 import { devOpsPath, toHomeHref } from '../view-models/bucket-nav.ts'
 import {
-  searchError,
   toBucketPage,
   toSearchQuery
 } from '../view-models/bucket-page.view-model.ts'
-import type { SearchAttempt } from '../view-models/bucket-page.view-model.ts'
+import type {
+  SearchAttempt,
+  StoredQuery
+} from '../view-models/bucket-page.view-model.ts'
 import {
   drawnSummaries,
   toSummarySections
@@ -34,6 +36,7 @@ import {
   unknownKeyRefusal,
   unknownKeys
 } from '../view-models/bucket-urls.ts'
+import { isOfferedSearch, toSearchParam } from '../view-models/field-search.ts'
 import { listPageCache, present } from '../view-models/list-filters.ts'
 import { seeOther } from '../view-models/see-other.ts'
 import {
@@ -94,7 +97,8 @@ const refusedRead: BucketListResult = {
   page: null,
   unavailable: false,
   refused: true,
-  refusal: unknownKeyRefusal
+  refusal: unknownKeyRefusal,
+  timedOut: false
 }
 
 const toShow = (filters: BucketFilters) => {
@@ -113,7 +117,7 @@ const toSearch = (
   return {
     where: where as Record<string, string>,
     ...toShow(filters),
-    ...present('ref', search.q),
+    ...toSearchParam(search.q),
     ...present('from', from),
     ...present('to', to),
     ...present('cursor', cursor)
@@ -150,7 +154,7 @@ const readSummaries = async (
  * first page ran, or none: null when that search is no longer held. A later
  * page is never a repeat.
  */
-const searchFor = (
+const heldSearch = (
   request: Request,
   bucket: BucketEntry,
   { cursor, searched }: ListQuery,
@@ -163,6 +167,25 @@ const searchFor = (
   }
 
   return searched ? peekSearch(request, key, searched) : browse
+}
+
+/** A field search the filters no longer offer, as after the grant changed, is dropped and the list browses. */
+const searchFor = (
+  request: Request,
+  bucket: BucketEntry,
+  filters: BucketFilters,
+  query: ListQuery,
+  listHref: string
+): SearchToRun | null => {
+  const search = heldSearch(request, bucket, query, listHref)
+
+  if (search === null || isOfferedSearch(bucket, filters, search.q)) {
+    return search
+  }
+
+  clearSearch(request, toSearchKey(bucket.id))
+
+  return query.cursor ? null : browse
 }
 
 const matesOf = async (bucket: BucketEntry): Promise<BucketEntry[]> =>
@@ -197,7 +220,13 @@ const viewList = async (
   { cursor, searched }: ListQuery
 ) => {
   const listHref = toBucketHref(bucket, filters)
-  const search = searchFor(request, bucket, { cursor, searched }, listHref)
+  const search = searchFor(
+    request,
+    bucket,
+    filters,
+    { cursor, searched },
+    listHref
+  )
 
   if (search === null) {
     return h.redirect(listHref)
@@ -212,14 +241,14 @@ const viewList = async (
     readSummaries(bucket, filters, { cursor, q: search.q })
   ])
 
-  forgetRefused(request, toSearchKey(bucket.id), search, read.refused)
-
   const page = toBucketPage(
     bucket,
     read,
     { filters, mates: await matesOf(bucket) },
     search
   )
+
+  forgetRefused(request, toSearchKey(bucket.id), search, page.refused !== null)
 
   return h.view('bucket', {
     pageTitle: page.title,
@@ -289,15 +318,18 @@ export const viewBucketRoute: ServerRoute = {
   }
 }
 
-/** What an empty box clears, or the search a typed value is; null for one that cannot be. */
+/** What an empty box clears, or the search a typed value is, or why it cannot be one. */
 const toStoredQuery = (
   bucket: BucketEntry,
+  filters: BucketFilters,
   kind: string,
   typed: string
-): string | null => {
+): StoredQuery => {
   const value = typed.trim()
 
-  return value === '' ? '' : toSearchQuery(bucket, kind, value)
+  return value === ''
+    ? { q: '', error: null }
+    : toSearchQuery(bucket, filters, kind, value)
 }
 
 /**
@@ -340,10 +372,10 @@ export const searchBucketRoute: ServerRoute = {
     }
 
     const href = toBucketHref(bucket, filters)
-    const q = toStoredQuery(bucket, kind, typed)
+    const { q, error } = toStoredQuery(bucket, filters, kind, typed)
 
     if (q === null) {
-      const attempt: SearchAttempt = { kind, value: typed, error: searchError }
+      const attempt: SearchAttempt = { kind, value: typed, error }
 
       clearSearch(request, key)
 

@@ -1,13 +1,18 @@
 import { load, type Cheerio, type CheerioAPI } from 'cheerio'
 import type { Element } from 'domhandler'
 import type { Server } from '@hapi/hapi'
+import { pino, symbols } from 'pino'
+import type { LoggerOptions } from 'pino'
 
+import { logger } from '../../common/logger.ts'
 import { statusCodes } from '../../common/status-codes.ts'
 import { createServer } from '../../server/index.ts'
 import { devOps } from '../index.ts'
 import {
   applicationsBucket,
   catalogue,
+  fieldsApplicationsBucket,
+  fieldsCasesBucket,
   grantsBucket,
   outboxBucket,
   pagedInbox,
@@ -140,7 +145,8 @@ const answered = (page: BucketResult | null = exact()): BucketListResult => ({
   page,
   unavailable: false,
   refused: false,
-  refusal: null
+  refusal: null,
+  timedOut: false
 })
 
 const givenPage = (page: BucketResult = exact()) =>
@@ -150,14 +156,16 @@ const refusal: BucketListResult = {
   page: null,
   unavailable: false,
   refused: true,
-  refusal: 'A filter names a fact this bucket does not declare'
+  refusal: 'A filter names a fact this bucket does not declare',
+  timedOut: false
 }
 
 const outage: BucketListResult = {
   page: null,
   unavailable: true,
   refused: false,
-  refusal: null
+  refusal: null,
+  timedOut: false
 }
 
 const flatten = (text: string) => text.replace(/\s+/g, ' ').trim()
@@ -1381,6 +1389,368 @@ describe('a search by identifier', () => {
   })
 })
 
+describe('a search by a declared field', () => {
+  const woodlandPath = `${applicationsPath}?grant=woodland-creation`
+  const hedgerowPath = `${applicationsPath}?grant=hedgerow-restoration`
+
+  const listed = [fieldsApplicationsBucket, fieldsCasesBucket]
+
+  beforeEach(() => {
+    vi.mocked(getBucketAtUseCase).mockImplementation(async (at) => ({
+      available: true,
+      bucket: listed.find((bucket) => bucket.path === at) ?? null
+    }))
+  })
+
+  afterEach(() => {
+    vi.mocked(getBucketAtUseCase).mockImplementation(async (at) => ({
+      available: true,
+      bucket: catalogue.buckets.find((bucket) => bucket.path === at) ?? null
+    }))
+  })
+
+  const searchWoodland = (kind: string, value: string, cookie = '') =>
+    search(
+      { 'ref-kind': kind, 'ref-value': value, grant: 'woodland-creation' },
+      cookie,
+      applicationsPath
+    )
+
+  const chips = ($: CheerioAPI) =>
+    part($, 'bucket-search-kind-chip')
+      .toArray()
+      .map((chip) => [$(chip).attr('data-value'), flatten($(chip).text())])
+
+  test('offers the fields the chosen grant declares after the identifiers', async () => {
+    const { $ } = await viewPage(woodlandPath)
+
+    expect(chips($)).toEqual([
+      ['ref', 'Reference'],
+      ['field.businessName', 'Business name'],
+      ['field.landParcelId', 'Land parcel ID']
+    ])
+    expect(part($, 'bucket-search-input').attr('placeholder')).toBe(
+      'Identifier or field value'
+    )
+    expect(part($, 'bucket-fields-hint')).toHaveLength(0)
+  })
+
+  test.each([
+    [applicationsPath, 'Choose a grant to search by its own fields'],
+    ['/dev-ops/cases', 'Choose a workflow to search by its own fields']
+  ])(
+    'asks for the choice that declares fields at %s, offering only the identifiers',
+    async (url, hint) => {
+      const { $ } = await viewPage(url)
+
+      expect(textOf($, 'bucket-fields-hint')).toBe(hint)
+      expect(part($, 'bucket-search-kind-value').attr('value')).toBe('ref')
+      expect(part($, 'bucket-search-kind-chip')).toHaveLength(0)
+    }
+  )
+
+  test('says nothing of fields under a grant that declares none', async () => {
+    const { $ } = await viewPage(hedgerowPath)
+
+    expect(part($, 'bucket-fields-hint')).toHaveLength(0)
+    expect(part($, 'bucket-search-kind-chip')).toHaveLength(0)
+  })
+
+  test.each([
+    [
+      'field.businessName',
+      " O'Neill Hilltop ",
+      "businessName:O'Neill Hilltop",
+      'Business name',
+      `Matching Business name starting "O'Neill Hilltop"`
+    ],
+    [
+      'field.landParcelId',
+      'SX0679 9238',
+      'landParcelId:SX0679 9238',
+      'Land parcel ID',
+      'Matching Land parcel ID "SX0679 9238"'
+    ]
+  ])(
+    'sends %s to GAS as the field, kept out of the URL, and notes it',
+    async (kind, value, field, chosen, note) => {
+      const posted = await searchWoodland(kind, value)
+
+      expect(posted.statusCode).toBe(statusCodes.seeOther)
+      expect(posted.location).toBe(woodlandPath)
+
+      const { $ } = await viewPage(posted.location, posted.cookie)
+
+      expect(asked()).toEqual([
+        { where: { code: 'woodland-creation' }, field },
+        false
+      ])
+      expect(textOf($, 'bucket-note-search')).toBe(note)
+      expect(textOf($, 'bucket-search-kind-chosen')).toBe(chosen)
+      expect(part($, 'bucket-note-search-clear')).toHaveLength(1)
+    }
+  )
+
+  const viewFieldSearch = async (total: BucketResult['total']) => {
+    givenPage(exact({ groups: [], total }))
+    const posted = await searchWoodland('field.landParcelId', 'SX0679 9238')
+
+    return viewPage(posted.location, posted.cookie)
+  }
+
+  test.each([
+    [{ count: 48, capped: false }, '48 applications'],
+    [{ count: 10_000, capped: true }, '10,000+ applications']
+  ])(
+    'shows the count GAS answers for a field search, %j, beside what ran',
+    async (total, label) => {
+      const { $ } = await viewFieldSearch(total)
+
+      expect(textOf($, 'bucket-note-search')).toBe(
+        'Matching Land parcel ID "SX0679 9238"'
+      )
+      expect(textOf($, 'bucket-note-search-total')).toBe(label)
+    }
+  )
+
+  test('shows no count for a field search GAS could not count', async () => {
+    const { $ } = await viewFieldSearch(null)
+
+    expect(part($, 'bucket-note-search')).toHaveLength(1)
+    expect(part($, 'bucket-note-search-total')).toHaveLength(0)
+  })
+
+  test.each([
+    [
+      'a prefix under 3 letters or numbers',
+      'field.businessName',
+      'Hi',
+      'Enter at least 3 letters or numbers of the business name'
+    ],
+    [
+      'no letter or number',
+      'field.landParcelId',
+      '-- --',
+      'Land parcel ID must contain a letter or number'
+    ],
+    [
+      'over 200 characters',
+      'field.landParcelId',
+      'x'.repeat(201),
+      'Land parcel ID must be 200 characters or fewer'
+    ]
+  ])(
+    'refuses %s, says why beside the box, and stores nothing',
+    async (_name, kind, value, error) => {
+      const refused = await searchWoodland(kind, value)
+
+      expect(refused.statusCode).toBe(statusCodes.badRequest)
+      expect(textOf(refused.$, 'bucket-search-error')).toBe(error)
+      expect(part(refused.$, 'bucket-search-input').attr('value')).toBe(value)
+      expect(part(refused.$, 'bucket-search-kind-value').attr('value')).toBe(
+        kind
+      )
+
+      await viewPage(woodlandPath, refused.cookie)
+
+      expect(asked()).toEqual([{ where: { code: 'woodland-creation' } }, false])
+    }
+  )
+
+  test('refuses a field the posted grant does not declare', async () => {
+    const refused = await search(
+      { 'ref-kind': 'field.businessName', 'ref-value': 'Hilltop' },
+      '',
+      applicationsPath
+    )
+
+    expect(refused.statusCode).toBe(statusCodes.badRequest)
+    expect(textOf(refused.$, 'bucket-search-error')).toBe(
+      'Choose a grant that declares this field'
+    )
+  })
+
+  test.each([
+    ['another grant', hedgerowPath, { code: 'hedgerow-restoration' }],
+    ['no grant', applicationsPath, {}]
+  ])(
+    'is dropped when the list moves to %s, which browses',
+    async (_name, url, where) => {
+      const posted = await searchWoodland('field.businessName', 'Hilltop')
+
+      const moved = await viewPage(url, posted.cookie)
+
+      expect(asked()).toEqual([{ where }, false])
+      expect(part(moved.$, 'bucket-note-search')).toHaveLength(0)
+
+      await viewPage(woodlandPath, moved.cookie)
+
+      expect(asked()).toEqual([{ where: { code: 'woodland-creation' } }, false])
+    }
+  )
+
+  test('offers no fields beside another filter, and says why', async () => {
+    const { $ } = await viewPage(`${woodlandPath}&version=1.48.0`)
+
+    expect(textOf($, 'bucket-fields-hint')).toBe(
+      "Clear the other filters to search by woodland-creation's own fields"
+    )
+    expect(part($, 'bucket-search-kind-chip')).toHaveLength(0)
+  })
+
+  test('still offers the fields over a time range', async () => {
+    const { $ } = await viewPage(`${woodlandPath}&range=24h`)
+
+    expect(part($, 'bucket-search-kind-chip')).toHaveLength(3)
+    expect(part($, 'bucket-fields-hint')).toHaveLength(0)
+  })
+
+  test('refuses a field posted beside another filter, and stores nothing', async () => {
+    const refused = await search(
+      {
+        'ref-kind': 'field.businessName',
+        'ref-value': 'Hilltop',
+        grant: 'woodland-creation',
+        version: '1.48.0'
+      },
+      '',
+      applicationsPath
+    )
+
+    expect(refused.statusCode).toBe(statusCodes.badRequest)
+    expect(textOf(refused.$, 'bucket-search-error')).toBe(
+      "Clear the other filters to search by woodland-creation's own fields"
+    )
+    expect(asked()).toEqual([
+      { where: { code: 'woodland-creation', currentConfigVersion: '1.48.0' } },
+      false
+    ])
+  })
+
+  test('is dropped when another filter is added, which browses', async () => {
+    const posted = await searchWoodland('field.businessName', 'Hilltop')
+
+    const narrowed = await viewPage(
+      `${woodlandPath}&version=1.48.0`,
+      posted.cookie
+    )
+
+    expect(asked()).toEqual([
+      { where: { code: 'woodland-creation', currentConfigVersion: '1.48.0' } },
+      false
+    ])
+    expect(part(narrowed.$, 'bucket-note-search')).toHaveLength(0)
+
+    await viewPage(woodlandPath, narrowed.cookie)
+
+    expect(asked()).toEqual([{ where: { code: 'woodland-creation' } }, false])
+  })
+
+  test('is dropped, not sent, once the catalogue entry has no fields', async () => {
+    const posted = await searchWoodland('field.businessName', 'Hilltop')
+
+    vi.mocked(getBucketAtUseCase).mockResolvedValueOnce({
+      available: true,
+      bucket: applicationsBucket
+    })
+
+    const { $ } = await viewPage(posted.location, posted.cookie)
+
+    expect(asked()).toEqual([{ where: { code: 'woodland-creation' } }, false])
+    expect(part($, 'bucket-note-search')).toHaveLength(0)
+    expect(part($, 'bucket-fields-hint')).toHaveLength(0)
+  })
+
+  test('writes the typed value to no log line, nor one a malformed post makes', async () => {
+    const written: string[] = []
+    const capture = pino(
+      {
+        level: 'trace',
+        // hapi-pino's own, so a request is written as it is in production.
+        serializers: (
+          logger as unknown as Record<symbol, LoggerOptions['serializers']>
+        )[symbols.serializersSym]
+      },
+      { write: (line: string) => written.push(line) }
+    )
+
+    vi.spyOn(logger, 'child').mockImplementation((bindings) =>
+      capture.child(bindings)
+    )
+
+    const posted = await searchWoodland('field.businessName', 'Zebedee Orchard')
+
+    await viewPage(posted.location, posted.cookie)
+
+    const malformed = await server.inject({
+      method: 'POST',
+      url: applicationsPath,
+      payload: {
+        'ref-kind': 'field.businessName',
+        'ref-value': ['Zebedee Orchard', 'Zebedee Orchard'],
+        grant: 'woodland-creation'
+      },
+      auth: { strategy: 'session', credentials }
+    })
+
+    vi.mocked(logger.child).mockRestore()
+
+    expect(malformed.statusCode).toBe(statusCodes.badRequest)
+    expect(written.length).toBeGreaterThan(0)
+    expect(written.join('\n')).not.toContain('Zebedee')
+  })
+
+  test('sends a later page of a dropped field search back to its first page', async () => {
+    const posted = await searchWoodland('field.businessName', 'Hilltop')
+
+    givenPage(
+      exact({
+        page: {
+          next: 'NEXT',
+          keepLooking: null,
+          searchedTo: null,
+          complete: false
+        }
+      })
+    )
+
+    const { $ } = await viewPage(posted.location, posted.cookie)
+    const nextPage = ($('do-load-more').attr('data-next-page') ?? '').replace(
+      'woodland-creation',
+      'hedgerow-restoration'
+    )
+
+    vi.mocked(queryBucketUseCase).mockClear()
+
+    const { statusCode, headers } = await viewPage(nextPage, posted.cookie)
+
+    expect(statusCode).toBe(statusCodes.found)
+    expect(headers.location).toBe(hedgerowPath)
+    expect(queryBucketUseCase).not.toHaveBeenCalled()
+  })
+
+  test('says to type more of a prefix too common to list in time, and forgets it', async () => {
+    const posted = await searchWoodland('field.businessName', 'hil')
+
+    vi.mocked(queryBucketUseCase).mockResolvedValueOnce({
+      ...outage,
+      timedOut: true
+    })
+
+    const { $ } = await viewPage(posted.location, posted.cookie)
+
+    expect(textOf($, 'bucket-refused')).toBe(
+      'Too many applications have a business name starting "hil" to list in time. Type more of it. Start again'
+    )
+    expect(part($, 'bucket-search-input').attr('value')).toBe('hil')
+    expect(part($, 'bucket-error')).toHaveLength(0)
+
+    await viewPage(posted.location, posted.cookie)
+
+    expect(asked()).toEqual([{ where: { code: 'woodland-creation' } }, false])
+  })
+})
+
 describe('the version lists', () => {
   const grantsPath = '/dev-ops/grants'
   const workflowsPath = '/dev-ops/workflows'
@@ -1823,7 +2193,8 @@ describe('the summaries a list declares', () => {
     page,
     unavailable: page === null,
     refused: false,
-    refusal: null
+    refusal: null,
+    timedOut: false
   })
 
   const summaryAsked = () =>

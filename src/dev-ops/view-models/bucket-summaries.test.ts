@@ -42,7 +42,8 @@ const answered = (page: SummaryResult | null = result()): SummaryRead => ({
   page,
   unavailable: page === null,
   refused: false,
-  refusal: null
+  refusal: null,
+  timedOut: false
 })
 
 const sections = (read: SummaryRead = answered(), filters = {}) =>

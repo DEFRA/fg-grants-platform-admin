@@ -33,7 +33,8 @@ describe('summariseBucketUseCase', () => {
       page: result,
       unavailable: false,
       refused: false,
-      refusal: null
+      refusal: null,
+      timedOut: false
     })
     expect(summariseBucket).toHaveBeenCalledWith('gas.outbox', 'errors', {
       from: '2026-10-08T09:20:00.000Z'

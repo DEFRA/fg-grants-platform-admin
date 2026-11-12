@@ -24,6 +24,7 @@ export interface BucketSearch {
   /** The facts whose hidden values the URL asks for. */
   show?: string[]
   ref?: string
+  field?: string
   from?: string
   to?: string
   cursor?: string

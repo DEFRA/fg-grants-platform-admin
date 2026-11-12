@@ -26,6 +26,16 @@ import { toPageHead } from './bucket-tabs.ts'
 import type { PageTab } from './bucket-tabs.ts'
 import { toStampedEventName } from './event-names.ts'
 import type { EventName } from './event-names.ts'
+import {
+  fieldValueError,
+  isFieldKind,
+  offeredFields,
+  toClearFiltersHint,
+  toFieldKind,
+  toFieldsHint,
+  toLeadName,
+  toOfferedField
+} from './field-search.ts'
 import { toFields } from './list-filters.ts'
 import type { FilterField } from './list-filters.ts'
 import { toPositionLabel, toStatusLabel } from './position.ts'
@@ -100,6 +110,10 @@ interface SearchKind {
 interface SearchNote {
   label: string
   value: string
+  /** A prefix field: the rows whose value starts with it. */
+  starting: boolean
+  /** "48 applications", when GAS counted what a field search matched. */
+  totalLabel: string | null
 }
 
 interface SearchBox {
@@ -110,6 +124,8 @@ interface SearchBox {
   error: string | null
   hiddenFields: FilterField[]
   note: SearchNote | null
+  /** On a list with fields, until the choice that declares them is made. */
+  fieldsHint: string | null
 }
 
 interface HeadColumn {
@@ -428,22 +444,66 @@ const toSearched = (q: string): Searched | null => {
   return value.length === 0 ? null : { kind, value: value.join(':') }
 }
 
+/** Identifiers first, then the fields the chosen grant or workflow declares. */
+const toSearchKinds = ({ bucket, filters }: Context) => [
+  ...bucket.refs,
+  ...offeredFields(bucket, filters).map(({ key, label }) => ({
+    kind: toFieldKind(key),
+    label
+  }))
+]
+
+const toKindLabel = (context: Context, kind: string): string | null =>
+  toSearchKinds(context).find((offered) => offered.kind === kind)?.label ?? null
+
+const toNounCount = ({ one, many }: BucketEntry['noun'], total: Counted) => {
+  const label = toCountLabel(total)
+
+  return `${label} ${label === '1' ? one : many}`
+}
+
+const toTotalLabel = ({ bucket, result }: Context): string | null => {
+  const total = result?.total ?? null
+
+  return total === null ? null : toNounCount(bucket.noun, total)
+}
+
 const toSearchNote = (
-  { refs }: BucketEntry,
+  context: Context,
   searched: Searched | null
 ): SearchNote | null => {
-  const label = refs.find(({ kind }) => kind === searched?.kind)?.label
+  if (searched === null) {
+    return null
+  }
 
-  return searched && label ? { label, value: searched.value } : null
+  const label = toKindLabel(context, searched.kind)
+  const field = toOfferedField(context.bucket, context.filters, searched.kind)
+
+  return label === null
+    ? null
+    : {
+        label,
+        value: searched.value,
+        starting: field?.match === 'prefix',
+        totalLabel: toTotalLabel(context)
+      }
 }
 
 const noSearch = { kind: '', value: '', error: null }
 
 /** With one kind there is no menu to name it, so the box does. */
-const toSearchWording = (refs: BucketEntry['refs']) =>
-  refs.length === 1
-    ? { placeholder: `Exact ${refs[0].label}`, inputLabel: refs[0].label }
+const toSearchWording = (kinds: BucketEntry['refs'], fields: boolean) => {
+  if (fields) {
+    return {
+      placeholder: 'Identifier or field value',
+      inputLabel: 'Identifier or field value'
+    }
+  }
+
+  return kinds.length === 1
+    ? { placeholder: `Exact ${kinds[0].label}`, inputLabel: kinds[0].label }
     : { placeholder: 'Exact identifier', inputLabel: 'Identifier' }
+}
 
 /** The filters a search carries with it, under the keys the list's URL spells them by. */
 const toUrlFields = (
@@ -457,25 +517,28 @@ const toUrlFields = (
 
 /** A refused attempt is shown as typed; otherwise the box holds the search that ran. */
 const toSearchBox = (
-  { bucket, filters }: Context,
+  context: Context,
   searched: Searched | null,
   attempt?: SearchAttempt
 ): SearchBox | null => {
+  const { bucket, filters } = context
   const shown = { ...noSearch, ...searched, ...attempt }
+  const kinds = toSearchKinds(context)
 
   return bucket.refs.length === 0
     ? null
     : {
-        kinds: bucket.refs.map(({ kind, label }) => ({
+        kinds: kinds.map(({ kind, label }) => ({
           value: kind,
           label,
           active: kind === shown.kind
         })),
-        ...toSearchWording(bucket.refs),
+        ...toSearchWording(kinds, kinds.length > bucket.refs.length),
         value: shown.value,
         error: shown.error,
         hiddenFields: toUrlFields(bucket, filters),
-        note: toSearchNote(bucket, searched)
+        note: toSearchNote(context, searched),
+        fieldsHint: toFieldsHint(bucket, filters)
       }
 }
 
@@ -485,15 +548,52 @@ const searchable = /^[A-Za-z0-9._:@-]{1,200}$/
 export const searchError =
   'Enter an identifier using only letters, numbers and . _ : @ -'
 
-/** What is stored for a search, or null for a kind the bucket has not got or a value it could not hold. */
-export const toSearchQuery = (
+/** What is stored for a search, or why the box cannot hold it. */
+export type StoredQuery =
+  | { q: string; error: null }
+  | { q: null; error: string }
+
+const refused = (error: string): StoredQuery => ({ q: null, error })
+
+/** A field the filters no longer offer, as when the grant changed after the page was drawn. */
+const toFieldQuery = (
+  bucket: BucketEntry,
+  filters: BucketFilters,
+  kind: string,
+  value: string
+): StoredQuery => {
+  const field = toOfferedField(bucket, filters, kind)
+
+  if (field === null) {
+    return refused(
+      toClearFiltersHint(bucket, filters) ??
+        `Choose a ${toLeadName(bucket)} that declares this field`
+    )
+  }
+
+  const error = fieldValueError(field, value)
+
+  return error === null ? { q: `${kind}:${value}`, error } : refused(error)
+}
+
+const toRefQuery = (
   { refs }: BucketEntry,
   kind: string,
   value: string
-): string | null =>
+): StoredQuery =>
   refs.some((ref) => ref.kind === kind) && searchable.test(value)
-    ? `${kind}:${value}`
-    : null
+    ? { q: `${kind}:${value}`, error: null }
+    : refused(searchError)
+
+export const toSearchQuery = (
+  bucket: BucketEntry,
+  filters: BucketFilters,
+  kind: string,
+  value: string
+): StoredQuery =>
+  bucket.fields && isFieldKind(kind)
+    ? toFieldQuery(bucket, filters, kind, value)
+    : toRefQuery(bucket, kind, value)
 
 const exact = 'exact'
 
@@ -745,31 +845,58 @@ const toChoiceText = ({ label, values }: BucketFact, value: string): string => {
   return `${label} is ${option ? option.label : `"${value}"`}`
 }
 
-/** "No grant versions whose Status is Draft", or the plain "No … found" with nothing chosen. */
-const toNothingText = ({ bucket, filters }: Context): string => {
-  const chosen = bucket.facts.filter(({ name }) => filters[name])
+const toMatchText = ({ label, value, starting }: SearchNote): string =>
+  `${label}${starting ? ' starting' : ''} "${value}"`
 
-  return chosen.length
-    ? `No ${bucket.noun.many} whose ${chosen.map((fact) => toChoiceText(fact, filters[fact.name]!)).join(' and ')}.`
+/** "No grant versions whose Status is Draft", the search that ran after it, or the plain "No … found" with neither. */
+const toNothingText = (
+  { bucket, filters }: Context,
+  note: SearchNote | null
+): string => {
+  const chosen = bucket.facts.filter(({ name }) => filters[name])
+  const whose = chosen.length
+    ? ` whose ${chosen.map((fact) => toChoiceText(fact, filters[fact.name]!)).join(' and ')}`
+    : ''
+
+  if (note !== null) {
+    return `No ${bucket.noun.many}${whose} match ${toMatchText(note)}.`
+  }
+
+  return whose
+    ? `No ${bucket.noun.many}${whose}.`
     : `No ${bucket.noun.many} found.`
 }
 
 /** An empty read that searched the whole range says so on the same line, so the list ends in one place. */
 const toEmptyText = (
   context: Context,
-  keepLooking: KeepLooking | null,
-  searchedEverything: boolean
+  {
+    keepLooking,
+    searchedEverything
+  }: Pick<Paging, 'keepLooking' | 'searchedEverything'>,
+  note: SearchNote | null
 ): string => {
   if (keepLooking !== null) {
     return 'No matches so far.'
   }
 
-  const nothing = toNothingText(context)
+  const nothing = toNothingText(context, note)
 
   return searchedEverything ? `${nothing} Searched everything.` : nothing
 }
 
-const toPaging = (context: Context, searchId: string | null) => {
+interface Paging {
+  nextHref: string | null
+  keepLooking: KeepLooking | null
+  searchedEverything: boolean
+  emptyText: string
+}
+
+const toPaging = (
+  context: Context,
+  searchId: string | null,
+  note: SearchNote | null
+): Paging => {
   const { result } = context
   const page = result === null ? noPaging : result.page
   const keepLooking = toKeepLooking(context, page, searchId)
@@ -779,17 +906,37 @@ const toPaging = (context: Context, searchId: string | null) => {
     nextHref: toCursorHref(context, page.next, searchId),
     keepLooking,
     searchedEverything,
-    emptyText: toEmptyText(context, keepLooking, searchedEverything)
+    emptyText: toEmptyText(context, { keepLooking, searchedEverything }, note)
   }
 }
 
-const toRefusal = (
-  { bucket }: Context,
-  { refused, refusal }: BucketListResult
-): Refusal | null =>
-  refused
-    ? { by: 'GAS', message: refusal, startHref: toBucketPath(bucket) }
+/** A prefix too common to sort in time is the one read that typing more of it mends. */
+const toTimedOutPrefix = (
+  { bucket, filters }: Context,
+  searched: Searched | null
+): string | null => {
+  const field = searched && toOfferedField(bucket, filters, searched.kind)
+
+  return field?.match === 'prefix'
+    ? `Too many ${bucket.noun.many} have a ${field.label.toLowerCase()} starting "${searched!.value}" to list in time. Type more of it`
     : null
+}
+
+const toRefusal = (
+  context: Context,
+  { refused, refusal, timedOut }: BucketListResult,
+  searched: Searched | null
+): Refusal | null => {
+  const startHref = toBucketPath(context.bucket)
+
+  if (refused) {
+    return { by: 'GAS', message: refusal, startHref }
+  }
+
+  const message = timedOut ? toTimedOutPrefix(context, searched) : null
+
+  return message === null ? null : { by: null, message, startHref }
+}
 
 /** The search a page ran, and the id its later pages name it by; none for a browse. */
 const searchOf = (
@@ -834,8 +981,8 @@ export const toBucketPage = (
     search: toSearchBox(context, searched, attempt),
     head: toHead(bucket),
     rows: rows.map(toRow(context, toBucketHref(bucket, filters))),
-    ...toPaging(context, searchId),
-    refused: toRefusal(context, read),
+    ...toPaging(context, searchId, toSearchNote(context, searched)),
+    refused: toRefusal(context, read, searched),
     unavailable: read.unavailable
   }
 }

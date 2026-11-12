@@ -46,7 +46,8 @@ describe('queryBucketUseCase', () => {
       page: result,
       unavailable: false,
       refused: false,
-      refusal: null
+      refusal: null,
+      timedOut: false
     })
     expect(queryBucket).toHaveBeenCalledWith(
       'gas.outbox',
@@ -119,7 +120,8 @@ describe('queryBucketUseCase', () => {
       page: null,
       unavailable: false,
       refused: true,
-      refusal: 'A filter names a fact this bucket does not declare'
+      refusal: 'A filter names a fact this bucket does not declare',
+      timedOut: false
     })
     expect(logger.warn).toHaveBeenCalledWith(
       expect.stringContaining('refused the bucket gas.outbox list parameters')
@@ -147,9 +149,60 @@ describe('queryBucketUseCase', () => {
         page: null,
         unavailable: true,
         refused: false,
-        refusal: null
+        refusal: null,
+        timedOut: false
       })
       expect(logger.error).toHaveBeenCalled()
+    }
+  )
+
+  test('says a read GAS or CW ran out of time for timed out, so a narrower one can be asked for', async () => {
+    vi.mocked(queryBucket).mockRejectedValue(
+      responseError(504, {
+        message: 'The read did not finish in time',
+        reason: 'TIMED_OUT'
+      })
+    )
+
+    await expect(
+      queryBucketUseCase(outboxBucket, { where: {} }, false)
+    ).resolves.toEqual({
+      page: null,
+      unavailable: true,
+      refused: false,
+      refusal: null,
+      timedOut: true
+    })
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining(
+        'ran out of time reading the bucket gas.outbox list'
+      )
+    )
+    expect(logger.error).not.toHaveBeenCalled()
+  })
+
+  test.each([
+    [400, { message: 'Zebedee Orchard', reason: 'FIELD_WITH_FILTER' }],
+    [504, { message: 'Zebedee Orchard', reason: 'TIMED_OUT' }],
+    [502, { message: 'Zebedee Orchard' }]
+  ])(
+    'writes no part of a field search to the log on a %i',
+    async (statusCode, body) => {
+      vi.mocked(queryBucket).mockRejectedValue(responseError(statusCode, body))
+
+      await queryBucketUseCase(
+        outboxBucket,
+        { where: {}, field: 'businessName:Zebedee Orchard' },
+        false
+      )
+
+      const logged = [
+        ...vi.mocked(logger.warn).mock.calls,
+        ...vi.mocked(logger.error).mock.calls
+      ]
+
+      expect(logged).toHaveLength(1)
+      expect(JSON.stringify(logged)).not.toContain('Zebedee')
     }
   )
 })
