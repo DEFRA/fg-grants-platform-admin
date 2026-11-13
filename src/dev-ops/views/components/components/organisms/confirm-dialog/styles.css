@@ -1,0 +1,2 @@
+/* ConfirmDialog's body is a form, so fields in it submit with Confirm; it takes no space of its own. */
+.au-confirm-form { display: contents; }

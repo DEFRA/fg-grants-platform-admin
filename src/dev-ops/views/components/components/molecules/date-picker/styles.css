@@ -1,0 +1,10 @@
+.au-datefield { justify-content: flex-start; font: inherit; text-align: start; cursor: pointer; }
+.au-datefield .au-select-value { flex: 1; min-width: 0; font-size: var(--font-size-md); line-height: var(--line-height-md); }
+.au-datefield[aria-expanded="true"] .au-select-chevron { transform: rotate(180deg); }
+/* ───────────── Typed dates, times, month view ───────────── */
+.au-datefield-typed { padding-inline-end: var(--inset-tag-xs); }
+.au-datefield-typed input { font-variant-numeric: tabular-nums; }
+.au-datefield-typed .au-dropdown { margin-inline-start: auto; }
+@supports (-webkit-touch-callout: none) {
+  .au-datefield-typed input { font-size: var(--font-size-lg); }
+}

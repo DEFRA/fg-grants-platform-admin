@@ -1,0 +1,5 @@
+{#- DatePicker({ id, name, value (YYYY-MM-DD), min, max, clearable, placeholder, invalid, disabled, size, width, label (aria), describedBy, open }) — a date you can type or pick. Without a script it is a native date input; <au-date-picker> turns it into a date field with typed dates, a calendar and Today. -#}
+{% macro DatePicker(p) -%}
+  {%- set __html %}{% include "./template.njk" %}{% endset -%}
+  {{- __html | trim | safe -}}
+{%- endmacro %}

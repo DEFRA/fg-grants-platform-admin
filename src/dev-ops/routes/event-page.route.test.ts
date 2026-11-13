@@ -192,7 +192,11 @@ describe('Loaded: a dead letter, every attempt the same', () => {
     expect(by($, 'event-redrive').attr('href')).toBe(
       `${fromList}&confirm=redrive`
     )
-    expect($('link[href*="dev-ops.css"]')).toHaveLength(0)
+    expect(
+      $('link[rel="stylesheet"]')
+        .map((_i, link) => $(link).attr('href'))
+        .get()
+    ).toEqual(['/public/src/dev-ops/views/components/design-system.css'])
   })
 
   test('Details: the prototype’s facts, in its order', async () => {

@@ -1,0 +1,11 @@
+{%- from "../../../core/macros.njk" import attrs, cls, iconTemplate -%}
+{%- from "../../atoms/button/macro.njk" import Button -%}
+{#- Two drawings, chosen by CSS: the typed date field the script runs ("4 Nov 2026" and its calendar button; data-au-ssr, where scripts run) and the native date input (data-au-native, where they don't). <au-date-picker> takes over without anything moving. -#}
+  {%- set box = 'au-input au-input-' ~ (p.size or 'md') ~ ' au-datefield-typed' ~ (' is-invalid' if p.invalid else '') ~ (' is-disabled' if p.disabled else '') ~ (' au-width-' ~ p.width if p.width else '') -%}
+  <au-date-picker{% if p.clearable %} data-clearable{% endif %}{% if p.placeholder %} data-placeholder="{{ p.placeholder }}"{% endif %}{% if p.open %} data-open{% endif %}>
+    <span class="{{ cls(box, p) }}" data-au-ssr inert><input type="text" value="{{ auFormatDate(p.value) if p.value else '' }}"{% if p.invalid %} aria-invalid="true"{% endif %}{% if p.describedBy %} aria-describedby="{{ p.describedBy }}"{% endif %}{% if p.label %} aria-label="{{ p.label }}"{% endif %} placeholder="{{ p.placeholder or 'e.g. 4 Feb 2027' }}" autocomplete="off" spellcheck="false"{% if p.disabled %} disabled{% endif %} tabindex="-1"><div class="au-dropdown">{{ Button({ iconOnly: 'calendar', label: 'Choose a date', size: 'xs', variant: 'tertiary', classes: 'au-datefield-btn', haspopup: 'dialog', expanded: false, disabled: p.disabled }) }}</div></span>
+    <span class="{{ cls(box, p) }}" data-au-native{{ attrs(p) }}>
+      <input type="date"{% if p.id %} id="{{ p.id }}"{% endif %}{% if p.name %} name="{{ p.name }}"{% endif %}{% if p.form %} form="{{ p.form }}"{% endif %} value="{{ p.value or '' }}"{% if p.min %} min="{{ p.min }}"{% endif %}{% if p.max %} max="{{ p.max }}"{% endif %}{% if p.disabled %} disabled{% endif %}{% if p.invalid %} aria-invalid="true"{% endif %}{% if p.describedBy %} aria-describedby="{{ p.describedBy }}"{% endif %}{% if p.label %} aria-label="{{ p.label }}"{% endif %}>
+    </span>
+    {{- iconTemplate({ names: ['calendar', 'chevron-left', 'chevron-right', 'chevron-down'] }) -}}
+  </au-date-picker>

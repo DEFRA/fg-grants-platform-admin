@@ -39,13 +39,10 @@ import {
 const viewsPath = path.resolve(import.meta.dirname, 'views')
 
 export const environment = new nunjucks.Environment(
-  new nunjucks.FileSystemLoader(
-    [viewsPath, path.join(viewsPath, 'legacy'), designSystemViews],
-    {
-      watch: config.get('nunjucks.watch'),
-      noCache: config.get('nunjucks.noCache')
-    }
-  ),
+  new nunjucks.FileSystemLoader([viewsPath, designSystemViews], {
+    watch: config.get('nunjucks.watch'),
+    noCache: config.get('nunjucks.noCache')
+  }),
   {
     autoescape: true,
     throwOnUndefined: false,
