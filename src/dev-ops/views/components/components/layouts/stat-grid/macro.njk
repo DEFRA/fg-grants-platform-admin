@@ -1,0 +1,5 @@
+{#- StatGrid() caller = Stat() calls — figures side by side, as many columns as fit. -#}
+{% macro StatGrid(p) -%}
+  {%- set __html %}{% include "./template.njk" %}{% endset -%}
+  {{- __html | trim | safe -}}
+{%- endmacro %}

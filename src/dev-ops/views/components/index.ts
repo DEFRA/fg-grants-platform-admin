@@ -1,5 +1,6 @@
 import { AuAccordion } from './components/molecules/accordion/web-component.ts'
 import { AuCalendar } from './components/molecules/calendar/web-component.ts'
+import { AuChart } from './components/organisms/chart/web-component.ts'
 import { AuClearable } from './components/atoms/input/web-component.ts'
 import { AuConfirm } from './components/organisms/confirm-dialog/web-component.ts'
 import { AuCopy } from './components/molecules/copy-button/web-component.ts'
@@ -31,6 +32,7 @@ import { AuTooltip } from './components/atoms/tooltip/web-component.ts'
 const elements: [string, CustomElementConstructor][] = [
   ['au-accordion', AuAccordion],
   ['au-calendar', AuCalendar],
+  ['au-chart', AuChart],
   ['au-clearable', AuClearable],
   ['au-confirm', AuConfirm],
   ['au-copy', AuCopy],
@@ -125,4 +127,4 @@ document.addEventListener('click', (event) => {
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => upgrade(document))
 else upgrade(document)
 
-export { AuAccordion, AuCalendar, AuClearable, AuConfirm, AuCopy, AuDataTable, AuDatePicker, AuDateRangeChip, AuDialog, AuDisclosure, AuDismiss, AuDropdown, AuErrorSummary, AuListPage, AuLoadMore, AuPopover, AuSearchKind, AuSegmented, AuStateMap, AuTabs, AuThemeToggle, AuToastRegion, AuToast, AuTooltip }
+export { AuAccordion, AuCalendar, AuChart, AuClearable, AuConfirm, AuCopy, AuDataTable, AuDatePicker, AuDateRangeChip, AuDialog, AuDisclosure, AuDismiss, AuDropdown, AuErrorSummary, AuListPage, AuLoadMore, AuPopover, AuSearchKind, AuSegmented, AuStateMap, AuTabs, AuThemeToggle, AuToastRegion, AuToast, AuTooltip }

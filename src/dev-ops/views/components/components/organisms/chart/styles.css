@@ -1,0 +1,56 @@
+.au-chart { display: flex; flex-direction: column; gap: var(--gap-stack-md); margin: 0; min-width: 0; }
+.au-chart-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: var(--gap-inline-xl); }
+.au-chart-legend { display: flex; flex-wrap: wrap; gap: var(--gap-inline-xs) var(--gap-inline-xl); margin: 0; padding: 0; list-style: none; font-size: var(--font-size-sm); line-height: var(--line-height-sm); color: var(--fg-muted); letter-spacing: var(--tracking-sm); }
+.au-chart-legend li { display: inline-flex; align-items: center; gap: var(--gap-inline-sm); }
+.au-chart-key { display: inline-block; flex: none; width: var(--size-dot); height: var(--size-dot); border-radius: var(--radius-xs); }
+.au-chart-plot { position: relative; min-width: 0; padding-inline: 48px 16px; direction: ltr; }
+/* Drawn for any width: across the plot area positions are percentages, so nothing waits for a script to measure it. */
+.au-chart-plot.is-labelled { padding-inline-end: 88px; }
+.au-chart-area { position: relative; container: au-chart / inline-size; }
+.au-chart-svg { display: block; width: 100%; overflow: visible; }
+.au-chart-lines path { vector-effect: non-scaling-stroke; }
+/* A bar: the group is at most 48px or 72% of its slot, split between the series 2px apart, rounded at the top (the slot
+   ends at the baseline, so the bar's rounded foot below it is cut off). */
+.au-chart-bar { --g: min(48px, 72%); --bw: max(2px, calc((var(--g) - 2px * (var(--k) - 1)) / var(--k))); x: calc(50% - var(--g) / 2 + var(--s) * (var(--bw) + 2px)); width: var(--bw); rx: 4px; ry: 4px; }
+.au-chart-bar.is-dim { opacity: 0.55; }
+.au-chart-bar.k1 { --k: 1; } .au-chart-bar.k2 { --k: 2; } .au-chart-bar.k3 { --k: 3; } .au-chart-bar.k4 { --k: 4; } .au-chart-bar.k5 { --k: 5; } .au-chart-bar.k6 { --k: 6; } .au-chart-bar.k7 { --k: 7; } .au-chart-bar.k8 { --k: 8; } 
+.au-chart-bar.s0 { --s: 0; } .au-chart-bar.s1 { --s: 1; } .au-chart-bar.s2 { --s: 2; } .au-chart-bar.s3 { --s: 3; } .au-chart-bar.s4 { --s: 4; } .au-chart-bar.s5 { --s: 5; } .au-chart-bar.s6 { --s: 6; } .au-chart-bar.s7 { --s: 7; } 
+/* Which x labels show: as many as fit at 72px each (c), every ceil(n / c)th; each label lists the c it shows at. */
+@container au-chart (max-width: 215.98px) { .au-chart-xl:not(.au-x2) { display: none; } }
+@container au-chart (min-width: 216px) and (max-width: 287.98px) { .au-chart-xl:not(.au-x3) { display: none; } }
+@container au-chart (min-width: 288px) and (max-width: 359.98px) { .au-chart-xl:not(.au-x4) { display: none; } }
+@container au-chart (min-width: 360px) and (max-width: 431.98px) { .au-chart-xl:not(.au-x5) { display: none; } }
+@container au-chart (min-width: 432px) and (max-width: 503.98px) { .au-chart-xl:not(.au-x6) { display: none; } }
+@container au-chart (min-width: 504px) and (max-width: 575.98px) { .au-chart-xl:not(.au-x7) { display: none; } }
+@container au-chart (min-width: 576px) and (max-width: 647.98px) { .au-chart-xl:not(.au-x8) { display: none; } }
+@container au-chart (min-width: 648px) and (max-width: 719.98px) { .au-chart-xl:not(.au-x9) { display: none; } }
+@container au-chart (min-width: 720px) and (max-width: 791.98px) { .au-chart-xl:not(.au-x10) { display: none; } }
+@container au-chart (min-width: 792px) and (max-width: 863.98px) { .au-chart-xl:not(.au-x11) { display: none; } }
+@container au-chart (min-width: 864px) and (max-width: 935.98px) { .au-chart-xl:not(.au-x12) { display: none; } }
+@container au-chart (min-width: 936px) and (max-width: 1007.98px) { .au-chart-xl:not(.au-x13) { display: none; } }
+@container au-chart (min-width: 1008px) and (max-width: 1079.98px) { .au-chart-xl:not(.au-x14) { display: none; } }
+@container au-chart (min-width: 1080px) and (max-width: 1151.98px) { .au-chart-xl:not(.au-x15) { display: none; } }
+@container au-chart (min-width: 1152px) and (max-width: 1223.98px) { .au-chart-xl:not(.au-x16) { display: none; } }
+@container au-chart (min-width: 1224px) and (max-width: 1295.98px) { .au-chart-xl:not(.au-x17) { display: none; } }
+@container au-chart (min-width: 1296px) and (max-width: 1367.98px) { .au-chart-xl:not(.au-x18) { display: none; } }
+@container au-chart (min-width: 1368px) and (max-width: 1439.98px) { .au-chart-xl:not(.au-x19) { display: none; } }
+@container au-chart (min-width: 1440px) and (max-width: 1511.98px) { .au-chart-xl:not(.au-x20) { display: none; } }
+@container au-chart (min-width: 1512px) { .au-chart-xl:not(.au-x21) { display: none; } }
+.au-chart-grid { stroke: var(--border-subtle); stroke-width: 1; }
+.au-chart-base { stroke: var(--border-default); stroke-width: 1; }
+.au-chart-axis { fill: var(--fg-subtle); font-size: var(--font-size-sm); font-variant-numeric: tabular-nums; }
+.au-chart-label { fill: var(--fg-muted); font-size: var(--font-size-sm); }
+.au-chart-cross { stroke: var(--border-strong); stroke-width: 1; stroke-dasharray: 2 2; }
+.au-chart-dot { stroke: var(--bg-surface); stroke-width: 2; }
+.au-chart-tip { position: absolute; top: 0; z-index: var(--z-tooltip); transform: translateX(-50%); min-width: max-content; padding: var(--inset-tag-xs) var(--inset-menuitem-x); border-radius: var(--radius-sm); background: var(--tooltip-bg); color: var(--tooltip-fg); box-shadow: var(--elevation-overlay); font-size: var(--font-size-sm); line-height: var(--line-height-sm); pointer-events: none; }
+.au-chart-tip-x { font-weight: 600; margin-bottom: var(--gap-stack-2xs); }
+.au-chart-tip-row { display: flex; align-items: center; gap: var(--gap-inline-sm); }
+.au-chart-tip-row strong { margin-inline-start: auto; padding-inline-start: var(--gap-inline-xl); font-variant-numeric: tabular-nums; }
+.au-chart-table { max-height: var(--size-listbox-max-height); overflow: auto; margin-top: var(--gap-stack-md); border: var(--border-width-hairline) solid var(--border-subtle); border-radius: var(--radius-md); }
+.au-chart-table table { width: 100%; border-collapse: collapse; font-size: var(--font-size-sm); line-height: var(--line-height-sm); font-variant-numeric: tabular-nums; }
+.au-chart-table th, .au-chart-table td { padding: var(--inset-tag-xs) var(--inset-menuitem-x); text-align: end; border-bottom: var(--border-width-hairline) solid var(--table-divider); }
+.au-chart-table th:first-child { text-align: start; font-weight: 500; }
+.au-chart-table thead th { position: sticky; top: 0; background: var(--bg-surface); color: var(--fg-muted); font-weight: 500; }
+/* tableToggle: false — the table is there for screen readers only. */
+.au-chart-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.au-chart-sr .au-chart-table { overflow: visible; }

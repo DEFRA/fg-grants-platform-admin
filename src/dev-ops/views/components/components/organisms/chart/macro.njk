@@ -1,0 +1,5 @@
+{#- Chart({ type: line|bar, title, summary, series: [{ name, data }], x: [labels], xLabel, height (240), tableToggle (false: no "Show as table"; the table stays for screen readers) }) — values over x, with a legend, direct labels and a table view. Drawn for any width (percentages across, container queries for the x labels), so it's right before any script runs; <au-chart> only reads values out on hover. -#}
+{% macro Chart(p) -%}
+  {%- set __html %}{% include "./template.njk" %}{% endset -%}
+  {{- __html | trim | safe -}}
+{%- endmacro %}

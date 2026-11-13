@@ -1,0 +1,5 @@
+{#- Stat({ label, value|valueHtml, unit, icon, trend: [numbers], trendSeries, trendLabel, delta ('+12%', '−3'), deltaTone: success|danger|neutral, hint, tone (colours the value), href (the whole tile links), current, ariaLabel }) — one figure. -#}
+{% macro Stat(p) -%}
+  {%- set __html %}{% include "./template.njk" %}{% endset -%}
+  {{- __html | trim | safe -}}
+{%- endmacro %}

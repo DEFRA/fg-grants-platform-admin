@@ -1,0 +1,5 @@
+{#- Sparkline({ data: [numbers], label, width (96), height (28), series (1–8) }) — a tiny trend line. -#}
+{% macro Sparkline(p) -%}
+  {%- set __html %}{% include "./template.njk" %}{% endset -%}
+  {{- __html | trim | safe -}}
+{%- endmacro %}
