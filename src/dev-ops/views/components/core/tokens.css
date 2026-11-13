@@ -1,0 +1,769 @@
+/* Design system — generated from tokens.json */
+:root, [data-theme="light"] {
+  --white: #ffffff; /* Pure white. Base for white-a* overlays. */
+  --black: #000000; /* Pure black. Base for black-a* overlays. */
+  --neutral-50: #fafafa; /* Greys for text, surfaces and borders — step 50. Primitive: reference through a semantic token. */
+  --neutral-100: #f4f4f5; /* Greys for text, surfaces and borders — step 100. Primitive: reference through a semantic token. */
+  --neutral-200: #e4e4e7; /* Greys for text, surfaces and borders — step 200. Primitive: reference through a semantic token. */
+  --neutral-300: #d4d4d8; /* Greys for text, surfaces and borders — step 300. Primitive: reference through a semantic token. */
+  --neutral-400: #a1a1aa; /* Greys for text, surfaces and borders — step 400. Primitive: reference through a semantic token. */
+  --neutral-500: #71717a; /* Greys for text, surfaces and borders — step 500. Primitive: reference through a semantic token. */
+  --neutral-600: #52525b; /* Greys for text, surfaces and borders — step 600. Primitive: reference through a semantic token. */
+  --neutral-700: #3f3f46; /* Greys for text, surfaces and borders — step 700. Primitive: reference through a semantic token. */
+  --neutral-800: #27272a; /* Greys for text, surfaces and borders — step 800. Primitive: reference through a semantic token. */
+  --neutral-900: #18181b; /* Greys for text, surfaces and borders — step 900. Primitive: reference through a semantic token. */
+  --neutral-950: #09090b; /* Greys for text, surfaces and borders — step 950. Primitive: reference through a semantic token. */
+  --blue-50: #eff6ff; /* Accent: links, focus, selection, info — step 50. Primitive: reference through a semantic token. */
+  --blue-100: #dbeafe; /* Accent: links, focus, selection, info — step 100. Primitive: reference through a semantic token. */
+  --blue-200: #bfdbfe; /* Accent: links, focus, selection, info — step 200. Primitive: reference through a semantic token. */
+  --blue-300: #93c5fd; /* Accent: links, focus, selection, info — step 300. Primitive: reference through a semantic token. */
+  --blue-400: #60a5fa; /* Accent: links, focus, selection, info — step 400. Primitive: reference through a semantic token. */
+  --blue-500: #3b82f6; /* Accent: links, focus, selection, info — step 500. Primitive: reference through a semantic token. */
+  --blue-600: #2563eb; /* Accent: links, focus, selection, info — step 600. Primitive: reference through a semantic token. */
+  --blue-700: #1d4ed8; /* Accent: links, focus, selection, info — step 700. Primitive: reference through a semantic token. */
+  --blue-800: #1e40af; /* Accent: links, focus, selection, info — step 800. Primitive: reference through a semantic token. */
+  --blue-900: #1e3a8a; /* Accent: links, focus, selection, info — step 900. Primitive: reference through a semantic token. */
+  --blue-950: #172554; /* Accent: links, focus, selection, info — step 950. Primitive: reference through a semantic token. */
+  --green-50: #f0fdf4; /* Success — step 50. Primitive: reference through a semantic token. */
+  --green-100: #dcfce7; /* Success — step 100. Primitive: reference through a semantic token. */
+  --green-200: #bbf7d0; /* Success — step 200. Primitive: reference through a semantic token. */
+  --green-300: #86efac; /* Success — step 300. Primitive: reference through a semantic token. */
+  --green-400: #4ade80; /* Success — step 400. Primitive: reference through a semantic token. */
+  --green-500: #22c55e; /* Success — step 500. Primitive: reference through a semantic token. */
+  --green-600: #16a34a; /* Success — step 600. Primitive: reference through a semantic token. */
+  --green-700: #15803d; /* Success — step 700. Primitive: reference through a semantic token. */
+  --green-800: #166534; /* Success — step 800. Primitive: reference through a semantic token. */
+  --green-900: #14532d; /* Success — step 900. Primitive: reference through a semantic token. */
+  --green-950: #052e16; /* Success — step 950. Primitive: reference through a semantic token. */
+  --amber-50: #fffbeb; /* Warning — step 50. Primitive: reference through a semantic token. */
+  --amber-100: #fef3c7; /* Warning — step 100. Primitive: reference through a semantic token. */
+  --amber-200: #fde68a; /* Warning — step 200. Primitive: reference through a semantic token. */
+  --amber-300: #fcd34d; /* Warning — step 300. Primitive: reference through a semantic token. */
+  --amber-400: #fbbf24; /* Warning — step 400. Primitive: reference through a semantic token. */
+  --amber-500: #f59e0b; /* Warning — step 500. Primitive: reference through a semantic token. */
+  --amber-600: #d97706; /* Warning — step 600. Primitive: reference through a semantic token. */
+  --amber-700: #b45309; /* Warning — step 700. Primitive: reference through a semantic token. */
+  --amber-800: #92400e; /* Warning — step 800. Primitive: reference through a semantic token. */
+  --amber-900: #78350f; /* Warning — step 900. Primitive: reference through a semantic token. */
+  --amber-950: #451a03; /* Warning — step 950. Primitive: reference through a semantic token. */
+  --red-50: #fef2f2; /* Danger — step 50. Primitive: reference through a semantic token. */
+  --red-100: #fee2e2; /* Danger — step 100. Primitive: reference through a semantic token. */
+  --red-200: #fecaca; /* Danger — step 200. Primitive: reference through a semantic token. */
+  --red-300: #fca5a5; /* Danger — step 300. Primitive: reference through a semantic token. */
+  --red-400: #f87171; /* Danger — step 400. Primitive: reference through a semantic token. */
+  --red-500: #ef4444; /* Danger — step 500. Primitive: reference through a semantic token. */
+  --red-600: #dc2626; /* Danger — step 600. Primitive: reference through a semantic token. */
+  --red-700: #b91c1c; /* Danger — step 700. Primitive: reference through a semantic token. */
+  --red-800: #991b1b; /* Danger — step 800. Primitive: reference through a semantic token. */
+  --red-900: #7f1d1d; /* Danger — step 900. Primitive: reference through a semantic token. */
+  --red-950: #450a0a; /* Danger — step 950. Primitive: reference through a semantic token. */
+  --violet-50: #f5f3ff; /* Categorical (charts, tags) — step 50. Primitive: reference through a semantic token. */
+  --violet-100: #ede9fe; /* Categorical (charts, tags) — step 100. Primitive: reference through a semantic token. */
+  --violet-200: #ddd6fe; /* Categorical (charts, tags) — step 200. Primitive: reference through a semantic token. */
+  --violet-300: #c4b5fd; /* Categorical (charts, tags) — step 300. Primitive: reference through a semantic token. */
+  --violet-400: #a78bfa; /* Categorical (charts, tags) — step 400. Primitive: reference through a semantic token. */
+  --violet-500: #8b5cf6; /* Categorical (charts, tags) — step 500. Primitive: reference through a semantic token. */
+  --violet-600: #7c3aed; /* Categorical (charts, tags) — step 600. Primitive: reference through a semantic token. */
+  --violet-700: #6d28d9; /* Categorical (charts, tags) — step 700. Primitive: reference through a semantic token. */
+  --violet-800: #5b21b6; /* Categorical (charts, tags) — step 800. Primitive: reference through a semantic token. */
+  --violet-900: #4c1d95; /* Categorical (charts, tags) — step 900. Primitive: reference through a semantic token. */
+  --violet-950: #2e1065; /* Categorical (charts, tags) — step 950. Primitive: reference through a semantic token. */
+  --teal-50: #f0fdfa; /* Categorical (charts, tags) — step 50. Primitive: reference through a semantic token. */
+  --teal-100: #ccfbf1; /* Categorical (charts, tags) — step 100. Primitive: reference through a semantic token. */
+  --teal-200: #99f6e4; /* Categorical (charts, tags) — step 200. Primitive: reference through a semantic token. */
+  --teal-300: #5eead4; /* Categorical (charts, tags) — step 300. Primitive: reference through a semantic token. */
+  --teal-400: #2dd4bf; /* Categorical (charts, tags) — step 400. Primitive: reference through a semantic token. */
+  --teal-500: #14b8a6; /* Categorical (charts, tags) — step 500. Primitive: reference through a semantic token. */
+  --teal-600: #0d9488; /* Categorical (charts, tags) — step 600. Primitive: reference through a semantic token. */
+  --teal-700: #0f766e; /* Categorical (charts, tags) — step 700. Primitive: reference through a semantic token. */
+  --teal-800: #115e59; /* Categorical (charts, tags) — step 800. Primitive: reference through a semantic token. */
+  --teal-900: #134e4a; /* Categorical (charts, tags) — step 900. Primitive: reference through a semantic token. */
+  --teal-950: #042f2e; /* Categorical (charts, tags) — step 950. Primitive: reference through a semantic token. */
+  --black-a2: rgba(0, 0, 0, 0.02); /* Black at 2% — shading on light surfaces (hover, borders, overlays). */
+  --black-a4: rgba(0, 0, 0, 0.04); /* Black at 4% — shading on light surfaces (hover, borders, overlays). */
+  --black-a6: rgba(0, 0, 0, 0.06); /* Black at 6% — shading on light surfaces (hover, borders, overlays). */
+  --black-a8: rgba(0, 0, 0, 0.08); /* Black at 8% — shading on light surfaces (hover, borders, overlays). */
+  --black-a12: rgba(0, 0, 0, 0.12); /* Black at 12% — shading on light surfaces (hover, borders, overlays). */
+  --black-a16: rgba(0, 0, 0, 0.16); /* Black at 16% — shading on light surfaces (hover, borders, overlays). */
+  --black-a24: rgba(0, 0, 0, 0.24); /* Black at 24% — shading on light surfaces (hover, borders, overlays). */
+  --black-a32: rgba(0, 0, 0, 0.32); /* Black at 32% — shading on light surfaces (hover, borders, overlays). */
+  --black-a48: rgba(0, 0, 0, 0.48); /* Black at 48% — shading on light surfaces (hover, borders, overlays). */
+  --black-a64: rgba(0, 0, 0, 0.64); /* Black at 64% — shading on light surfaces (hover, borders, overlays). */
+  --black-a80: rgba(0, 0, 0, 0.8); /* Black at 80% — shading on light surfaces (hover, borders, overlays). */
+  --white-a2: rgba(255, 255, 255, 0.02); /* White at 2% — shading on dark surfaces. */
+  --white-a4: rgba(255, 255, 255, 0.04); /* White at 4% — shading on dark surfaces. */
+  --white-a6: rgba(255, 255, 255, 0.06); /* White at 6% — shading on dark surfaces. */
+  --white-a8: rgba(255, 255, 255, 0.08); /* White at 8% — shading on dark surfaces. */
+  --white-a12: rgba(255, 255, 255, 0.12); /* White at 12% — shading on dark surfaces. */
+  --white-a16: rgba(255, 255, 255, 0.16); /* White at 16% — shading on dark surfaces. */
+  --white-a24: rgba(255, 255, 255, 0.24); /* White at 24% — shading on dark surfaces. */
+  --white-a32: rgba(255, 255, 255, 0.32); /* White at 32% — shading on dark surfaces. */
+  --white-a48: rgba(255, 255, 255, 0.48); /* White at 48% — shading on dark surfaces. */
+  --white-a64: rgba(255, 255, 255, 0.64); /* White at 64% — shading on dark surfaces. */
+  --white-a80: rgba(255, 255, 255, 0.8); /* White at 80% — shading on dark surfaces. */
+  --blue-a8: rgba(37, 99, 235, 0.08); /* Blue 600 at 8% in light, blue 400 at 8% in dark — tinted fills and borders. */
+  --blue-a12: rgba(37, 99, 235, 0.12); /* Blue 600 at 12% in light, blue 400 at 12% in dark — tinted fills and borders. */
+  --blue-a16: rgba(37, 99, 235, 0.16); /* Blue 600 at 16% in light, blue 400 at 16% in dark — tinted fills and borders. */
+  --blue-a24: rgba(37, 99, 235, 0.24); /* Blue 600 at 24% in light, blue 400 at 24% in dark — tinted fills and borders. */
+  --blue-a32: rgba(37, 99, 235, 0.32); /* Blue 600 at 32% in light, blue 400 at 32% in dark — tinted fills and borders. */
+  --blue-a48: rgba(37, 99, 235, 0.48); /* Blue 600 at 48% in light, blue 400 at 48% in dark — tinted fills and borders. */
+  --green-a8: rgba(22, 163, 74, 0.08); /* Green 600 at 8% in light, green 400 at 8% in dark — tinted fills and borders. */
+  --green-a12: rgba(22, 163, 74, 0.12); /* Green 600 at 12% in light, green 400 at 12% in dark — tinted fills and borders. */
+  --green-a16: rgba(22, 163, 74, 0.16); /* Green 600 at 16% in light, green 400 at 16% in dark — tinted fills and borders. */
+  --green-a24: rgba(22, 163, 74, 0.24); /* Green 600 at 24% in light, green 400 at 24% in dark — tinted fills and borders. */
+  --green-a32: rgba(22, 163, 74, 0.32); /* Green 600 at 32% in light, green 400 at 32% in dark — tinted fills and borders. */
+  --green-a48: rgba(22, 163, 74, 0.48); /* Green 600 at 48% in light, green 400 at 48% in dark — tinted fills and borders. */
+  --amber-a8: rgba(217, 119, 6, 0.08); /* Amber 600 at 8% in light, amber 400 at 8% in dark — tinted fills and borders. */
+  --amber-a12: rgba(217, 119, 6, 0.12); /* Amber 600 at 12% in light, amber 400 at 12% in dark — tinted fills and borders. */
+  --amber-a16: rgba(217, 119, 6, 0.16); /* Amber 600 at 16% in light, amber 400 at 16% in dark — tinted fills and borders. */
+  --amber-a24: rgba(217, 119, 6, 0.24); /* Amber 600 at 24% in light, amber 400 at 24% in dark — tinted fills and borders. */
+  --amber-a32: rgba(217, 119, 6, 0.32); /* Amber 600 at 32% in light, amber 400 at 32% in dark — tinted fills and borders. */
+  --amber-a48: rgba(217, 119, 6, 0.48); /* Amber 600 at 48% in light, amber 400 at 48% in dark — tinted fills and borders. */
+  --red-a8: rgba(220, 38, 38, 0.08); /* Red 600 at 8% in light, red 400 at 8% in dark — tinted fills and borders. */
+  --red-a12: rgba(220, 38, 38, 0.12); /* Red 600 at 12% in light, red 400 at 12% in dark — tinted fills and borders. */
+  --red-a16: rgba(220, 38, 38, 0.16); /* Red 600 at 16% in light, red 400 at 16% in dark — tinted fills and borders. */
+  --red-a24: rgba(220, 38, 38, 0.24); /* Red 600 at 24% in light, red 400 at 24% in dark — tinted fills and borders. */
+  --red-a32: rgba(220, 38, 38, 0.32); /* Red 600 at 32% in light, red 400 at 32% in dark — tinted fills and borders. */
+  --red-a48: rgba(220, 38, 38, 0.48); /* Red 600 at 48% in light, red 400 at 48% in dark — tinted fills and borders. */
+  --violet-a8: rgba(124, 58, 237, 0.08); /* Violet 600 at 8% in light, violet 400 at 8% in dark — tinted fills and borders. */
+  --violet-a12: rgba(124, 58, 237, 0.12); /* Violet 600 at 12% in light, violet 400 at 12% in dark — tinted fills and borders. */
+  --violet-a16: rgba(124, 58, 237, 0.16); /* Violet 600 at 16% in light, violet 400 at 16% in dark — tinted fills and borders. */
+  --violet-a24: rgba(124, 58, 237, 0.24); /* Violet 600 at 24% in light, violet 400 at 24% in dark — tinted fills and borders. */
+  --violet-a32: rgba(124, 58, 237, 0.32); /* Violet 600 at 32% in light, violet 400 at 32% in dark — tinted fills and borders. */
+  --violet-a48: rgba(124, 58, 237, 0.48); /* Violet 600 at 48% in light, violet 400 at 48% in dark — tinted fills and borders. */
+  --teal-a8: rgba(13, 148, 136, 0.08); /* Teal 600 at 8% in light, teal 400 at 8% in dark — tinted fills and borders. */
+  --teal-a12: rgba(13, 148, 136, 0.12); /* Teal 600 at 12% in light, teal 400 at 12% in dark — tinted fills and borders. */
+  --teal-a16: rgba(13, 148, 136, 0.16); /* Teal 600 at 16% in light, teal 400 at 16% in dark — tinted fills and borders. */
+  --teal-a24: rgba(13, 148, 136, 0.24); /* Teal 600 at 24% in light, teal 400 at 24% in dark — tinted fills and borders. */
+  --teal-a32: rgba(13, 148, 136, 0.32); /* Teal 600 at 32% in light, teal 400 at 32% in dark — tinted fills and borders. */
+  --teal-a48: rgba(13, 148, 136, 0.48); /* Teal 600 at 48% in light, teal 400 at 48% in dark — tinted fills and borders. */
+  --bg-page: var(--neutral-50); /* Page background behind the sidebar and content. */
+  --bg-surface: var(--white); /* Cards, tables, the sidebar, inputs. */
+  --bg-surface-raised: var(--white); /* Menus, popovers, dialogs, drawers — anything that floats. */
+  --bg-sunken: var(--black-a4); /* Recessed areas on a surface: code blocks, table header strips, gutters. */
+  --bg-hover: var(--black-a4); /* Hover fill for ghost controls, rows and menu items. */
+  --bg-pressed: var(--black-a8); /* Pressed fill for ghost controls. */
+  --bg-neutral-subtle: var(--black-a8); /* Tonal neutral fill: secondary buttons. */
+  --bg-neutral-subtle-hover: var(--black-a12); /* Tonal neutral fill on hover. */
+  --bg-neutral-subtle-pressed: var(--black-a16); /* Tonal neutral fill while pressed. */
+  --bg-selected: var(--blue-a8); /* Selected rows and options. */
+  --bg-disabled: var(--black-a4); /* Disabled inputs and buttons. */
+  --bg-emphasis: var(--neutral-900); /* The strongest fill, inverse of the page: primary buttons, the active nav item, set filters, avatars. */
+  --bg-emphasis-hover: var(--neutral-700); /* bg-emphasis on hover. */
+  --bg-accent: var(--blue-600); /* Accent fills: switch on, checkbox checked, progress. */
+  --bg-accent-hover: var(--blue-700); /* Accent fill hover. */
+  --bg-accent-subtle: var(--blue-a8); /* Light accent tint: selected tab chip, info highlight. */
+  --bg-danger: var(--red-600); /* Destructive confirm buttons (in a dialog only). */
+  --bg-danger-hover: var(--red-700); /* Destructive confirm hover. */
+  --bg-success-subtle: var(--green-a8); /* Success alert and badge background. */
+  --bg-warning-subtle: var(--amber-a12); /* Warning alert and badge background. */
+  --bg-danger-subtle: var(--red-a8); /* Error alert and badge background; invalid field fill. */
+  --bg-info-subtle: var(--blue-a8); /* Info alert and badge background. */
+  --bg-inverse: var(--neutral-900); /* Tooltips and toasts. */
+  --bg-overlay: var(--black-a32); /* Scrim behind dialogs and drawers. */
+  --fg-default: var(--neutral-900); /* Primary text and icons on every bg-* surface. */
+  --fg-muted: var(--neutral-600); /* Secondary text: labels, table headers, back links — on bg-page, bg-surface, bg-surface-raised. */
+  --fg-subtle: var(--neutral-500); /* Tertiary text: timestamps, hints, captions — on bg-page, bg-surface (4.5:1). */
+  --fg-faint: var(--neutral-400); /* Decoration only: chevrons, separators, line numbers. Below 4.5:1 — never the only carrier of information. */
+  --fg-disabled: var(--black-a32); /* Disabled labels and icons. */
+  --fg-on-emphasis: var(--white); /* Text and icons on bg-emphasis. */
+  --fg-on-accent: var(--white); /* Text and icons on bg-accent. */
+  --fg-on-danger: var(--white); /* Text on bg-danger. */
+  --fg-inverse: var(--neutral-50); /* Text on bg-inverse. */
+  --fg-link: var(--blue-700); /* Links and link-style buttons on bg-surface and bg-page. */
+  --fg-link-hover: var(--blue-800); /* Link hover. */
+  --fg-success: var(--green-800); /* Success text and icons, on bg-surface and bg-success-subtle. */
+  --fg-warning: var(--amber-800); /* Warning text and icons, on bg-surface and bg-warning-subtle. */
+  --fg-danger: var(--red-700); /* Error text, destructive ghost buttons, invalid-field messages, on bg-surface and bg-danger-subtle. */
+  --fg-info: var(--blue-800); /* Info text and icons, on bg-surface and bg-info-subtle. */
+  --border-subtle: var(--black-a8); /* Card, table and dialog outlines; row dividers. */
+  --border-default: var(--black-a12); /* Outlines of buttons, chips, menus, the sidebar edge. */
+  --border-strong: var(--black-a24); /* Emphasised separators; hover border on controls. */
+  --border-control: var(--black-a48); /* Input, checkbox, radio and switch boundaries (3:1 on bg-surface). */
+  --border-selected: var(--neutral-900); /* Selected segmented items, active tab underline. */
+  --border-input: var(--black-a24); /* Text field boundary at rest: input, select, textarea, search. */
+  --border-input-hover: var(--black-a32); /* Text field boundary on hover. */
+  --border-focus: var(--blue-600); /* The 2px focus ring on every interactive element (3:1 on every surface). */
+  --border-success: var(--green-a48); /* Success alert border. */
+  --border-warning: var(--amber-a48); /* Warning alert border. */
+  --border-danger: var(--red-a48); /* Error alert border; destructive ghost button border. */
+  --border-danger-strong: var(--red-600); /* Invalid input border. */
+  --border-info: var(--blue-a32); /* Info alert border. */
+  --status-success: var(--green-600); /* Status dot and mark: done, healthy, active. */
+  --status-warning: var(--amber-600); /* Status dot and mark: needs attention soon. */
+  --status-danger: var(--red-600); /* Status dot and mark: failed or blocked. */
+  --status-info: var(--blue-600); /* Status dot: in progress. */
+  --status-neutral: var(--neutral-400); /* Status dot: inactive, not started, archived. Always beside its word. */
+  --status-violet: var(--violet-600); /* Categorical marks (chart series, tags). */
+  --status-teal: var(--teal-600); /* Categorical marks (chart series, tags). */
+  --chart-1: #2a78d6; /* Chart series 1 (blue). Assign series in this order, never cycled; slots 3–5 are under 3:1 on light surfaces, so charts always label series directly or offer a table. */
+  --chart-2: #eb6834; /* Chart series 2 (orange). Assign series in this order, never cycled; slots 3–5 are under 3:1 on light surfaces, so charts always label series directly or offer a table. */
+  --chart-3: #1baf7a; /* Chart series 3 (aqua). Assign series in this order, never cycled; slots 3–5 are under 3:1 on light surfaces, so charts always label series directly or offer a table. */
+  --chart-4: #eda100; /* Chart series 4 (yellow). Assign series in this order, never cycled; slots 3–5 are under 3:1 on light surfaces, so charts always label series directly or offer a table. */
+  --chart-5: #e87ba4; /* Chart series 5 (magenta). Assign series in this order, never cycled; slots 3–5 are under 3:1 on light surfaces, so charts always label series directly or offer a table. */
+  --chart-6: #008300; /* Chart series 6 (green). Assign series in this order, never cycled; slots 3–5 are under 3:1 on light surfaces, so charts always label series directly or offer a table. */
+  --chart-7: #6250d6; /* Chart series 7 (violet). Assign series in this order, never cycled; slots 3–5 are under 3:1 on light surfaces, so charts always label series directly or offer a table. */
+  --chart-8: #e34948; /* Chart series 8 (red). Assign series in this order, never cycled; slots 3–5 are under 3:1 on light surfaces, so charts always label series directly or offer a table. */
+  --button-primary-bg: var(--bg-emphasis); /* Primary button fill. */
+  --button-primary-bg-hover: var(--bg-emphasis-hover); /* Primary button hover. */
+  --button-primary-fg: var(--fg-on-emphasis); /* Primary button label. */
+  --button-secondary-bg: var(--bg-neutral-subtle); /* Secondary (tonal) button fill. */
+  --button-secondary-bg-hover: var(--bg-neutral-subtle-hover); /* Secondary button hover. */
+  --button-secondary-bg-pressed: var(--bg-neutral-subtle-pressed); /* Secondary button pressed. */
+  --button-tertiary-bg-hover: var(--bg-hover); /* Tertiary (text) button hover. */
+  --button-tertiary-bg-pressed: var(--bg-pressed); /* Tertiary button pressed. */
+  --button-default-bg: var(--bg-surface); /* Default (outlined) button fill. */
+  --button-default-bg-hover: var(--bg-hover); /* Default button hover. */
+  --button-default-border: var(--border-default); /* Default button outline. */
+  --button-default-border-hover: var(--border-strong); /* Default button outline on hover. */
+  --button-danger-fg: var(--fg-danger); /* Destructive (outline) button label. */
+  --button-danger-border: var(--border-danger); /* Destructive (outline) button outline. */
+  --chip-bg-set: var(--bg-accent-subtle); /* A filter chip with a value set: soft accent tint. */
+  --chip-border-set: var(--border-info); /* A filter chip with a value set: accent edge. */
+  --chip-border-set-hover: var(--border-focus); /* A set filter chip under the pointer. */
+  --input-bg: var(--bg-surface); /* Input, select and textarea fill. */
+  --input-border: var(--border-input); /* Text field boundary at rest. */
+  --input-border-hover: var(--border-input-hover); /* Text field boundary on hover. */
+  --input-border-focus: var(--border-focus); /* Text field boundary while focused. */
+  --input-bg-disabled: var(--bg-sunken); /* Disabled and read-only field fill. */
+  --input-icon: var(--fg-subtle); /* Leading icon at rest. */
+  --input-icon-focus: var(--fg-muted); /* Leading icon while the field is focused. */
+  --input-border-invalid: var(--border-danger-strong); /* Invalid input boundary. */
+  --input-placeholder: var(--fg-subtle); /* Placeholder text. */
+  --nav-item-fg: var(--fg-default); /* Sidebar item label. */
+  --nav-item-bg-hover: var(--bg-hover); /* Sidebar item hover. */
+  --nav-item-bg-active: var(--bg-emphasis); /* Current sidebar item. */
+  --nav-item-fg-active: var(--fg-on-emphasis); /* Current sidebar item label. */
+  --table-header-fg: var(--fg-muted); /* Table column headings. */
+  --table-row-bg-hover: var(--bg-hover); /* Hovered table row. */
+  --table-divider: var(--border-subtle); /* Line between rows. */
+  --code-bg: var(--bg-sunken); /* Code blocks. */
+  --code-gutter-fg: var(--fg-muted); /* Line numbers. */
+  --tooltip-bg: var(--bg-inverse); /* Tooltip fill. */
+  --tooltip-fg: var(--fg-inverse); /* Tooltip text. */
+  --shadow-none: none; /* No shadow. */
+  --shadow-xs: 0 2px 4px -2px rgba(0, 0, 0, 0.10); /* A hairline lift just under the bottom edge. */
+  --shadow-sm: 0 2px 6px rgba(0, 0, 0, 0.08); /* A small lift. */
+  --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.12); /* Floats above the page. */
+  --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.16); /* Floats well above the page. */
+  --shadow-xl: 0 24px 64px rgba(0, 0, 0, 0.20); /* The highest layer. */
+  --elevation-flat: none; /* Cards, tables, panels: separated by borders, not shadows. (= shadow-none) */
+  --elevation-raised: 0 2px 4px -2px rgba(0, 0, 0, 0.10); /* Controls that sit on the surface: text fields, default buttons, the switch knob, the selected segment. (= shadow-xs) */
+  --elevation-raised-hover: 0 2px 6px rgba(0, 0, 0, 0.08); /* A raised control under the pointer, where it needs one. (= shadow-sm) */
+  --elevation-overlay: 0 8px 24px rgba(0, 0, 0, 0.12); /* Anchored to a trigger: menus, popovers, tooltips. (= shadow-md) */
+  --elevation-floating: 0 12px 32px rgba(0, 0, 0, 0.16); /* Floats free of the content: toasts, sticky bars. (= shadow-lg) */
+  --elevation-modal: 0 24px 64px rgba(0, 0, 0, 0.20); /* Blocks the page: dialogs and drawers. (= shadow-xl) */
+}
+[data-theme="dark"] {
+  --blue-a8: rgba(96, 165, 250, 0.08);
+  --blue-a12: rgba(96, 165, 250, 0.12);
+  --blue-a16: rgba(96, 165, 250, 0.16);
+  --blue-a24: rgba(96, 165, 250, 0.24);
+  --blue-a32: rgba(96, 165, 250, 0.32);
+  --blue-a48: rgba(96, 165, 250, 0.48);
+  --green-a8: rgba(74, 222, 128, 0.08);
+  --green-a12: rgba(74, 222, 128, 0.12);
+  --green-a16: rgba(74, 222, 128, 0.16);
+  --green-a24: rgba(74, 222, 128, 0.24);
+  --green-a32: rgba(74, 222, 128, 0.32);
+  --green-a48: rgba(74, 222, 128, 0.48);
+  --amber-a8: rgba(251, 191, 36, 0.08);
+  --amber-a12: rgba(251, 191, 36, 0.12);
+  --amber-a16: rgba(251, 191, 36, 0.16);
+  --amber-a24: rgba(251, 191, 36, 0.24);
+  --amber-a32: rgba(251, 191, 36, 0.32);
+  --amber-a48: rgba(251, 191, 36, 0.48);
+  --red-a8: rgba(248, 113, 113, 0.08);
+  --red-a12: rgba(248, 113, 113, 0.12);
+  --red-a16: rgba(248, 113, 113, 0.16);
+  --red-a24: rgba(248, 113, 113, 0.24);
+  --red-a32: rgba(248, 113, 113, 0.32);
+  --red-a48: rgba(248, 113, 113, 0.48);
+  --violet-a8: rgba(167, 139, 250, 0.08);
+  --violet-a12: rgba(167, 139, 250, 0.12);
+  --violet-a16: rgba(167, 139, 250, 0.16);
+  --violet-a24: rgba(167, 139, 250, 0.24);
+  --violet-a32: rgba(167, 139, 250, 0.32);
+  --violet-a48: rgba(167, 139, 250, 0.48);
+  --teal-a8: rgba(45, 212, 191, 0.08);
+  --teal-a12: rgba(45, 212, 191, 0.12);
+  --teal-a16: rgba(45, 212, 191, 0.16);
+  --teal-a24: rgba(45, 212, 191, 0.24);
+  --teal-a32: rgba(45, 212, 191, 0.32);
+  --teal-a48: rgba(45, 212, 191, 0.48);
+  --bg-page: var(--neutral-950);
+  --bg-surface: var(--neutral-900);
+  --bg-surface-raised: var(--neutral-800);
+  --bg-sunken: var(--white-a4);
+  --bg-hover: var(--white-a6);
+  --bg-pressed: var(--white-a12);
+  --bg-neutral-subtle: var(--white-a12);
+  --bg-neutral-subtle-hover: var(--white-a16);
+  --bg-neutral-subtle-pressed: var(--white-a24);
+  --bg-selected: var(--blue-a16);
+  --bg-disabled: var(--white-a4);
+  --bg-emphasis: var(--neutral-50);
+  --bg-emphasis-hover: var(--neutral-200);
+  --bg-accent: var(--blue-400);
+  --bg-accent-hover: var(--blue-300);
+  --bg-accent-subtle: var(--blue-a16);
+  --bg-danger: var(--red-600);
+  --bg-danger-hover: var(--red-700);
+  --bg-success-subtle: var(--green-a16);
+  --bg-warning-subtle: var(--amber-a16);
+  --bg-danger-subtle: var(--red-a16);
+  --bg-info-subtle: var(--blue-a16);
+  --bg-inverse: var(--neutral-100);
+  --bg-overlay: var(--black-a64);
+  --fg-default: var(--neutral-50);
+  --fg-muted: var(--neutral-300);
+  --fg-subtle: var(--neutral-400);
+  --fg-faint: var(--neutral-600);
+  --fg-disabled: var(--white-a32);
+  --fg-on-emphasis: var(--neutral-900);
+  --fg-on-accent: var(--neutral-950);
+  --fg-on-danger: var(--white);
+  --fg-inverse: var(--neutral-900);
+  --fg-link: var(--blue-300);
+  --fg-link-hover: var(--blue-200);
+  --fg-success: var(--green-400);
+  --fg-warning: var(--amber-300);
+  --fg-danger: var(--red-400);
+  --fg-info: var(--blue-300);
+  --border-subtle: var(--white-a8);
+  --border-default: var(--white-a12);
+  --border-strong: var(--white-a24);
+  --border-control: var(--white-a48);
+  --border-selected: var(--neutral-50);
+  --border-input: var(--white-a16);
+  --border-input-hover: var(--white-a24);
+  --border-focus: var(--blue-400);
+  --border-success: var(--green-a48);
+  --border-warning: var(--amber-a48);
+  --border-danger: var(--red-a48);
+  --border-danger-strong: var(--red-400);
+  --border-info: var(--blue-a48);
+  --status-success: var(--green-400);
+  --status-warning: var(--amber-400);
+  --status-danger: var(--red-400);
+  --status-info: var(--blue-400);
+  --status-neutral: var(--neutral-500);
+  --status-violet: var(--violet-400);
+  --status-teal: var(--teal-400);
+  --chart-1: #3987e5;
+  --chart-2: #d95926;
+  --chart-3: #199e70;
+  --chart-4: #c98500;
+  --chart-5: #d55181;
+  --chart-6: #008300;
+  --chart-7: #9085e9;
+  --chart-8: #e66767;
+  --button-primary-bg: var(--bg-emphasis);
+  --button-primary-bg-hover: var(--bg-emphasis-hover);
+  --button-primary-fg: var(--fg-on-emphasis);
+  --button-secondary-bg: var(--bg-neutral-subtle);
+  --button-secondary-bg-hover: var(--bg-neutral-subtle-hover);
+  --button-secondary-bg-pressed: var(--bg-neutral-subtle-pressed);
+  --button-tertiary-bg-hover: var(--bg-hover);
+  --button-tertiary-bg-pressed: var(--bg-pressed);
+  --button-default-bg: var(--bg-surface);
+  --button-default-bg-hover: var(--bg-hover);
+  --button-default-border: var(--border-default);
+  --button-default-border-hover: var(--border-strong);
+  --button-danger-fg: var(--fg-danger);
+  --button-danger-border: var(--border-danger);
+  --chip-bg-set: var(--bg-accent-subtle);
+  --chip-border-set: var(--border-info);
+  --chip-border-set-hover: var(--border-focus);
+  --input-bg: var(--bg-surface);
+  --input-border: var(--border-input);
+  --input-border-hover: var(--border-input-hover);
+  --input-border-focus: var(--border-focus);
+  --input-bg-disabled: var(--bg-sunken);
+  --input-icon: var(--fg-subtle);
+  --input-icon-focus: var(--fg-muted);
+  --input-border-invalid: var(--border-danger-strong);
+  --input-placeholder: var(--fg-subtle);
+  --nav-item-fg: var(--fg-default);
+  --nav-item-bg-hover: var(--bg-hover);
+  --nav-item-bg-active: var(--bg-emphasis);
+  --nav-item-fg-active: var(--fg-on-emphasis);
+  --table-header-fg: var(--fg-muted);
+  --table-row-bg-hover: var(--bg-hover);
+  --table-divider: var(--border-subtle);
+  --code-bg: var(--bg-sunken);
+  --code-gutter-fg: var(--fg-subtle);
+  --tooltip-bg: var(--bg-inverse);
+  --tooltip-fg: var(--fg-inverse);
+  --shadow-none: none;
+  --shadow-xs: 0 2px 4px -2px rgba(0, 0, 0, 0.50);
+  --shadow-sm: 0 2px 6px rgba(0, 0, 0, 0.40);
+  --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.50);
+  --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.55);
+  --shadow-xl: 0 24px 64px rgba(0, 0, 0, 0.60);
+  --elevation-flat: none;
+  --elevation-raised: 0 2px 4px -2px rgba(0, 0, 0, 0.50);
+  --elevation-raised-hover: 0 2px 6px rgba(0, 0, 0, 0.40);
+  --elevation-overlay: 0 8px 24px rgba(0, 0, 0, 0.50);
+  --elevation-floating: 0 12px 32px rgba(0, 0, 0, 0.55);
+  --elevation-modal: 0 24px 64px rgba(0, 0, 0, 0.60);
+}
+:root {
+  --space-0: 0px; /* No gap. */
+  --space-2: 2px; /* Hairline gaps: icon to badge, stacked label lines. */
+  --space-4: 4px; /* Icon to text inside small controls. */
+  --space-6: 6px; /* Icon to text inside buttons and chips. */
+  --space-8: 8px; /* Between controls in a row; menu padding. */
+  --space-10: 10px; /* Compact control horizontal padding. */
+  --space-12: 12px; /* Control horizontal padding; sidebar padding; nav icon gap. */
+  --space-14: 14px; /* Table cell vertical padding. */
+  --space-16: 16px; /* Between stacked blocks; table column gap; facts gap. */
+  --space-20: 20px; /* Card and table cell horizontal padding. */
+  --space-24: 24px; /* Page top padding; header to content; dialog padding. */
+  --space-28: 28px; /* Between page sections. */
+  --space-32: 32px; /* Page side padding. */
+  --space-40: 40px; /* Empty-state padding. */
+  --space-48: 48px; /* Page bottom padding; facts column gap. */
+  --space-56: 56px; /* Large section gaps. */
+  --space-64: 64px; /* Hero and template gaps. */
+  --space-80: 80px; /* Layout gutters on wide screens. */
+  --space-96: 96px; /* Largest layout gap. */
+  --radius-none: 0px; /* Square edges: tables inside cards, full-bleed bands. */
+  --radius-xs: 2px; /* Kbd keys, tiny tags, checkboxes. */
+  --radius-sm: 4px; /* Menu items, nav items, badges. */
+  --radius-md: 6px; /* Buttons, inputs, chips, alerts, code blocks. */
+  --radius-lg: 8px; /* Cards, tables, menus, popovers. */
+  --radius-xl: 12px; /* Dialogs and drawers. */
+  --radius-2xl: 16px; /* Large feature panels. */
+  --radius-full: 9999px; /* Dots, avatars, switches, pills. */
+  --size-control-xs: 24px; /* Extra-small controls: inline icon buttons in dense rows. */
+  --size-control-sm: 28px; /* Small buttons and chips in card headers. */
+  --size-control-md: 36px; /* Default buttons, inputs, chips, selects, the search field. */
+  --size-control-lg: 40px; /* Prominent page-level actions and roomy forms. */
+  --size-control-xl: 48px; /* Touch-friendly and hero actions. */
+  --size-icon-xs: 12px; /* Icons in captions and badges. */
+  --size-icon-sm: 14px; /* Icons in small buttons, chevrons in chips. */
+  --size-icon-md: 16px; /* Default inline icon size. */
+  --size-icon-lg: 20px; /* Sidebar navigation icons. */
+  --size-icon-xl: 24px; /* Empty states and feature icons. */
+  --size-avatar-sm: 24px; /* Avatar in dense places: the account menu. */
+  --size-avatar-md: 32px; /* Default avatar. */
+  --size-avatar-lg: 40px; /* Avatar on profile surfaces. */
+  --size-tag-sm: 20px; /* Small badge and kbd height: in table cells and dense rows. */
+  --size-tag-md: 24px; /* Default badge and kbd height. */
+  --size-check-sm: 14px; /* Small checkbox and radio. */
+  --size-check-md: 16px; /* Default checkbox and radio. */
+  --size-switch-sm-width: 28px; /* Small switch track width. */
+  --size-switch-sm-height: 16px; /* Small switch track height. */
+  --size-switch-md-width: 32px; /* Default switch track width. */
+  --size-switch-md-height: 20px; /* Default switch track height. */
+  --size-dot: 8px; /* Status dot diameter. */
+  --size-row: 48px; /* Minimum height of a table row. */
+  --size-fact-row: 40px; /* Minimum height of one fact (label and value) in a FactsList. */
+  --size-header: 56px; /* Brand bar and app bar height. */
+  --size-sidebar: 240px; /* Sidebar width. */
+  --size-drawer: 480px; /* Side drawer width. */
+  --size-dialog-sm: 400px; /* Confirmations. */
+  --size-dialog-md: 560px; /* Forms in a dialog. */
+  --size-dialog-lg: 720px; /* Large dialogs (diffs). */
+  --size-content-max: 1240px; /* Max width of the content column. */
+  --size-column-date: 172px; /* Right-aligned date column, last before the chevron. */
+  --size-column-chevron: 32px; /* Row chevron column. */
+  --size-cell-id-min: 6ch; /* On a narrow screen, the least width an identifier or row-link cell keeps (or its whole value, when shorter); it wraps onto more lines rather than being cut short. */
+  --size-column-mark: 80px; /* Centred short-value column (a mark, a version). */
+  --size-facts-label: 140px; /* Label column of a facts list. */
+  --size-target-min: 24px; /* Minimum hit area for anything clickable (WCAG 2.5.8). Text links and small marks extend their hit area to this without changing their look. */
+  --size-target-comfortable: 32px; /* Hit area for primary interactions: buttons, menu items, nav items. */
+  --size-button-min-width: 64px; /* Minimum width of md and lg text buttons, so short labels ("Back") still read as buttons. */
+  --size-menu-min-width: 200px; /* Minimum width of menus and popovers. */
+  --size-dialog-min-width: 280px; /* Minimum width of a dialog before it fills a narrow screen. */
+  --font-size-xs: 10px; /* Initials in the small avatar only. */
+  --font-size-sm: 12px; /* 12px text: body-sm, label-sm, caption, code, badges, tags, counts. */
+  --font-size-md: 14px; /* 14px text: body-md and every control label. The default. */
+  --font-size-lg: 16px; /* 16px text: body-lg, heading-sm. */
+  --font-size-xl: 20px; /* 20px text: heading-md (dialog and drawer titles). */
+  --font-size-2xl: 22px; /* Mono page titles (an ID as the h1): one step down from heading-lg so mono doesn’t look heavier. */
+  --font-size-3xl: 24px; /* 24px text: heading-lg (page titles). */
+  --line-height-sm: 16px; /* Line height for 12px text. */
+  --line-height-md: 20px; /* Line height for 14px text and for 12px code blocks. */
+  --line-height-lg: 24px; /* Line height for 16px text. */
+  --line-height-xl: 28px; /* Line height for 20px text. */
+  --line-height-2xl: 32px; /* Line height for 24px text. */
+  --size-menu-width: 240px; /* Default width of menus opened from chips, the account menu and the search field picker. */
+  --size-menu-max-height: 360px; /* Tallest a menu gets before it scrolls. */
+  --size-menu-max-width: 360px; /* Widest a menu gets; longer items end in an ellipsis. */
+  --size-listbox-max-height: 320px; /* Tallest a Select / Combobox list gets before it scrolls. */
+  --size-tooltip-max-width: 240px; /* Widest a tooltip gets before it wraps. */
+  --size-measure-sm: 400px; /* Max line length for short blurbs: empty-state text, help under headings. */
+  --size-measure-md: 640px; /* Max line length for running text and single-column forms. */
+  --size-empty-icon: 48px; /* Circle behind an empty-state icon. */
+  --size-search-min-width: 260px; /* Narrowest a search field gets. */
+  --border-width-hairline: 1px; /* The one exception to the 2px grid: outlines and dividers render as a single device-independent pixel. */
+  --border-width-thick: 2px; /* Selected tab underline, invalid inputs. */
+  --focus-ring-width: 2px; /* Focus ring thickness: the outline ring and the halo. */
+  --focus-ring-width-thick: 4px; /* Focus ring for large targets (cards, tiles, hero actions) where 2px gets lost. */
+  --focus-ring-offset: 2px; /* Gap between a control and its outline ring. */
+  --focus-ring-offset-inset: -2px; /* Draws the outline ring inside the edge: table rows, menu items, accordion headers, anything flush with its container. */
+  --opacity-disabled: 0.48; /* Disabled controls. */
+  --opacity-muted: 0.64; /* Secondary icons inside controls (chevrons). */
+  --opacity-hover: 0.88; /* Hover on solid fills without a hover token. */
+  --z-base: 0; /* Page content, cards, tables. Pairs with elevation-flat / elevation-raised. */
+  --z-sticky: 20; /* Sticky table headers and toolbars that stay put while the page scrolls under them. */
+  --z-dropdown: 30; /* Anchored to a trigger: menus, select lists, popovers. Pairs with elevation-overlay. */
+  --z-drawer: 40; /* Side drawers and their overlay. Pairs with elevation-modal. */
+  --z-dialog: 50; /* Dialogs and their overlay; a dialog opened from a drawer sits above it. Pairs with elevation-modal. */
+  --z-toast: 60; /* The toast region: stays visible above any open drawer or dialog. Pairs with elevation-floating. */
+  --z-tooltip: 70; /* Tooltips: always on top, they label whatever is under the pointer. */
+  --inset-control-xs: 6px; /* Horizontal padding of xs buttons. */
+  --inset-control-sm: 10px; /* Horizontal padding of sm buttons and segmented items. */
+  --inset-control-md: 14px; /* Horizontal padding of md buttons. */
+  --inset-control-lg: 16px; /* Horizontal padding of lg buttons. */
+  --inset-field-sm: 8px; /* Horizontal padding of sm inputs. */
+  --inset-field: 12px; /* Horizontal padding of inputs, selects, chips, the search field. */
+  --inset-field-lg: 14px; /* Horizontal padding of lg inputs. */
+  --inset-field-y: 8px; /* Vertical padding of textareas. */
+  --inset-tag: 6px; /* Horizontal padding of badges. */
+  --inset-tag-xs: 4px; /* Padding of keys and tooltips (vertical). */
+  --inset-menu: 4px; /* Padding inside menus and popovers. */
+  --inset-menuitem-x: 8px; /* Horizontal padding of menu items, nav items, tooltips. */
+  --inset-menuitem-y: 6px; /* Vertical padding of menu items. */
+  --inset-alert-x: 14px; /* Horizontal padding of alerts and toasts. */
+  --inset-alert-y: 12px; /* Vertical padding of alerts. */
+  --inset-card: 20px; /* Horizontal padding of card headers, table cells, list footers, accordion panels; vertical padding of padded cards. */
+  --inset-card-wide: 24px; /* Horizontal padding of padded cards and facts cards. */
+  --inset-card-head-y: 8px; /* Vertical padding of card headers. */
+  --inset-card-head-end: 12px; /* Right padding of card headers (room for action buttons). */
+  --inset-cell-y: 12px; /* Vertical padding of table cells, list footers. */
+  --inset-cell-head-y: 10px; /* Vertical padding of table header cells. */
+  --inset-dialog: 24px; /* Horizontal padding of dialogs and drawers. */
+  --inset-dialog-y: 20px; /* Top and bottom padding of dialogs. */
+  --inset-dialog-head-end: 16px; /* Right padding of a dialog header (room for the close button). */
+  --inset-sidebar: 12px; /* Padding inside the sidebar nav and foot. */
+  --inset-sidebar-brand: 16px; /* Horizontal padding of the sidebar brand bar. */
+  --inset-code-x: 16px; /* Horizontal padding of code blocks. */
+  --inset-code-y: 12px; /* Vertical padding of code blocks and the gutter. */
+  --inset-empty-x: 24px; /* Horizontal padding of empty states. */
+  --inset-empty-y: 40px; /* Vertical padding of empty states. */
+  --inset-empty-compact-y: 32px; /* Vertical padding of empty states inside tables. */
+  --inset-page-top: 24px; /* Top padding of the content column. */
+  --inset-page-x: 32px; /* Side padding of the content column. */
+  --inset-page-bottom: 48px; /* Bottom padding of the content column. */
+  --inset-page-compact: 16px; /* Content padding on narrow screens; dialog layer edges. */
+  --inset-overlay-top: 72px; /* Distance from the top of the window to a dialog. */
+  --inset-dialog-close: 14px; /* Right padding of a dialog or drawer header: puts the close glyph 24px from the edge, matching the left padding. */
+  --tracking-none: 0px; /* Default for 14px and up, and for all monospace text. */
+  --tracking-sm: 0.12px; /* 12px sans text (body-sm, label-sm, caption): +0.01em, below the optical-size range. */
+  --tracking-wide: 0.48px; /* Uppercase overline only: +0.04em. */
+  --duration-fast: 80ms; /* Hover fills, tooltips. */
+  --duration-normal: 120ms; /* Focus ring and glow, chevrons, switch knobs, field edges. */
+  --duration-slow: 200ms; /* Panels and overlays appearing. */
+  --duration-exit: 150ms; /* Dialogs, drawers and their overlay leaving: a little quicker than they arrive. */
+  --easing-standard: cubic-bezier(0.2, 0, 0, 1); /* Default easing: quick start, gentle stop. */
+  --easing-enter: cubic-bezier(0, 0, 0, 1); /* Things arriving on screen (dialogs, drawers): decelerate into place. */
+  --easing-exit: cubic-bezier(0.3, 0, 1, 1); /* Things leaving the screen: accelerate away. */
+  --gap-inline-2xs: 2px; /* Between segments of a segmented control; menu items. */
+  --gap-inline-xs: 4px; /* Icon to text in small controls, links, badges, chips. */
+  --gap-inline-sm: 6px; /* Icon to text in buttons, tabs, back links; small action groups. */
+  --gap-inline-md: 8px; /* Between controls in a row: buttons, chips, filters; dot to label. */
+  --gap-inline-lg: 10px; /* Icon to text in nav items and alerts. */
+  --gap-inline-xl: 12px; /* Between title and actions in headers. */
+  --gap-stack-2xs: 2px; /* Between lines of a label group; nav items. */
+  --gap-stack-xs: 4px; /* Title to status line; lines inside an accordion header. */
+  --gap-stack-sm: 6px; /* Label, hint, control and error inside a field. */
+  --gap-stack-md: 8px; /* Back link to title; filter rows. */
+  --gap-stack-lg: 12px; /* Between sidebar sections; facts rows. */
+  --gap-stack-xl: 16px; /* Between page blocks; inside dialogs. */
+  --gap-stack-2xl: 20px; /* Between groups in a drawer. */
+  --gap-columns: 16px; /* Between table columns and fact label/value. */
+  --gap-tabs: 24px; /* Between tabs. */
+  --gap-section: 48px; /* Between facts columns and major sections. */
+  --font-sans: "Inter", "AU Sans Fallback", Arial, "Liberation Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, "SF Mono", Menlo, "AU Mono Cascadia", "AU Mono Consolas", "AU Mono Liberation", "Cascadia Mono", Consolas, "Liberation Mono", "DejaVu Sans Mono", monospace;
+  --text-display: 600 32px/40px var(--font-sans); /* Template and empty-state hero only. */
+  --text-heading-xl: 600 28px/36px var(--font-sans); /* Dashboards and landing pages. */
+  --text-heading-lg: 600 24px/32px var(--font-sans); /* The page title (h1). One per page. */
+  --text-heading-md: 600 20px/28px var(--font-sans); /* Dialog and drawer titles. */
+  --text-heading-sm: 600 16px/24px var(--font-sans); /* Card and section headings. */
+  --text-heading-xs: 600 14px/20px var(--font-sans); /* Small group headings, card header labels. */
+  --text-body-lg: 400 16px/24px var(--font-sans); /* Long-form help and empty-state copy. */
+  --text-body-md: 400 14px/20px var(--font-sans); /* Default text: table cells, facts, alerts, dialogs. */
+  --text-body-sm: 400 12px/16px var(--font-sans); /* Footnotes, hints under fields. */
+  --text-body-md-strong: 600 14px/20px var(--font-sans); /* Lead phrase of an alert; emphasis in body text. */
+  --text-label-md: 500 14px/20px var(--font-sans); /* Buttons, nav items, tabs, field labels. */
+  --text-label-sm: 500 12px/16px var(--font-sans); /* Small buttons, chips, badges, table headers. */
+  --text-caption: 400 12px/16px var(--font-sans); /* Sidebar section titles, timestamps, counters. */
+  --text-overline: 600 12px/16px var(--font-sans); /* Rare uppercase eyebrow for grouped lists. */
+  --text-code-md: 400 14px/20px var(--font-mono); /* IDs and references that title a row or record. */
+  --text-code-sm: 400 12px/16px var(--font-mono); /* IDs, hints, dates and times in tables and facts. */
+  --text-code-block: 400 13px/20px var(--font-mono); /* JSON, raw documents, stack traces — with line numbers. */
+  --text-code-md-strong: 600 14px/20px var(--font-mono); /* The identifier column of a table. */
+  /* Component sizes (tokens.json: size, componentSize). */
+  --size-table-head: 40px; /* Minimum height of a table header row. */
+  --size-facts-column: 320px; /* Starting width of one column of facts in a FactsCard. */
+  --size-column-check: 40px; /* Checkbox column in a selectable table. */
+  --size-aside: 320px; /* Aside column beside a record’s main content. */
+  --size-aside-lg: 400px; /* Wider aside (a preview, a long fact list). */
+  --size-grid-min-sm: 200px; /* Smallest column in a Grid with min="sm" (stat tiles). */
+  --size-grid-min-md: 280px; /* Smallest column in a Grid with min="md" (cards). */
+  --size-grid-min-lg: 360px; /* Smallest column in a Grid with min="lg" (wide cards). */
+  --size-search-basis: 320px; /* Starting width of a search field in a filter row before it grows. */
+  --size-code-gutter: 48px; /* Minimum width of the line-number column. */
+  --size-toggle-width: 48px; /* Theme toggle track width. */
+  --size-toggle-height: 24px; /* Theme toggle track height. */
+  --size-toggle-knob: 18px; /* Theme toggle knob. */
+  --size-switch-knob-md: 16px; /* Default switch knob. */
+  --size-switch-knob-sm: 12px; /* Small switch knob. */
+  --size-account-max-width: 168px; /* Widest the account button at the sidebar foot gets before the name truncates. */
+  --size-progress: 8px; /* Height of a progress bar. */
+  --size-calendar-cell: 36px; /* One day in the date picker grid. */
+  --size-stat-min-width: 200px; /* Narrowest a Stat tile gets in a StatGrid. */
+  --size-dropzone-min-height: 120px; /* Smallest height of a file drop area. */
+  --size-popover-width: 320px; /* Default width of a popover. */
+  --size-step-mark: 24px; /* Circle of a Stepper step. */
+  --size-timeline-mark: 20px; /* Marker of a Timeline entry. */
+  --size-time-input: 120px; /* Width of a time field (HH:MM). */
+  --size-statemap-stage: 200px; /* Width of one stage column in a StateMap. */
+  --size-rail: 80px; /* Width of the icon rail (AppShell nav="rail"). */
+  --size-rail-mark: 40px; /* The product mark at the top of the icon rail. */
+  --size-shell-search: 480px; /* Largest width of the search in the shell bar and the top navigation. */
+}
+.display {
+  font-family: var(--font-sans);
+  font-size: 32px;
+  line-height: 40px;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+.heading-xl {
+  font-family: var(--font-sans);
+  font-size: 28px;
+  line-height: 36px;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+.heading-lg {
+  font-family: var(--font-sans);
+  font-size: 24px;
+  line-height: 32px;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+.heading-md {
+  font-family: var(--font-sans);
+  font-size: 20px;
+  line-height: 28px;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+.heading-sm {
+  font-family: var(--font-sans);
+  font-size: 16px;
+  line-height: 24px;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+.heading-xs {
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+.body-lg {
+  font-family: var(--font-sans);
+  font-size: 16px;
+  line-height: 24px;
+  font-weight: 400;
+  letter-spacing: 0;
+}
+.body-md {
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 400;
+  letter-spacing: 0;
+}
+.body-sm {
+  font-family: var(--font-sans);
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 400;
+  letter-spacing: 0.12px;
+}
+.body-md-strong {
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+.label-md {
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 500;
+  letter-spacing: 0;
+}
+.label-sm {
+  font-family: var(--font-sans);
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 500;
+  letter-spacing: 0.12px;
+}
+.caption {
+  font-family: var(--font-sans);
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 400;
+  letter-spacing: 0.12px;
+}
+.overline {
+  font-family: var(--font-sans);
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 600;
+  letter-spacing: 0.48px;
+}
+.code-md {
+  font-family: var(--font-mono);
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 400;
+  letter-spacing: 0;
+}
+.code-sm {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 400;
+  letter-spacing: 0;
+}
+.code-block {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 20px;
+  font-weight: 400;
+  letter-spacing: 0;
+}
+.code-md-strong {
+  font-family: var(--font-mono);
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+@font-face {
+  font-family: "Inter";
+  src: url("fonts/InterVariable.woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "JetBrains Mono";
+  src: url("fonts/JetBrainsMono.woff2") format("woff2");
+  font-weight: 100 800;
+  font-style: normal;
+  font-display: swap;
+}

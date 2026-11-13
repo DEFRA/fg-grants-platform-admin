@@ -1,0 +1,12 @@
+.au-badge { display: inline-flex; align-items: center; gap: var(--gap-inline-xs); height: var(--size-tag-md); padding: 0 var(--inset-field-sm); border-radius: var(--radius-sm); font-size: var(--font-size-sm); line-height: var(--line-height-sm); font-weight: 500; white-space: nowrap; border: var(--border-width-hairline) solid transparent; letter-spacing: var(--tracking-sm); }
+.au-badge-sm { height: var(--size-tag-sm); padding: 0 var(--inset-tag); }
+.au-badge-neutral { background: var(--bg-hover); color: var(--fg-muted); }
+.au-badge-success { background: var(--bg-success-subtle); color: var(--fg-success); }
+.au-badge-warning { background: var(--bg-warning-subtle); color: var(--fg-warning); }
+.au-badge-danger { background: var(--bg-danger-subtle); color: var(--fg-danger); }
+.au-badge-info { background: var(--bg-info-subtle); color: var(--fg-info); }
+.au-badge-outline { background: transparent; border-color: var(--border-default); }
+
+/* ── Server-rendered markup: joined after every component's rules above (build.cjs) ── */
+.au-badge-note { font-weight: 400; }
+.au-badge-wrap { height: auto; min-height: var(--size-tag-sm); white-space: normal; text-align: start; text-decoration: none; }

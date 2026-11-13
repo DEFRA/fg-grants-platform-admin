@@ -1,0 +1,33 @@
+.au-btn { display: inline-flex; align-items: center; justify-content: center; gap: var(--gap-inline-sm); flex: none; border: var(--border-width-hairline) solid transparent; border-radius: var(--radius-md); font: inherit; font-weight: 500; white-space: nowrap; cursor: pointer; text-decoration: none; transition: background-color var(--duration-fast) ease, border-color var(--duration-fast) ease, var(--transition-focus); }
+.au-btn-xs { height: var(--size-control-xs); padding: 0 var(--inset-control-xs); font-size: var(--font-size-sm); line-height: var(--line-height-sm); gap: var(--gap-inline-xs); border-radius: var(--radius-sm); letter-spacing: var(--tracking-sm); }
+.au-btn-sm { height: var(--size-control-sm); padding: 0 var(--inset-control-sm); font-size: var(--font-size-sm); line-height: var(--line-height-sm); gap: var(--gap-inline-xs); letter-spacing: var(--tracking-sm); }
+.au-btn-md { min-width: var(--size-button-min-width); height: var(--size-control-md); padding: 0 var(--inset-control-md); font-size: var(--font-size-md); line-height: var(--line-height-md); }
+.au-btn-lg { min-width: var(--size-button-min-width); height: var(--size-control-lg); padding: 0 var(--inset-control-lg); font-size: var(--font-size-md); line-height: var(--line-height-md); }
+.au-btn-block { width: 100%; }
+.au-btn-primary { background: var(--button-primary-bg); color: var(--button-primary-fg); }
+.au-btn-primary:hover:where(:not(:disabled, [aria-disabled="true"], .is-disabled)) { background: var(--button-primary-bg-hover); color: var(--button-primary-fg); }
+.au-btn-default { background: var(--button-default-bg); border-color: var(--button-default-border); color: var(--fg-default); box-shadow: var(--elevation-raised); }
+.au-btn-default:hover:where(:not(:disabled, [aria-disabled="true"], .is-disabled)) { background: var(--button-default-bg-hover); border-color: var(--button-default-border-hover); color: var(--fg-default); }
+.au-btn-default:active:where(:not(:disabled, [aria-disabled="true"], .is-disabled)) { background: var(--bg-pressed); }
+.au-btn-secondary { background: var(--button-secondary-bg); color: var(--fg-default); }
+.au-btn-secondary:hover:where(:not(:disabled, [aria-disabled="true"], .is-disabled)) { background: var(--button-secondary-bg-hover); color: var(--fg-default); }
+.au-btn-secondary:active:where(:not(:disabled, [aria-disabled="true"], .is-disabled)) { background: var(--button-secondary-bg-pressed); }
+.au-btn-tertiary { background: transparent; color: var(--fg-default); }
+.au-btn-tertiary:hover:where(:not(:disabled, [aria-disabled="true"], .is-disabled)) { background: var(--button-tertiary-bg-hover); color: var(--fg-default); }
+.au-btn-tertiary:active:where(:not(:disabled, [aria-disabled="true"], .is-disabled)) { background: var(--button-tertiary-bg-pressed); }
+.au-btn-danger { background: var(--button-default-bg); border-color: var(--button-danger-border); color: var(--button-danger-fg); }
+.au-btn-danger:hover:where(:not(:disabled, [aria-disabled="true"], .is-disabled)) { background: var(--bg-danger-subtle); color: var(--button-danger-fg); }
+.au-btn-danger-solid { background: var(--bg-danger); color: var(--fg-on-danger); }
+.au-btn-danger-solid:hover:where(:not(:disabled, [aria-disabled="true"], .is-disabled)) { background: var(--bg-danger-hover); color: var(--fg-on-danger); }
+.au-btn-link { background: transparent; color: var(--fg-link); padding-inline-start: var(--inset-tag-xs); padding-inline-end: var(--inset-tag-xs); }
+.au-btn-link:hover:where(:not(:disabled, [aria-disabled="true"], .is-disabled)) { color: var(--fg-link-hover); text-decoration: underline; }
+.au-btn[disabled], .au-btn[aria-disabled="true"] { opacity: var(--opacity-disabled); cursor: not-allowed; }
+.au-btn-icon { min-width: 0; padding: 0; aspect-ratio: 1; }
+.au-btn-link { min-width: 0; }
+.au-btn-icon.au-btn-tertiary { color: var(--fg-muted); }
+.au-btn-icon.au-btn-tertiary:hover:where(:not(:disabled, [aria-disabled="true"], .is-disabled)) { color: var(--fg-default); }
+@media (prefers-reduced-motion: reduce) { .au-btn { transition: none; }}
+/* Touch: small icon buttons and checkboxes keep their look but get a 32px hit area. */
+@media (pointer: coarse) {
+  .au-btn-xs.au-btn-icon { position: relative; }
+  .au-btn-xs.au-btn-icon::after { content: ""; position: absolute; inset: calc((var(--size-control-xs) - var(--size-target-comfortable)) / 2); }}

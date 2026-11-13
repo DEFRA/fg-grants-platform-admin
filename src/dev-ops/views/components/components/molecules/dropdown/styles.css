@@ -1,0 +1,21 @@
+.au-dropdown { position: relative; display: inline-flex; }
+.au-dropdown-pop { display: flex; flex-direction: column; }
+.au-dropdown-pop > .au-menu { min-height: 0; }
+
+/* ── Server-rendered markup: joined after every component's rules above (build.cjs) ── */
+/* ── Menus on a popover ── */
+/* In the top layer, so nothing clips it. Placed by CSS anchoring where the browser has it, by <au-dropdown> otherwise. */
+.au-dropdown-pop[popover]:not(:popover-open) { display: none; }
+.au-dropdown-pop[popover] { inset: auto; margin: 0; padding: 0; border: 0; background: transparent; overflow: visible; color: inherit; }
+.au-dropdown-pop[popover] { position-anchor: --au-dropdown; }
+.au-dropdown-pop[popover]:not(.is-placed) { top: anchor(bottom); left: anchor(start); margin-top: var(--space-4); position-try-fallbacks: flip-block, flip-inline; }
+au-dropdown[data-align="end"] .au-dropdown-pop[popover]:not(.is-placed) { left: auto; right: anchor(end); }
+au-dropdown[data-placement="top"] .au-dropdown-pop[popover]:not(.is-placed) { top: auto; bottom: anchor(top); margin-top: 0; margin-bottom: var(--space-4); }
+.au-dropdown-pop[popover].is-placed { right: auto; bottom: auto; margin: 0; }
+.au-dropdown > button:has(+ :popover-open) .au-chevron { transform: rotate(180deg); }
+.au-dropdown > .au-chip:not(.is-set):has(+ :popover-open) { background: var(--bg-hover); border-color: var(--border-strong); }
+.au-dropdown > .au-chip.is-set:has(+ :popover-open) { border-color: var(--chip-border-set-hover); }
+/* Both kind pickers are in the markup; which one shows is decided by whether the page can run scripts, not by the
+   script arriving, so nothing changes on load. (A browser without the scripting media query shows the select until
+   <au-search-kind> swaps them.) */
+@media (scripting: none) { au-search-kind > .au-dropdown[data-au-picker] { display: none; } }

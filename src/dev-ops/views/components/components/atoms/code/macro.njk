@@ -1,0 +1,5 @@
+{#- Code({ text|code }) — a code value inside running text. Code({ block: true, code, label, framed, errorLine, lineNumbers: true, maxHeight: 120|160|200|240|280|320|360|400|480|560|640 (px; it scrolls past it) }) — a document, JSON or stack trace with a gutter. -#}
+{% macro Code(p) -%}
+  {%- set __html %}{% include "./template.njk" %}{% endset -%}
+  {{- __html | trim | safe -}}
+{%- endmacro %}

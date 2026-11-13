@@ -1,0 +1,5 @@
+{#- Icon({ name, size: xs|sm|md|lg|xl|<px>, label, strokeWidth }) — Lucide, drawn in currentColor. -#}
+{% macro Icon(p) -%}
+  {%- set __html %}{% include "./template.njk" %}{% endset -%}
+  {{- __html | trim | safe -}}
+{%- endmacro %}

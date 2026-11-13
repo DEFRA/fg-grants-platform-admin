@@ -1,0 +1,5 @@
+{#- MenuItem({ text|html, href | type+name+value+form (a submit), checked (radio-like), icon, hint, meta, extra (html after the label), danger, size: sm, mono, current }) -#}
+{% macro MenuItem(p) -%}
+  {%- set __html %}{% include "./template.njk" %}{% endset -%}
+  {{- __html | trim | safe -}}
+{%- endmacro %}

@@ -1,0 +1,19 @@
+#!/usr/bin/env node
+// Rejoins design-system.css from the copied stylesheets, after a change to one of them. Written by the design system's add
+// command; node build.cjs --status lists the files changed since they were copied.
+const fs = require('fs'), path = require('path'), crypto = require('crypto');
+const here = __dirname, parts = ["core/styles.css","components/atoms/icon/styles.css","components/atoms/text/styles.css","components/atoms/button/styles.css","components/atoms/link/styles.css","components/atoms/spinner/styles.css","components/atoms/badge/styles.css","components/atoms/avatar/styles.css","components/atoms/divider/styles.css","components/atoms/label/styles.css","components/atoms/checkbox/styles.css","components/atoms/radio/styles.css","components/atoms/tooltip/styles.css","components/atoms/menu-item/styles.css","components/molecules/field/styles.css","components/molecules/menu/styles.css","components/molecules/dropdown/styles.css","components/molecules/segmented-control/styles.css","components/molecules/back-link/styles.css","components/molecules/alert/styles.css","components/molecules/empty-state/styles.css","components/molecules/theme-toggle/styles.css","components/molecules/toast/styles.css","components/molecules/toast-region/styles.css","components/atoms/nav-item/styles.css","components/organisms/sidebar/styles.css","components/organisms/account-menu/styles.css","components/organisms/page-header/styles.css","components/organisms/card/styles.css","components/organisms/dialog/styles.css","components/organisms/drawer/styles.css","components/templates/app-shell/styles.css","components/atoms/heading/styles.css","components/atoms/code/styles.css","components/atoms/visually-hidden/styles.css","components/molecules/breadcrumbs/styles.css","components/layouts/form/styles.css","components/templates/page/styles.css","components/molecules/error-summary/styles.css","components/templates/status-page/styles.css","components/organisms/top-nav/styles.css"];
+const r = (f) => fs.readFileSync(path.join(here, f), 'utf8'), has = (f) => fs.existsSync(path.join(here, f));
+if (process.argv.includes('--status')) {
+  const m = JSON.parse(r('manifest.json'));
+  const changed = Object.entries(m.files).filter(([f, h]) => !has(f) || crypto.createHash('sha256').update(fs.readFileSync(path.join(here, f))).digest('hex') !== h).map(([f]) => f);
+  console.log(changed.length ? 'Changed since copied:\n  ' + changed.join('\n  ') : 'Nothing changed since copied (' + m.version + ').');
+  process.exit(0);
+}
+// Each styles.css holds its component's rules, then (after the line below) its rules for server-rendered markup; those
+// come after every component's own rules, so the cascade is the same as the design system's.
+const SPLIT = "/* ── Server-rendered markup: joined after every component's rules above (build.cjs) ── */";
+const halves = parts.filter(has).map(f => { const [a, b = ''] = r(f).split(SPLIT); return [f, a.trimEnd(), b.trim()]; });
+const css = [['core/tokens.css', r('core/tokens.css').trimEnd()], ['core/tokens-system-dark.css', r('core/tokens-system-dark.css').trimEnd()], ...halves.map(([f, a]) => [f, a]), ...halves.filter(h => h[2]).map(([f, , b]) => [f + ' (server-rendered)', b])].filter(([, s]) => s);
+fs.writeFileSync(path.join(here, "design-system.css"), '/* Built by build.cjs from the copied stylesheets, into one cascade layer: the app\'s own unlayered CSS wins. */\n@layer au {\n' + css.map(([f, s]) => '/* ── ' + f + ' ── */\n' + s + '\n').join('\n') + '}\n');
+console.log('Joined ' + css.length + ' stylesheets into design-system.css.');

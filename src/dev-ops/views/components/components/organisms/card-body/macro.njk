@@ -1,0 +1,5 @@
+{#- CardBody() caller — padded content inside a card. -#}
+{% macro CardBody(p) -%}
+  {%- set __html %}{% include "./template.njk" %}{% endset -%}
+  {{- __html | trim | safe -}}
+{%- endmacro %}

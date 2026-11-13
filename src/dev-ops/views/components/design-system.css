@@ -1,0 +1,1959 @@
+/* Built by build.cjs from the copied stylesheets, into one cascade layer: the app's own unlayered CSS wins. */
+@layer au {
+/* ── core/tokens.css ── */
+/* Design system — generated from tokens.json */
+:root, [data-theme="light"] {
+  --white: #ffffff; /* Pure white. Base for white-a* overlays. */
+  --black: #000000; /* Pure black. Base for black-a* overlays. */
+  --neutral-50: #fafafa; /* Greys for text, surfaces and borders — step 50. Primitive: reference through a semantic token. */
+  --neutral-100: #f4f4f5; /* Greys for text, surfaces and borders — step 100. Primitive: reference through a semantic token. */
+  --neutral-200: #e4e4e7; /* Greys for text, surfaces and borders — step 200. Primitive: reference through a semantic token. */
+  --neutral-300: #d4d4d8; /* Greys for text, surfaces and borders — step 300. Primitive: reference through a semantic token. */
+  --neutral-400: #a1a1aa; /* Greys for text, surfaces and borders — step 400. Primitive: reference through a semantic token. */
+  --neutral-500: #71717a; /* Greys for text, surfaces and borders — step 500. Primitive: reference through a semantic token. */
+  --neutral-600: #52525b; /* Greys for text, surfaces and borders — step 600. Primitive: reference through a semantic token. */
+  --neutral-700: #3f3f46; /* Greys for text, surfaces and borders — step 700. Primitive: reference through a semantic token. */
+  --neutral-800: #27272a; /* Greys for text, surfaces and borders — step 800. Primitive: reference through a semantic token. */
+  --neutral-900: #18181b; /* Greys for text, surfaces and borders — step 900. Primitive: reference through a semantic token. */
+  --neutral-950: #09090b; /* Greys for text, surfaces and borders — step 950. Primitive: reference through a semantic token. */
+  --blue-50: #eff6ff; /* Accent: links, focus, selection, info — step 50. Primitive: reference through a semantic token. */
+  --blue-100: #dbeafe; /* Accent: links, focus, selection, info — step 100. Primitive: reference through a semantic token. */
+  --blue-200: #bfdbfe; /* Accent: links, focus, selection, info — step 200. Primitive: reference through a semantic token. */
+  --blue-300: #93c5fd; /* Accent: links, focus, selection, info — step 300. Primitive: reference through a semantic token. */
+  --blue-400: #60a5fa; /* Accent: links, focus, selection, info — step 400. Primitive: reference through a semantic token. */
+  --blue-500: #3b82f6; /* Accent: links, focus, selection, info — step 500. Primitive: reference through a semantic token. */
+  --blue-600: #2563eb; /* Accent: links, focus, selection, info — step 600. Primitive: reference through a semantic token. */
+  --blue-700: #1d4ed8; /* Accent: links, focus, selection, info — step 700. Primitive: reference through a semantic token. */
+  --blue-800: #1e40af; /* Accent: links, focus, selection, info — step 800. Primitive: reference through a semantic token. */
+  --blue-900: #1e3a8a; /* Accent: links, focus, selection, info — step 900. Primitive: reference through a semantic token. */
+  --blue-950: #172554; /* Accent: links, focus, selection, info — step 950. Primitive: reference through a semantic token. */
+  --green-50: #f0fdf4; /* Success — step 50. Primitive: reference through a semantic token. */
+  --green-100: #dcfce7; /* Success — step 100. Primitive: reference through a semantic token. */
+  --green-200: #bbf7d0; /* Success — step 200. Primitive: reference through a semantic token. */
+  --green-300: #86efac; /* Success — step 300. Primitive: reference through a semantic token. */
+  --green-400: #4ade80; /* Success — step 400. Primitive: reference through a semantic token. */
+  --green-500: #22c55e; /* Success — step 500. Primitive: reference through a semantic token. */
+  --green-600: #16a34a; /* Success — step 600. Primitive: reference through a semantic token. */
+  --green-700: #15803d; /* Success — step 700. Primitive: reference through a semantic token. */
+  --green-800: #166534; /* Success — step 800. Primitive: reference through a semantic token. */
+  --green-900: #14532d; /* Success — step 900. Primitive: reference through a semantic token. */
+  --green-950: #052e16; /* Success — step 950. Primitive: reference through a semantic token. */
+  --amber-50: #fffbeb; /* Warning — step 50. Primitive: reference through a semantic token. */
+  --amber-100: #fef3c7; /* Warning — step 100. Primitive: reference through a semantic token. */
+  --amber-200: #fde68a; /* Warning — step 200. Primitive: reference through a semantic token. */
+  --amber-300: #fcd34d; /* Warning — step 300. Primitive: reference through a semantic token. */
+  --amber-400: #fbbf24; /* Warning — step 400. Primitive: reference through a semantic token. */
+  --amber-500: #f59e0b; /* Warning — step 500. Primitive: reference through a semantic token. */
+  --amber-600: #d97706; /* Warning — step 600. Primitive: reference through a semantic token. */
+  --amber-700: #b45309; /* Warning — step 700. Primitive: reference through a semantic token. */
+  --amber-800: #92400e; /* Warning — step 800. Primitive: reference through a semantic token. */
+  --amber-900: #78350f; /* Warning — step 900. Primitive: reference through a semantic token. */
+  --amber-950: #451a03; /* Warning — step 950. Primitive: reference through a semantic token. */
+  --red-50: #fef2f2; /* Danger — step 50. Primitive: reference through a semantic token. */
+  --red-100: #fee2e2; /* Danger — step 100. Primitive: reference through a semantic token. */
+  --red-200: #fecaca; /* Danger — step 200. Primitive: reference through a semantic token. */
+  --red-300: #fca5a5; /* Danger — step 300. Primitive: reference through a semantic token. */
+  --red-400: #f87171; /* Danger — step 400. Primitive: reference through a semantic token. */
+  --red-500: #ef4444; /* Danger — step 500. Primitive: reference through a semantic token. */
+  --red-600: #dc2626; /* Danger — step 600. Primitive: reference through a semantic token. */
+  --red-700: #b91c1c; /* Danger — step 700. Primitive: reference through a semantic token. */
+  --red-800: #991b1b; /* Danger — step 800. Primitive: reference through a semantic token. */
+  --red-900: #7f1d1d; /* Danger — step 900. Primitive: reference through a semantic token. */
+  --red-950: #450a0a; /* Danger — step 950. Primitive: reference through a semantic token. */
+  --violet-50: #f5f3ff; /* Categorical (charts, tags) — step 50. Primitive: reference through a semantic token. */
+  --violet-100: #ede9fe; /* Categorical (charts, tags) — step 100. Primitive: reference through a semantic token. */
+  --violet-200: #ddd6fe; /* Categorical (charts, tags) — step 200. Primitive: reference through a semantic token. */
+  --violet-300: #c4b5fd; /* Categorical (charts, tags) — step 300. Primitive: reference through a semantic token. */
+  --violet-400: #a78bfa; /* Categorical (charts, tags) — step 400. Primitive: reference through a semantic token. */
+  --violet-500: #8b5cf6; /* Categorical (charts, tags) — step 500. Primitive: reference through a semantic token. */
+  --violet-600: #7c3aed; /* Categorical (charts, tags) — step 600. Primitive: reference through a semantic token. */
+  --violet-700: #6d28d9; /* Categorical (charts, tags) — step 700. Primitive: reference through a semantic token. */
+  --violet-800: #5b21b6; /* Categorical (charts, tags) — step 800. Primitive: reference through a semantic token. */
+  --violet-900: #4c1d95; /* Categorical (charts, tags) — step 900. Primitive: reference through a semantic token. */
+  --violet-950: #2e1065; /* Categorical (charts, tags) — step 950. Primitive: reference through a semantic token. */
+  --teal-50: #f0fdfa; /* Categorical (charts, tags) — step 50. Primitive: reference through a semantic token. */
+  --teal-100: #ccfbf1; /* Categorical (charts, tags) — step 100. Primitive: reference through a semantic token. */
+  --teal-200: #99f6e4; /* Categorical (charts, tags) — step 200. Primitive: reference through a semantic token. */
+  --teal-300: #5eead4; /* Categorical (charts, tags) — step 300. Primitive: reference through a semantic token. */
+  --teal-400: #2dd4bf; /* Categorical (charts, tags) — step 400. Primitive: reference through a semantic token. */
+  --teal-500: #14b8a6; /* Categorical (charts, tags) — step 500. Primitive: reference through a semantic token. */
+  --teal-600: #0d9488; /* Categorical (charts, tags) — step 600. Primitive: reference through a semantic token. */
+  --teal-700: #0f766e; /* Categorical (charts, tags) — step 700. Primitive: reference through a semantic token. */
+  --teal-800: #115e59; /* Categorical (charts, tags) — step 800. Primitive: reference through a semantic token. */
+  --teal-900: #134e4a; /* Categorical (charts, tags) — step 900. Primitive: reference through a semantic token. */
+  --teal-950: #042f2e; /* Categorical (charts, tags) — step 950. Primitive: reference through a semantic token. */
+  --black-a2: rgba(0, 0, 0, 0.02); /* Black at 2% — shading on light surfaces (hover, borders, overlays). */
+  --black-a4: rgba(0, 0, 0, 0.04); /* Black at 4% — shading on light surfaces (hover, borders, overlays). */
+  --black-a6: rgba(0, 0, 0, 0.06); /* Black at 6% — shading on light surfaces (hover, borders, overlays). */
+  --black-a8: rgba(0, 0, 0, 0.08); /* Black at 8% — shading on light surfaces (hover, borders, overlays). */
+  --black-a12: rgba(0, 0, 0, 0.12); /* Black at 12% — shading on light surfaces (hover, borders, overlays). */
+  --black-a16: rgba(0, 0, 0, 0.16); /* Black at 16% — shading on light surfaces (hover, borders, overlays). */
+  --black-a24: rgba(0, 0, 0, 0.24); /* Black at 24% — shading on light surfaces (hover, borders, overlays). */
+  --black-a32: rgba(0, 0, 0, 0.32); /* Black at 32% — shading on light surfaces (hover, borders, overlays). */
+  --black-a48: rgba(0, 0, 0, 0.48); /* Black at 48% — shading on light surfaces (hover, borders, overlays). */
+  --black-a64: rgba(0, 0, 0, 0.64); /* Black at 64% — shading on light surfaces (hover, borders, overlays). */
+  --black-a80: rgba(0, 0, 0, 0.8); /* Black at 80% — shading on light surfaces (hover, borders, overlays). */
+  --white-a2: rgba(255, 255, 255, 0.02); /* White at 2% — shading on dark surfaces. */
+  --white-a4: rgba(255, 255, 255, 0.04); /* White at 4% — shading on dark surfaces. */
+  --white-a6: rgba(255, 255, 255, 0.06); /* White at 6% — shading on dark surfaces. */
+  --white-a8: rgba(255, 255, 255, 0.08); /* White at 8% — shading on dark surfaces. */
+  --white-a12: rgba(255, 255, 255, 0.12); /* White at 12% — shading on dark surfaces. */
+  --white-a16: rgba(255, 255, 255, 0.16); /* White at 16% — shading on dark surfaces. */
+  --white-a24: rgba(255, 255, 255, 0.24); /* White at 24% — shading on dark surfaces. */
+  --white-a32: rgba(255, 255, 255, 0.32); /* White at 32% — shading on dark surfaces. */
+  --white-a48: rgba(255, 255, 255, 0.48); /* White at 48% — shading on dark surfaces. */
+  --white-a64: rgba(255, 255, 255, 0.64); /* White at 64% — shading on dark surfaces. */
+  --white-a80: rgba(255, 255, 255, 0.8); /* White at 80% — shading on dark surfaces. */
+  --blue-a8: rgba(37, 99, 235, 0.08); /* Blue 600 at 8% in light, blue 400 at 8% in dark — tinted fills and borders. */
+  --blue-a12: rgba(37, 99, 235, 0.12); /* Blue 600 at 12% in light, blue 400 at 12% in dark — tinted fills and borders. */
+  --blue-a16: rgba(37, 99, 235, 0.16); /* Blue 600 at 16% in light, blue 400 at 16% in dark — tinted fills and borders. */
+  --blue-a24: rgba(37, 99, 235, 0.24); /* Blue 600 at 24% in light, blue 400 at 24% in dark — tinted fills and borders. */
+  --blue-a32: rgba(37, 99, 235, 0.32); /* Blue 600 at 32% in light, blue 400 at 32% in dark — tinted fills and borders. */
+  --blue-a48: rgba(37, 99, 235, 0.48); /* Blue 600 at 48% in light, blue 400 at 48% in dark — tinted fills and borders. */
+  --green-a8: rgba(22, 163, 74, 0.08); /* Green 600 at 8% in light, green 400 at 8% in dark — tinted fills and borders. */
+  --green-a12: rgba(22, 163, 74, 0.12); /* Green 600 at 12% in light, green 400 at 12% in dark — tinted fills and borders. */
+  --green-a16: rgba(22, 163, 74, 0.16); /* Green 600 at 16% in light, green 400 at 16% in dark — tinted fills and borders. */
+  --green-a24: rgba(22, 163, 74, 0.24); /* Green 600 at 24% in light, green 400 at 24% in dark — tinted fills and borders. */
+  --green-a32: rgba(22, 163, 74, 0.32); /* Green 600 at 32% in light, green 400 at 32% in dark — tinted fills and borders. */
+  --green-a48: rgba(22, 163, 74, 0.48); /* Green 600 at 48% in light, green 400 at 48% in dark — tinted fills and borders. */
+  --amber-a8: rgba(217, 119, 6, 0.08); /* Amber 600 at 8% in light, amber 400 at 8% in dark — tinted fills and borders. */
+  --amber-a12: rgba(217, 119, 6, 0.12); /* Amber 600 at 12% in light, amber 400 at 12% in dark — tinted fills and borders. */
+  --amber-a16: rgba(217, 119, 6, 0.16); /* Amber 600 at 16% in light, amber 400 at 16% in dark — tinted fills and borders. */
+  --amber-a24: rgba(217, 119, 6, 0.24); /* Amber 600 at 24% in light, amber 400 at 24% in dark — tinted fills and borders. */
+  --amber-a32: rgba(217, 119, 6, 0.32); /* Amber 600 at 32% in light, amber 400 at 32% in dark — tinted fills and borders. */
+  --amber-a48: rgba(217, 119, 6, 0.48); /* Amber 600 at 48% in light, amber 400 at 48% in dark — tinted fills and borders. */
+  --red-a8: rgba(220, 38, 38, 0.08); /* Red 600 at 8% in light, red 400 at 8% in dark — tinted fills and borders. */
+  --red-a12: rgba(220, 38, 38, 0.12); /* Red 600 at 12% in light, red 400 at 12% in dark — tinted fills and borders. */
+  --red-a16: rgba(220, 38, 38, 0.16); /* Red 600 at 16% in light, red 400 at 16% in dark — tinted fills and borders. */
+  --red-a24: rgba(220, 38, 38, 0.24); /* Red 600 at 24% in light, red 400 at 24% in dark — tinted fills and borders. */
+  --red-a32: rgba(220, 38, 38, 0.32); /* Red 600 at 32% in light, red 400 at 32% in dark — tinted fills and borders. */
+  --red-a48: rgba(220, 38, 38, 0.48); /* Red 600 at 48% in light, red 400 at 48% in dark — tinted fills and borders. */
+  --violet-a8: rgba(124, 58, 237, 0.08); /* Violet 600 at 8% in light, violet 400 at 8% in dark — tinted fills and borders. */
+  --violet-a12: rgba(124, 58, 237, 0.12); /* Violet 600 at 12% in light, violet 400 at 12% in dark — tinted fills and borders. */
+  --violet-a16: rgba(124, 58, 237, 0.16); /* Violet 600 at 16% in light, violet 400 at 16% in dark — tinted fills and borders. */
+  --violet-a24: rgba(124, 58, 237, 0.24); /* Violet 600 at 24% in light, violet 400 at 24% in dark — tinted fills and borders. */
+  --violet-a32: rgba(124, 58, 237, 0.32); /* Violet 600 at 32% in light, violet 400 at 32% in dark — tinted fills and borders. */
+  --violet-a48: rgba(124, 58, 237, 0.48); /* Violet 600 at 48% in light, violet 400 at 48% in dark — tinted fills and borders. */
+  --teal-a8: rgba(13, 148, 136, 0.08); /* Teal 600 at 8% in light, teal 400 at 8% in dark — tinted fills and borders. */
+  --teal-a12: rgba(13, 148, 136, 0.12); /* Teal 600 at 12% in light, teal 400 at 12% in dark — tinted fills and borders. */
+  --teal-a16: rgba(13, 148, 136, 0.16); /* Teal 600 at 16% in light, teal 400 at 16% in dark — tinted fills and borders. */
+  --teal-a24: rgba(13, 148, 136, 0.24); /* Teal 600 at 24% in light, teal 400 at 24% in dark — tinted fills and borders. */
+  --teal-a32: rgba(13, 148, 136, 0.32); /* Teal 600 at 32% in light, teal 400 at 32% in dark — tinted fills and borders. */
+  --teal-a48: rgba(13, 148, 136, 0.48); /* Teal 600 at 48% in light, teal 400 at 48% in dark — tinted fills and borders. */
+  --bg-page: var(--neutral-50); /* Page background behind the sidebar and content. */
+  --bg-surface: var(--white); /* Cards, tables, the sidebar, inputs. */
+  --bg-surface-raised: var(--white); /* Menus, popovers, dialogs, drawers — anything that floats. */
+  --bg-sunken: var(--black-a4); /* Recessed areas on a surface: code blocks, table header strips, gutters. */
+  --bg-hover: var(--black-a4); /* Hover fill for ghost controls, rows and menu items. */
+  --bg-pressed: var(--black-a8); /* Pressed fill for ghost controls. */
+  --bg-neutral-subtle: var(--black-a8); /* Tonal neutral fill: secondary buttons. */
+  --bg-neutral-subtle-hover: var(--black-a12); /* Tonal neutral fill on hover. */
+  --bg-neutral-subtle-pressed: var(--black-a16); /* Tonal neutral fill while pressed. */
+  --bg-selected: var(--blue-a8); /* Selected rows and options. */
+  --bg-disabled: var(--black-a4); /* Disabled inputs and buttons. */
+  --bg-emphasis: var(--neutral-900); /* The strongest fill, inverse of the page: primary buttons, the active nav item, set filters, avatars. */
+  --bg-emphasis-hover: var(--neutral-700); /* bg-emphasis on hover. */
+  --bg-accent: var(--blue-600); /* Accent fills: switch on, checkbox checked, progress. */
+  --bg-accent-hover: var(--blue-700); /* Accent fill hover. */
+  --bg-accent-subtle: var(--blue-a8); /* Light accent tint: selected tab chip, info highlight. */
+  --bg-danger: var(--red-600); /* Destructive confirm buttons (in a dialog only). */
+  --bg-danger-hover: var(--red-700); /* Destructive confirm hover. */
+  --bg-success-subtle: var(--green-a8); /* Success alert and badge background. */
+  --bg-warning-subtle: var(--amber-a12); /* Warning alert and badge background. */
+  --bg-danger-subtle: var(--red-a8); /* Error alert and badge background; invalid field fill. */
+  --bg-info-subtle: var(--blue-a8); /* Info alert and badge background. */
+  --bg-inverse: var(--neutral-900); /* Tooltips and toasts. */
+  --bg-overlay: var(--black-a32); /* Scrim behind dialogs and drawers. */
+  --fg-default: var(--neutral-900); /* Primary text and icons on every bg-* surface. */
+  --fg-muted: var(--neutral-600); /* Secondary text: labels, table headers, back links — on bg-page, bg-surface, bg-surface-raised. */
+  --fg-subtle: var(--neutral-500); /* Tertiary text: timestamps, hints, captions — on bg-page, bg-surface (4.5:1). */
+  --fg-faint: var(--neutral-400); /* Decoration only: chevrons, separators, line numbers. Below 4.5:1 — never the only carrier of information. */
+  --fg-disabled: var(--black-a32); /* Disabled labels and icons. */
+  --fg-on-emphasis: var(--white); /* Text and icons on bg-emphasis. */
+  --fg-on-accent: var(--white); /* Text and icons on bg-accent. */
+  --fg-on-danger: var(--white); /* Text on bg-danger. */
+  --fg-inverse: var(--neutral-50); /* Text on bg-inverse. */
+  --fg-link: var(--blue-700); /* Links and link-style buttons on bg-surface and bg-page. */
+  --fg-link-hover: var(--blue-800); /* Link hover. */
+  --fg-success: var(--green-800); /* Success text and icons, on bg-surface and bg-success-subtle. */
+  --fg-warning: var(--amber-800); /* Warning text and icons, on bg-surface and bg-warning-subtle. */
+  --fg-danger: var(--red-700); /* Error text, destructive ghost buttons, invalid-field messages, on bg-surface and bg-danger-subtle. */
+  --fg-info: var(--blue-800); /* Info text and icons, on bg-surface and bg-info-subtle. */
+  --border-subtle: var(--black-a8); /* Card, table and dialog outlines; row dividers. */
+  --border-default: var(--black-a12); /* Outlines of buttons, chips, menus, the sidebar edge. */
+  --border-strong: var(--black-a24); /* Emphasised separators; hover border on controls. */
+  --border-control: var(--black-a48); /* Input, checkbox, radio and switch boundaries (3:1 on bg-surface). */
+  --border-selected: var(--neutral-900); /* Selected segmented items, active tab underline. */
+  --border-input: var(--black-a24); /* Text field boundary at rest: input, select, textarea, search. */
+  --border-input-hover: var(--black-a32); /* Text field boundary on hover. */
+  --border-focus: var(--blue-600); /* The 2px focus ring on every interactive element (3:1 on every surface). */
+  --border-success: var(--green-a48); /* Success alert border. */
+  --border-warning: var(--amber-a48); /* Warning alert border. */
+  --border-danger: var(--red-a48); /* Error alert border; destructive ghost button border. */
+  --border-danger-strong: var(--red-600); /* Invalid input border. */
+  --border-info: var(--blue-a32); /* Info alert border. */
+  --status-success: var(--green-600); /* Status dot and mark: done, healthy, active. */
+  --status-warning: var(--amber-600); /* Status dot and mark: needs attention soon. */
+  --status-danger: var(--red-600); /* Status dot and mark: failed or blocked. */
+  --status-info: var(--blue-600); /* Status dot: in progress. */
+  --status-neutral: var(--neutral-400); /* Status dot: inactive, not started, archived. Always beside its word. */
+  --status-violet: var(--violet-600); /* Categorical marks (chart series, tags). */
+  --status-teal: var(--teal-600); /* Categorical marks (chart series, tags). */
+  --chart-1: #2a78d6; /* Chart series 1 (blue). Assign series in this order, never cycled; slots 3–5 are under 3:1 on light surfaces, so charts always label series directly or offer a table. */
+  --chart-2: #eb6834; /* Chart series 2 (orange). Assign series in this order, never cycled; slots 3–5 are under 3:1 on light surfaces, so charts always label series directly or offer a table. */
+  --chart-3: #1baf7a; /* Chart series 3 (aqua). Assign series in this order, never cycled; slots 3–5 are under 3:1 on light surfaces, so charts always label series directly or offer a table. */
+  --chart-4: #eda100; /* Chart series 4 (yellow). Assign series in this order, never cycled; slots 3–5 are under 3:1 on light surfaces, so charts always label series directly or offer a table. */
+  --chart-5: #e87ba4; /* Chart series 5 (magenta). Assign series in this order, never cycled; slots 3–5 are under 3:1 on light surfaces, so charts always label series directly or offer a table. */
+  --chart-6: #008300; /* Chart series 6 (green). Assign series in this order, never cycled; slots 3–5 are under 3:1 on light surfaces, so charts always label series directly or offer a table. */
+  --chart-7: #6250d6; /* Chart series 7 (violet). Assign series in this order, never cycled; slots 3–5 are under 3:1 on light surfaces, so charts always label series directly or offer a table. */
+  --chart-8: #e34948; /* Chart series 8 (red). Assign series in this order, never cycled; slots 3–5 are under 3:1 on light surfaces, so charts always label series directly or offer a table. */
+  --button-primary-bg: var(--bg-emphasis); /* Primary button fill. */
+  --button-primary-bg-hover: var(--bg-emphasis-hover); /* Primary button hover. */
+  --button-primary-fg: var(--fg-on-emphasis); /* Primary button label. */
+  --button-secondary-bg: var(--bg-neutral-subtle); /* Secondary (tonal) button fill. */
+  --button-secondary-bg-hover: var(--bg-neutral-subtle-hover); /* Secondary button hover. */
+  --button-secondary-bg-pressed: var(--bg-neutral-subtle-pressed); /* Secondary button pressed. */
+  --button-tertiary-bg-hover: var(--bg-hover); /* Tertiary (text) button hover. */
+  --button-tertiary-bg-pressed: var(--bg-pressed); /* Tertiary button pressed. */
+  --button-default-bg: var(--bg-surface); /* Default (outlined) button fill. */
+  --button-default-bg-hover: var(--bg-hover); /* Default button hover. */
+  --button-default-border: var(--border-default); /* Default button outline. */
+  --button-default-border-hover: var(--border-strong); /* Default button outline on hover. */
+  --button-danger-fg: var(--fg-danger); /* Destructive (outline) button label. */
+  --button-danger-border: var(--border-danger); /* Destructive (outline) button outline. */
+  --chip-bg-set: var(--bg-accent-subtle); /* A filter chip with a value set: soft accent tint. */
+  --chip-border-set: var(--border-info); /* A filter chip with a value set: accent edge. */
+  --chip-border-set-hover: var(--border-focus); /* A set filter chip under the pointer. */
+  --input-bg: var(--bg-surface); /* Input, select and textarea fill. */
+  --input-border: var(--border-input); /* Text field boundary at rest. */
+  --input-border-hover: var(--border-input-hover); /* Text field boundary on hover. */
+  --input-border-focus: var(--border-focus); /* Text field boundary while focused. */
+  --input-bg-disabled: var(--bg-sunken); /* Disabled and read-only field fill. */
+  --input-icon: var(--fg-subtle); /* Leading icon at rest. */
+  --input-icon-focus: var(--fg-muted); /* Leading icon while the field is focused. */
+  --input-border-invalid: var(--border-danger-strong); /* Invalid input boundary. */
+  --input-placeholder: var(--fg-subtle); /* Placeholder text. */
+  --nav-item-fg: var(--fg-default); /* Sidebar item label. */
+  --nav-item-bg-hover: var(--bg-hover); /* Sidebar item hover. */
+  --nav-item-bg-active: var(--bg-emphasis); /* Current sidebar item. */
+  --nav-item-fg-active: var(--fg-on-emphasis); /* Current sidebar item label. */
+  --table-header-fg: var(--fg-muted); /* Table column headings. */
+  --table-row-bg-hover: var(--bg-hover); /* Hovered table row. */
+  --table-divider: var(--border-subtle); /* Line between rows. */
+  --code-bg: var(--bg-sunken); /* Code blocks. */
+  --code-gutter-fg: var(--fg-muted); /* Line numbers. */
+  --tooltip-bg: var(--bg-inverse); /* Tooltip fill. */
+  --tooltip-fg: var(--fg-inverse); /* Tooltip text. */
+  --shadow-none: none; /* No shadow. */
+  --shadow-xs: 0 2px 4px -2px rgba(0, 0, 0, 0.10); /* A hairline lift just under the bottom edge. */
+  --shadow-sm: 0 2px 6px rgba(0, 0, 0, 0.08); /* A small lift. */
+  --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.12); /* Floats above the page. */
+  --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.16); /* Floats well above the page. */
+  --shadow-xl: 0 24px 64px rgba(0, 0, 0, 0.20); /* The highest layer. */
+  --elevation-flat: none; /* Cards, tables, panels: separated by borders, not shadows. (= shadow-none) */
+  --elevation-raised: 0 2px 4px -2px rgba(0, 0, 0, 0.10); /* Controls that sit on the surface: text fields, default buttons, the switch knob, the selected segment. (= shadow-xs) */
+  --elevation-raised-hover: 0 2px 6px rgba(0, 0, 0, 0.08); /* A raised control under the pointer, where it needs one. (= shadow-sm) */
+  --elevation-overlay: 0 8px 24px rgba(0, 0, 0, 0.12); /* Anchored to a trigger: menus, popovers, tooltips. (= shadow-md) */
+  --elevation-floating: 0 12px 32px rgba(0, 0, 0, 0.16); /* Floats free of the content: toasts, sticky bars. (= shadow-lg) */
+  --elevation-modal: 0 24px 64px rgba(0, 0, 0, 0.20); /* Blocks the page: dialogs and drawers. (= shadow-xl) */
+}
+[data-theme="dark"] {
+  --blue-a8: rgba(96, 165, 250, 0.08);
+  --blue-a12: rgba(96, 165, 250, 0.12);
+  --blue-a16: rgba(96, 165, 250, 0.16);
+  --blue-a24: rgba(96, 165, 250, 0.24);
+  --blue-a32: rgba(96, 165, 250, 0.32);
+  --blue-a48: rgba(96, 165, 250, 0.48);
+  --green-a8: rgba(74, 222, 128, 0.08);
+  --green-a12: rgba(74, 222, 128, 0.12);
+  --green-a16: rgba(74, 222, 128, 0.16);
+  --green-a24: rgba(74, 222, 128, 0.24);
+  --green-a32: rgba(74, 222, 128, 0.32);
+  --green-a48: rgba(74, 222, 128, 0.48);
+  --amber-a8: rgba(251, 191, 36, 0.08);
+  --amber-a12: rgba(251, 191, 36, 0.12);
+  --amber-a16: rgba(251, 191, 36, 0.16);
+  --amber-a24: rgba(251, 191, 36, 0.24);
+  --amber-a32: rgba(251, 191, 36, 0.32);
+  --amber-a48: rgba(251, 191, 36, 0.48);
+  --red-a8: rgba(248, 113, 113, 0.08);
+  --red-a12: rgba(248, 113, 113, 0.12);
+  --red-a16: rgba(248, 113, 113, 0.16);
+  --red-a24: rgba(248, 113, 113, 0.24);
+  --red-a32: rgba(248, 113, 113, 0.32);
+  --red-a48: rgba(248, 113, 113, 0.48);
+  --violet-a8: rgba(167, 139, 250, 0.08);
+  --violet-a12: rgba(167, 139, 250, 0.12);
+  --violet-a16: rgba(167, 139, 250, 0.16);
+  --violet-a24: rgba(167, 139, 250, 0.24);
+  --violet-a32: rgba(167, 139, 250, 0.32);
+  --violet-a48: rgba(167, 139, 250, 0.48);
+  --teal-a8: rgba(45, 212, 191, 0.08);
+  --teal-a12: rgba(45, 212, 191, 0.12);
+  --teal-a16: rgba(45, 212, 191, 0.16);
+  --teal-a24: rgba(45, 212, 191, 0.24);
+  --teal-a32: rgba(45, 212, 191, 0.32);
+  --teal-a48: rgba(45, 212, 191, 0.48);
+  --bg-page: var(--neutral-950);
+  --bg-surface: var(--neutral-900);
+  --bg-surface-raised: var(--neutral-800);
+  --bg-sunken: var(--white-a4);
+  --bg-hover: var(--white-a6);
+  --bg-pressed: var(--white-a12);
+  --bg-neutral-subtle: var(--white-a12);
+  --bg-neutral-subtle-hover: var(--white-a16);
+  --bg-neutral-subtle-pressed: var(--white-a24);
+  --bg-selected: var(--blue-a16);
+  --bg-disabled: var(--white-a4);
+  --bg-emphasis: var(--neutral-50);
+  --bg-emphasis-hover: var(--neutral-200);
+  --bg-accent: var(--blue-400);
+  --bg-accent-hover: var(--blue-300);
+  --bg-accent-subtle: var(--blue-a16);
+  --bg-danger: var(--red-600);
+  --bg-danger-hover: var(--red-700);
+  --bg-success-subtle: var(--green-a16);
+  --bg-warning-subtle: var(--amber-a16);
+  --bg-danger-subtle: var(--red-a16);
+  --bg-info-subtle: var(--blue-a16);
+  --bg-inverse: var(--neutral-100);
+  --bg-overlay: var(--black-a64);
+  --fg-default: var(--neutral-50);
+  --fg-muted: var(--neutral-300);
+  --fg-subtle: var(--neutral-400);
+  --fg-faint: var(--neutral-600);
+  --fg-disabled: var(--white-a32);
+  --fg-on-emphasis: var(--neutral-900);
+  --fg-on-accent: var(--neutral-950);
+  --fg-on-danger: var(--white);
+  --fg-inverse: var(--neutral-900);
+  --fg-link: var(--blue-300);
+  --fg-link-hover: var(--blue-200);
+  --fg-success: var(--green-400);
+  --fg-warning: var(--amber-300);
+  --fg-danger: var(--red-400);
+  --fg-info: var(--blue-300);
+  --border-subtle: var(--white-a8);
+  --border-default: var(--white-a12);
+  --border-strong: var(--white-a24);
+  --border-control: var(--white-a48);
+  --border-selected: var(--neutral-50);
+  --border-input: var(--white-a16);
+  --border-input-hover: var(--white-a24);
+  --border-focus: var(--blue-400);
+  --border-success: var(--green-a48);
+  --border-warning: var(--amber-a48);
+  --border-danger: var(--red-a48);
+  --border-danger-strong: var(--red-400);
+  --border-info: var(--blue-a48);
+  --status-success: var(--green-400);
+  --status-warning: var(--amber-400);
+  --status-danger: var(--red-400);
+  --status-info: var(--blue-400);
+  --status-neutral: var(--neutral-500);
+  --status-violet: var(--violet-400);
+  --status-teal: var(--teal-400);
+  --chart-1: #3987e5;
+  --chart-2: #d95926;
+  --chart-3: #199e70;
+  --chart-4: #c98500;
+  --chart-5: #d55181;
+  --chart-6: #008300;
+  --chart-7: #9085e9;
+  --chart-8: #e66767;
+  --button-primary-bg: var(--bg-emphasis);
+  --button-primary-bg-hover: var(--bg-emphasis-hover);
+  --button-primary-fg: var(--fg-on-emphasis);
+  --button-secondary-bg: var(--bg-neutral-subtle);
+  --button-secondary-bg-hover: var(--bg-neutral-subtle-hover);
+  --button-secondary-bg-pressed: var(--bg-neutral-subtle-pressed);
+  --button-tertiary-bg-hover: var(--bg-hover);
+  --button-tertiary-bg-pressed: var(--bg-pressed);
+  --button-default-bg: var(--bg-surface);
+  --button-default-bg-hover: var(--bg-hover);
+  --button-default-border: var(--border-default);
+  --button-default-border-hover: var(--border-strong);
+  --button-danger-fg: var(--fg-danger);
+  --button-danger-border: var(--border-danger);
+  --chip-bg-set: var(--bg-accent-subtle);
+  --chip-border-set: var(--border-info);
+  --chip-border-set-hover: var(--border-focus);
+  --input-bg: var(--bg-surface);
+  --input-border: var(--border-input);
+  --input-border-hover: var(--border-input-hover);
+  --input-border-focus: var(--border-focus);
+  --input-bg-disabled: var(--bg-sunken);
+  --input-icon: var(--fg-subtle);
+  --input-icon-focus: var(--fg-muted);
+  --input-border-invalid: var(--border-danger-strong);
+  --input-placeholder: var(--fg-subtle);
+  --nav-item-fg: var(--fg-default);
+  --nav-item-bg-hover: var(--bg-hover);
+  --nav-item-bg-active: var(--bg-emphasis);
+  --nav-item-fg-active: var(--fg-on-emphasis);
+  --table-header-fg: var(--fg-muted);
+  --table-row-bg-hover: var(--bg-hover);
+  --table-divider: var(--border-subtle);
+  --code-bg: var(--bg-sunken);
+  --code-gutter-fg: var(--fg-subtle);
+  --tooltip-bg: var(--bg-inverse);
+  --tooltip-fg: var(--fg-inverse);
+  --shadow-none: none;
+  --shadow-xs: 0 2px 4px -2px rgba(0, 0, 0, 0.50);
+  --shadow-sm: 0 2px 6px rgba(0, 0, 0, 0.40);
+  --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.50);
+  --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.55);
+  --shadow-xl: 0 24px 64px rgba(0, 0, 0, 0.60);
+  --elevation-flat: none;
+  --elevation-raised: 0 2px 4px -2px rgba(0, 0, 0, 0.50);
+  --elevation-raised-hover: 0 2px 6px rgba(0, 0, 0, 0.40);
+  --elevation-overlay: 0 8px 24px rgba(0, 0, 0, 0.50);
+  --elevation-floating: 0 12px 32px rgba(0, 0, 0, 0.55);
+  --elevation-modal: 0 24px 64px rgba(0, 0, 0, 0.60);
+}
+:root {
+  --space-0: 0px; /* No gap. */
+  --space-2: 2px; /* Hairline gaps: icon to badge, stacked label lines. */
+  --space-4: 4px; /* Icon to text inside small controls. */
+  --space-6: 6px; /* Icon to text inside buttons and chips. */
+  --space-8: 8px; /* Between controls in a row; menu padding. */
+  --space-10: 10px; /* Compact control horizontal padding. */
+  --space-12: 12px; /* Control horizontal padding; sidebar padding; nav icon gap. */
+  --space-14: 14px; /* Table cell vertical padding. */
+  --space-16: 16px; /* Between stacked blocks; table column gap; facts gap. */
+  --space-20: 20px; /* Card and table cell horizontal padding. */
+  --space-24: 24px; /* Page top padding; header to content; dialog padding. */
+  --space-28: 28px; /* Between page sections. */
+  --space-32: 32px; /* Page side padding. */
+  --space-40: 40px; /* Empty-state padding. */
+  --space-48: 48px; /* Page bottom padding; facts column gap. */
+  --space-56: 56px; /* Large section gaps. */
+  --space-64: 64px; /* Hero and template gaps. */
+  --space-80: 80px; /* Layout gutters on wide screens. */
+  --space-96: 96px; /* Largest layout gap. */
+  --radius-none: 0px; /* Square edges: tables inside cards, full-bleed bands. */
+  --radius-xs: 2px; /* Kbd keys, tiny tags, checkboxes. */
+  --radius-sm: 4px; /* Menu items, nav items, badges. */
+  --radius-md: 6px; /* Buttons, inputs, chips, alerts, code blocks. */
+  --radius-lg: 8px; /* Cards, tables, menus, popovers. */
+  --radius-xl: 12px; /* Dialogs and drawers. */
+  --radius-2xl: 16px; /* Large feature panels. */
+  --radius-full: 9999px; /* Dots, avatars, switches, pills. */
+  --size-control-xs: 24px; /* Extra-small controls: inline icon buttons in dense rows. */
+  --size-control-sm: 28px; /* Small buttons and chips in card headers. */
+  --size-control-md: 36px; /* Default buttons, inputs, chips, selects, the search field. */
+  --size-control-lg: 40px; /* Prominent page-level actions and roomy forms. */
+  --size-control-xl: 48px; /* Touch-friendly and hero actions. */
+  --size-icon-xs: 12px; /* Icons in captions and badges. */
+  --size-icon-sm: 14px; /* Icons in small buttons, chevrons in chips. */
+  --size-icon-md: 16px; /* Default inline icon size. */
+  --size-icon-lg: 20px; /* Sidebar navigation icons. */
+  --size-icon-xl: 24px; /* Empty states and feature icons. */
+  --size-avatar-sm: 24px; /* Avatar in dense places: the account menu. */
+  --size-avatar-md: 32px; /* Default avatar. */
+  --size-avatar-lg: 40px; /* Avatar on profile surfaces. */
+  --size-tag-sm: 20px; /* Small badge and kbd height: in table cells and dense rows. */
+  --size-tag-md: 24px; /* Default badge and kbd height. */
+  --size-check-sm: 14px; /* Small checkbox and radio. */
+  --size-check-md: 16px; /* Default checkbox and radio. */
+  --size-switch-sm-width: 28px; /* Small switch track width. */
+  --size-switch-sm-height: 16px; /* Small switch track height. */
+  --size-switch-md-width: 32px; /* Default switch track width. */
+  --size-switch-md-height: 20px; /* Default switch track height. */
+  --size-dot: 8px; /* Status dot diameter. */
+  --size-row: 48px; /* Minimum height of a table row. */
+  --size-fact-row: 40px; /* Minimum height of one fact (label and value) in a FactsList. */
+  --size-header: 56px; /* Brand bar and app bar height. */
+  --size-sidebar: 240px; /* Sidebar width. */
+  --size-drawer: 480px; /* Side drawer width. */
+  --size-dialog-sm: 400px; /* Confirmations. */
+  --size-dialog-md: 560px; /* Forms in a dialog. */
+  --size-dialog-lg: 720px; /* Large dialogs (diffs). */
+  --size-content-max: 1240px; /* Max width of the content column. */
+  --size-column-date: 172px; /* Right-aligned date column, last before the chevron. */
+  --size-column-chevron: 32px; /* Row chevron column. */
+  --size-cell-id-min: 6ch; /* On a narrow screen, the least width an identifier or row-link cell keeps (or its whole value, when shorter); it wraps onto more lines rather than being cut short. */
+  --size-column-mark: 80px; /* Centred short-value column (a mark, a version). */
+  --size-facts-label: 140px; /* Label column of a facts list. */
+  --size-target-min: 24px; /* Minimum hit area for anything clickable (WCAG 2.5.8). Text links and small marks extend their hit area to this without changing their look. */
+  --size-target-comfortable: 32px; /* Hit area for primary interactions: buttons, menu items, nav items. */
+  --size-button-min-width: 64px; /* Minimum width of md and lg text buttons, so short labels ("Back") still read as buttons. */
+  --size-menu-min-width: 200px; /* Minimum width of menus and popovers. */
+  --size-dialog-min-width: 280px; /* Minimum width of a dialog before it fills a narrow screen. */
+  --font-size-xs: 10px; /* Initials in the small avatar only. */
+  --font-size-sm: 12px; /* 12px text: body-sm, label-sm, caption, code, badges, tags, counts. */
+  --font-size-md: 14px; /* 14px text: body-md and every control label. The default. */
+  --font-size-lg: 16px; /* 16px text: body-lg, heading-sm. */
+  --font-size-xl: 20px; /* 20px text: heading-md (dialog and drawer titles). */
+  --font-size-2xl: 22px; /* Mono page titles (an ID as the h1): one step down from heading-lg so mono doesn’t look heavier. */
+  --font-size-3xl: 24px; /* 24px text: heading-lg (page titles). */
+  --line-height-sm: 16px; /* Line height for 12px text. */
+  --line-height-md: 20px; /* Line height for 14px text and for 12px code blocks. */
+  --line-height-lg: 24px; /* Line height for 16px text. */
+  --line-height-xl: 28px; /* Line height for 20px text. */
+  --line-height-2xl: 32px; /* Line height for 24px text. */
+  --size-menu-width: 240px; /* Default width of menus opened from chips, the account menu and the search field picker. */
+  --size-menu-max-height: 360px; /* Tallest a menu gets before it scrolls. */
+  --size-menu-max-width: 360px; /* Widest a menu gets; longer items end in an ellipsis. */
+  --size-listbox-max-height: 320px; /* Tallest a Select / Combobox list gets before it scrolls. */
+  --size-tooltip-max-width: 240px; /* Widest a tooltip gets before it wraps. */
+  --size-measure-sm: 400px; /* Max line length for short blurbs: empty-state text, help under headings. */
+  --size-measure-md: 640px; /* Max line length for running text and single-column forms. */
+  --size-empty-icon: 48px; /* Circle behind an empty-state icon. */
+  --size-search-min-width: 260px; /* Narrowest a search field gets. */
+  --border-width-hairline: 1px; /* The one exception to the 2px grid: outlines and dividers render as a single device-independent pixel. */
+  --border-width-thick: 2px; /* Selected tab underline, invalid inputs. */
+  --focus-ring-width: 2px; /* Focus ring thickness: the outline ring and the halo. */
+  --focus-ring-width-thick: 4px; /* Focus ring for large targets (cards, tiles, hero actions) where 2px gets lost. */
+  --focus-ring-offset: 2px; /* Gap between a control and its outline ring. */
+  --focus-ring-offset-inset: -2px; /* Draws the outline ring inside the edge: table rows, menu items, accordion headers, anything flush with its container. */
+  --opacity-disabled: 0.48; /* Disabled controls. */
+  --opacity-muted: 0.64; /* Secondary icons inside controls (chevrons). */
+  --opacity-hover: 0.88; /* Hover on solid fills without a hover token. */
+  --z-base: 0; /* Page content, cards, tables. Pairs with elevation-flat / elevation-raised. */
+  --z-sticky: 20; /* Sticky table headers and toolbars that stay put while the page scrolls under them. */
+  --z-dropdown: 30; /* Anchored to a trigger: menus, select lists, popovers. Pairs with elevation-overlay. */
+  --z-drawer: 40; /* Side drawers and their overlay. Pairs with elevation-modal. */
+  --z-dialog: 50; /* Dialogs and their overlay; a dialog opened from a drawer sits above it. Pairs with elevation-modal. */
+  --z-toast: 60; /* The toast region: stays visible above any open drawer or dialog. Pairs with elevation-floating. */
+  --z-tooltip: 70; /* Tooltips: always on top, they label whatever is under the pointer. */
+  --inset-control-xs: 6px; /* Horizontal padding of xs buttons. */
+  --inset-control-sm: 10px; /* Horizontal padding of sm buttons and segmented items. */
+  --inset-control-md: 14px; /* Horizontal padding of md buttons. */
+  --inset-control-lg: 16px; /* Horizontal padding of lg buttons. */
+  --inset-field-sm: 8px; /* Horizontal padding of sm inputs. */
+  --inset-field: 12px; /* Horizontal padding of inputs, selects, chips, the search field. */
+  --inset-field-lg: 14px; /* Horizontal padding of lg inputs. */
+  --inset-field-y: 8px; /* Vertical padding of textareas. */
+  --inset-tag: 6px; /* Horizontal padding of badges. */
+  --inset-tag-xs: 4px; /* Padding of keys and tooltips (vertical). */
+  --inset-menu: 4px; /* Padding inside menus and popovers. */
+  --inset-menuitem-x: 8px; /* Horizontal padding of menu items, nav items, tooltips. */
+  --inset-menuitem-y: 6px; /* Vertical padding of menu items. */
+  --inset-alert-x: 14px; /* Horizontal padding of alerts and toasts. */
+  --inset-alert-y: 12px; /* Vertical padding of alerts. */
+  --inset-card: 20px; /* Horizontal padding of card headers, table cells, list footers, accordion panels; vertical padding of padded cards. */
+  --inset-card-wide: 24px; /* Horizontal padding of padded cards and facts cards. */
+  --inset-card-head-y: 8px; /* Vertical padding of card headers. */
+  --inset-card-head-end: 12px; /* Right padding of card headers (room for action buttons). */
+  --inset-cell-y: 12px; /* Vertical padding of table cells, list footers. */
+  --inset-cell-head-y: 10px; /* Vertical padding of table header cells. */
+  --inset-dialog: 24px; /* Horizontal padding of dialogs and drawers. */
+  --inset-dialog-y: 20px; /* Top and bottom padding of dialogs. */
+  --inset-dialog-head-end: 16px; /* Right padding of a dialog header (room for the close button). */
+  --inset-sidebar: 12px; /* Padding inside the sidebar nav and foot. */
+  --inset-sidebar-brand: 16px; /* Horizontal padding of the sidebar brand bar. */
+  --inset-code-x: 16px; /* Horizontal padding of code blocks. */
+  --inset-code-y: 12px; /* Vertical padding of code blocks and the gutter. */
+  --inset-empty-x: 24px; /* Horizontal padding of empty states. */
+  --inset-empty-y: 40px; /* Vertical padding of empty states. */
+  --inset-empty-compact-y: 32px; /* Vertical padding of empty states inside tables. */
+  --inset-page-top: 24px; /* Top padding of the content column. */
+  --inset-page-x: 32px; /* Side padding of the content column. */
+  --inset-page-bottom: 48px; /* Bottom padding of the content column. */
+  --inset-page-compact: 16px; /* Content padding on narrow screens; dialog layer edges. */
+  --inset-overlay-top: 72px; /* Distance from the top of the window to a dialog. */
+  --inset-dialog-close: 14px; /* Right padding of a dialog or drawer header: puts the close glyph 24px from the edge, matching the left padding. */
+  --tracking-none: 0px; /* Default for 14px and up, and for all monospace text. */
+  --tracking-sm: 0.12px; /* 12px sans text (body-sm, label-sm, caption): +0.01em, below the optical-size range. */
+  --tracking-wide: 0.48px; /* Uppercase overline only: +0.04em. */
+  --duration-fast: 80ms; /* Hover fills, tooltips. */
+  --duration-normal: 120ms; /* Focus ring and glow, chevrons, switch knobs, field edges. */
+  --duration-slow: 200ms; /* Panels and overlays appearing. */
+  --duration-exit: 150ms; /* Dialogs, drawers and their overlay leaving: a little quicker than they arrive. */
+  --easing-standard: cubic-bezier(0.2, 0, 0, 1); /* Default easing: quick start, gentle stop. */
+  --easing-enter: cubic-bezier(0, 0, 0, 1); /* Things arriving on screen (dialogs, drawers): decelerate into place. */
+  --easing-exit: cubic-bezier(0.3, 0, 1, 1); /* Things leaving the screen: accelerate away. */
+  --gap-inline-2xs: 2px; /* Between segments of a segmented control; menu items. */
+  --gap-inline-xs: 4px; /* Icon to text in small controls, links, badges, chips. */
+  --gap-inline-sm: 6px; /* Icon to text in buttons, tabs, back links; small action groups. */
+  --gap-inline-md: 8px; /* Between controls in a row: buttons, chips, filters; dot to label. */
+  --gap-inline-lg: 10px; /* Icon to text in nav items and alerts. */
+  --gap-inline-xl: 12px; /* Between title and actions in headers. */
+  --gap-stack-2xs: 2px; /* Between lines of a label group; nav items. */
+  --gap-stack-xs: 4px; /* Title to status line; lines inside an accordion header. */
+  --gap-stack-sm: 6px; /* Label, hint, control and error inside a field. */
+  --gap-stack-md: 8px; /* Back link to title; filter rows. */
+  --gap-stack-lg: 12px; /* Between sidebar sections; facts rows. */
+  --gap-stack-xl: 16px; /* Between page blocks; inside dialogs. */
+  --gap-stack-2xl: 20px; /* Between groups in a drawer. */
+  --gap-columns: 16px; /* Between table columns and fact label/value. */
+  --gap-tabs: 24px; /* Between tabs. */
+  --gap-section: 48px; /* Between facts columns and major sections. */
+  --font-sans: "Inter", "AU Sans Fallback", Arial, "Liberation Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, "SF Mono", Menlo, "AU Mono Cascadia", "AU Mono Consolas", "AU Mono Liberation", "Cascadia Mono", Consolas, "Liberation Mono", "DejaVu Sans Mono", monospace;
+  --text-display: 600 32px/40px var(--font-sans); /* Template and empty-state hero only. */
+  --text-heading-xl: 600 28px/36px var(--font-sans); /* Dashboards and landing pages. */
+  --text-heading-lg: 600 24px/32px var(--font-sans); /* The page title (h1). One per page. */
+  --text-heading-md: 600 20px/28px var(--font-sans); /* Dialog and drawer titles. */
+  --text-heading-sm: 600 16px/24px var(--font-sans); /* Card and section headings. */
+  --text-heading-xs: 600 14px/20px var(--font-sans); /* Small group headings, card header labels. */
+  --text-body-lg: 400 16px/24px var(--font-sans); /* Long-form help and empty-state copy. */
+  --text-body-md: 400 14px/20px var(--font-sans); /* Default text: table cells, facts, alerts, dialogs. */
+  --text-body-sm: 400 12px/16px var(--font-sans); /* Footnotes, hints under fields. */
+  --text-body-md-strong: 600 14px/20px var(--font-sans); /* Lead phrase of an alert; emphasis in body text. */
+  --text-label-md: 500 14px/20px var(--font-sans); /* Buttons, nav items, tabs, field labels. */
+  --text-label-sm: 500 12px/16px var(--font-sans); /* Small buttons, chips, badges, table headers. */
+  --text-caption: 400 12px/16px var(--font-sans); /* Sidebar section titles, timestamps, counters. */
+  --text-overline: 600 12px/16px var(--font-sans); /* Rare uppercase eyebrow for grouped lists. */
+  --text-code-md: 400 14px/20px var(--font-mono); /* IDs and references that title a row or record. */
+  --text-code-sm: 400 12px/16px var(--font-mono); /* IDs, hints, dates and times in tables and facts. */
+  --text-code-block: 400 13px/20px var(--font-mono); /* JSON, raw documents, stack traces — with line numbers. */
+  --text-code-md-strong: 600 14px/20px var(--font-mono); /* The identifier column of a table. */
+  /* Component sizes (tokens.json: size, componentSize). */
+  --size-table-head: 40px; /* Minimum height of a table header row. */
+  --size-facts-column: 320px; /* Starting width of one column of facts in a FactsCard. */
+  --size-column-check: 40px; /* Checkbox column in a selectable table. */
+  --size-aside: 320px; /* Aside column beside a record’s main content. */
+  --size-aside-lg: 400px; /* Wider aside (a preview, a long fact list). */
+  --size-grid-min-sm: 200px; /* Smallest column in a Grid with min="sm" (stat tiles). */
+  --size-grid-min-md: 280px; /* Smallest column in a Grid with min="md" (cards). */
+  --size-grid-min-lg: 360px; /* Smallest column in a Grid with min="lg" (wide cards). */
+  --size-search-basis: 320px; /* Starting width of a search field in a filter row before it grows. */
+  --size-code-gutter: 48px; /* Minimum width of the line-number column. */
+  --size-toggle-width: 48px; /* Theme toggle track width. */
+  --size-toggle-height: 24px; /* Theme toggle track height. */
+  --size-toggle-knob: 18px; /* Theme toggle knob. */
+  --size-switch-knob-md: 16px; /* Default switch knob. */
+  --size-switch-knob-sm: 12px; /* Small switch knob. */
+  --size-account-max-width: 168px; /* Widest the account button at the sidebar foot gets before the name truncates. */
+  --size-progress: 8px; /* Height of a progress bar. */
+  --size-calendar-cell: 36px; /* One day in the date picker grid. */
+  --size-stat-min-width: 200px; /* Narrowest a Stat tile gets in a StatGrid. */
+  --size-dropzone-min-height: 120px; /* Smallest height of a file drop area. */
+  --size-popover-width: 320px; /* Default width of a popover. */
+  --size-step-mark: 24px; /* Circle of a Stepper step. */
+  --size-timeline-mark: 20px; /* Marker of a Timeline entry. */
+  --size-time-input: 120px; /* Width of a time field (HH:MM). */
+  --size-statemap-stage: 200px; /* Width of one stage column in a StateMap. */
+  --size-rail: 80px; /* Width of the icon rail (AppShell nav="rail"). */
+  --size-rail-mark: 40px; /* The product mark at the top of the icon rail. */
+  --size-shell-search: 480px; /* Largest width of the search in the shell bar and the top navigation. */
+}
+.display {
+  font-family: var(--font-sans);
+  font-size: 32px;
+  line-height: 40px;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+.heading-xl {
+  font-family: var(--font-sans);
+  font-size: 28px;
+  line-height: 36px;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+.heading-lg {
+  font-family: var(--font-sans);
+  font-size: 24px;
+  line-height: 32px;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+.heading-md {
+  font-family: var(--font-sans);
+  font-size: 20px;
+  line-height: 28px;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+.heading-sm {
+  font-family: var(--font-sans);
+  font-size: 16px;
+  line-height: 24px;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+.heading-xs {
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+.body-lg {
+  font-family: var(--font-sans);
+  font-size: 16px;
+  line-height: 24px;
+  font-weight: 400;
+  letter-spacing: 0;
+}
+.body-md {
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 400;
+  letter-spacing: 0;
+}
+.body-sm {
+  font-family: var(--font-sans);
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 400;
+  letter-spacing: 0.12px;
+}
+.body-md-strong {
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+.label-md {
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 500;
+  letter-spacing: 0;
+}
+.label-sm {
+  font-family: var(--font-sans);
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 500;
+  letter-spacing: 0.12px;
+}
+.caption {
+  font-family: var(--font-sans);
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 400;
+  letter-spacing: 0.12px;
+}
+.overline {
+  font-family: var(--font-sans);
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 600;
+  letter-spacing: 0.48px;
+}
+.code-md {
+  font-family: var(--font-mono);
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 400;
+  letter-spacing: 0;
+}
+.code-sm {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 400;
+  letter-spacing: 0;
+}
+.code-block {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 20px;
+  font-weight: 400;
+  letter-spacing: 0;
+}
+.code-md-strong {
+  font-family: var(--font-mono);
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+@font-face {
+  font-family: "Inter";
+  src: url("fonts/InterVariable.woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "JetBrains Mono";
+  src: url("fonts/JetBrainsMono.woff2") format("woff2");
+  font-weight: 100 800;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* ── core/tokens-system-dark.css ── */
+/* The dark tokens again, for a page that leaves the theme to the system (no data-theme). Copied from tokens.css. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) {
+  --blue-a8: rgba(96, 165, 250, 0.08);
+  --blue-a12: rgba(96, 165, 250, 0.12);
+  --blue-a16: rgba(96, 165, 250, 0.16);
+  --blue-a24: rgba(96, 165, 250, 0.24);
+  --blue-a32: rgba(96, 165, 250, 0.32);
+  --blue-a48: rgba(96, 165, 250, 0.48);
+  --green-a8: rgba(74, 222, 128, 0.08);
+  --green-a12: rgba(74, 222, 128, 0.12);
+  --green-a16: rgba(74, 222, 128, 0.16);
+  --green-a24: rgba(74, 222, 128, 0.24);
+  --green-a32: rgba(74, 222, 128, 0.32);
+  --green-a48: rgba(74, 222, 128, 0.48);
+  --amber-a8: rgba(251, 191, 36, 0.08);
+  --amber-a12: rgba(251, 191, 36, 0.12);
+  --amber-a16: rgba(251, 191, 36, 0.16);
+  --amber-a24: rgba(251, 191, 36, 0.24);
+  --amber-a32: rgba(251, 191, 36, 0.32);
+  --amber-a48: rgba(251, 191, 36, 0.48);
+  --red-a8: rgba(248, 113, 113, 0.08);
+  --red-a12: rgba(248, 113, 113, 0.12);
+  --red-a16: rgba(248, 113, 113, 0.16);
+  --red-a24: rgba(248, 113, 113, 0.24);
+  --red-a32: rgba(248, 113, 113, 0.32);
+  --red-a48: rgba(248, 113, 113, 0.48);
+  --violet-a8: rgba(167, 139, 250, 0.08);
+  --violet-a12: rgba(167, 139, 250, 0.12);
+  --violet-a16: rgba(167, 139, 250, 0.16);
+  --violet-a24: rgba(167, 139, 250, 0.24);
+  --violet-a32: rgba(167, 139, 250, 0.32);
+  --violet-a48: rgba(167, 139, 250, 0.48);
+  --teal-a8: rgba(45, 212, 191, 0.08);
+  --teal-a12: rgba(45, 212, 191, 0.12);
+  --teal-a16: rgba(45, 212, 191, 0.16);
+  --teal-a24: rgba(45, 212, 191, 0.24);
+  --teal-a32: rgba(45, 212, 191, 0.32);
+  --teal-a48: rgba(45, 212, 191, 0.48);
+  --bg-page: var(--neutral-950);
+  --bg-surface: var(--neutral-900);
+  --bg-surface-raised: var(--neutral-800);
+  --bg-sunken: var(--white-a4);
+  --bg-hover: var(--white-a6);
+  --bg-pressed: var(--white-a12);
+  --bg-neutral-subtle: var(--white-a12);
+  --bg-neutral-subtle-hover: var(--white-a16);
+  --bg-neutral-subtle-pressed: var(--white-a24);
+  --bg-selected: var(--blue-a16);
+  --bg-disabled: var(--white-a4);
+  --bg-emphasis: var(--neutral-50);
+  --bg-emphasis-hover: var(--neutral-200);
+  --bg-accent: var(--blue-400);
+  --bg-accent-hover: var(--blue-300);
+  --bg-accent-subtle: var(--blue-a16);
+  --bg-danger: var(--red-600);
+  --bg-danger-hover: var(--red-700);
+  --bg-success-subtle: var(--green-a16);
+  --bg-warning-subtle: var(--amber-a16);
+  --bg-danger-subtle: var(--red-a16);
+  --bg-info-subtle: var(--blue-a16);
+  --bg-inverse: var(--neutral-100);
+  --bg-overlay: var(--black-a64);
+  --fg-default: var(--neutral-50);
+  --fg-muted: var(--neutral-300);
+  --fg-subtle: var(--neutral-400);
+  --fg-faint: var(--neutral-600);
+  --fg-disabled: var(--white-a32);
+  --fg-on-emphasis: var(--neutral-900);
+  --fg-on-accent: var(--neutral-950);
+  --fg-on-danger: var(--white);
+  --fg-inverse: var(--neutral-900);
+  --fg-link: var(--blue-300);
+  --fg-link-hover: var(--blue-200);
+  --fg-success: var(--green-400);
+  --fg-warning: var(--amber-300);
+  --fg-danger: var(--red-400);
+  --fg-info: var(--blue-300);
+  --border-subtle: var(--white-a8);
+  --border-default: var(--white-a12);
+  --border-strong: var(--white-a24);
+  --border-control: var(--white-a48);
+  --border-selected: var(--neutral-50);
+  --border-input: var(--white-a16);
+  --border-input-hover: var(--white-a24);
+  --border-focus: var(--blue-400);
+  --border-success: var(--green-a48);
+  --border-warning: var(--amber-a48);
+  --border-danger: var(--red-a48);
+  --border-danger-strong: var(--red-400);
+  --border-info: var(--blue-a48);
+  --status-success: var(--green-400);
+  --status-warning: var(--amber-400);
+  --status-danger: var(--red-400);
+  --status-info: var(--blue-400);
+  --status-neutral: var(--neutral-500);
+  --status-violet: var(--violet-400);
+  --status-teal: var(--teal-400);
+  --chart-1: #3987e5;
+  --chart-2: #d95926;
+  --chart-3: #199e70;
+  --chart-4: #c98500;
+  --chart-5: #d55181;
+  --chart-6: #008300;
+  --chart-7: #9085e9;
+  --chart-8: #e66767;
+  --button-primary-bg: var(--bg-emphasis);
+  --button-primary-bg-hover: var(--bg-emphasis-hover);
+  --button-primary-fg: var(--fg-on-emphasis);
+  --button-secondary-bg: var(--bg-neutral-subtle);
+  --button-secondary-bg-hover: var(--bg-neutral-subtle-hover);
+  --button-secondary-bg-pressed: var(--bg-neutral-subtle-pressed);
+  --button-tertiary-bg-hover: var(--bg-hover);
+  --button-tertiary-bg-pressed: var(--bg-pressed);
+  --button-default-bg: var(--bg-surface);
+  --button-default-bg-hover: var(--bg-hover);
+  --button-default-border: var(--border-default);
+  --button-default-border-hover: var(--border-strong);
+  --button-danger-fg: var(--fg-danger);
+  --button-danger-border: var(--border-danger);
+  --chip-bg-set: var(--bg-accent-subtle);
+  --chip-border-set: var(--border-info);
+  --chip-border-set-hover: var(--border-focus);
+  --input-bg: var(--bg-surface);
+  --input-border: var(--border-input);
+  --input-border-hover: var(--border-input-hover);
+  --input-border-focus: var(--border-focus);
+  --input-bg-disabled: var(--bg-sunken);
+  --input-icon: var(--fg-subtle);
+  --input-icon-focus: var(--fg-muted);
+  --input-border-invalid: var(--border-danger-strong);
+  --input-placeholder: var(--fg-subtle);
+  --nav-item-fg: var(--fg-default);
+  --nav-item-bg-hover: var(--bg-hover);
+  --nav-item-bg-active: var(--bg-emphasis);
+  --nav-item-fg-active: var(--fg-on-emphasis);
+  --table-header-fg: var(--fg-muted);
+  --table-row-bg-hover: var(--bg-hover);
+  --table-divider: var(--border-subtle);
+  --code-bg: var(--bg-sunken);
+  --code-gutter-fg: var(--fg-faint);
+  --tooltip-bg: var(--bg-inverse);
+  --tooltip-fg: var(--fg-inverse);
+  --shadow-none: none;
+  --shadow-xs: 0 2px 4px -2px rgba(0, 0, 0, 0.50);
+  --shadow-sm: 0 2px 6px rgba(0, 0, 0, 0.40);
+  --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.50);
+  --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.55);
+  --shadow-xl: 0 24px 64px rgba(0, 0, 0, 0.60);
+  --elevation-flat: none;
+  --elevation-raised: 0 2px 4px -2px rgba(0, 0, 0, 0.50);
+  --elevation-raised-hover: 0 2px 6px rgba(0, 0, 0, 0.40);
+  --elevation-overlay: 0 8px 24px rgba(0, 0, 0, 0.50);
+  --elevation-floating: 0 12px 32px rgba(0, 0, 0, 0.55);
+  --elevation-modal: 0 24px 64px rgba(0, 0, 0, 0.60);
+}
+}
+
+/* ── core/styles.css ── */
+/* Design system — component styles. Every value is a token from tokens.css; spacing and sizes sit on the 2px grid. */
+
+/* ── Built-in code fonts, re-centred ──
+   Nothing is downloaded: each face points at a font the operating system already has (local()).
+   Consolas, Cascadia Mono and Liberation Mono sit their capitals about 1px above the centre of a line;
+   the overrides move each font's line box so capitals centre exactly, as Inter's do.
+   ascent = (1.21 + cap height) / 2, descent = (1.21 - cap height) / 2. SF Mono, Menlo and DejaVu already centre. */
+/* Inter's stand-in while it loads: Arial (or Liberation Sans, the same widths) scaled and placed to take Inter's room, so
+   text barely moves when Inter swaps in (Firefox often draws the first frame before even a cached font is ready).
+   Matched to InterVariable at 400 and 600 by English letter frequency: words come out within about 1% of Inter's width
+   (unadjusted Arial is 4–7% narrower) and lines the same height. */
+@font-face { font-family: "AU Sans Fallback"; src: local("Arial"), local("ArialMT"), local("Liberation Sans"), local("LiberationSans"); font-weight: 100 500; size-adjust: 106.91%; ascent-override: 90.61%; descent-override: 22.56%; line-gap-override: 0%; }
+@font-face { font-family: "AU Sans Fallback"; src: local("Arial Bold"), local("Arial-BoldMT"), local("Liberation Sans Bold"), local("LiberationSans-Bold"); font-weight: 600 900; size-adjust: 101.54%; ascent-override: 95.41%; descent-override: 23.76%; line-gap-override: 0%; }
+@font-face { font-family: "AU Mono Cascadia"; src: local("Cascadia Mono"), local("CascadiaMono-Regular"); font-weight: 400; ascent-override: 95.2%; descent-override: 25.8%; line-gap-override: 0%; }
+@font-face { font-family: "AU Mono Cascadia"; src: local("Cascadia Mono Bold"), local("CascadiaMono-Bold"); font-weight: 700; ascent-override: 95.2%; descent-override: 25.8%; line-gap-override: 0%; }
+@font-face { font-family: "AU Mono Consolas"; src: local("Consolas"); font-weight: 400; ascent-override: 92.4%; descent-override: 28.6%; line-gap-override: 0%; }
+@font-face { font-family: "AU Mono Consolas"; src: local("Consolas Bold"), local("Consolas-Bold"); font-weight: 700; ascent-override: 92.4%; descent-override: 28.6%; line-gap-override: 0%; }
+@font-face { font-family: "AU Mono Liberation"; src: local("Liberation Mono"), local("LiberationMono"); font-weight: 400; ascent-override: 93.4%; descent-override: 27.6%; line-gap-override: 0%; }
+@font-face { font-family: "AU Mono Liberation"; src: local("Liberation Mono Bold"), local("LiberationMono-Bold"); font-weight: 700; ascent-override: 93.4%; descent-override: 27.6%; line-gap-override: 0%; }
+
+/* Composed from motion tokens: the focus ring fades in and out. Add it to any component's own transition list. */
+:root { --transition-focus: outline-color var(--duration-normal) var(--easing-standard); }
+/* Code (Code, DiffViewer, Kbd, a mono Textarea) reads --font-code: the platform's monospaced font (--font-mono) unless an app
+   points it elsewhere. Identifiers stay in Inter (.au-mono). */
+:root { --font-code: var(--font-mono); --font-code-features: normal; }
+/* Code blocks, diffs and the code editor: 13px on 20px lines. 12px was hard to read in a monospaced font and 14px too big
+   beside 14px Inter (a monospaced font looks larger at the same size). The one odd font size, like the 1px hairline. */
+:root { --code-block-size: 13px; --code-block-line-height: 20px; }
+
+/* ── Base ── */
+html { -webkit-text-size-adjust: 100%; }
+body { margin: 0; background: var(--bg-page); color: var(--fg-default); font-family: var(--font-sans); font-size: var(--font-size-md); line-height: var(--line-height-md); -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; text-rendering: optimizeLegibility; font-feature-settings: "kern" 1, "calt" 1, "cv05" 1, "cv08" 1; font-optical-sizing: auto; }
+.au-count { font-variant-numeric: tabular-nums; }
+*, *::before, *::after { box-sizing: border-box; }
+a { color: var(--fg-link); }
+a:hover:where(:not(:disabled, [aria-disabled="true"], .is-disabled)) { color: var(--fg-link-hover); }
+/* At rest the ring is off (style none), not a transparent solid line: a page whose stylesheet arrives after its first
+   paint (Firefox on a slow load) then fades nothing from the browser's default currentColor, and leaving focus never
+   shows a ring fading out. The ring still fades in on :focus-visible. */
+:where(button, a, input, select, textarea, summary, [tabindex]) { outline-style: none; outline-color: transparent; outline-width: var(--focus-ring-width); outline-offset: var(--focus-ring-offset); }
+:where(button, a, input, select, textarea, summary, [tabindex]) { transition: var(--transition-focus); }
+.au-focus-inset { outline-offset: var(--focus-ring-offset-inset); }
+:where(button, a, input, select, textarea, summary, [tabindex]):focus-visible { outline: var(--focus-ring-width) solid var(--border-focus); outline-offset: var(--focus-ring-offset); }
+/* Focus, one system: a solid 2px ring (border-focus, 2px off the edge) that fades in, on every interactive element
+   from the rule above. No glows.
+   Opt-in variants for custom components:
+   .au-focus-inset — the ring drawn inside the edge (flush rows, list items, tiles inside a grid).
+   .au-focus-thick — a 4px ring for large targets. */
+.au-focus-inset:focus-visible { outline: var(--focus-ring-width) solid var(--border-focus); outline-offset: var(--focus-ring-offset-inset); }
+.au-focus-thick:focus-visible { outline-width: var(--focus-ring-width-thick); }
+/* Identifiers (IDs, references, keys, codes): Inter with a slashed zero and distinct l and I. The code font is only for code (CodeViewer, DiffViewer, Code, Kbd, a mono Textarea). */
+.au-mono { font-family: var(--font-sans); font-feature-settings: "zero" 1, "cv05" 1, "cv08" 1; font-variant-ligatures: none; }
+.au-count { margin-inline-start: var(--gap-inline-sm); font-weight: 400; color: var(--fg-subtle); font-variant-numeric: tabular-nums; }
+/* Separator between inline items: a short hairline, never a typed character (no ·, |, •) */
+.au-sep { display: inline-block; flex: none; width: var(--border-width-hairline); height: 1em; background: var(--border-default); align-self: center; }
+.au-chevron { flex: none; opacity: var(--opacity-muted); transition: transform 120ms ease; }
+[aria-expanded="true"] > .au-chevron { transform: rotate(180deg); }
+.au-demo-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-8); padding: var(--space-16); }
+.au-demo-col { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-12); padding: var(--space-16); }
+.au-demo-grid { display: grid; gap: var(--space-16); padding: var(--space-16); }
+@keyframes au-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .au-chevron { transition: none; } }
+@keyframes au-pulse { 50% { opacity: .5; } }
+/* Floating layer: menus, listboxes and tooltips are portalled out of their trigger and placed by script (useFloating). */
+/* Placed by script from the left edge (physical, in any direction): right stays auto, or a right-to-left menu would stretch. */
+.au-float { position: fixed; left: 0; right: auto; top: 0; z-index: var(--z-dropdown); }
+/* Top layer: undo the browser's popover and modal-dialog box styles; the component classes style the box. */
+:where(.au-float[popover]) { inset: auto; width: auto; height: auto; margin: 0; padding: 0; border: 0; background: transparent; color: inherit; overflow: visible; }
+.au-float.au-tooltip { z-index: var(--z-tooltip); }
+
+/* ── Organisms ── */
+.au-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--gap-inline-md); }
+.au-actions-sm { gap: var(--gap-inline-sm); }
+.au-meta-item { display: inline-flex; align-items: center; gap: var(--gap-inline-md); }
+
+/* Focus without motion, and in Windows high-contrast mode (where a transparent outline would show). */
+@media (prefers-reduced-motion: reduce) { :where(button, a, input, select, textarea, summary, [tabindex]) { transition: none; }}
+@media (forced-colors: active) { :where(button, a, input, select, textarea, summary, [tabindex]) { outline-style: none; } :where(button, a, input, select, textarea, summary, [tabindex]):focus-visible { outline: var(--focus-ring-width) solid Highlight; }}
+.au-align-start { align-items: flex-start; } .au-align-center { align-items: center; } .au-align-end { align-items: flex-end; } .au-align-stretch { align-items: stretch; } .au-align-baseline { align-items: baseline; }
+.au-justify-start { justify-content: flex-start; } .au-justify-center { justify-content: center; } .au-justify-end { justify-content: flex-end; } .au-justify-between { justify-content: space-between; }
+.au-cq { container-type: inline-size; min-width: 0; }
+.au-group { margin: 0; padding: 0; border: 0; }
+.au-group > legend { padding: 0; margin-bottom: var(--gap-stack-sm); }
+.au-group-options { display: flex; flex-direction: column; gap: var(--gap-stack-md); }
+.au-group-row { flex-direction: row; flex-wrap: wrap; gap: var(--gap-inline-xl) var(--gap-columns); }
+@keyframes au-indeterminate { from { transform: translateX(-100%); } to { transform: translateX(250%); } }
+
+/* ───────────── Right-to-left ─────────────
+   Layout uses logical properties (inline-start/end), so it mirrors under dir="rtl". Icons that point a way flip too. */
+[dir="rtl"] .au-dir-icon { transform: scaleX(-1); }
+/* Identifiers, numbers, dates and typed values keep their own reading order inside right-to-left text. */
+[dir="rtl"] :is(.au-mono, .au-cell-mono, .au-num, .au-select-value, .au-timeline-meta, .au-menuitem-meta, .au-navitem-meta, input, textarea) { unicode-bidi: plaintext; }
+/* Stages that don't fit scroll sideways. So that's never missed, the edge with more beyond it fades out, and stops fading
+   once you reach it (a scroll-driven animation: nothing to run, nothing when it all fits). The scrollbar always shows. */
+@property --au-fade-start { syntax: "<length>"; inherits: false; initial-value: 0px; }
+@property --au-fade-end { syntax: "<length>"; inherits: false; initial-value: 0px; }
+@keyframes au-statemap-fade { from { --au-fade-start: 0px; --au-fade-end: 48px; } 4% { --au-fade-start: 48px; } 96% { --au-fade-end: 48px; } to { --au-fade-start: 48px; --au-fade-end: 0px; } }
+/* ── Heights a block of code or a diff scrolls past (Code and DiffViewer maxHeight; so markup sticks to these) ── */
+.au-maxh-120 { max-height: 120px; }
+.au-maxh-160 { max-height: 160px; }
+.au-maxh-200 { max-height: 200px; }
+.au-maxh-240 { max-height: 240px; }
+.au-maxh-280 { max-height: 280px; }
+.au-maxh-320 { max-height: 320px; }
+.au-maxh-360 { max-height: 360px; }
+.au-maxh-400 { max-height: 400px; }
+.au-maxh-480 { max-height: 480px; }
+.au-maxh-560 { max-height: 560px; }
+.au-maxh-640 { max-height: 640px; }
+
+/* ── Dialog and Drawer: enter and exit (2.5) ── */
+@keyframes au-fade-in { from { opacity: 0; } }
+@keyframes au-fade-out { to { opacity: 0; } }
+@keyframes au-dialog-in { from { opacity: 0; transform: translateY(var(--space-8)) scale(0.98); } }
+@keyframes au-dialog-out { to { opacity: 0; transform: translateY(var(--space-4)) scale(0.98); } }
+@keyframes au-drawer-in { from { transform: translateX(100%); } }
+@keyframes au-drawer-out { to { transform: translateX(100%); } }
+@keyframes au-drawer-in-rtl { from { transform: translateX(-100%); } }
+@keyframes au-drawer-out-rtl { to { transform: translateX(-100%); } }
+
+/* ── components/atoms/icon/styles.css ── */
+.au-icon { flex: none; display: inline-block; vertical-align: middle; }
+
+/* ── components/atoms/text/styles.css ── */
+.au-truncate { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.au-text-default { color: var(--fg-default); } .au-text-muted { color: var(--fg-muted); } .au-text-subtle { color: var(--fg-subtle); } .au-text-faint { color: var(--fg-faint); }
+.au-text-success { color: var(--fg-success); } .au-text-warning { color: var(--fg-warning); } .au-text-danger { color: var(--fg-danger); } .au-text-info { color: var(--fg-info); } .au-text-link { color: var(--fg-link); }
+/* Code sits on its own ground, so it never takes the subtle colour of the text around it. */
+:where(.au-text-subtle) .au-code-inline { color: var(--fg-muted); }
+
+:where(.au-text-default, .au-text-muted, .au-text-subtle, .au-text-faint, .au-text-danger, .au-text-success, .au-text-warning, .au-text-info, .au-text-link) { margin: 0; }
+
+/* ── components/atoms/button/styles.css ── */
+.au-btn { display: inline-flex; align-items: center; justify-content: center; gap: var(--gap-inline-sm); flex: none; border: var(--border-width-hairline) solid transparent; border-radius: var(--radius-md); font: inherit; font-weight: 500; white-space: nowrap; cursor: pointer; text-decoration: none; transition: background-color var(--duration-fast) ease, border-color var(--duration-fast) ease, var(--transition-focus); }
+.au-btn-xs { height: var(--size-control-xs); padding: 0 var(--inset-control-xs); font-size: var(--font-size-sm); line-height: var(--line-height-sm); gap: var(--gap-inline-xs); border-radius: var(--radius-sm); letter-spacing: var(--tracking-sm); }
+.au-btn-sm { height: var(--size-control-sm); padding: 0 var(--inset-control-sm); font-size: var(--font-size-sm); line-height: var(--line-height-sm); gap: var(--gap-inline-xs); letter-spacing: var(--tracking-sm); }
+.au-btn-md { min-width: var(--size-button-min-width); height: var(--size-control-md); padding: 0 var(--inset-control-md); font-size: var(--font-size-md); line-height: var(--line-height-md); }
+.au-btn-lg { min-width: var(--size-button-min-width); height: var(--size-control-lg); padding: 0 var(--inset-control-lg); font-size: var(--font-size-md); line-height: var(--line-height-md); }
+.au-btn-block { width: 100%; }
+.au-btn-primary { background: var(--button-primary-bg); color: var(--button-primary-fg); }
+.au-btn-primary:hover:where(:not(:disabled, [aria-disabled="true"], .is-disabled)) { background: var(--button-primary-bg-hover); color: var(--button-primary-fg); }
+.au-btn-default { background: var(--button-default-bg); border-color: var(--button-default-border); color: var(--fg-default); box-shadow: var(--elevation-raised); }
+.au-btn-default:hover:where(:not(:disabled, [aria-disabled="true"], .is-disabled)) { background: var(--button-default-bg-hover); border-color: var(--button-default-border-hover); color: var(--fg-default); }
+.au-btn-default:active:where(:not(:disabled, [aria-disabled="true"], .is-disabled)) { background: var(--bg-pressed); }
+.au-btn-secondary { background: var(--button-secondary-bg); color: var(--fg-default); }
+.au-btn-secondary:hover:where(:not(:disabled, [aria-disabled="true"], .is-disabled)) { background: var(--button-secondary-bg-hover); color: var(--fg-default); }
+.au-btn-secondary:active:where(:not(:disabled, [aria-disabled="true"], .is-disabled)) { background: var(--button-secondary-bg-pressed); }
+.au-btn-tertiary { background: transparent; color: var(--fg-default); }
+.au-btn-tertiary:hover:where(:not(:disabled, [aria-disabled="true"], .is-disabled)) { background: var(--button-tertiary-bg-hover); color: var(--fg-default); }
+.au-btn-tertiary:active:where(:not(:disabled, [aria-disabled="true"], .is-disabled)) { background: var(--button-tertiary-bg-pressed); }
+.au-btn-danger { background: var(--button-default-bg); border-color: var(--button-danger-border); color: var(--button-danger-fg); }
+.au-btn-danger:hover:where(:not(:disabled, [aria-disabled="true"], .is-disabled)) { background: var(--bg-danger-subtle); color: var(--button-danger-fg); }
+.au-btn-danger-solid { background: var(--bg-danger); color: var(--fg-on-danger); }
+.au-btn-danger-solid:hover:where(:not(:disabled, [aria-disabled="true"], .is-disabled)) { background: var(--bg-danger-hover); color: var(--fg-on-danger); }
+.au-btn-link { background: transparent; color: var(--fg-link); padding-inline-start: var(--inset-tag-xs); padding-inline-end: var(--inset-tag-xs); }
+.au-btn-link:hover:where(:not(:disabled, [aria-disabled="true"], .is-disabled)) { color: var(--fg-link-hover); text-decoration: underline; }
+.au-btn[disabled], .au-btn[aria-disabled="true"] { opacity: var(--opacity-disabled); cursor: not-allowed; }
+.au-btn-icon { min-width: 0; padding: 0; aspect-ratio: 1; }
+.au-btn-link { min-width: 0; }
+.au-btn-icon.au-btn-tertiary { color: var(--fg-muted); }
+.au-btn-icon.au-btn-tertiary:hover:where(:not(:disabled, [aria-disabled="true"], .is-disabled)) { color: var(--fg-default); }
+@media (prefers-reduced-motion: reduce) { .au-btn { transition: none; }}
+/* Touch: small icon buttons and checkboxes keep their look but get a 32px hit area. */
+@media (pointer: coarse) {
+  .au-btn-xs.au-btn-icon { position: relative; }
+  .au-btn-xs.au-btn-icon::after { content: ""; position: absolute; inset: calc((var(--size-control-xs) - var(--size-target-comfortable)) / 2); }}
+
+/* ── components/atoms/link/styles.css ── */
+.au-link { display: inline-flex; align-items: center; gap: var(--gap-inline-xs); padding: 0; border: 0; background: none; font: inherit; color: var(--fg-link); text-decoration: none; cursor: pointer; }
+.au-link:hover:where(:not(:disabled, [aria-disabled="true"], .is-disabled)) { color: var(--fg-link-hover); text-decoration: underline; text-underline-offset: 2px; }
+.au-link-sm { font-size: var(--font-size-sm); line-height: var(--line-height-sm); letter-spacing: var(--tracking-sm); }
+.au-link-subtle { color: var(--fg-muted); }
+.au-link-subtle:hover:where(:not(:disabled, [aria-disabled="true"], .is-disabled)) { color: var(--fg-default); }
+
+
+/* Hit areas: text-only controls keep their look but extend their clickable area to size-target-min. */
+.au-link { position: relative; }
+.au-link::after { content: ""; position: absolute; inset-inline-start: calc(var(--inset-tag-xs) * -1); inset-inline-end: calc(var(--inset-tag-xs) * -1); top: 50%; height: var(--size-target-min); transform: translateY(-50%); }
+
+/* ── components/atoms/spinner/styles.css ── */
+/* ── Atoms ── */
+.au-spinner { display: inline-block; flex: none; border-radius: var(--radius-full); border: var(--border-width-thick) solid var(--border-strong); border-top-color: currentColor; animation: au-spin 800ms linear infinite; }
+.au-spinner-sm { width: var(--size-icon-sm); height: var(--size-icon-sm); }
+.au-spinner-md { width: var(--size-icon-md); height: var(--size-icon-md); }
+.au-spinner-lg { width: var(--size-icon-xl); height: var(--size-icon-xl); }
+@media (prefers-reduced-motion: reduce) { .au-spinner { animation-duration: 2400ms; }}
+
+/* ── components/atoms/badge/styles.css ── */
+.au-badge { display: inline-flex; align-items: center; gap: var(--gap-inline-xs); height: var(--size-tag-md); padding: 0 var(--inset-field-sm); border-radius: var(--radius-sm); font-size: var(--font-size-sm); line-height: var(--line-height-sm); font-weight: 500; white-space: nowrap; border: var(--border-width-hairline) solid transparent; letter-spacing: var(--tracking-sm); }
+.au-badge-sm { height: var(--size-tag-sm); padding: 0 var(--inset-tag); }
+.au-badge-neutral { background: var(--bg-hover); color: var(--fg-muted); }
+.au-badge-success { background: var(--bg-success-subtle); color: var(--fg-success); }
+.au-badge-warning { background: var(--bg-warning-subtle); color: var(--fg-warning); }
+.au-badge-danger { background: var(--bg-danger-subtle); color: var(--fg-danger); }
+.au-badge-info { background: var(--bg-info-subtle); color: var(--fg-info); }
+.au-badge-outline { background: transparent; border-color: var(--border-default); }
+
+/* ── components/atoms/avatar/styles.css ── */
+.au-avatar { display: inline-flex; align-items: center; justify-content: center; flex: none; border-radius: var(--radius-full); background: var(--bg-emphasis); color: var(--fg-on-emphasis); font-weight: 600; text-transform: uppercase; line-height: 1; }
+/* Initials are capitals: trim their box to the capitals, so the flex centring centres the letters themselves in any font (the line box leaves room for descenders). */
+.au-avatar-initials { text-box: trim-both cap alphabetic; }
+.au-avatar-sm { width: var(--size-avatar-sm); height: var(--size-avatar-sm); font-size: var(--font-size-xs); }
+.au-avatar-md { width: var(--size-avatar-md); height: var(--size-avatar-md); font-size: var(--font-size-sm); letter-spacing: var(--tracking-sm); }
+.au-avatar-lg { width: var(--size-avatar-lg); height: var(--size-avatar-lg); font-size: var(--font-size-md); }
+
+/* ── components/atoms/divider/styles.css ── */
+.au-divider { width: 100%; height: 0; margin: var(--gap-stack-xs) 0; border: 0; border-top: var(--border-width-hairline) solid var(--border-subtle); }
+.au-divider-strong { border-top-color: var(--border-default); }
+.au-divider-v { display: inline-block; width: 0; height: var(--size-icon-md); border-inline-start: var(--border-width-hairline) solid var(--border-default); }
+
+/* ── components/atoms/label/styles.css ── */
+.au-label { display: block; font-size: var(--font-size-md); line-height: var(--line-height-md); font-weight: 500; color: var(--fg-default); }
+.au-label-sm { font-size: var(--font-size-sm); line-height: var(--line-height-sm); letter-spacing: var(--tracking-sm); }
+.au-label-optional { font-weight: 400; color: var(--fg-subtle); }
+
+/* ── components/atoms/checkbox/styles.css ── */
+.au-check-input + span { outline: var(--focus-ring-width) none transparent; outline-offset: var(--focus-ring-offset); }
+.au-check-input + span { transition: var(--transition-focus); }
+
+.au-check { position: relative; display: inline-flex; align-items: center; gap: var(--gap-inline-md); font-size: var(--font-size-md); line-height: var(--line-height-md); cursor: pointer; }
+.au-check.is-disabled { opacity: var(--opacity-disabled); cursor: not-allowed; }
+.au-check-input { position: absolute; opacity: 0; width: var(--size-check-md); height: var(--size-check-md); margin: 0; cursor: inherit; }
+.au-check-box { display: inline-flex; align-items: center; justify-content: center; flex: none; width: var(--size-check-md); height: var(--size-check-md); border: var(--border-width-hairline) solid var(--input-border); background: var(--input-bg); color: transparent; }
+.au-check-box { border-radius: var(--radius-xs); }
+.au-check-sm { gap: var(--gap-inline-sm); font-size: var(--font-size-sm); line-height: var(--line-height-sm); letter-spacing: var(--tracking-sm); }
+.au-check-sm .au-check-input, .au-check-sm .au-check-box, .au-check-sm .au-radio-dot { width: var(--size-check-sm); height: var(--size-check-sm); }
+.au-check-sm .au-check-input:checked + .au-radio-dot { border-width: 4px; }
+.au-check-input:checked + .au-check-box { background: var(--bg-accent); border-color: var(--bg-accent); color: var(--fg-on-accent); }
+.au-check-input:checked + .au-radio-dot { border: 4px solid var(--bg-accent); }
+.au-check-input:focus-visible + span { outline: var(--focus-ring-width) solid var(--border-focus); outline-offset: var(--focus-ring-offset); }
+.au-check { min-height: var(--size-target-min); }
+.au-check-hinted { align-items: flex-start; }
+.au-check-hinted .au-radio-dot, .au-check-hinted .au-check-box, .au-check-hinted .au-check-input { margin-top: calc((var(--line-height-md) - var(--size-check-md)) / 2); }
+.au-check-text { display: flex; flex-direction: column; gap: var(--gap-stack-2xs); }
+.au-check-hint { font-size: var(--font-size-sm); line-height: var(--line-height-sm); letter-spacing: var(--tracking-sm); color: var(--fg-subtle); }
+/* A radio option that reveals a field when picked ("Custom date" and its date). CSS alone, so it works without a script. */
+.au-check-conditional { display: flex; flex-direction: column; gap: var(--gap-stack-md); margin-inline-start: calc(var(--size-check-md) / 2 - var(--border-width-thick) / 2); padding-inline-start: calc(var(--size-check-md) / 2 + var(--gap-inline-md)); border-inline-start: var(--border-width-thick) solid var(--border-default); }
+.au-check:has(> .au-check-input:not(:checked)) + .au-check-conditional,
+.au-check:has(> .au-check-input:not(:checked)) + .au-check-reason + .au-check-conditional { display: none; }
+@media (prefers-reduced-motion: reduce) { .au-check-input + span { transition: none; }}
+@media (forced-colors: active) { .au-check-input + span { outline-style: none; } .au-check-input:focus-visible + span { outline: var(--focus-ring-width) solid Highlight; }}
+
+/* Indeterminate checkbox (a header "select all" with some rows selected) */
+.au-check-input:indeterminate + .au-check-box { background: var(--bg-accent); border-color: var(--bg-accent); color: var(--fg-on-accent); }
+.au-check-input:not(:checked):not(:indeterminate) + .au-check-box .au-icon { visibility: hidden; }
+:where(.au-check-hint) .au-code-inline { color: var(--fg-muted); }
+
+/* ── components/atoms/radio/styles.css ── */
+.au-radio-dot { display: inline-flex; align-items: center; justify-content: center; flex: none; width: var(--size-check-md); height: var(--size-check-md); border: var(--border-width-hairline) solid var(--input-border); background: var(--input-bg); color: transparent; }
+.au-radio-dot { border-radius: var(--radius-full); }
+
+/* ── components/atoms/tooltip/styles.css ── */
+.au-tooltip-wrap { position: relative; display: inline-flex; }
+.au-tooltip-trigger { display: inline-flex; align-items: center; border-radius: var(--radius-sm); }
+.au-tooltip-trigger:focus-visible { outline: var(--focus-ring-width) solid var(--border-focus); outline-offset: var(--focus-ring-offset); }
+.au-tooltip { z-index: var(--z-tooltip); max-width: var(--size-tooltip-max-width); width: max-content; padding: var(--inset-tag-xs) var(--inset-menuitem-x); border-radius: var(--radius-sm); background: var(--tooltip-bg); color: var(--tooltip-fg); font-size: var(--font-size-sm); line-height: var(--line-height-sm); box-shadow: var(--elevation-overlay); opacity: 0; pointer-events: none; transition: opacity 80ms ease; letter-spacing: var(--tracking-sm); }
+
+.au-tooltip.is-placed { opacity: 1; }
+
+/* ── components/atoms/menu-item/styles.css ── */
+.au-menuitem-meta { font-variant-numeric: tabular-nums; }
+/* Inset elements keep their ring inside the edge at rest too, so only the colour fades. */
+.au-menuitem { outline-offset: var(--focus-ring-offset-inset); }
+.au-menuitem { display: flex; align-items: center; gap: var(--gap-inline-md); width: 100%; min-height: var(--size-target-comfortable); padding: var(--inset-menuitem-y) var(--inset-menuitem-x); border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--fg-default); font: inherit; font-size: var(--font-size-md); line-height: var(--line-height-md); text-align: start; cursor: pointer; }
+.au-menuitem:hover:where(:not(:disabled, [aria-disabled="true"], .is-disabled)), .au-menuitem:focus-visible { background: var(--bg-hover); }
+.au-menuitem:focus-visible { outline: var(--focus-ring-width) solid var(--border-focus); outline-offset: var(--focus-ring-offset-inset); }
+.au-menuitem[aria-checked="true"] { font-weight: 500; }
+.au-menuitem[disabled] { color: var(--fg-disabled); cursor: not-allowed; background: none; }
+.au-menuitem-danger { color: var(--fg-danger); }
+.au-menuitem-tick { display: inline-flex; width: var(--size-icon-sm); flex: none; }
+.au-menuitem-tick-end { margin-inline-start: auto; color: var(--fg-muted); }
+.au-menuitem-label { flex: 1; min-width: 0; }
+/* A long item is cut short with an ellipsis, never scrolled sideways; hovering it shows the whole text. */
+.au-menuitem-label:not(.au-menuitem-text) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.au-menuitem-meta { margin-inline-start: auto; font-feature-settings: "zero" 1, "cv05" 1, "cv08" 1; font-size: var(--font-size-sm); line-height: var(--line-height-sm); color: var(--fg-subtle); font-variant-numeric: tabular-nums; }
+.au-menuitem-sm { min-height: var(--size-control-sm); padding: var(--inset-tag-xs) var(--inset-menuitem-x); font-size: var(--font-size-sm); line-height: var(--line-height-sm); letter-spacing: var(--tracking-sm); }
+@media (forced-colors: active) { .au-menuitem { outline-style: none; } .au-menuitem:focus-visible { outline: var(--focus-ring-width) solid Highlight; }}
+
+/* ── components/molecules/field/styles.css ── */
+/* ── Molecules ── */
+.au-field { display: flex; flex-direction: column; gap: var(--gap-stack-sm); min-width: 0; }
+.au-field-hint { margin: calc(var(--gap-stack-2xs) * -1) 0 0; font-size: var(--font-size-sm); line-height: var(--line-height-sm); color: var(--fg-subtle); letter-spacing: var(--tracking-sm); }
+.au-field-error { display: flex; align-items: flex-start; gap: var(--gap-inline-sm); margin: 0; font-size: var(--font-size-sm); line-height: var(--line-height-sm); color: var(--fg-danger); letter-spacing: var(--tracking-sm); }
+.au-field-error .au-icon { margin-top: 1px; }
+.au-field-warning { display: flex; align-items: flex-start; gap: var(--gap-inline-sm); margin: 0; font-size: var(--font-size-sm); line-height: var(--line-height-sm); color: var(--fg-warning); letter-spacing: var(--tracking-sm); }
+.au-field-warning .au-icon { flex: none; margin-top: 1px; }
+.au-field-hint.au-check-reason { margin: calc(var(--gap-stack-xs) * -1) 0 0 calc(var(--size-check-md) + var(--gap-inline-md)); color: var(--fg-muted); }
+.au-field-hint.au-group-note { margin: 0; }
+.au-field-count { margin: 0; align-self: flex-end; font-size: var(--font-size-sm); line-height: var(--line-height-sm); color: var(--fg-subtle); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-sm); }
+:where(.au-field-hint) .au-code-inline { color: var(--fg-muted); }
+
+/* ── components/molecules/menu/styles.css ── */
+.au-menu { min-width: var(--size-menu-min-width); max-width: min(var(--size-menu-max-width), calc(100vw - var(--space-16))); overflow-x: hidden; }
+.au-menu { display: flex; flex-direction: column; gap: var(--gap-stack-2xs); min-width: var(--size-menu-min-width); max-height: var(--size-menu-max-height); overflow-y: auto; padding: var(--inset-menu); border: var(--border-width-hairline) solid var(--border-default); border-radius: var(--radius-lg); background: var(--bg-surface-raised); box-shadow: var(--elevation-overlay); }
+.au-menu-heading { padding: var(--inset-menuitem-y) var(--inset-menuitem-x) var(--inset-tag-xs); font-size: var(--font-size-sm); line-height: var(--line-height-sm); font-weight: 600; color: var(--fg-muted); letter-spacing: var(--tracking-sm); }
+.au-menu-who { display: flex; flex-direction: column; padding: var(--inset-menuitem-y) var(--inset-menuitem-x); font-size: var(--font-size-md); line-height: var(--line-height-md); }
+.au-menu-who span { font-size: var(--font-size-sm); line-height: var(--line-height-sm); color: var(--fg-subtle); overflow-wrap: anywhere; letter-spacing: var(--tracking-sm); }
+.au-menu-empty { padding: var(--inset-menuitem-y) var(--inset-menuitem-x); font-size: var(--font-size-md); line-height: var(--line-height-md); color: var(--fg-subtle); }
+
+/* ── components/molecules/dropdown/styles.css ── */
+.au-dropdown { position: relative; display: inline-flex; }
+.au-dropdown-pop { display: flex; flex-direction: column; }
+.au-dropdown-pop > .au-menu { min-height: 0; }
+
+/* ── components/molecules/segmented-control/styles.css ── */
+.au-segmented { display: inline-flex; gap: var(--gap-inline-2xs); padding: var(--gap-inline-2xs); border-radius: var(--radius-md); background: var(--bg-hover); }
+.au-segmented button { display: inline-flex; align-items: center; justify-content: center; gap: var(--gap-inline-sm); height: var(--size-control-sm); padding: 0 var(--inset-control-sm); border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--fg-muted); font: inherit; font-size: var(--font-size-md); font-weight: 500; cursor: pointer; }
+.au-segmented-sm button { height: var(--size-control-xs); padding: 0 var(--inset-field-sm); font-size: var(--font-size-sm); letter-spacing: var(--tracking-sm); }
+.au-segmented button[aria-checked="true"] { background: var(--bg-surface-raised); color: var(--fg-default); box-shadow: var(--elevation-raised); }
+.au-segmented .au-count { margin-inline-start: 0; }
+/* SegmentedControl options drawn as links (server-rendered sections) */
+.au-segmented a { display: inline-flex; align-items: center; justify-content: center; text-align: center; gap: var(--gap-inline-sm); height: var(--size-control-sm); padding: 0 var(--inset-control-sm); border-radius: var(--radius-sm); color: var(--fg-muted); font-size: var(--font-size-md); font-weight: 500; text-decoration: none; }
+.au-segmented-sm a { height: var(--size-control-xs); padding: 0 var(--inset-field-sm); font-size: var(--font-size-sm); letter-spacing: var(--tracking-sm); }
+.au-segmented a[aria-checked="true"] { background: var(--bg-surface-raised); color: var(--fg-default); box-shadow: var(--elevation-raised); }
+
+/* ── components/molecules/back-link/styles.css ── */
+.au-backlink { position: relative; }
+.au-backlink::after { content: ""; position: absolute; inset-inline-start: calc(var(--inset-tag-xs) * -1); inset-inline-end: calc(var(--inset-tag-xs) * -1); top: 50%; height: var(--size-target-min); transform: translateY(-50%); }
+
+.au-backlink { display: inline-flex; align-items: center; gap: var(--gap-inline-sm); align-self: flex-start; padding: 0; border: 0; background: none; color: var(--fg-muted); font: inherit; font-size: var(--font-size-md); line-height: var(--line-height-md); text-decoration: none; cursor: pointer; }
+.au-backlink:hover:where(:not(:disabled, [aria-disabled="true"], .is-disabled)) { color: var(--fg-default); }
+
+/* ── components/molecules/alert/styles.css ── */
+.au-alert { display: flex; align-items: flex-start; gap: var(--gap-inline-lg); padding: var(--inset-alert-y) var(--inset-alert-x); border: var(--border-width-hairline) solid; border-radius: var(--radius-md); font-size: var(--font-size-md); line-height: var(--line-height-md); }
+.au-alert-icon { margin-top: 2px; }
+.au-alert-body { flex: 1; min-width: 0; overflow-wrap: anywhere; display: flex; flex-direction: column; gap: var(--gap-stack-2xs); }
+.au-alert-title { font-weight: 600; }
+.au-alert-actions { display: flex; flex-wrap: wrap; gap: var(--gap-inline-md); margin-top: var(--gap-stack-md); }
+.au-alert-danger { background: var(--bg-danger-subtle); border-color: var(--border-danger); color: var(--fg-danger); }
+.au-alert-warning { background: var(--bg-warning-subtle); border-color: var(--border-warning); color: var(--fg-warning); }
+.au-alert-info { background: var(--bg-info-subtle); border-color: var(--border-info); color: var(--fg-info); }
+.au-alert-success { background: var(--bg-success-subtle); border-color: var(--border-success); color: var(--fg-success); }
+.au-alert .au-alert-body > div { color: var(--fg-default); }
+
+/* ── components/molecules/empty-state/styles.css ── */
+.au-empty { display: flex; flex-direction: column; align-items: center; gap: var(--gap-stack-md); padding: var(--inset-empty-y) var(--inset-empty-x); text-align: center; }
+.au-empty-compact { padding: var(--inset-empty-compact-y) var(--inset-card); }
+.au-empty-icon { display: inline-flex; align-items: center; justify-content: center; width: var(--size-empty-icon); height: var(--size-empty-icon); border-radius: var(--radius-full); background: var(--bg-hover); color: var(--fg-muted); }
+.au-empty-title { margin: var(--gap-stack-xs) 0 0; font-size: var(--font-size-lg); line-height: var(--line-height-lg); font-weight: 600; }
+.au-empty-body { margin: 0; max-width: var(--size-measure-sm); color: var(--fg-muted); }
+.au-empty-actions { display: flex; flex-wrap: wrap; justify-content: center; max-width: 100%; gap: var(--gap-inline-md); margin-top: var(--gap-stack-md); }
+
+/* ── components/molecules/theme-toggle/styles.css ── */
+.au-theme { outline: var(--focus-ring-width) none transparent; outline-offset: var(--focus-ring-offset); }
+.au-theme { transition: var(--transition-focus); }
+
+.au-theme { position: relative; display: inline-flex; flex: none; width: var(--size-toggle-width); height: var(--size-toggle-height); border: var(--border-width-hairline) solid var(--border-default); border-radius: var(--radius-full); background: var(--bg-surface); cursor: pointer; }
+.au-theme input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
+.au-theme:has(input:focus-visible) { outline: var(--focus-ring-width) solid var(--border-focus); outline-offset: var(--focus-ring-offset); }
+.au-theme-knob { position: absolute; top: 2px; inset-inline-start: 2px; display: flex; align-items: center; justify-content: center; width: var(--size-toggle-knob); height: var(--size-toggle-knob); border-radius: var(--radius-full); background: var(--bg-emphasis); color: var(--fg-on-emphasis); pointer-events: none; transition: left 120ms ease; }
+.au-theme-other { position: absolute; top: 5px; inset-inline-end: 6px; display: flex; color: var(--fg-faint); pointer-events: none; }
+.au-theme:has(input:checked) .au-theme-knob { inset-inline-start: calc(var(--size-toggle-width) - var(--size-toggle-knob) - 4px); }
+.au-theme:has(input:checked) .au-theme-other { inset-inline-end: auto; inset-inline-start: 6px; }
+@media (prefers-reduced-motion: reduce) { .au-theme { transition: none; }}
+@media (forced-colors: active) { .au-theme { outline-style: none; }}
+
+/* ── components/molecules/toast/styles.css ── */
+.au-toast { display: inline-flex; align-items: center; gap: var(--gap-inline-lg); min-height: var(--size-control-lg); padding-block: var(--inset-field-y) var(--inset-field-y); padding-inline: var(--inset-alert-x) var(--inset-field-y); border-radius: var(--radius-md); background: var(--bg-inverse); color: var(--fg-inverse); box-shadow: var(--elevation-floating); font-size: var(--font-size-md); }
+/* Toast actions are a tertiary Button and an xs IconButton, recoloured for the inverse surface. */
+.au-toast-text { min-width: 0; }
+.au-toast .au-toast-action, .au-toast .au-toast-close { color: inherit; }
+.au-toast .au-toast-action { font-weight: 600; text-decoration: underline; text-underline-offset: 2px; }
+.au-toast .au-toast-close { opacity: var(--opacity-muted); }
+.au-toast .au-btn:hover:where(:not(:disabled, [aria-disabled="true"], .is-disabled)) { background: color-mix(in srgb, currentColor 14%, transparent); color: inherit; opacity: 1; }
+.au-toast .au-btn:active:where(:not(:disabled, [aria-disabled="true"], .is-disabled)) { background: color-mix(in srgb, currentColor 22%, transparent); }
+.au-toast .au-btn:focus-visible { outline-color: currentColor; }
+/* ───────────── Toast tones ───────────── */
+.au-toast-warning .au-toast-icon { color: var(--status-warning); }
+.au-toast-danger .au-toast-icon { color: var(--status-danger); }
+.au-toast-info .au-toast-icon { color: var(--status-info, currentColor); }
+
+/* ── components/molecules/toast-region/styles.css ── */
+:where(.au-toast-region[popover]) { inset: auto; width: auto; height: auto; margin: 0; padding: 0; border: 0; background: transparent; color: inherit; overflow: visible; }
+/* Toasts live in one fixed region, bottom-left, on the toast layer: above any drawer or dialog, below tooltips. */
+.au-toast-region { position: fixed; inset-inline-start: var(--inset-page-x); bottom: var(--inset-page-x); z-index: var(--z-toast); display: flex; flex-direction: column; gap: var(--gap-stack-md); pointer-events: none; }
+.au-toast-region > * { pointer-events: auto; }
+.au-toast-region:empty { display: none; }
+
+/* ── components/atoms/nav-item/styles.css ── */
+/* position: relative holds the visually hidden srPrefix inside the item: without it, in the narrow top bar's scrolling row, the hidden text sat off-screen and widened the page. */
+.au-navitem { position: relative; display: flex; align-items: center; gap: var(--gap-inline-lg); height: var(--size-target-comfortable); padding: 0 var(--inset-menuitem-x); border-radius: var(--radius-md); color: var(--nav-item-fg); font-size: var(--font-size-md); font-weight: 500; text-decoration: none; }
+.au-navitem .au-icon { color: var(--fg-muted); }
+.au-navitem:hover:where(:not(:disabled, [aria-disabled="true"], .is-disabled)) { background: var(--nav-item-bg-hover); color: var(--nav-item-fg); }
+.au-navitem[aria-current="page"] { background: var(--nav-item-bg-active); color: var(--nav-item-fg-active); }
+.au-navitem[aria-current="page"] .au-icon { color: inherit; }
+/* A badge on the current item sits on the item's solid ground: give it the surface back so its tone still reads. */
+.au-navitem[aria-current="page"] .au-badge { background: var(--bg-surface); }
+/* NavItem */
+.au-navitem-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.au-navitem-meta { flex: none; font-feature-settings: "zero" 1, "cv05" 1, "cv08" 1; font-size: var(--font-size-sm); line-height: var(--line-height-sm); color: var(--fg-subtle); font-variant-numeric: tabular-nums; }
+.au-navitem[aria-current="page"] .au-navitem-meta { color: inherit; opacity: var(--opacity-muted); }
+
+/* ── components/organisms/sidebar/styles.css ── */
+.au-sidebar { display: flex; flex-direction: column; flex: none; width: var(--size-sidebar); min-height: 100%; border-inline-end: var(--border-width-hairline) solid var(--border-default); background: var(--bg-surface); }
+.au-sidebar-brand { display: flex; align-items: center; gap: var(--gap-inline-md); height: var(--size-header); padding: 0 var(--inset-sidebar-brand); border-bottom: var(--border-width-hairline) solid var(--border-subtle); }
+.au-sidebar-nav { flex: 1; display: flex; flex-direction: column; gap: var(--gap-stack-lg); padding: var(--inset-sidebar); overflow-y: auto; }
+.au-sidebar-title { padding: var(--inset-tag-xs) var(--inset-menuitem-x) var(--inset-menuitem-y); color: var(--fg-subtle); }
+.au-sidebar-section ul { display: flex; flex-direction: column; gap: var(--gap-stack-2xs); margin: 0; padding: 0; list-style: none; }
+.au-sidebar-foot { display: flex; align-items: center; justify-content: space-between; gap: var(--gap-inline-md); padding: var(--inset-field) var(--inset-sidebar); border-top: var(--border-width-hairline) solid var(--border-subtle); }
+/* In the sidebar the account fills the footer like a nav item, its chevron at the far edge. */
+.au-sidebar:not(.is-rail) .au-sidebar-foot > .au-dropdown:only-child { flex: 1; min-width: 0; }
+.au-sidebar:not(.is-rail) .au-sidebar-foot .au-account:not(.au-account-compact) { width: 100%; max-width: none; }
+.au-sidebar:not(.is-rail) .au-sidebar-foot .au-account > .au-truncate { flex: 1; text-align: start; }
+.au-sidebar.is-rail { width: var(--size-rail); min-width: var(--size-rail); }
+.au-sidebar.is-rail .au-sidebar-brand { justify-content: center; padding: 0; }
+.au-sidebar-mark { display: inline-flex; align-items: center; justify-content: center; width: var(--size-rail-mark); height: var(--size-rail-mark); border-radius: var(--radius-lg); background: var(--bg-emphasis); color: var(--fg-on-emphasis); font-size: var(--font-size-md); font-weight: 700; }
+.au-sidebar.is-rail .au-sidebar-nav { align-items: stretch; padding: var(--inset-sidebar) var(--gap-inline-sm); }
+.au-sidebar.is-rail .au-sidebar-title { padding: 0 0 var(--gap-stack-xs); text-align: center; }
+.au-sidebar.is-rail .au-sidebar-section + .au-sidebar-section { padding-top: var(--gap-stack-lg); border-top: var(--border-width-hairline) solid var(--border-subtle); }
+.au-sidebar.is-rail .au-navitem { position: relative; flex-direction: column; justify-content: center; gap: var(--gap-stack-2xs); height: auto; min-height: var(--size-control-xl); padding: var(--gap-stack-xs) var(--gap-inline-2xs); font-size: var(--font-size-sm); line-height: var(--line-height-sm); text-align: center; }
+.au-sidebar.is-rail .au-navitem-label { flex: none; width: 100%; }
+.au-sidebar.is-rail .au-navitem > .au-badge { position: absolute; top: var(--gap-stack-2xs); inset-inline-end: var(--gap-inline-xs); }
+.au-sidebar.is-rail .au-sidebar-foot { justify-content: center; padding-inline: 0; }
+
+/* ── components/organisms/account-menu/styles.css ── */
+.au-account { display: inline-flex; align-items: center; gap: var(--gap-inline-md); min-width: 0; max-width: var(--size-account-max-width); height: var(--size-control-md); padding: 0 var(--inset-tag); border: 0; border-radius: var(--radius-md); background: none; color: var(--fg-default); font: inherit; font-size: var(--font-size-md); cursor: pointer; }
+.au-account:hover:where(:not(:disabled, [aria-disabled="true"], .is-disabled)) { background: var(--bg-hover); }
+
+/* ── Shell layouts: rail, top navigation, shell bar (2.4) ── */
+.au-account-compact { justify-content: center; width: var(--size-control-md); padding: 0; border-radius: var(--radius-full); }
+
+/* ── components/organisms/page-header/styles.css ── */
+.au-pageheader { display: flex; flex-direction: column; gap: var(--gap-stack-md); }
+.au-pageheader-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--gap-inline-xl); min-height: var(--size-control-lg); }
+.au-pageheader-row.has-meta { align-items: flex-end; }
+.au-pageheader-titles { display: flex; flex-direction: column; gap: var(--gap-stack-xs); min-width: 0; }
+.au-pageheader-titles h1 { margin: 0; overflow-wrap: anywhere; }
+/* Every item starts with a hairline; the row is pulled left by one hairline + gap and the wrapper clips its left edge,
+   so the separator that starts each line (first item, or after a wrap) is hidden and none ever dangles */
+.au-pageheader-metawrap { clip-path: inset(-8px -8px -8px 0); }
+.au-pageheader-metawrap > .au-pageheader-meta { margin-left: calc(-1 * (var(--border-width-hairline) + var(--gap-inline-md))); }
+.au-pageheader-meta { display: flex; flex-wrap: wrap; align-items: center; gap: var(--gap-inline-md); font-size: var(--font-size-md); line-height: var(--line-height-md); }
+.au-pageheader-aside { margin-inline-start: auto; }
+
+/* ── components/organisms/card/styles.css ── */
+.au-card { overflow: hidden; border: var(--border-width-hairline) solid var(--border-subtle); border-radius: var(--radius-lg); background: var(--bg-surface); }
+.au-card-body { padding: var(--inset-card) var(--inset-card-wide); }
+.au-card-head { display: flex; align-items: center; justify-content: space-between; gap: var(--gap-inline-xl); min-height: var(--size-row); padding-block: var(--inset-card-head-y) var(--inset-card-head-y); padding-inline: var(--inset-card) var(--inset-card-head-end); border-bottom: var(--border-width-hairline) solid var(--border-subtle); }
+.au-card-head :is(h2, h3, h4, h5, h6) { margin: 0; }
+
+/* ── components/organisms/dialog/styles.css ── */
+dialog.au-dialog-layer { width: auto; height: auto; max-width: none; max-height: none; margin: 0; border: 0; background: transparent; color: inherit; overflow: visible; }
+dialog.au-dialog-layer::backdrop { background: transparent; }
+dialog.au-dialog-layer:not([open]) { display: none; }
+.au-dialog:focus { outline-color: transparent; }
+
+.au-dialog-layer { position: fixed; inset: 0; z-index: var(--z-dialog); display: flex; align-items: flex-start; justify-content: center; padding: var(--inset-overlay-top) var(--inset-page-compact) var(--inset-page-compact); }
+/* inline: the layer fills its container instead of the window (previews, panels, split views). */
+.au-dialog-layer.is-inline { position: relative; inset: auto; height: 100%; min-height: 100%; }
+.au-overlay { position: absolute; inset: 0; background: var(--bg-overlay); }
+.au-dialog { position: relative; display: flex; flex-direction: column; width: 100%; min-width: min(var(--size-dialog-min-width), 100%); max-height: calc(100vh - var(--inset-overlay-top) - var(--inset-page-compact)); border-radius: var(--radius-xl); background: var(--bg-surface-raised); box-shadow: var(--elevation-modal); }
+.au-dialog-sm { max-width: var(--size-dialog-sm); } .au-dialog-md { max-width: var(--size-dialog-md); } .au-dialog-lg { max-width: var(--size-dialog-lg); }
+.au-dialog-head { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--gap-inline-xl); padding-block: var(--inset-dialog-y) var(--inset-tag-xs); padding-inline: var(--inset-dialog) var(--inset-dialog-close); }
+/* Close: an md (36px) target with a 16px glyph, pulled up 4px so it centres on the 28px title line; the glyph sits 24px from the right edge, like the title from the left. */
+.au-dialog-close { flex: none; margin-top: calc(var(--space-4) * -1); }
+.au-dialog-head h2 { margin: 0; }
+.au-dialog-body { display: flex; flex-direction: column; gap: var(--gap-stack-xl); padding: var(--inset-alert-y) var(--inset-dialog) var(--inset-dialog-y); overflow-y: auto; font-size: var(--font-size-md); line-height: var(--line-height-md); }
+.au-dialog-body p { margin: 0; }
+.au-dialog-foot { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--gap-inline-md); padding: var(--inset-dialog-head-end) var(--inset-dialog) var(--inset-dialog-y); border-top: var(--border-width-hairline) solid var(--border-subtle); }
+.au-dialog-layer:has(.au-drawer) { z-index: var(--z-drawer); justify-content: flex-end; align-items: stretch; padding: 0; }
+.au-dialog-layer > .au-overlay { animation: au-fade-in var(--duration-slow) var(--easing-enter) both; }
+.au-dialog-layer > .au-dialog { animation: au-dialog-in var(--duration-slow) var(--easing-enter) both; }
+/* A drawer travels its whole width (480px), so it gets its own timing: the dialog curve front-loads the move and reads as a jump. */
+.au-dialog-layer > .au-drawer { animation: au-drawer-in 280ms cubic-bezier(0.32, 0.72, 0, 1) both; }
+.au-dialog-layer:not(.is-leaving):has(> .au-drawer) > .au-overlay { animation-duration: 280ms; animation-timing-function: ease-out; }
+[dir="rtl"] .au-dialog-layer > .au-drawer { animation-name: au-drawer-in-rtl; }
+.au-dialog-layer.is-leaving { pointer-events: none; }
+.au-dialog-layer.is-leaving > .au-overlay { animation: au-fade-out var(--duration-exit) var(--easing-exit) both; }
+.au-dialog-layer.is-leaving > .au-dialog { animation: au-dialog-out var(--duration-exit) var(--easing-exit) both; }
+.au-dialog-layer.is-leaving > .au-drawer { animation: au-drawer-out 200ms var(--easing-exit) both; }
+.au-dialog-layer.is-leaving:has(> .au-drawer) > .au-overlay { animation-duration: 200ms; }
+[dir="rtl"] .au-dialog-layer.is-leaving > .au-drawer { animation-name: au-drawer-out-rtl; }
+/* Reduced motion: a short fade only, no movement. */
+@media (prefers-reduced-motion: reduce) {
+  .au-dialog-layer > .au-dialog, .au-dialog-layer > .au-drawer, [dir="rtl"] .au-dialog-layer > .au-drawer { animation: au-fade-in var(--duration-fast) linear both; }
+  .au-dialog-layer.is-leaving > .au-dialog, .au-dialog-layer.is-leaving > .au-drawer, .au-dialog-layer.is-leaving > .au-overlay { animation: none; }
+}
+/* clip, not hidden: in Chrome a top-layer <dialog> with overflow: hidden keeps painting the drawer where it ends up, so its slide never shows. */
+.au-dialog-layer:has(.au-drawer) { overflow: clip; }
+
+/* ── components/organisms/drawer/styles.css ── */
+.au-drawer:focus { outline-color: transparent; }
+.au-drawer { position: relative; display: flex; flex-direction: column; width: var(--size-drawer); max-width: 100%; height: 100%; min-height: 0; background: var(--bg-surface-raised); box-shadow: var(--elevation-modal); }
+.au-drawer-sub { margin-top: var(--gap-stack-xs); }
+.au-drawer-body { flex: 1; display: flex; flex-direction: column; gap: var(--gap-stack-2xl); padding: var(--inset-dialog-head-end) var(--inset-dialog); overflow-y: auto; }
+.au-drawer-foot { justify-content: flex-start; }
+
+/* ── components/templates/app-shell/styles.css ── */
+/* ── Templates ── */
+/* AppShell fills whatever contains it, top to bottom: give that container a height (100vh, or 100% down from html/body). The sidebar always spans the full height; only the content column scrolls. */
+.au-shell { display: flex; height: 100%; min-height: 0; overflow: hidden; background: var(--bg-page); }
+.au-shell > .au-sidebar { min-height: 0; overflow-y: auto; }
+.au-main { flex: 1; min-width: 0; min-height: 0; overflow-y: auto; padding: var(--inset-page-top) var(--inset-page-x) var(--inset-page-bottom); }
+.au-content { display: flex; flex-direction: column; gap: var(--gap-stack-xl); width: 100%; max-width: var(--size-content-max); margin: 0 auto; }
+.au-content > .au-pageheader { margin-bottom: var(--gap-stack-md); }
+/* The shell responds to its own width, not the window's, so it behaves the same in a page, a panel or a preview.
+   Wide: a fixed 240px sidebar (it never shrinks). Narrow (< 640px): a top bar — brand and account on one row, the pages in one scrolling row below. */
+.au-shell-frame { container: au-shell / inline-size; height: 100%; min-height: 100%; }
+.au-shell > .au-sidebar { min-width: var(--size-sidebar); }
+@container au-shell (max-width: 639px) {
+  .au-shell { flex-direction: column; }
+  .au-shell > .au-sidebar { flex: none; flex-direction: row; flex-wrap: wrap; align-items: center; align-content: flex-start; width: 100%; min-width: 0; min-height: 0; border-inline-end: 0; border-bottom: var(--border-width-hairline) solid var(--border-default); }
+  .au-shell .au-sidebar-brand { flex: 1; min-width: 0; border-bottom: 0; }
+  .au-shell .au-sidebar-foot { order: 2; padding: 0 var(--inset-sidebar); border-top: 0; }
+  .au-shell .au-sidebar-nav { order: 3; flex: 1 0 100%; flex-direction: row; gap: var(--gap-inline-sm); padding: 0 var(--inset-sidebar) var(--inset-sidebar); overflow-x: auto; scrollbar-width: none; }
+  .au-shell .au-sidebar-section { display: contents; }
+  .au-shell .au-sidebar-title { display: none; }
+  .au-shell .au-sidebar-section ul { flex-direction: row; gap: var(--gap-inline-sm); }
+  .au-shell .au-navitem { white-space: nowrap; }
+  .au-shell .au-account > .au-truncate { display: none; }
+  .au-shell .au-sidebar:not(.is-rail) .au-account-chevron { transform: rotate(180deg); }  /* in the top bar the menu opens downwards */
+  .au-shell .au-sidebar:not(.is-rail) [aria-expanded="true"] > .au-account-chevron { transform: none; }
+  /* Turned only while someone presses it: a late style (a slow stylesheet, the element arriving) snaps, never spins. */
+  .au-shell .au-sidebar:not(.is-rail) .au-account:not(:hover, :focus-visible, :active) > .au-account-chevron { transition: none; }
+  /* In the top bar the menu opens down from the account, held 8px inside the window as the script holds it (before the script too). */
+  .au-shell .au-sidebar:not(.is-rail) au-dropdown[data-placement="top"] .au-dropdown-pop[popover]:not(.is-placed) { top: anchor(bottom); bottom: auto; left: auto; right: var(--space-8); margin-top: var(--space-4); margin-bottom: 0; }
+  .au-shell .au-sidebar:not(.is-rail) .au-sidebar-foot > .au-dropdown:only-child { flex: none; }
+  .au-shell .au-sidebar:not(.is-rail) .au-sidebar-foot .au-account:not(.au-account-compact) { width: auto; }
+  .au-main { padding: var(--inset-page-compact); }
+  .au-shell .au-main .au-listpage-top { position: static; margin-top: 0; padding-top: 0; padding-bottom: 0; margin-bottom: 0; }
+  .au-shell .au-main .au-listpage .au-thead, .au-shell .au-main .au-listpage .au-bulkbar { top: 0; }
+}
+.au-main .au-listpage-top { position: sticky; top: calc(var(--inset-page-top) * -1); z-index: calc(var(--z-sticky) + 2); margin-top: calc(var(--inset-page-top) * -1); padding-top: var(--inset-page-top); padding-bottom: var(--gap-stack-xl); margin-bottom: calc(var(--gap-stack-xl) * -1); background: var(--bg-page); }
+.au-main .au-listpage .au-thead, .au-main .au-listpage .au-bulkbar { top: calc(var(--au-list-top, 0px) - var(--inset-page-top)); }
+/* A list's header keeps its rounded top corners while it sticks. The table clips only its bottom corners, and the header
+   draws the table's top border and corners itself (the page around them), so a table scrolled a few pixels never cuts
+   the header's corners, and rows passing under it never show beside them. Pixel for pixel the same at rest. */
+.au-main .au-listpage .au-table { overflow: visible; border-top: 0; border-top-left-radius: 0; border-top-right-radius: 0; clip-path: inset(0 round 0 0 var(--radius-lg) var(--radius-lg)); }
+.au-main .au-listpage .au-thead { --au-cap-in: calc(var(--radius-lg) - var(--border-width-hairline)); padding-top: calc(var(--inset-cell-head-y) + var(--border-width-hairline)); min-height: calc(var(--size-table-head) + var(--border-width-hairline));
+  background: linear-gradient(var(--border-subtle), var(--border-subtle)) top / 100% var(--border-width-hairline) no-repeat, linear-gradient(var(--bg-sunken), var(--bg-sunken)) 0 var(--border-width-hairline) / 100% 100% no-repeat, var(--bg-surface); }
+.au-main .au-listpage .au-thead > .au-sticky-col { margin-top: calc(var(--inset-cell-head-y) * -1 - var(--border-width-hairline)); padding-top: calc(var(--inset-cell-head-y) + var(--border-width-hairline)); }
+.au-main .au-listpage .au-thead::before, .au-main .au-listpage .au-thead::after { --au-at: 100% 100%; content: ""; position: absolute; top: 0; left: calc(var(--border-width-hairline) * -1); width: var(--radius-lg); height: var(--radius-lg); pointer-events: none;
+  background: radial-gradient(circle at var(--au-at), transparent calc(var(--au-cap-in) - 0.5px), var(--border-subtle) var(--au-cap-in), var(--border-subtle) calc(var(--radius-lg) - 0.5px), transparent var(--radius-lg)),
+              radial-gradient(circle at var(--au-at), transparent calc(var(--au-cap-in) - 0.5px), var(--bg-surface) var(--au-cap-in), var(--bg-surface) calc(var(--radius-lg) - 0.5px), var(--bg-page) var(--radius-lg)); }
+.au-main .au-listpage .au-thead::after { --au-at: 0 100%; left: auto; right: calc(var(--border-width-hairline) * -1); }
+@media (forced-colors: active) { .au-main .au-listpage .au-thead::before, .au-main .au-listpage .au-thead::after { content: none; } }
+/* Keep the content still when a page starts or stops scrolling (switching tabs, filtering). */
+.au-main { scrollbar-gutter: stable; }
+@media (max-height: 560px) { .au-main .au-listpage-top { position: static; } .au-main .au-listpage .au-thead, .au-main .au-listpage .au-bulkbar { top: 0; } }
+.au-content > .au-page { margin-top: 0; }
+
+/* ───────────── Banner, status pages ───────────── */
+.au-shell-frame:has(.au-shell-banner) { display: flex; flex-direction: column; }
+.au-shell-frame:has(.au-shell-banner) > .au-shell { flex: 1; min-height: 0; }
+/* AppShell nav="none": no navigation, for pages before sign-in and the status pages around them. The product sits on top. */
+.au-shell-bare { width: 100%; max-width: var(--size-content-max); margin: 0 auto; padding: var(--space-32) var(--space-16); }
+.au-shell-bare-brand { display: flex; align-items: center; gap: var(--gap-inline-md); margin-bottom: var(--space-48); }
+.au-shell-bare-brand a { color: inherit; text-decoration: none; }
+.au-shell > .au-sidebar.is-rail { min-width: var(--size-rail); }
+.au-shell-body { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; }
+.au-shell-bar { flex: none; display: flex; align-items: center; gap: var(--gap-inline-xl); min-height: var(--size-header); padding: var(--gap-stack-sm) var(--inset-page-x); border-bottom: var(--border-width-hairline) solid var(--border-default); background: var(--bg-surface); }
+.au-shell-bar-start { flex: 1; min-width: 0; }
+.au-shell-bar-search { flex: 0 1 var(--size-shell-search); min-width: 0; }
+.au-shell-top { flex-direction: column; }
+@container au-shell (max-width: 639px) {
+  .au-shell > .au-sidebar.is-rail { width: 100%; }
+  .au-shell .au-sidebar.is-rail .au-sidebar-title { display: none; }
+  .au-shell .au-sidebar.is-rail .au-sidebar-section + .au-sidebar-section { padding-top: 0; border-top: 0; }
+  .au-shell .au-sidebar.is-rail .au-sidebar-brand { flex: 1; justify-content: flex-start; padding: 0 var(--inset-sidebar-brand); }
+  .au-shell-bar { flex-wrap: wrap; padding: var(--gap-stack-sm) var(--inset-page-compact); }
+  .au-shell-bar-search { flex: 1 0 100%; order: 3; }}
+/* AppShell: skip link */
+.au-skiplink { position: absolute; inset-inline-start: var(--gap-inline-md); top: var(--gap-stack-md); z-index: var(--z-toast); padding: var(--inset-tag-xs) var(--inset-menuitem-x); border-radius: var(--radius-md); background: var(--bg-surface-raised); box-shadow: var(--elevation-overlay); transform: translateY(-200%); }
+.au-skiplink:focus { transform: none; }
+
+/* ── components/atoms/heading/styles.css ── */
+.au-heading { margin: 0; color: var(--fg-default); }
+
+/* ── components/atoms/code/styles.css ── */
+.au-code-pre { outline-offset: var(--focus-ring-offset-inset); }
+
+.au-code { display: flex; width: 100%; min-width: 0; overflow: auto; background: var(--code-bg); font-family: var(--font-code); font-feature-settings: var(--font-code-features); font-size: var(--code-block-size); line-height: var(--code-block-line-height); font-variant-ligatures: none; }
+.au-code-framed { border: var(--border-width-hairline) solid var(--border-subtle); border-radius: var(--radius-md); }
+.au-code-gutter { position: sticky; inset-inline-start: 0; flex: none; min-width: var(--size-code-gutter); padding-block: var(--inset-code-y) var(--inset-code-y); padding-inline: var(--inset-code-y) var(--inset-field); border-inline-end: var(--border-width-hairline) solid var(--border-subtle); background: linear-gradient(var(--code-bg), var(--code-bg)), var(--bg-surface); color: var(--code-gutter-fg); text-align: end; user-select: none; font-variant-numeric: tabular-nums; }
+.au-code-gutter .is-error { color: var(--fg-danger); font-weight: 600; }
+.au-code-pre { flex: 1; min-width: 0; margin: 0; padding: var(--inset-code-y) var(--inset-code-x); color: var(--fg-default); font: inherit; white-space: pre; }
+.au-code-pre .is-error { margin: 0 calc(var(--inset-code-x) * -1); padding: 0 var(--inset-code-x); background: var(--bg-danger-subtle); }
+.au-code-pre:focus-visible { outline: var(--focus-ring-width) solid var(--border-focus); outline-offset: var(--focus-ring-offset-inset); }
+@media (forced-colors: active) { .au-code-pre { outline-style: none; } }
+
+/* ───────────── Atoms ───────────── */
+.au-code-inline { padding: 0 var(--inset-tag-xs); border-radius: var(--radius-xs); background: var(--code-bg); font-family: var(--font-code); font-feature-settings: var(--font-code-features); font-size: 0.86em; } .au-code { max-width: 100%; }
+
+/* ── components/molecules/breadcrumbs/styles.css ── */
+/* ───────────── Navigation ───────────── */
+.au-breadcrumbs ol { display: flex; flex-wrap: wrap; align-items: center; gap: var(--gap-inline-xs); margin: 0; padding: 0; list-style: none; font-size: var(--font-size-sm); line-height: var(--line-height-sm); letter-spacing: var(--tracking-sm); }
+.au-breadcrumbs li { display: inline-flex; align-items: center; gap: var(--gap-inline-xs); color: var(--fg-muted); }
+.au-breadcrumbs [aria-current="page"] { color: var(--fg-default); font-weight: 500; }
+.au-breadcrumbs-sep { color: var(--fg-faint); }
+
+/* ── components/layouts/form/styles.css ── */
+.au-form { display: flex; flex-direction: column; gap: var(--gap-stack-2xl); max-width: var(--size-measure-md); margin: 0; }
+.au-form-wide { max-width: none; }
+
+/* ── components/templates/page/styles.css ── */
+.au-page { display: flex; flex-direction: column; gap: var(--gap-stack-xl); width: 100%; min-width: 0; }
+.au-page > .au-pageheader { margin-bottom: var(--gap-stack-md); }
+.au-page-narrow { max-width: var(--size-measure-md); }
+
+/* ── components/molecules/error-summary/styles.css ── */
+/* ───────────── Form errors ───────────── */
+.au-errorsummary { outline: none; border-radius: var(--radius-md); }
+.au-errorsummary:focus-visible { outline: var(--focus-ring-width) solid var(--border-focus); outline-offset: var(--focus-ring-offset); }
+.au-errorsummary-list { display: flex; flex-direction: column; gap: var(--gap-stack-xs); margin: var(--gap-stack-xs) 0 0; padding-inline-start: var(--inset-card); }
+.au-errorsummary-list .au-link { color: var(--fg-danger); }
+
+/* ── components/templates/status-page/styles.css ── */
+:where(.au-statuspage-ref) .au-code-inline { color: var(--fg-muted); }
+.au-statuspage { display: flex; flex-direction: column; align-items: center; gap: var(--gap-stack-lg); max-width: var(--size-measure-md); margin: 0 auto; padding-block: var(--gap-section); padding-inline: var(--inset-page-compact); text-align: center; }
+.au-statuspage-code { font-feature-settings: "zero" 1, "cv05" 1, "cv08" 1; font-size: var(--font-size-sm); color: var(--fg-subtle); letter-spacing: var(--tracking-wide); }
+.au-statuspage-body { margin: 0; max-width: var(--size-measure-sm); color: var(--fg-muted); font-size: var(--font-size-md); line-height: var(--line-height-md); }
+.au-statuspage-ref { margin: 0; font-size: var(--font-size-sm); color: var(--fg-subtle); }
+
+/* ── components/organisms/top-nav/styles.css ── */
+.au-topnav-search { flex: 0 1 var(--size-shell-search); min-width: 0; }
+.au-topnav { flex: none; display: flex; flex-direction: column; padding: 0 var(--inset-page-x); border-bottom: var(--border-width-hairline) solid var(--border-default); background: var(--bg-surface); }
+.au-topnav-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--gap-inline-xl); min-height: var(--size-header); padding-block: var(--gap-stack-sm); }
+.au-topnav-brand { height: auto; padding: 0; border: 0; }
+.au-topnav-spacer { flex: 1; }
+.au-topnav-nav ul { display: flex; gap: var(--gap-tabs); margin: 0; padding: 0; list-style: none; overflow-x: auto; scrollbar-width: none; }
+.au-topnav-link { display: inline-flex; align-items: center; gap: var(--gap-inline-md); height: var(--size-control-lg); padding: 0 var(--gap-inline-xs); border-bottom: var(--border-width-thick) solid transparent; color: var(--fg-muted); font-size: var(--font-size-md); font-weight: 500; text-decoration: none; white-space: nowrap; }
+.au-topnav-link:hover { color: var(--fg-default); }
+.au-topnav-link[aria-current="page"] { border-bottom-color: var(--fg-default); color: var(--fg-default); }
+.au-topnav-link:focus-visible { outline: var(--focus-ring-width) solid var(--border-focus); outline-offset: var(--focus-ring-offset-inset); }
+@container au-shell (max-width: 639px) {
+  .au-topnav-search { flex: 1 0 100%; order: 3; }
+  .au-topnav { padding: 0 var(--inset-page-compact); }
+  .au-topnav-row { gap: var(--gap-inline-md); }
+}
+/* TopNav on a narrow shell: product and avatar on the first row, then the section switch, then search. */
+@container au-shell (max-width: 639px) {
+  .au-topnav-brand .heading-sm { white-space: nowrap; }
+  .au-topnav-row > .au-segmented, .au-topnav-row > au-segmented > .au-segmented { order: 3; flex: 1 0 100%; }
+  .au-topnav-row > au-segmented { display: contents; }
+  .au-topnav-row .au-segmented > :is(button, a) { flex: 1; }
+  .au-topnav-search { order: 4; }
+}
+
+/* ── core/styles.css (server-rendered) ── */
+/*
+ * Design system — the server-rendered variants.
+ *
+ * The macros write one markup for every page wherever
+ * they can. Where a page has to work before (or without) a script, they use the
+ * platform instead, and these rules draw that markup the same way:
+ *   menus        <details> + <summary>          (scripted: a button and a layer)
+ *   dialogs      <dialog>                       (scripted: a layer and an overlay)
+ *   tabs         links with aria-current        (scripted: buttons with aria-selected)
+ *   accordions   <details>                      (scripted: buttons and regions)
+ *   tables       <table class="au-htable">      (scripted: a grid of divs)
+ *   selects      a native <select>              (scripted: a listbox)
+ * Nothing here adds a new look: each rule copies one the scripted markup already has.
+ */
+
+/* Hidden means hidden, whatever display a class gives the element. */
+[hidden] { display: none !important; }
+/* Each dropdown names its own trigger as the anchor (anchor-scope keeps the name inside it), so CSS places the menu
+   where the browser has anchor positioning even before the script, and the script's placing changes nothing. */
+au-dropdown { anchor-scope: --au-dropdown; }
+au-dropdown [popovertarget] { anchor-name: --au-dropdown; }
+/* An empty fact or cell: a dash, read as "Not set". */
+.au-novalue { color: var(--fg-faint); }
+.au-actions-end { justify-content: flex-end; }
+
+/* ── Stats that filter a list ── */
+.au-stats { display: flex; flex-wrap: wrap; gap: var(--gap-inline-md); }
+details .au-when-open, details[open] .au-when-closed { display: none; }
+details[open] .au-when-open { display: inline; }
+details[open] > summary .au-chevron { transform: rotate(180deg); }
+
+/* A wrapper the layout should not see. */
+.au-contents { display: contents; }
+.au-cols-events { grid-template-columns: minmax(200px, 1.4fr) minmax(220px, 1.6fr) minmax(130px, 1fr) var(--size-column-date) var(--size-column-chevron); }
+.au-cols-applications { grid-template-columns: minmax(180px, 1.4fr) minmax(200px, 1.4fr) var(--size-column-date) var(--size-column-chevron); }
+.au-cols-versions { grid-template-columns: minmax(180px, 1.6fr) var(--size-column-mark) minmax(150px, 1fr) minmax(90px, 0.6fr) var(--size-column-date) var(--size-column-chevron); }
+.au-cols-cases { grid-template-columns: minmax(170px, 1.3fr) minmax(170px, 1.2fr) var(--size-column-mark) var(--size-column-date) var(--size-column-chevron); }
+.au-cols-record-events { grid-template-columns: minmax(200px, 1.4fr) minmax(90px, 0.6fr) minmax(130px, 1fr) var(--size-column-date) var(--size-column-chevron); }
+.au-cols-series { grid-template-columns: minmax(180px, 1.4fr) minmax(130px, 1fr) var(--size-column-date) var(--size-column-chevron); }
+.au-cols-series-closed { grid-template-columns: minmax(180px, 1.4fr) minmax(130px, 1fr) var(--size-column-date) var(--size-column-date) var(--size-column-chevron); }
+.au-cols-series-refs { grid-template-columns: minmax(180px, 1fr) var(--size-column-chevron); }
+.au-cols-tokens { grid-template-columns: minmax(220px, 2fr) var(--size-column-mark) minmax(140px, 1fr) var(--size-column-date) var(--size-column-chevron); }
+.au-cols-errors { grid-template-columns: minmax(280px, 2.6fr) 110px minmax(190px, 0.9fr) minmax(190px, 0.9fr) var(--size-column-chevron); }
+.au-cols-files2 { grid-template-columns: minmax(180px, 1fr) minmax(140px, 1.6fr); }
+.au-cols-files { grid-template-columns: minmax(180px, 1fr) minmax(260px, 2fr) minmax(140px, 0.8fr); }
+.au-cols-n1 { grid-template-columns: repeat(1, minmax(120px, 1fr)) var(--size-column-date) var(--size-column-chevron); }
+.au-cols-n2 { grid-template-columns: repeat(2, minmax(120px, 1fr)) var(--size-column-date) var(--size-column-chevron); }
+.au-cols-n3 { grid-template-columns: repeat(3, minmax(120px, 1fr)) var(--size-column-date) var(--size-column-chevron); }
+.au-cols-n4 { grid-template-columns: repeat(4, minmax(120px, 1fr)) var(--size-column-date) var(--size-column-chevron); }
+.au-cols-n5 { grid-template-columns: repeat(5, minmax(120px, 1fr)) var(--size-column-date) var(--size-column-chevron); }
+.au-cols-n6 { grid-template-columns: repeat(6, minmax(120px, 1fr)) var(--size-column-date) var(--size-column-chevron); }
+.au-cols-n7 { grid-template-columns: repeat(7, minmax(120px, 1fr)) var(--size-column-date) var(--size-column-chevron); }
+
+/* ── Theme switch drawn before its script runs: both icons are there, the theme picks one ── */
+au-theme-toggle:has(> [role="menuitemcheckbox"]) { display: contents; }
+
+/* ── Copy buttons appear once their script can copy ── */
+au-copy { display: inline-flex; }
+/* Copying needs the script: no button where scripts can't run, nor once 4s have passed without it (failed or blocked). */
+@media (scripting: none) { au-copy [data-au-copy] { display: none; } }
+@media (scripting: enabled) { au-copy:not(:defined) [data-au-copy] { animation: au-ssr-fallback 0s 4s forwards; } }
+.au-break { overflow-wrap: anywhere; }
+.au-rowtitle { display: block; font-weight: 600; }
+.au-show-narrow { display: none; }
+@media (max-width: 639px) {
+  .au-hide-narrow { display: none; }
+  .au-show-narrow { display: inline; }
+}
+/* A switch among filter chips stands as tall as they do. */
+.au-chiplike { height: var(--size-control-md); padding: 0 var(--inset-tag); border-radius: var(--radius-md); }
+.au-chiplike:hover { background: var(--bg-hover); }
+
+/* ── App wrappers that only carry behaviour draw nothing of their own ── */
+.au-filter, .au-choice { display: contents; }
+.au-summary-scroll { max-height: 24rem; overflow: auto; border-top: var(--border-width-hairline) solid var(--border-subtle); }
+
+/* ── Record pages ── */
+.au-backnav { display: flex; }
+.au-subcard { display: flex; flex-direction: column; gap: var(--gap-stack-md); padding: var(--inset-card); border: var(--border-width-hairline) solid var(--border-subtle); border-radius: var(--radius-md); background: var(--bg-sunken); }
+.au-subcard > :is(h3, p) { margin: 0; }
+h2:focus, h3:focus { outline-color: transparent; }
+.au-plaintext { margin: 0; }
+
+/* ── JSON that folds: Code, with each object and array a <details> ── */
+.au-json { position: relative; display: flex; flex-direction: column; min-width: 0; }
+.au-json-tools { position: absolute; top: var(--space-6); inset-inline-end: var(--space-12); z-index: 1; }
+.au-json-body { display: block; max-height: 30rem; padding-block: var(--inset-code-y); }
+.au-json-body:focus-visible { outline: var(--focus-ring-width) solid var(--border-focus); outline-offset: var(--focus-ring-offset); }
+.au-json-line { position: relative; display: flex; margin: 0; padding-inline: 0 var(--inset-code-x); font: inherit; white-space: pre; }
+.au-json-line-in { display: flex; }
+.au-json [data-line] { flex: none; width: var(--size-code-gutter); padding-inline-end: var(--inset-code-x); color: var(--fg-faint); text-align: end; font-variant-numeric: tabular-nums; user-select: none; }
+.au-json [data-line]::before { content: attr(data-line); }
+.au-json code { font: inherit; white-space: pre; }
+summary.au-json-line { list-style: none; cursor: pointer; }
+summary.au-json-line::-webkit-details-marker { display: none; }
+summary.au-json-line:hover { background: var(--bg-hover); }
+summary.au-json-line:focus-visible { outline: var(--focus-ring-width) solid var(--border-focus); outline-offset: var(--focus-ring-offset-inset); }
+.au-json-toggle { position: absolute; top: 0; inset-inline-start: calc(var(--size-code-gutter) - var(--space-4)); display: flex; align-items: center; height: var(--line-height-md); color: var(--fg-subtle); transform: translateX(-100%); }
+details.au-json-fold[open] > summary .au-json-toggle { transform: translateX(-100%) rotate(90deg); }
+details.au-json-fold[open] > summary .au-json-folded { display: none; }
+
+/* An identifier set after a title, smaller and quieter, selected whole with one click. */
+.au-title-id { font-size: var(--font-size-md); line-height: var(--line-height-md); font-weight: 400; color: var(--fg-muted); overflow-wrap: anywhere; user-select: all; }
+.au-attempt-error { display: flex; align-items: flex-start; gap: var(--gap-inline-xs); list-style: none; cursor: pointer; color: var(--fg-default); }
+.au-attempt-error::-webkit-details-marker { display: none; }
+.au-attempt-error > .au-disclosure-chevron { margin-top: var(--space-2); color: var(--fg-subtle); }
+/* A record list drawn as a list on a phone. */
+.au-list { margin: 0; padding: 0; list-style: none; }
+@media (max-width: 639px) { .au-wide-only { display: none; } }
+@media (min-width: 640px) { .au-narrow-only { display: none; } }
+/* The position of a record in its workflow: phase, stage, status. */
+.au-trail { display: flex; flex-wrap: wrap; align-items: center; gap: var(--gap-inline-xs); margin: 0; color: var(--fg-muted); }
+.au-trail > [aria-current], .au-trail > .is-current { color: var(--fg-default); font-weight: 500; }
+.au-trail > .au-icon { color: var(--fg-faint); }
+
+/* ── Column widths and table minimum widths: classes, since the content security policy refuses inline styles ── */
+.au-w-5 { width: 5%; } .au-w-6 { width: 6%; } .au-w-7 { width: 7%; } .au-w-8 { width: 8%; } .au-w-9 { width: 9%; } .au-w-10 { width: 10%; } .au-w-11 { width: 11%; } .au-w-12 { width: 12%; } .au-w-13 { width: 13%; } .au-w-14 { width: 14%; } .au-w-15 { width: 15%; } .au-w-16 { width: 16%; } .au-w-17 { width: 17%; } .au-w-18 { width: 18%; } .au-w-19 { width: 19%; } .au-w-20 { width: 20%; } .au-w-21 { width: 21%; } .au-w-22 { width: 22%; } .au-w-23 { width: 23%; } .au-w-24 { width: 24%; } .au-w-25 { width: 25%; } .au-w-26 { width: 26%; } .au-w-27 { width: 27%; } .au-w-28 { width: 28%; } .au-w-29 { width: 29%; } .au-w-30 { width: 30%; } .au-w-31 { width: 31%; } .au-w-32 { width: 32%; } .au-w-33 { width: 33%; } .au-w-34 { width: 34%; } .au-w-35 { width: 35%; } .au-w-36 { width: 36%; } .au-w-37 { width: 37%; } .au-w-38 { width: 38%; } .au-w-39 { width: 39%; } .au-w-40 { width: 40%; } .au-w-41 { width: 41%; } .au-w-42 { width: 42%; } .au-w-43 { width: 43%; } .au-w-44 { width: 44%; } .au-w-45 { width: 45%; } .au-w-46 { width: 46%; } .au-w-47 { width: 47%; } .au-w-48 { width: 48%; } .au-w-49 { width: 49%; } .au-w-50 { width: 50%; } .au-w-51 { width: 51%; } .au-w-52 { width: 52%; } .au-w-53 { width: 53%; } .au-w-54 { width: 54%; } .au-w-55 { width: 55%; } .au-w-56 { width: 56%; } .au-w-57 { width: 57%; } .au-w-58 { width: 58%; } .au-w-59 { width: 59%; } .au-w-60 { width: 60%; }
+.au-minw-32 { min-width: 32rem; } .au-minw-40 { min-width: 40rem; } .au-minw-44 { min-width: 44rem; } .au-minw-48 { min-width: 48rem; } .au-minw-56 { min-width: 56rem; } .au-minw-64 { min-width: 64rem; }
+
+/* ── Definition pages ── */
+.au-small { font-size: var(--font-size-sm); line-height: var(--line-height-sm); letter-spacing: var(--tracking-sm); }
+.au-strong { font-weight: 500; }
+.au-namecode { display: flex; flex-direction: column; min-width: 0; }
+.au-namecode-code { display: block; }
+.au-indent-1 { padding-inline-start: var(--space-16); } .au-indent-2 { padding-inline-start: calc(var(--space-16) * 2); } .au-indent-3 { padding-inline-start: calc(var(--space-16) * 3); } .au-indent-4 { padding-inline-start: calc(var(--space-16) * 4); } .au-indent-5 { padding-inline-start: calc(var(--space-16) * 5); } .au-indent-6 { padding-inline-start: calc(var(--space-16) * 6); }
+.au-clamp { display: inline-block; max-width: 100%; vertical-align: top; }
+.au-clamp > summary { list-style: none; cursor: pointer; }
+.au-clamp > summary::-webkit-details-marker { display: none; }
+.au-clamp:not([open]) .au-clamp-text { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
+.au-version { margin-top: var(--gap-stack-xs); }
+.au-bullets { margin: var(--gap-stack-xs) 0 0; padding-inline-start: var(--space-20); }
+/* A JSON Schema as a tree of properties: Property, Type, Required, Constraints. */
+.au-schema { font-size: var(--font-size-md); line-height: var(--line-height-md); }
+.au-schema-row { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1.3fr) minmax(0, 1fr) minmax(0, 2.4fr); gap: var(--gap-columns); align-items: start; padding-block: var(--space-8); }
+.au-schema-head { padding-block: 0 var(--space-8); border-bottom: var(--border-width-hairline) solid var(--border-default); color: var(--fg-muted); font-size: var(--font-size-sm); font-weight: 500; }
+.au-schema-line { display: block; border-bottom: var(--border-width-hairline) solid var(--border-subtle); }
+summary.au-schema-line { list-style: none; cursor: pointer; }
+summary.au-schema-line::-webkit-details-marker { display: none; }
+summary.au-schema-line:hover { background: var(--bg-hover); }
+summary.au-schema-line:focus-visible { outline: var(--focus-ring-width) solid var(--border-focus); outline-offset: var(--focus-ring-offset-inset); }
+.au-schema-group { padding: var(--space-16) 0 var(--space-8); border-bottom: var(--border-width-hairline) solid var(--border-subtle); font-weight: 600; }
+.au-schema-name { display: flex; align-items: flex-start; gap: var(--gap-inline-xs); min-width: 0; }
+.au-schema-chevron { flex: none; margin-top: var(--space-4); color: var(--fg-subtle); transition: transform var(--duration-normal) var(--easing-standard); }
+details.au-schema-fold[open] > summary .au-schema-chevron { transform: rotate(90deg); }
+.au-schema-spacer { flex: none; width: var(--size-icon-sm); }
+.au-schema-rest { display: contents; }
+@media (max-width: 639px) {
+  .au-schema-row { display: block; }
+  .au-schema-head { display: none; }
+  .au-schema-rest { display: flex; flex-wrap: wrap; gap: var(--gap-stack-2xs) var(--gap-inline-md); margin-top: var(--gap-stack-2xs); margin-inline-start: calc(var(--size-icon-sm) + var(--gap-inline-xs)); }
+}
+
+/* ── A state graph: phases drawn as SVG, statuses as nodes, moves as edges ── */
+.au-sg { display: flex; flex-direction: column; gap: var(--gap-stack-lg); }
+.au-sg-layout { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--gap-stack-xl); align-items: start; }
+.au-sg-panel { order: -1; }
+@media (min-width: 1024px) {
+  .au-sg-layout { grid-template-columns: minmax(0, 1fr) 24rem; }
+  .au-sg-panel { order: 0; position: sticky; top: 0; }
+}
+.au-sg-legend { display: flex; flex-wrap: wrap; gap: var(--gap-stack-2xs) var(--gap-inline-lg); margin-inline-start: auto; font-size: var(--font-size-sm); line-height: var(--line-height-sm); color: var(--fg-muted); font-weight: 400; }
+.au-sg-key-box { display: inline-block; width: 24px; height: 16px; border-radius: var(--radius-sm); }
+.au-sg-key-flagged { border: 2px solid var(--fg-warning); }
+.au-sg-key-other { border: var(--border-width-hairline) dashed var(--border-strong); }
+.au-sg-scroller { overflow-x: auto; padding-bottom: var(--space-8); }
+.au-sg-scroller:focus-visible { outline: var(--focus-ring-width) solid var(--border-focus); outline-offset: var(--focus-ring-offset); }
+.au-sg-svg { display: block; max-width: none; color: var(--fg-muted); font-family: var(--font-sans); }
+.au-sg-edge { stroke: var(--fg-subtle); }
+.au-sg-edge-strong { stroke: var(--fg-info); }
+.au-sg-fill-edge { fill: var(--fg-subtle); }
+.au-sg-fill-strong { fill: var(--fg-info); }
+.au-sg-band { fill: var(--bg-sunken); stroke: var(--border-subtle); }
+.au-sg-plate { fill: var(--bg-surface); }
+.au-sg-text { fill: var(--fg-default); }
+.au-sg-code { fill: var(--fg-muted); font-feature-settings: "zero" 1, "cv05" 1, "cv08" 1; }
+.au-sg-node { fill: var(--bg-surface); }
+.au-sg-node-plain { stroke: var(--border-default); }
+.au-sg-node-selected { stroke: var(--border-selected); }
+.au-sg-node-flagged { stroke: var(--fg-warning); }
+.au-sg-nodelink:hover .au-sg-node { fill: var(--bg-hover); }
+.au-sg-nodelink:focus { outline-color: transparent; }
+.au-sg-nodelink:focus-visible .au-sg-node { stroke: var(--border-focus); stroke-width: 3; }
+.au-sg-dot-neutral { fill: var(--status-neutral); } .au-sg-dot-info { fill: var(--status-info); } .au-sg-dot-warning { fill: var(--status-warning); } .au-sg-dot-success { fill: var(--status-success); } .au-sg-dot-danger { fill: var(--status-danger); }
+.au-sg-finding { color: var(--fg-warning); }
+
+/* ── Small text helpers the macros' props stand for ── */
+.au-normal { font-weight: 400; }
+.au-pointer { cursor: pointer; }
+.au-prewrap { white-space: pre-wrap; overflow-wrap: anywhere; }
+.au-pt-0 { padding-top: 0 !important; }
+.au-hide-empty:empty { display: none; }
+.au-push-end { margin-inline-start: auto; }
+.au-cols-2 { display: grid; gap: var(--gap-stack-md) var(--gap-columns); }
+@media (min-width: 1024px) { .au-cols-2 { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }
+.au-choices { display: flex; flex-direction: column; gap: var(--gap-stack-sm); }
+.au-choice-card { display: flex; flex-direction: column; gap: var(--space-2); padding: var(--space-10, 10px) var(--space-12); border: var(--border-width-hairline) solid var(--border-default); border-radius: var(--radius-md); background: var(--bg-surface); cursor: pointer; }
+.au-choice-card:hover { border-color: var(--border-strong); }
+.au-choice-card:has(:checked) { border-color: var(--border-selected); box-shadow: inset 0 0 0 1px var(--border-selected); }
+.au-choice-card:has(:disabled) { opacity: var(--opacity-disabled); cursor: not-allowed; }
+.au-choice-card:has(:focus-visible) { outline: var(--focus-ring-width) solid var(--border-focus); outline-offset: var(--focus-ring-offset); }
+.au-actions-fill { width: 100%; }
+
+/* ── Web components that upgrade platform markup ── */
+au-disclosure, au-accordion, au-tooltip, au-dismiss { display: contents; }
+
+/* Fixed widths a `width` parameter asks for (px, steps of 20 from 80 to 640): the content security policy refuses inline styles. */
+.au-width-80 { width: 80px; } .au-width-100 { width: 100px; } .au-width-120 { width: 120px; } .au-width-140 { width: 140px; } .au-width-160 { width: 160px; } .au-width-180 { width: 180px; } .au-width-200 { width: 200px; } .au-width-220 { width: 220px; } .au-width-240 { width: 240px; } .au-width-260 { width: 260px; } .au-width-280 { width: 280px; } .au-width-300 { width: 300px; } .au-width-320 { width: 320px; } .au-width-340 { width: 340px; } .au-width-360 { width: 360px; } .au-width-380 { width: 380px; } .au-width-400 { width: 400px; } .au-width-420 { width: 420px; } .au-width-440 { width: 440px; } .au-width-460 { width: 460px; } .au-width-480 { width: 480px; } .au-width-500 { width: 500px; } .au-width-520 { width: 520px; } .au-width-540 { width: 540px; } .au-width-560 { width: 560px; } .au-width-580 { width: 580px; } .au-width-600 { width: 600px; } .au-width-620 { width: 620px; } .au-width-640 { width: 640px; }
+.au-ncols-1 { --au-cols-auto: repeat(1, auto); }
+.au-ncols-1.has-chevron { --au-cols-auto: repeat(1, auto) var(--size-column-chevron); }
+.au-ncols-1.has-check { --au-cols-auto: var(--size-column-check) repeat(1, auto); }
+.au-ncols-1.has-check.has-chevron { --au-cols-auto: var(--size-column-check) repeat(1, auto) var(--size-column-chevron); }
+.au-ncols-2 { --au-cols-auto: repeat(2, auto); }
+.au-ncols-2.has-chevron { --au-cols-auto: repeat(2, auto) var(--size-column-chevron); }
+.au-ncols-2.has-check { --au-cols-auto: var(--size-column-check) repeat(2, auto); }
+.au-ncols-2.has-check.has-chevron { --au-cols-auto: var(--size-column-check) repeat(2, auto) var(--size-column-chevron); }
+.au-ncols-3 { --au-cols-auto: repeat(3, auto); }
+.au-ncols-3.has-chevron { --au-cols-auto: repeat(3, auto) var(--size-column-chevron); }
+.au-ncols-3.has-check { --au-cols-auto: var(--size-column-check) repeat(3, auto); }
+.au-ncols-3.has-check.has-chevron { --au-cols-auto: var(--size-column-check) repeat(3, auto) var(--size-column-chevron); }
+.au-ncols-4 { --au-cols-auto: repeat(4, auto); }
+.au-ncols-4.has-chevron { --au-cols-auto: repeat(4, auto) var(--size-column-chevron); }
+.au-ncols-4.has-check { --au-cols-auto: var(--size-column-check) repeat(4, auto); }
+.au-ncols-4.has-check.has-chevron { --au-cols-auto: var(--size-column-check) repeat(4, auto) var(--size-column-chevron); }
+.au-ncols-5 { --au-cols-auto: repeat(5, auto); }
+.au-ncols-5.has-chevron { --au-cols-auto: repeat(5, auto) var(--size-column-chevron); }
+.au-ncols-5.has-check { --au-cols-auto: var(--size-column-check) repeat(5, auto); }
+.au-ncols-5.has-check.has-chevron { --au-cols-auto: var(--size-column-check) repeat(5, auto) var(--size-column-chevron); }
+.au-ncols-6 { --au-cols-auto: repeat(6, auto); }
+.au-ncols-6.has-chevron { --au-cols-auto: repeat(6, auto) var(--size-column-chevron); }
+.au-ncols-6.has-check { --au-cols-auto: var(--size-column-check) repeat(6, auto); }
+.au-ncols-6.has-check.has-chevron { --au-cols-auto: var(--size-column-check) repeat(6, auto) var(--size-column-chevron); }
+.au-ncols-7 { --au-cols-auto: repeat(7, auto); }
+.au-ncols-7.has-chevron { --au-cols-auto: repeat(7, auto) var(--size-column-chevron); }
+.au-ncols-7.has-check { --au-cols-auto: var(--size-column-check) repeat(7, auto); }
+.au-ncols-7.has-check.has-chevron { --au-cols-auto: var(--size-column-check) repeat(7, auto) var(--size-column-chevron); }
+.au-ncols-8 { --au-cols-auto: repeat(8, auto); }
+.au-ncols-8.has-chevron { --au-cols-auto: repeat(8, auto) var(--size-column-chevron); }
+.au-ncols-8.has-check { --au-cols-auto: var(--size-column-check) repeat(8, auto); }
+.au-ncols-8.has-check.has-chevron { --au-cols-auto: var(--size-column-check) repeat(8, auto) var(--size-column-chevron); }
+.au-ncols-9 { --au-cols-auto: repeat(9, auto); }
+.au-ncols-9.has-chevron { --au-cols-auto: repeat(9, auto) var(--size-column-chevron); }
+.au-ncols-9.has-check { --au-cols-auto: var(--size-column-check) repeat(9, auto); }
+.au-ncols-9.has-check.has-chevron { --au-cols-auto: var(--size-column-check) repeat(9, auto) var(--size-column-chevron); }
+.au-ncols-10 { --au-cols-auto: repeat(10, auto); }
+.au-ncols-10.has-chevron { --au-cols-auto: repeat(10, auto) var(--size-column-chevron); }
+.au-ncols-10.has-check { --au-cols-auto: var(--size-column-check) repeat(10, auto); }
+.au-ncols-10.has-check.has-chevron { --au-cols-auto: var(--size-column-check) repeat(10, auto) var(--size-column-chevron); }
+.au-ncols-11 { --au-cols-auto: repeat(11, auto); }
+.au-ncols-11.has-chevron { --au-cols-auto: repeat(11, auto) var(--size-column-chevron); }
+.au-ncols-11.has-check { --au-cols-auto: var(--size-column-check) repeat(11, auto); }
+.au-ncols-11.has-check.has-chevron { --au-cols-auto: var(--size-column-check) repeat(11, auto) var(--size-column-chevron); }
+.au-ncols-12 { --au-cols-auto: repeat(12, auto); }
+.au-ncols-12.has-chevron { --au-cols-auto: repeat(12, auto) var(--size-column-chevron); }
+.au-ncols-12.has-check { --au-cols-auto: var(--size-column-check) repeat(12, auto); }
+.au-ncols-12.has-check.has-chevron { --au-cols-auto: var(--size-column-check) repeat(12, auto) var(--size-column-chevron); }
+
+/* Input Clear and the SearchField kind picker */
+au-clearable, au-search-kind { display: contents; }
+au-toast-region, au-list-page { display: contents; }
+
+/* ProgressBar fill (no inline styles) */
+.au-pct-0 { width: 0%; } .au-pct-1 { width: 1%; } .au-pct-2 { width: 2%; } .au-pct-3 { width: 3%; } .au-pct-4 { width: 4%; } .au-pct-5 { width: 5%; } .au-pct-6 { width: 6%; } .au-pct-7 { width: 7%; } .au-pct-8 { width: 8%; } .au-pct-9 { width: 9%; } .au-pct-10 { width: 10%; } .au-pct-11 { width: 11%; } .au-pct-12 { width: 12%; } .au-pct-13 { width: 13%; } .au-pct-14 { width: 14%; } .au-pct-15 { width: 15%; } .au-pct-16 { width: 16%; } .au-pct-17 { width: 17%; } .au-pct-18 { width: 18%; } .au-pct-19 { width: 19%; } .au-pct-20 { width: 20%; } .au-pct-21 { width: 21%; } .au-pct-22 { width: 22%; } .au-pct-23 { width: 23%; } .au-pct-24 { width: 24%; } .au-pct-25 { width: 25%; } .au-pct-26 { width: 26%; } .au-pct-27 { width: 27%; } .au-pct-28 { width: 28%; } .au-pct-29 { width: 29%; } .au-pct-30 { width: 30%; } .au-pct-31 { width: 31%; } .au-pct-32 { width: 32%; } .au-pct-33 { width: 33%; } .au-pct-34 { width: 34%; } .au-pct-35 { width: 35%; } .au-pct-36 { width: 36%; } .au-pct-37 { width: 37%; } .au-pct-38 { width: 38%; } .au-pct-39 { width: 39%; } .au-pct-40 { width: 40%; } .au-pct-41 { width: 41%; } .au-pct-42 { width: 42%; } .au-pct-43 { width: 43%; } .au-pct-44 { width: 44%; } .au-pct-45 { width: 45%; } .au-pct-46 { width: 46%; } .au-pct-47 { width: 47%; } .au-pct-48 { width: 48%; } .au-pct-49 { width: 49%; } .au-pct-50 { width: 50%; } .au-pct-51 { width: 51%; } .au-pct-52 { width: 52%; } .au-pct-53 { width: 53%; } .au-pct-54 { width: 54%; } .au-pct-55 { width: 55%; } .au-pct-56 { width: 56%; } .au-pct-57 { width: 57%; } .au-pct-58 { width: 58%; } .au-pct-59 { width: 59%; } .au-pct-60 { width: 60%; } .au-pct-61 { width: 61%; } .au-pct-62 { width: 62%; } .au-pct-63 { width: 63%; } .au-pct-64 { width: 64%; } .au-pct-65 { width: 65%; } .au-pct-66 { width: 66%; } .au-pct-67 { width: 67%; } .au-pct-68 { width: 68%; } .au-pct-69 { width: 69%; } .au-pct-70 { width: 70%; } .au-pct-71 { width: 71%; } .au-pct-72 { width: 72%; } .au-pct-73 { width: 73%; } .au-pct-74 { width: 74%; } .au-pct-75 { width: 75%; } .au-pct-76 { width: 76%; } .au-pct-77 { width: 77%; } .au-pct-78 { width: 78%; } .au-pct-79 { width: 79%; } .au-pct-80 { width: 80%; } .au-pct-81 { width: 81%; } .au-pct-82 { width: 82%; } .au-pct-83 { width: 83%; } .au-pct-84 { width: 84%; } .au-pct-85 { width: 85%; } .au-pct-86 { width: 86%; } .au-pct-87 { width: 87%; } .au-pct-88 { width: 88%; } .au-pct-89 { width: 89%; } .au-pct-90 { width: 90%; } .au-pct-91 { width: 91%; } .au-pct-92 { width: 92%; } .au-pct-93 { width: 93%; } .au-pct-94 { width: 94%; } .au-pct-95 { width: 95%; } .au-pct-96 { width: 96%; } .au-pct-97 { width: 97%; } .au-pct-98 { width: 98%; } .au-pct-99 { width: 99%; } .au-pct-100 { width: 100%; }
+au-error-summary, au-number, au-time-input, au-segmented, au-file-upload { display: contents; }
+au-date-picker, au-date-range-picker, au-date-time-picker, au-date-range-chip, au-combobox { display: contents; }
+au-calendar { display: block; }
+
+/* Chart colours as classes (no inline styles) */
+.au-bg-chart-1 { background: var(--chart-1); } .au-bg-chart-2 { background: var(--chart-2); } .au-bg-chart-3 { background: var(--chart-3); } .au-bg-chart-4 { background: var(--chart-4); } .au-bg-chart-5 { background: var(--chart-5); } .au-bg-chart-6 { background: var(--chart-6); } .au-bg-chart-7 { background: var(--chart-7); } .au-bg-chart-8 { background: var(--chart-8); }
+au-chart { display: block; }
+au-tree, au-state-map { display: contents; }
+au-popover, au-split, au-confirm { display: contents; }
+
+/* ── Two drawings of one control: the one its element takes over (data-au-ssr) and the native one (data-au-native).
+   Which shows depends on whether the page can run scripts, decided by CSS before the first paint, never by the
+   script arriving. (A browser without the scripting query shows the native one until the element swaps them.) ── */
+@media (scripting: enabled) {
+  :defined > [data-au-native] { display: none !important; }
+  /* Until the element is defined. The server's drawing is inert (it can't be used or heard; it's only the look), and
+     if the script still hasn't arrived after 4s (it failed to load, or was blocked) the native control comes back, so
+     the page still works. */
+  /* (Not display: none, which would stop the animation ever running: out of the flow and invisible instead.) */
+  :not(:defined) > [data-au-native] { position: absolute; visibility: hidden; pointer-events: none; animation: au-native-fallback 0s 4s forwards; }
+  :not(:defined) > [data-au-ssr] { animation: au-ssr-fallback 0s 4s forwards; }
+}
+@keyframes au-native-fallback { to { position: relative; visibility: visible; pointer-events: auto; } }
+@keyframes au-ssr-fallback { to { display: none; } }
+@media not (scripting: enabled) { [data-au-ssr] { display: none !important; } }
+
+/* ── components/atoms/icon/styles.css (server-rendered) ── */
+.au-icon-text { flex: none; margin-top: var(--space-2); }
+
+/* ── components/atoms/badge/styles.css (server-rendered) ── */
+.au-badge-note { font-weight: 400; }
+.au-badge-wrap { height: auto; min-height: var(--size-tag-sm); white-space: normal; text-align: start; text-decoration: none; }
+
+/* ── components/atoms/menu-item/styles.css (server-rendered) ── */
+a.au-menuitem { color: var(--fg-default); text-decoration: none; }
+.au-menuitem-tick .au-tick { visibility: hidden; }
+.au-menuitem[aria-checked="true"] .au-menuitem-tick .au-tick { visibility: visible; }
+.au-menuitem-text { display: flex; flex-direction: column; min-width: 0; }
+.au-menuitem-hint { font-size: var(--font-size-sm); line-height: var(--line-height-sm); color: var(--fg-subtle); letter-spacing: var(--tracking-sm); white-space: normal; }
+
+/* ── components/molecules/field/styles.css (server-rendered) ── */
+.au-field-control { display: flex; flex-direction: column; gap: var(--gap-stack-xs); }
+.au-field-foot { display: flex; justify-content: space-between; gap: var(--gap-inline-xl); margin: 0; }
+.au-field-foot > .au-field-count { margin-inline-start: auto; }
+
+/* ── components/molecules/menu/styles.css (server-rendered) ── */
+.au-menu form { display: contents; }
+.au-menu-section { display: flex; flex-direction: column; gap: var(--gap-stack-sm); padding: var(--inset-menuitem-y) var(--inset-menuitem-x); }
+.au-menu-group { display: flex; flex-direction: column; gap: var(--gap-stack-2xs); }
+.au-menu-md { width: var(--size-menu-width); } .au-menu-lg { width: calc(var(--size-menu-width) * 1.25); } .au-menu-sm { width: auto; min-width: var(--size-menu-min-width); }
+
+/* ── components/molecules/dropdown/styles.css (server-rendered) ── */
+/* ── Menus on a popover ── */
+/* In the top layer, so nothing clips it. Placed by CSS anchoring where the browser has it, by <au-dropdown> otherwise. */
+.au-dropdown-pop[popover]:not(:popover-open) { display: none; }
+.au-dropdown-pop[popover] { inset: auto; margin: 0; padding: 0; border: 0; background: transparent; overflow: visible; color: inherit; }
+.au-dropdown-pop[popover] { position-anchor: --au-dropdown; }
+.au-dropdown-pop[popover]:not(.is-placed) { top: anchor(bottom); left: anchor(start); margin-top: var(--space-4); position-try-fallbacks: flip-block, flip-inline; }
+au-dropdown[data-align="end"] .au-dropdown-pop[popover]:not(.is-placed) { left: auto; right: anchor(end); }
+au-dropdown[data-placement="top"] .au-dropdown-pop[popover]:not(.is-placed) { top: auto; bottom: anchor(top); margin-top: 0; margin-bottom: var(--space-4); }
+.au-dropdown-pop[popover].is-placed { right: auto; bottom: auto; margin: 0; }
+.au-dropdown > button:has(+ :popover-open) .au-chevron { transform: rotate(180deg); }
+.au-dropdown > .au-chip:not(.is-set):has(+ :popover-open) { background: var(--bg-hover); border-color: var(--border-strong); }
+.au-dropdown > .au-chip.is-set:has(+ :popover-open) { border-color: var(--chip-border-set-hover); }
+/* Both kind pickers are in the markup; which one shows is decided by whether the page can run scripts, not by the
+   script arriving, so nothing changes on load. (A browser without the scripting media query shows the select until
+   <au-search-kind> swaps them.) */
+@media (scripting: none) { au-search-kind > .au-dropdown[data-au-picker] { display: none; } }
+
+/* ── components/molecules/segmented-control/styles.css (server-rendered) ── */
+/* SegmentedControl from radios */
+.au-segment { display: inline-flex; align-items: center; height: var(--size-control-sm); padding: 0 var(--inset-control-sm); border-radius: var(--radius-sm); color: var(--fg-muted); font-weight: 500; cursor: pointer; }
+.au-segment:has(:checked) { background: var(--bg-surface-raised); color: var(--fg-default); box-shadow: var(--elevation-raised); }
+.au-segment:has(:focus-visible) { outline: var(--focus-ring-width) solid var(--border-focus); outline-offset: var(--focus-ring-offset); }
+.au-segmented:has(.au-segment) { flex-wrap: wrap; }
+
+/* ── components/molecules/alert/styles.css (server-rendered) ── */
+span.au-alert-body { display: block; }
+
+/* ── components/organisms/sidebar/styles.css (server-rendered) ── */
+.au-sidebar-product { color: inherit; text-decoration: none; }
+
+/* ── components/organisms/card/styles.css (server-rendered) ── */
+/* ── Cards ── */
+.au-card-head > .au-card-meta { margin-inline-start: auto; font-size: var(--font-size-sm); line-height: var(--line-height-sm); color: var(--fg-subtle); font-variant-numeric: tabular-nums; }
+.au-card-head > .au-card-meta + .au-actions { margin-inline-start: var(--gap-inline-md); }
+.au-card-head-actions { margin-inline-start: auto; }
+.au-card-padded { padding: var(--inset-card); }
+.au-card-head-tall { height: auto; min-height: var(--size-header); padding-block: var(--space-12); }
+.au-card-head-wrap { flex-wrap: wrap; row-gap: var(--gap-stack-xs); }
+
+/* ── components/organisms/dialog/styles.css (server-rendered) ── */
+/* ── Dialogs and drawers on <dialog> ── */
+.au-dialog-close-form { display: contents; }
+
+/* ── Dialogs with a form inside ── */
+.au-dialog-alert { padding: 0 var(--inset-dialog); }
+.au-dialog .au-plaintext { margin: 0; }
+
+/* ── components/organisms/drawer/styles.css (server-rendered) ── */
+.au-drawer-panel { display: flex; flex: 1; flex-direction: column; min-height: 0; }
+.au-drawer-panel[hidden] { display: none; }
+.au-drawer-title { display: flex; flex-direction: column; gap: var(--space-4); margin: 0; }
+
+/* ── components/templates/app-shell/styles.css (server-rendered) ── */
+/* The first stop for a keyboard: hidden until focused. */
+
+/* A page that scrolls inside the shell needs the document not to. */
+html:has(.au-shell-frame), html:has(.au-shell-frame) > body { height: 100%; }
+.au-main:focus { outline-color: transparent; }
+
+/* ── components/atoms/heading/styles.css (server-rendered) ── */
+.au-heading:focus { outline-color: transparent; }
+
+/* ── components/atoms/code/styles.css (server-rendered) ── */
+/* ── Code without a gutter ── */
+.au-code-plain .au-code-pre { padding-inline-start: var(--inset-code-x); }
+
+/* ── components/atoms/visually-hidden/styles.css (server-rendered) ── */
+/* Only for screen readers. */
+.au-vh { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* ── components/templates/page/styles.css (server-rendered) ── */
+.au-page > .au-backnav + .au-pageheader { margin-top: calc(var(--gap-stack-xl) * -1 + var(--gap-stack-sm)); }
+}

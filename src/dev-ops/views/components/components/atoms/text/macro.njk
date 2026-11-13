@@ -1,0 +1,5 @@
+{#- Text({ text|html, variant: body-md|body-sm|label-md|caption…, tone: default|muted|subtle|danger…, mono, truncate, as }) -#}
+{% macro Text(p) -%}
+  {%- set __html %}{% include "./template.njk" %}{% endset -%}
+  {{- __html | trim | safe -}}
+{%- endmacro %}

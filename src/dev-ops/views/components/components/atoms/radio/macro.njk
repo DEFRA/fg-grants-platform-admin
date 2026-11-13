@@ -1,0 +1,5 @@
+{#- Radio({ id, name, value, label|html, hint, checked, disabled, size: sm, describedBy }) — one radio on its own. For a set of choices use RadioGroup. -#}
+{% macro Radio(p) -%}
+  {%- set __html %}{% include "./template.njk" %}{% endset -%}
+  {{- __html | trim | safe -}}
+{%- endmacro %}

@@ -1,0 +1,5 @@
+{#- ErrorSummary({ title, errors: [{ id (the field's control), text }] }) — what to fix, at the top of a form; each links to its field. <au-error-summary> takes focus when the page arrives with errors, and a link focuses its field. -#}
+{% macro ErrorSummary(p) -%}
+  {%- set __html %}{% include "./template.njk" %}{% endset -%}
+  {{- __html | trim | safe -}}
+{%- endmacro %}

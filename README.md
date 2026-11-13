@@ -176,6 +176,27 @@ To update dependencies use [npm-check-updates](https://github.com/raineorshine/n
 ncu --interactive --format group
 ```
 
+### Dev Ops components
+
+`src/dev-ops/views/components` is a copy of the design system's components
+that the Dev Ops views use. It is never edited here: a change goes to the
+design system, and the copy is taken again. To take it again (to update it,
+or after views start using another component), run this from a checkout of
+the design system at the commit to take, then review the diff:
+
+```bash
+app=~/path/to/fg-grants-platform-admin
+views=$(mktemp -d)
+rsync -a --exclude /components "$app/src/dev-ops/views/" "$views/"
+rm -rf "$app/src/dev-ops/views/components"
+node source/add.cjs --views "$views" --to "$app/src/dev-ops/views/components"
+```
+
+The views are copied first so the copy itself is not read as views. The
+copy's `manifest.json` records the version, the commit and a checksum for
+each file; `node source/add.cjs --to "$app/src/dev-ops/views/components" --check`
+lists any file changed since it was copied.
+
 ### Formatting
 
 #### Windows prettier issue

@@ -1,0 +1,5 @@
+{#- Badge({ text, tone: neutral|info|success|warning|danger|accent, size: sm, variant: outline, icon, mono }) -#}
+{% macro Badge(p) -%}
+  {%- set __html %}{% include "./template.njk" %}{% endset -%}
+  {{- __html | trim | safe -}}
+{%- endmacro %}

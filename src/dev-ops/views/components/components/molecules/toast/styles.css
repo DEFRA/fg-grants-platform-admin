@@ -1,0 +1,13 @@
+.au-toast { display: inline-flex; align-items: center; gap: var(--gap-inline-lg); min-height: var(--size-control-lg); padding-block: var(--inset-field-y) var(--inset-field-y); padding-inline: var(--inset-alert-x) var(--inset-field-y); border-radius: var(--radius-md); background: var(--bg-inverse); color: var(--fg-inverse); box-shadow: var(--elevation-floating); font-size: var(--font-size-md); }
+/* Toast actions are a tertiary Button and an xs IconButton, recoloured for the inverse surface. */
+.au-toast-text { min-width: 0; }
+.au-toast .au-toast-action, .au-toast .au-toast-close { color: inherit; }
+.au-toast .au-toast-action { font-weight: 600; text-decoration: underline; text-underline-offset: 2px; }
+.au-toast .au-toast-close { opacity: var(--opacity-muted); }
+.au-toast .au-btn:hover:where(:not(:disabled, [aria-disabled="true"], .is-disabled)) { background: color-mix(in srgb, currentColor 14%, transparent); color: inherit; opacity: 1; }
+.au-toast .au-btn:active:where(:not(:disabled, [aria-disabled="true"], .is-disabled)) { background: color-mix(in srgb, currentColor 22%, transparent); }
+.au-toast .au-btn:focus-visible { outline-color: currentColor; }
+/* ───────────── Toast tones ───────────── */
+.au-toast-warning .au-toast-icon { color: var(--status-warning); }
+.au-toast-danger .au-toast-icon { color: var(--status-danger); }
+.au-toast-info .au-toast-icon { color: var(--status-info, currentColor); }

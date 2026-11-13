@@ -1,0 +1,10 @@
+{% extends 'layouts/page.njk' %}
+{% import "design-system/macros.njk" as au %}
+
+{% block oldPage %}{% endblock %}
+
+{#- Where Dev Ops' Sign out lands: no one to show and nothing to use, so the shell has no navigation. -#}
+{% block content %}
+  {%- set actions %}{{ au.Button({ text: 'Sign in', href: signInHref, variant: 'primary', iconStart: 'log-in', testId: 'signed-out-sign-in' }) }}{% endset -%}
+  {{ au.StatusPage({ kind: 'no-access', code: false, icon: 'log-in', title: 'You’re signed out', text: 'Your session ended. Sign in again to use Dev Ops.', actions: actions, testId: 'signed-out' }) }}
+{% endblock %}

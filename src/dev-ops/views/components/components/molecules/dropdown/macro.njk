@@ -1,0 +1,10 @@
+{#-
+  Dropdown({ id, trigger (html: the button's content), triggerClasses, triggerLabel, align: start|end, placement: bottom|top,
+             menuLabel, menuWidth: md|lg, menuRole, menuHtml (the items as html, instead of a caller) }) caller = the menu’s items
+  A popover: it opens, closes on Escape and a click outside, and sits above everything without a script.
+  <au-dropdown> places it against its trigger, flips it when there is no room, and moves focus with the arrow keys.
+-#}
+{% macro Dropdown(p) -%}
+  {%- set __html %}{% include "./template.njk" %}{% endset -%}
+  {{- __html | trim | safe -}}
+{%- endmacro %}

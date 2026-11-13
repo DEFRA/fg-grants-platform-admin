@@ -1,0 +1,30 @@
+.au-check-input + span { outline: var(--focus-ring-width) none transparent; outline-offset: var(--focus-ring-offset); }
+.au-check-input + span { transition: var(--transition-focus); }
+
+.au-check { position: relative; display: inline-flex; align-items: center; gap: var(--gap-inline-md); font-size: var(--font-size-md); line-height: var(--line-height-md); cursor: pointer; }
+.au-check.is-disabled { opacity: var(--opacity-disabled); cursor: not-allowed; }
+.au-check-input { position: absolute; opacity: 0; width: var(--size-check-md); height: var(--size-check-md); margin: 0; cursor: inherit; }
+.au-check-box { display: inline-flex; align-items: center; justify-content: center; flex: none; width: var(--size-check-md); height: var(--size-check-md); border: var(--border-width-hairline) solid var(--input-border); background: var(--input-bg); color: transparent; }
+.au-check-box { border-radius: var(--radius-xs); }
+.au-check-sm { gap: var(--gap-inline-sm); font-size: var(--font-size-sm); line-height: var(--line-height-sm); letter-spacing: var(--tracking-sm); }
+.au-check-sm .au-check-input, .au-check-sm .au-check-box, .au-check-sm .au-radio-dot { width: var(--size-check-sm); height: var(--size-check-sm); }
+.au-check-sm .au-check-input:checked + .au-radio-dot { border-width: 4px; }
+.au-check-input:checked + .au-check-box { background: var(--bg-accent); border-color: var(--bg-accent); color: var(--fg-on-accent); }
+.au-check-input:checked + .au-radio-dot { border: 4px solid var(--bg-accent); }
+.au-check-input:focus-visible + span { outline: var(--focus-ring-width) solid var(--border-focus); outline-offset: var(--focus-ring-offset); }
+.au-check { min-height: var(--size-target-min); }
+.au-check-hinted { align-items: flex-start; }
+.au-check-hinted .au-radio-dot, .au-check-hinted .au-check-box, .au-check-hinted .au-check-input { margin-top: calc((var(--line-height-md) - var(--size-check-md)) / 2); }
+.au-check-text { display: flex; flex-direction: column; gap: var(--gap-stack-2xs); }
+.au-check-hint { font-size: var(--font-size-sm); line-height: var(--line-height-sm); letter-spacing: var(--tracking-sm); color: var(--fg-subtle); }
+/* A radio option that reveals a field when picked ("Custom date" and its date). CSS alone, so it works without a script. */
+.au-check-conditional { display: flex; flex-direction: column; gap: var(--gap-stack-md); margin-inline-start: calc(var(--size-check-md) / 2 - var(--border-width-thick) / 2); padding-inline-start: calc(var(--size-check-md) / 2 + var(--gap-inline-md)); border-inline-start: var(--border-width-thick) solid var(--border-default); }
+.au-check:has(> .au-check-input:not(:checked)) + .au-check-conditional,
+.au-check:has(> .au-check-input:not(:checked)) + .au-check-reason + .au-check-conditional { display: none; }
+@media (prefers-reduced-motion: reduce) { .au-check-input + span { transition: none; }}
+@media (forced-colors: active) { .au-check-input + span { outline-style: none; } .au-check-input:focus-visible + span { outline: var(--focus-ring-width) solid Highlight; }}
+
+/* Indeterminate checkbox (a header "select all" with some rows selected) */
+.au-check-input:indeterminate + .au-check-box { background: var(--bg-accent); border-color: var(--bg-accent); color: var(--fg-on-accent); }
+.au-check-input:not(:checked):not(:indeterminate) + .au-check-box .au-icon { visibility: hidden; }
+:where(.au-check-hint) .au-code-inline { color: var(--fg-muted); }

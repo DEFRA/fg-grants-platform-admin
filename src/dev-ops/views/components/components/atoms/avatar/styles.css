@@ -1,0 +1,6 @@
+.au-avatar { display: inline-flex; align-items: center; justify-content: center; flex: none; border-radius: var(--radius-full); background: var(--bg-emphasis); color: var(--fg-on-emphasis); font-weight: 600; text-transform: uppercase; line-height: 1; }
+/* Initials are capitals: trim their box to the capitals, so the flex centring centres the letters themselves in any font (the line box leaves room for descenders). */
+.au-avatar-initials { text-box: trim-both cap alphabetic; }
+.au-avatar-sm { width: var(--size-avatar-sm); height: var(--size-avatar-sm); font-size: var(--font-size-xs); }
+.au-avatar-md { width: var(--size-avatar-md); height: var(--size-avatar-md); font-size: var(--font-size-sm); letter-spacing: var(--tracking-sm); }
+.au-avatar-lg { width: var(--size-avatar-lg); height: var(--size-avatar-lg); font-size: var(--font-size-md); }

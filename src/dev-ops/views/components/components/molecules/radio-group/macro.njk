@@ -1,0 +1,5 @@
+{#- RadioGroup({ name, label|legendHtml, optional, hint, error, note, value, direction: row, size: sm, disabled, options: [{ value, text, hint, checked, disabled, reason, id, testId, attributes, conditionalHtml (a field shown under the option while it's picked; CSS does it, no script) }] }) -#}
+{% macro RadioGroup(p) -%}
+  {%- set __html %}{% include "./template.njk" %}{% endset -%}
+  {{- __html | trim | safe -}}
+{%- endmacro %}

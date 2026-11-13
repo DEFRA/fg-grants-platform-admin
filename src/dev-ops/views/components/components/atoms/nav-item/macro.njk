@@ -1,0 +1,5 @@
+{#- NavItem({ text, href, icon, current, badge (html), meta, title, srPrefix }) -#}
+{% macro NavItem(p) -%}
+  {%- set __html %}{% include "./template.njk" %}{% endset -%}
+  {{- __html | trim | safe -}}
+{%- endmacro %}

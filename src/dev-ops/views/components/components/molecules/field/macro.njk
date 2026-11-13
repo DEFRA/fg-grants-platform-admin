@@ -1,0 +1,5 @@
+{#- Field({ id, label, optional, size: sm, hint, error, warning (shown when there's no error; doesn't block), count ("12 / 500", or { max, value } to count as you type: give the control maxlength too), countId }) caller = the control (give it the same id and describedBy: au.describedBy(…)) -#}
+{% macro Field(p) -%}
+  {%- set __html %}{% include "./template.njk" %}{% endset -%}
+  {{- __html | trim | safe -}}
+{%- endmacro %}

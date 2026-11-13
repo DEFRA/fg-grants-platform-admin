@@ -1,0 +1,16 @@
+/* ── Molecules ── */
+.au-field { display: flex; flex-direction: column; gap: var(--gap-stack-sm); min-width: 0; }
+.au-field-hint { margin: calc(var(--gap-stack-2xs) * -1) 0 0; font-size: var(--font-size-sm); line-height: var(--line-height-sm); color: var(--fg-subtle); letter-spacing: var(--tracking-sm); }
+.au-field-error { display: flex; align-items: flex-start; gap: var(--gap-inline-sm); margin: 0; font-size: var(--font-size-sm); line-height: var(--line-height-sm); color: var(--fg-danger); letter-spacing: var(--tracking-sm); }
+.au-field-error .au-icon { margin-top: 1px; }
+.au-field-warning { display: flex; align-items: flex-start; gap: var(--gap-inline-sm); margin: 0; font-size: var(--font-size-sm); line-height: var(--line-height-sm); color: var(--fg-warning); letter-spacing: var(--tracking-sm); }
+.au-field-warning .au-icon { flex: none; margin-top: 1px; }
+.au-field-hint.au-check-reason { margin: calc(var(--gap-stack-xs) * -1) 0 0 calc(var(--size-check-md) + var(--gap-inline-md)); color: var(--fg-muted); }
+.au-field-hint.au-group-note { margin: 0; }
+.au-field-count { margin: 0; align-self: flex-end; font-size: var(--font-size-sm); line-height: var(--line-height-sm); color: var(--fg-subtle); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-sm); }
+:where(.au-field-hint) .au-code-inline { color: var(--fg-muted); }
+
+/* ── Server-rendered markup: joined after every component's rules above (build.cjs) ── */
+.au-field-control { display: flex; flex-direction: column; gap: var(--gap-stack-xs); }
+.au-field-foot { display: flex; justify-content: space-between; gap: var(--gap-inline-xl); margin: 0; }
+.au-field-foot > .au-field-count { margin-inline-start: auto; }

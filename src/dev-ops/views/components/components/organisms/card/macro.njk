@@ -1,0 +1,5 @@
+{#- Card({ title, titleHtml, count, meta, actions (html), headingLevel, id, flush, padded (the caller or bodyHtml in a padded body), text|html (padded body), bodyHtml (unpadded, instead of a caller) }) caller = body (or wrap padded content in CardBody) -#}
+{% macro Card(p) -%}
+  {%- set __html %}{% include "./template.njk" %}{% endset -%}
+  {{- __html | trim | safe -}}
+{%- endmacro %}

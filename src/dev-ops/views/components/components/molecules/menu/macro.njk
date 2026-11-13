@@ -1,0 +1,5 @@
+{#- Menu({ id, label, role (menu), heading, width: md|lg, multiselectable }) caller = MenuItem() calls — a list of items on its own. Inside a Dropdown, give the items to the Dropdown instead (it draws the menu). -#}
+{% macro Menu(p) -%}
+  {%- set __html %}{% include "./template.njk" %}{% endset -%}
+  {{- __html | trim | safe -}}
+{%- endmacro %}

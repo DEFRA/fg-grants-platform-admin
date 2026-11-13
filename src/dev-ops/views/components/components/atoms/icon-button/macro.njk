@@ -1,0 +1,5 @@
+{#- IconButton({ icon, label, size: xs|sm|md|lg, variant: tertiary, href, type, name, value, form, disabled, pressed, expanded, tooltip (false: none; text: other than the label) }) — the label is the accessible name and the tooltip. -#}
+{% macro IconButton(p) -%}
+  {%- set __html %}{% include "./template.njk" %}{% endset -%}
+  {{- __html | trim | safe -}}
+{%- endmacro %}

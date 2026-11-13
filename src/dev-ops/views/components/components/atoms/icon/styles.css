@@ -1,0 +1,4 @@
+.au-icon { flex: none; display: inline-block; vertical-align: middle; }
+
+/* ── Server-rendered markup: joined after every component's rules above (build.cjs) ── */
+.au-icon-text { flex: none; margin-top: var(--space-2); }

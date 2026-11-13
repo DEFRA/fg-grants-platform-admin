@@ -1,0 +1,5 @@
+{#- Alert({ tone: info|success|warning|danger, title, text|html|caller, actions (html), icon, dismissible, dismissLabel, role, id, focusOnArrival }) -#}
+{% macro Alert(p) -%}
+  {%- set __html %}{% include "./template.njk" %}{% endset -%}
+  {{- __html | trim | safe -}}
+{%- endmacro %}

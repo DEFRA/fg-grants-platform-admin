@@ -1,0 +1,13 @@
+.au-card { overflow: hidden; border: var(--border-width-hairline) solid var(--border-subtle); border-radius: var(--radius-lg); background: var(--bg-surface); }
+.au-card-body { padding: var(--inset-card) var(--inset-card-wide); }
+.au-card-head { display: flex; align-items: center; justify-content: space-between; gap: var(--gap-inline-xl); min-height: var(--size-row); padding-block: var(--inset-card-head-y) var(--inset-card-head-y); padding-inline: var(--inset-card) var(--inset-card-head-end); border-bottom: var(--border-width-hairline) solid var(--border-subtle); }
+.au-card-head :is(h2, h3, h4, h5, h6) { margin: 0; }
+
+/* ── Server-rendered markup: joined after every component's rules above (build.cjs) ── */
+/* ── Cards ── */
+.au-card-head > .au-card-meta { margin-inline-start: auto; font-size: var(--font-size-sm); line-height: var(--line-height-sm); color: var(--fg-subtle); font-variant-numeric: tabular-nums; }
+.au-card-head > .au-card-meta + .au-actions { margin-inline-start: var(--gap-inline-md); }
+.au-card-head-actions { margin-inline-start: auto; }
+.au-card-padded { padding: var(--inset-card); }
+.au-card-head-tall { height: auto; min-height: var(--size-header); padding-block: var(--space-12); }
+.au-card-head-wrap { flex-wrap: wrap; row-gap: var(--gap-stack-xs); }

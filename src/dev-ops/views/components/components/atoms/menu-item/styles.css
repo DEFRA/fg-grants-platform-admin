@@ -1,0 +1,24 @@
+.au-menuitem-meta { font-variant-numeric: tabular-nums; }
+/* Inset elements keep their ring inside the edge at rest too, so only the colour fades. */
+.au-menuitem { outline-offset: var(--focus-ring-offset-inset); }
+.au-menuitem { display: flex; align-items: center; gap: var(--gap-inline-md); width: 100%; min-height: var(--size-target-comfortable); padding: var(--inset-menuitem-y) var(--inset-menuitem-x); border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--fg-default); font: inherit; font-size: var(--font-size-md); line-height: var(--line-height-md); text-align: start; cursor: pointer; }
+.au-menuitem:hover:where(:not(:disabled, [aria-disabled="true"], .is-disabled)), .au-menuitem:focus-visible { background: var(--bg-hover); }
+.au-menuitem:focus-visible { outline: var(--focus-ring-width) solid var(--border-focus); outline-offset: var(--focus-ring-offset-inset); }
+.au-menuitem[aria-checked="true"] { font-weight: 500; }
+.au-menuitem[disabled] { color: var(--fg-disabled); cursor: not-allowed; background: none; }
+.au-menuitem-danger { color: var(--fg-danger); }
+.au-menuitem-tick { display: inline-flex; width: var(--size-icon-sm); flex: none; }
+.au-menuitem-tick-end { margin-inline-start: auto; color: var(--fg-muted); }
+.au-menuitem-label { flex: 1; min-width: 0; }
+/* A long item is cut short with an ellipsis, never scrolled sideways; hovering it shows the whole text. */
+.au-menuitem-label:not(.au-menuitem-text) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.au-menuitem-meta { margin-inline-start: auto; font-feature-settings: "zero" 1, "cv05" 1, "cv08" 1; font-size: var(--font-size-sm); line-height: var(--line-height-sm); color: var(--fg-subtle); font-variant-numeric: tabular-nums; }
+.au-menuitem-sm { min-height: var(--size-control-sm); padding: var(--inset-tag-xs) var(--inset-menuitem-x); font-size: var(--font-size-sm); line-height: var(--line-height-sm); letter-spacing: var(--tracking-sm); }
+@media (forced-colors: active) { .au-menuitem { outline-style: none; } .au-menuitem:focus-visible { outline: var(--focus-ring-width) solid Highlight; }}
+
+/* ── Server-rendered markup: joined after every component's rules above (build.cjs) ── */
+a.au-menuitem { color: var(--fg-default); text-decoration: none; }
+.au-menuitem-tick .au-tick { visibility: hidden; }
+.au-menuitem[aria-checked="true"] .au-menuitem-tick .au-tick { visibility: visible; }
+.au-menuitem-text { display: flex; flex-direction: column; min-width: 0; }
+.au-menuitem-hint { font-size: var(--font-size-sm); line-height: var(--line-height-sm); color: var(--fg-subtle); letter-spacing: var(--tracking-sm); white-space: normal; }

@@ -1,0 +1,5 @@
+{#- PageHeader({ title, titleHtml, mono, meta: [html…], actions (html), breadcrumbs: [{ text, href }] (instead of back), back: { href, text, testId }, aside, titleTestId, titleAttrs }) -#}
+{% macro PageHeader(p) -%}
+  {%- set __html %}{% include "./template.njk" %}{% endset -%}
+  {{- __html | trim | safe -}}
+{%- endmacro %}

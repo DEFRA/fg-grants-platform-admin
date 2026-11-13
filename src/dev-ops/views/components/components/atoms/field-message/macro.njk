@@ -1,0 +1,5 @@
+{#- FieldMessage({ id, tone: hint|error|warning|count, text|html|caller, live }) — the line under a control. An error is announced (role alert). -#}
+{% macro FieldMessage(p) -%}
+  {%- set __html %}{% include "./template.njk" %}{% endset -%}
+  {{- __html | trim | safe -}}
+{%- endmacro %}

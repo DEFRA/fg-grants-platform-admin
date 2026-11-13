@@ -1,0 +1,18 @@
+{%- from "../../../core/macros.njk" import attrs, cls -%}
+{%- from "../../atoms/icon-button/macro.njk" import IconButton -%}
+{%- set close = p.dismissible !== false -%}
+  {%- set lv = p.headingLevel or 2 -%}
+  <au-dialog{% if p.open %} data-open{% endif %}{% if p.resetOnOpen %} data-reset-on-open{% endif %}{% if not close %} data-dismissible="false"{% endif %}>
+    <dialog class="{{ cls('au-dialog-layer', p) }}" id="{{ p.id }}"{% if p.open %} open{% endif %}{{ attrs(p) }}>
+      <div class="au-overlay" aria-hidden="true"{% if close %} data-au-close{% endif %}></div>
+      <div class="au-drawer" tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="{{ p.id }}-title">
+        <header class="au-dialog-head">
+          {%- set h -%}<h{{ lv }} id="{{ p.id }}-title" class="heading-md{{ ' au-mono' if p.mono }}"{% if p.titleTestId %} data-testid="{{ p.titleTestId }}"{% endif %}>{{ p.title }}</h{{ lv }}>{%- endset -%}
+          {%- if p.subtitle %}<div>{{ h | safe }}<div class="au-drawer-sub">{{ p.subtitle | safe }}</div></div>{% else %}{{ h | safe }}{% endif -%}
+          {%- if close %}{{ IconButton({ icon: 'x', label: p.closeLabel or 'Close', href: p.closeHref, classes: 'au-dialog-close', attributes: { 'data-au-close': true } }) }}{% endif -%}
+        </header>
+        <div class="au-drawer-body">{{ caller() }}</div>
+        {%- if p.actions %}<footer class="au-dialog-foot au-drawer-foot">{{ p.actions | safe }}</footer>{% endif -%}
+      </div>
+    </dialog>
+  </au-dialog>

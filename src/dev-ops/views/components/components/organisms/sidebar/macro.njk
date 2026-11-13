@@ -1,0 +1,6 @@
+{#- Sidebar({ product, productShort, productHref, env, envTone, sections: [{ title, short, items: [{ id, text, short, href, icon, meta, badge (html), current, srPrefix (heard before the text: two items named alike in different sections) }] }], active (an item id), rail,
+      label ('Main'), asideLabel ('Sidebar'), userName, userEmail, accountItems, signOutHref, theme, themeCookie, account (html, instead of the account menu) }) caller = more under the nav -#}
+{% macro Sidebar(p) -%}
+  {%- set __html %}{% include "./template.njk" %}{% endset -%}
+  {{- __html | trim | safe -}}
+{%- endmacro %}

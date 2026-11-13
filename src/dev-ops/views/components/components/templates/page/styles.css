@@ -1,0 +1,6 @@
+.au-page { display: flex; flex-direction: column; gap: var(--gap-stack-xl); width: 100%; min-width: 0; }
+.au-page > .au-pageheader { margin-bottom: var(--gap-stack-md); }
+.au-page-narrow { max-width: var(--size-measure-md); }
+
+/* ── Server-rendered markup: joined after every component's rules above (build.cjs) ── */
+.au-page > .au-backnav + .au-pageheader { margin-top: calc(var(--gap-stack-xl) * -1 + var(--gap-stack-sm)); }

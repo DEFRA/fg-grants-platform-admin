@@ -1,0 +1,3 @@
+.au-divider { width: 100%; height: 0; margin: var(--gap-stack-xs) 0; border: 0; border-top: var(--border-width-hairline) solid var(--border-subtle); }
+.au-divider-strong { border-top-color: var(--border-default); }
+.au-divider-v { display: inline-block; width: 0; height: var(--size-icon-md); border-inline-start: var(--border-width-hairline) solid var(--border-default); }

@@ -1,0 +1,5 @@
+{#- Drawer({ id, title, subtitle (html), mono, open, resetOnOpen, dismissible, actions (html), headingLevel, closeHref, closeLabel, titleTestId }) caller = body — a panel from the side; behaves like dialog. -#}
+{% macro Drawer(p) -%}
+  {%- set __html %}{% include "./template.njk" %}{% endset -%}
+  {{- __html | trim | safe -}}
+{%- endmacro %}

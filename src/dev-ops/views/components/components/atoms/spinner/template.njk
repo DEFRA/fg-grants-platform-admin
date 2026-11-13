@@ -1,0 +1,2 @@
+{%- from "../../../core/macros.njk" import attrs, cls -%}
+<span class="{{ cls('au-spinner au-spinner-' ~ (p.size or 'md'), p) }}" aria-hidden="true"{{ attrs(p) }}></span>

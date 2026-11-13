@@ -1,0 +1,5 @@
+{#- Page({ narrow }) caller — a page's blocks at the page gap. -#}
+{% macro Page(p) -%}
+  {%- set __html %}{% include "./template.njk" %}{% endset -%}
+  {{- __html | trim | safe -}}
+{%- endmacro %}
