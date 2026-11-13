@@ -1,0 +1,10 @@
+{%- from "../../../core/macros.njk" import attrs, cls -%}
+{%- from "../../atoms/heading/macro.njk" import Heading -%}
+{#- The heading is a Heading of headingLevel, sized by its level, and names the section. -#}
+  {%- set sid = (p.id ~ '-title') if p.id else auId('section') -%}
+  <section class="{{ cls('au-section', p) }}"{% if p.id %} id="{{ p.id }}"{% endif %}{% if p.title %} aria-labelledby="{{ sid }}"{% endif %}{{ attrs(p) }}>
+    {%- if p.title -%}
+      <div class="au-section-head"><div class="au-section-titles">{{ Heading({ level: p.headingLevel or 2, text: p.title, id: sid, testId: p.headingTestId }) }}{% if p.description %}<p class="au-section-desc">{{ p.description }}</p>{% endif %}</div>{% if p.actions %}<div class="au-actions au-actions-sm">{{ p.actions | safe }}</div>{% endif %}</div>
+    {%- endif -%}
+    {{ caller() }}
+  </section>

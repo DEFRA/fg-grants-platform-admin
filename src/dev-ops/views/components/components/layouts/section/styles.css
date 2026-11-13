@@ -1,0 +1,4 @@
+.au-section { display: flex; flex-direction: column; gap: var(--gap-stack-lg); min-width: 0; }
+.au-section-head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: var(--gap-inline-xl); }
+.au-section-titles { display: flex; flex-direction: column; gap: var(--gap-stack-xs); min-width: 0; }
+.au-section-desc { margin: 0; max-width: var(--size-measure-md); font-size: var(--font-size-md); line-height: var(--line-height-md); color: var(--fg-muted); }

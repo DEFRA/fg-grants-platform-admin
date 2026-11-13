@@ -1868,6 +1868,12 @@ dialog.au-dialog-layer:not([open]) { display: none; }
 .au-columns-main, .au-columns-aside { display: flex; flex-direction: column; gap: var(--gap-stack-xl); min-width: 0; }
 @container (max-width: 799px) { .au-columns, .au-columns-lg, .au-columns-aside-first { grid-template-columns: minmax(0, 1fr); } .au-columns-aside-first .au-columns-aside { order: 0; } }
 
+/* ── components/layouts/section/styles.css ── */
+.au-section { display: flex; flex-direction: column; gap: var(--gap-stack-lg); min-width: 0; }
+.au-section-head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: var(--gap-inline-xl); }
+.au-section-titles { display: flex; flex-direction: column; gap: var(--gap-stack-xs); min-width: 0; }
+.au-section-desc { margin: 0; max-width: var(--size-measure-md); font-size: var(--font-size-md); line-height: var(--line-height-md); color: var(--fg-muted); }
+
 /* ── components/layouts/form/styles.css ── */
 .au-form { display: flex; flex-direction: column; gap: var(--gap-stack-2xl); max-width: var(--size-measure-md); margin: 0; }
 .au-form-wide { max-width: none; }
