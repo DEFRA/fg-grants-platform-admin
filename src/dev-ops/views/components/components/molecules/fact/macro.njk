@@ -1,0 +1,5 @@
+{#- Fact({ label, text|html|caller, mono, href, external, copy }) — one pair. No value: the faint dash named "Not set". -#}
+{% macro Fact(p) -%}
+  {%- set __html %}{% include "./template.njk" %}{% endset -%}
+  {{- __html | trim | safe -}}
+{%- endmacro %}

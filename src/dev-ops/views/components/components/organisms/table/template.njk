@@ -1,0 +1,7 @@
+{%- from "../../../core/macros.njk" import attrs, cls -%}
+<div class="{{ cls('au-table', p) }}"{{ attrs(p) }}>
+    <div class="au-table-scroll">
+      <table class="au-htable{{ ' au-minw-' ~ p.minWidth if p.minWidth }}"{% if p.label %} aria-label="{{ p.label }}"{% endif %}{% if p.tableTestId %} data-testid="{{ p.tableTestId }}"{% endif %}>{{ caller() }}</table>
+    </div>
+    {%- if p.footer %}{{ p.footer | safe }}{% endif -%}
+  </div>

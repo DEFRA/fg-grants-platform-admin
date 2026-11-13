@@ -1,0 +1,5 @@
+{#- RecordPage({ title, mono, back: { href, text }, breadcrumbs, meta: [html…], actions (html), alert (html), tabs (Tabs()'s params), aside (html), asideWidth: lg, asideLabel }) caller = the main content — one record, its header, tabs, and the details beside it. -#}
+{% macro RecordPage(p) -%}
+  {%- set __html %}{% include "./template.njk" %}{% endset -%}
+  {{- __html | trim | safe -}}
+{%- endmacro %}

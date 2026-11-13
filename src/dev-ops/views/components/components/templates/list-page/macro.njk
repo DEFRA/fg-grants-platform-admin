@@ -1,0 +1,5 @@
+{#- ListPage({ title, actions (html), meta, breadcrumbs, alert (html), filters (html) }) caller = the table and what follows — the header, alert and filters stick to the top and the table header sticks under them. -#}
+{% macro ListPage(p) -%}
+  {%- set __html %}{% include "./template.njk" %}{% endset -%}
+  {{- __html | trim | safe -}}
+{%- endmacro %}

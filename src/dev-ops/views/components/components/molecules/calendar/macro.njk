@@ -1,0 +1,5 @@
+{#- Calendar({ id, name, value (YYYY-MM-DD), min, max, rangeStart, rangeEnd, label (aria), form }) — a month grid. Without a script a native date input; <au-calendar> draws the calendar. -#}
+{% macro Calendar(p) -%}
+  {%- set __html %}{% include "./template.njk" %}{% endset -%}
+  {{- __html | trim | safe -}}
+{%- endmacro %}

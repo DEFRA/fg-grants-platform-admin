@@ -1,0 +1,5 @@
+{#- Popover({ id, trigger (html: a button, or the trigger's text), triggerClasses, title, label, align: start|end, placement: bottom|top, padded (true) }) caller = the panel — a panel against its trigger (filters, a quick form). Without a script it is a native popover; <au-popover> places it, moves focus in, and closes on Escape, Tab past either end and a press outside. -#}
+{% macro Popover(p) -%}
+  {%- set __html %}{% include "./template.njk" %}{% endset -%}
+  {{- __html | trim | safe -}}
+{%- endmacro %}

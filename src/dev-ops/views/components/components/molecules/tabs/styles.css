@@ -1,0 +1,12 @@
+.au-tabs { display: flex; flex-wrap: wrap; gap: var(--gap-tabs); border-bottom: var(--border-width-hairline) solid var(--border-default); }
+.au-tab { display: inline-flex; align-items: center; gap: var(--gap-inline-sm); height: var(--size-control-lg); margin-bottom: -1px; padding: 0 var(--gap-inline-2xs); border: 0; border-bottom: var(--border-width-thick) solid transparent; background: none; color: var(--fg-muted); font: inherit; font-size: var(--font-size-md); font-weight: 500; cursor: pointer; }
+.au-tab:hover:where(:not(:disabled, [aria-disabled="true"], .is-disabled)) { color: var(--fg-default); }
+.au-tab[aria-selected="true"] { color: var(--fg-default); border-bottom-color: var(--border-selected); }
+.au-tab[disabled] { color: var(--fg-disabled); cursor: not-allowed; }
+.au-tab .au-count { margin-inline-start: 0; }
+
+/* ── Server-rendered markup: joined after every component's rules above (build.cjs) ── */
+/* ── Tabs as links ── */
+.au-tab { text-decoration: none; }
+.au-tab[aria-current="page"] { color: var(--fg-default); border-bottom-color: var(--border-selected); }
+do-tab-strip.au-tabs { display: flex; }

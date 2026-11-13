@@ -1,0 +1,8 @@
+.au-listfoot { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: var(--gap-inline-xl); min-height: var(--size-row); padding: var(--inset-cell-y) var(--inset-card); border-top: var(--border-width-hairline) solid var(--table-divider); font-size: var(--font-size-md); color: var(--fg-muted); }
+
+/* ── Server-rendered markup: joined after every component's rules above (build.cjs) ── */
+/* ── Load more ── */
+.au-loadmore { display: flex; flex-direction: column; align-items: center; }
+.au-loadmore > .au-btn { margin-block: var(--gap-stack-md); }
+.au-loadmore > .au-listfoot { align-self: stretch; }
+.au-loadmore-sentinel { width: 100%; height: 1px; }

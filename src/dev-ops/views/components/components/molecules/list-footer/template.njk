@@ -1,0 +1,15 @@
+{%- from "../../../core/macros.njk" import attrs, cls, body -%}
+{%- from "../../atoms/button/macro.njk" import Button -%}
+{%- from "../../atoms/spinner/macro.njk" import Spinner -%}
+{%- from "../../atoms/time/macro.njk" import Time -%}
+{%- set noun = p.noun or 'records' -%}
+  {%- if p.state == 'more' %}<au-load-more data-noun="{{ noun }}"{% if p.auto === false %} data-auto="false"{% endif %}>{% endif -%}
+  <div class="{{ cls('au-listfoot', p) }}"{% if p.state == 'error' %} role="alert"{% elif p.state == 'loading' %} aria-live="polite"{% endif %}{{ attrs(p) }}>
+    {%- if p.state == 'loading' -%}{{ Spinner({ size: 'sm' }) }}{{ p.text or ('Loading more ' ~ noun ~ '…') }}
+    {%- elif p.state == 'error' -%}<span class="au-text-danger">{{ p.text or ('Couldn’t load more ' ~ noun ~ '.') }}</span>{% if p.retryHref %}{{ Button({ text: 'Retry', size: 'sm', href: p.retryHref }) }}{% endif %}
+    {%- elif p.state == 'more' -%}{{ Button({ text: p.text or ('Show more ' ~ noun), size: 'sm', href: p.nextHref, attributes: { 'data-au-more': true } }) }}
+    {%- elif p.state == 'searched' -%}<span>Searched back to {{ Time({ datetime: p.searchedTo.datetime, text: p.searchedTo.text }) }}.</span>{% if p.keepLookingHref %}{{ Button({ text: 'Keep looking', size: 'sm', href: p.keepLookingHref }) }}{% endif %}
+    {%- else -%}{{ body(p, caller) if (p.text or p.html or caller) else ('No more ' ~ noun ~ '.') }}
+    {%- endif -%}
+  </div>
+  {%- if p.state == 'more' %}</au-load-more>{% endif -%}

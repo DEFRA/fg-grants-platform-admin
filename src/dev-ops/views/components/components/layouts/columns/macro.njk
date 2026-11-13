@@ -1,0 +1,5 @@
+{#- Columns({ aside (html), asideLabel ('Details'), asideWidth: lg, asideFirst, mainHtml (instead of a caller) }) caller = main column -#}
+{% macro Columns(p) -%}
+  {%- set __html %}{% include "./template.njk" %}{% endset -%}
+  {{- __html | trim | safe -}}
+{%- endmacro %}

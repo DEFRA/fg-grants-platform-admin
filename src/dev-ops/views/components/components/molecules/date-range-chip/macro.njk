@@ -1,0 +1,6 @@
+{#- DateRangeChip({ label, value (the chip's text: a quick range's name, or leave it to start/end), start, end, allLabel ('Any time'), presets: [{ text, href | value, checked }], name (for preset buttons), startName, endName, action, form, hidden: [{ name, value }], min, max, hint }) —
+    a FilterChip for a list's time. Without a script, a popover of quick ranges and a From/To form; <au-date-range-chip> turns it into quick ranges beside a range calendar, submitting the From/To fields. -#}
+{% macro DateRangeChip(p) -%}
+  {%- set __html %}{% include "./template.njk" %}{% endset -%}
+  {{- __html | trim | safe -}}
+{%- endmacro %}

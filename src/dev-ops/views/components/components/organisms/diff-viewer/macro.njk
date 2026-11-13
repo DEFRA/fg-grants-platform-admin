@@ -1,0 +1,5 @@
+{#- DiffViewer({ before, after, context (3, or false for every line) | lines: [{ kind: same|add|del|gap, before, after, text }] + added + removed, label, framed (true), maxHeight (px, as Code's), testId }) — two texts compared line by line. Give it the two texts and it diffs them (the auDiff global), or hand it lines your view model computed. -#}
+{% macro DiffViewer(p) -%}
+  {%- set __html %}{% include "./template.njk" %}{% endset -%}
+  {{- __html | trim | safe -}}
+{%- endmacro %}

@@ -1,0 +1,36 @@
+.au-input { outline: var(--focus-ring-width) none transparent; outline-offset: var(--focus-ring-offset); }
+
+.au-input { border: var(--border-width-hairline) solid var(--input-border); border-radius: var(--radius-md); background: var(--input-bg); color: var(--fg-default); box-shadow: var(--elevation-raised); transition: border-color var(--duration-normal) ease, background-color var(--duration-normal) ease, var(--transition-focus); }
+.au-input { position: relative; display: inline-flex; align-items: center; gap: var(--gap-inline-md); width: 100%; }
+.au-input-sm { height: var(--size-control-sm); padding: 0 var(--inset-field-sm); }
+.au-input-md { height: var(--size-control-md); padding: 0 var(--inset-field); }
+.au-input-lg { height: var(--size-control-lg); padding: 0 var(--inset-field-lg); }
+/* Hover darkens the edge. Focus: the standard ring; the edge also turns the accent (red ring on invalid fields). */
+.au-input:hover:where(:not(:disabled, [aria-disabled="true"], .is-disabled)) { border-color: var(--input-border-hover); }
+.au-input:has(:focus-visible) { border-color: var(--input-border-focus); outline: var(--focus-ring-width) solid var(--border-focus); outline-offset: var(--focus-ring-offset); }
+.au-input.is-invalid { border-color: var(--input-border-invalid); }
+.au-input.is-invalid:has(:focus-visible) { border-color: var(--input-border-invalid); outline-color: var(--input-border-invalid); }
+.au-input.is-disabled { background: var(--input-bg-disabled); border-color: var(--border-default); box-shadow: var(--elevation-flat); color: var(--fg-disabled); cursor: not-allowed; }
+.au-input.is-disabled input { cursor: not-allowed; }
+.au-input.is-readonly { background: var(--input-bg-disabled); box-shadow: var(--elevation-flat); }
+/* The text box is one 20px line, centred by the control; every font's capitals centre in that line (see the code-font faces above). */
+.au-input input { -webkit-appearance: none; appearance: none; flex: 1; min-width: 0; height: var(--line-height-md); padding: 0; margin: 0; border: 0; border-radius: 0; outline: none; box-shadow: none; background: transparent; color: inherit; font: inherit; font-size: var(--font-size-md); line-height: var(--line-height-md); }
+.au-input input::placeholder { color: var(--input-placeholder); opacity: 1; }
+.au-input-mono input { font-feature-settings: "zero" 1, "cv05" 1, "cv08" 1; }
+.au-input-icon { flex: none; color: var(--input-icon); transition: color 120ms ease; }
+.au-input:focus-within .au-input-icon { color: var(--input-icon-focus); }
+.au-input-suffix { flex: none; color: var(--fg-muted); font-size: var(--font-size-md); line-height: var(--line-height-md); }
+@media (prefers-reduced-motion: reduce) { .au-input { transition: none; }}
+@media (forced-colors: active) { .au-input { outline-style: none; } .au-input:focus-within { outline: var(--focus-ring-width) solid Highlight; }}
+/* Input: clear button and the bare variant (no frame) used inside SearchField. */
+.au-input .au-input-clear { margin-inline-end: calc(var(--inset-field) * -1 + var(--inset-tag-xs)); }
+.au-input.au-input-bare, .au-input.au-input-bare:hover:where(:not(:disabled, [aria-disabled="true"], .is-disabled)), .au-input.au-input-bare:focus-within, .au-input.au-input-bare.is-invalid { flex: 1; min-width: 0; height: 100%; padding: 0; border: 0; border-radius: 0; background: none; box-shadow: none; outline: none; }
+.au-input.au-input-bare .au-input-clear { margin-inline-end: 0; }
+.au-input.au-timeinput:not([style*="width"]):not([class*="au-width-"]) { width: auto; }
+/* iOS zooms into any text field under 16px when it's focused; fields get 16px text on iOS only. */
+@supports (-webkit-touch-callout: none) {
+  .au-input input { font-size: var(--font-size-lg); }}
+
+/* ── Server-rendered markup: joined after every component's rules above (build.cjs) ── */
+.au-input-date { max-width: 14rem; }
+au-clearable:not(:defined) .au-input-clear { display: none; }

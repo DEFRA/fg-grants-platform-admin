@@ -1,0 +1,5 @@
+{#- Skeleton({ width: '60%' | px number, height: 12|14|16|20|24|28|32|40|48 (px), circle }) — a placeholder while something loads. Sizes are classes (no inline styles). -#}
+{% macro Skeleton(p) -%}
+  {%- set __html %}{% include "./template.njk" %}{% endset -%}
+  {{- __html | trim | safe -}}
+{%- endmacro %}

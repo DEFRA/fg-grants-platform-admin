@@ -1,0 +1,9 @@
+/* ───────────── Layout ───────────── */
+.au-stack { display: flex; flex-direction: column; min-width: 0; }
+.au-stack.au-gap-none { gap: 0; }
+.au-stack.au-gap-2xs { gap: var(--gap-stack-2xs); } .au-stack.au-gap-xs { gap: var(--gap-stack-xs); } .au-stack.au-gap-sm { gap: var(--gap-stack-sm); } .au-stack.au-gap-md { gap: var(--gap-stack-md); } .au-stack.au-gap-lg { gap: var(--gap-stack-lg); } .au-stack.au-gap-xl { gap: var(--gap-stack-xl); } .au-stack.au-gap-2xl { gap: var(--gap-stack-2xl); } .au-stack.au-gap-section { gap: var(--gap-section); }
+
+/* ── Server-rendered markup: joined after every component's rules above (build.cjs) ── */
+/* Cards and alerts stacked in a plain wrapper keep the page's rhythm; a stack or a page spaces its own. */
+:not(.au-stack, .au-page, .au-content, .au-card-body, .au-sg-layout, .au-cols-2, .au-grid, .au-inline, .au-columns) > :is(.au-card, .au-alert, .au-table, .au-disclosure-boxed) + :is(.au-card, .au-alert, .au-table, .au-disclosure-boxed, .au-plaintext) { margin-top: var(--gap-stack-xl); }
+:not(.au-stack, .au-page, .au-content, .au-card-body, .au-grid, .au-inline, .au-columns) > .au-plaintext + :is(.au-card, .au-table, .au-alert) { margin-top: var(--gap-stack-md); }

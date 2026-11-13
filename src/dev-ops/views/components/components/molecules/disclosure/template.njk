@@ -1,0 +1,6 @@
+{%- from "../../../core/macros.njk" import attrs, cls -%}
+{%- from "../../atoms/icon/macro.njk" import Icon -%}
+<au-disclosure data-show="{{ p.text }}" data-hide="{{ p.hideText or p.text }}"{{ attrs(p) }}><details class="{{ cls('au-disclosure-details', p) }}"{% if p.open %} open{% endif %}>
+    <summary class="au-disclosure"{% if p.summaryTestId %} data-testid="{{ p.summaryTestId }}"{% endif %}{% if p.summaryTitle %} title="{{ p.summaryTitle }}"{% endif %}><span>{{ p.html | safe if p.html else (p.hideText if p.open and p.hideText else p.text) }}</span>{{ Icon({ name: 'chevron-down', size: 'sm', classes: 'au-disclosure-chevron' }) }}</summary>
+    <div class="au-disclosure-panel">{{ caller() }}</div>
+  </details></au-disclosure>

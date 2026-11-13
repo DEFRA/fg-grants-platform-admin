@@ -1,0 +1,5 @@
+{#- Input({ id, name, value, type, placeholder, invalid, disabled, readonly, icon|iconStart, size: sm|md|lg, mono, suffix|suffixHtml, clearable, clearLabel, bare, width (px, 80–640 in 20s), describedBy, label (aria), autocomplete, spellcheck, inputmode, required, inputAttributes }) — clearable draws the Clear button inside <au-clearable>, which shows it only while there is a value. -#}
+{% macro Input(p) -%}
+  {%- set __html %}{% include "./template.njk" %}{% endset -%}
+  {{- __html | trim | safe -}}
+{%- endmacro %}

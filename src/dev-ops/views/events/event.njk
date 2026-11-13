@@ -1,0 +1,79 @@
+{% extends 'layouts/page.njk' %}
+{% import "design-system/macros.njk" as au %}
+
+{% block oldPage %}{% endblock %}
+
+{#- The Details card: each fact once, in a fixed order. -#}
+{% macro details(facts) -%}
+  {%- set cards = [] -%}
+  {%- for fact in facts -%}
+    {%- set html -%}
+      {%- set v = fact.value -%}
+      {%- if v.kind == 'text' -%}
+        {{ v.text }}
+      {%- elif v.kind == 'time' -%}
+        {{ au.Time(v.time) }}
+      {%- elif v.kind == 'link' -%}
+        {{ au.Link({ text: v.text, href: v.href }) }}
+      {%- elif v.kind == 'logs' -%}
+        {%- call au.Stack({ gap: '2xs' }) -%}
+          {%- if v.href %}{{ au.Link({ text: 'OpenSearch', href: v.href, external: true, testId: 'event-logs' }) }}{% endif -%}
+          {%- call au.Inline({ gap: 'xs', wrap: false }) -%}
+            {{ au.Text({ text: v.traceId, mono: true, tone: 'subtle', truncate: true, title: 'Trace ID ' ~ v.traceId }) }}{{ au.CopyButton({ value: v.traceId, label: 'Copy trace ID' }) }}
+          {%- endcall -%}
+        {%- endcall -%}
+      {%- else -%}
+        {%- call au.Stack({ gap: '2xs' }) -%}
+          {%- set line -%}{% if v.time %}{{ au.Time(v.time) }}{% else %}{{ au.NoValue() }}{% endif %} by {{ v.by }}{{ v.after }}{%- endset -%}
+          {{ au.Text({ html: line }) }}
+          {%- if v.note %}{{ au.Text({ text: v.note, tone: 'muted' }) }}{% endif -%}
+        {%- endcall -%}
+      {%- endif -%}
+    {%- endset -%}
+    {%- set cards = (cards.push({ label: fact.label, html: html }), cards) -%}
+  {%- endfor -%}
+  {{ au.FactsCard({ title: 'Details', facts: cards, testId: 'event-details' }) }}
+{%- endmacro %}
+
+{#- One event: its status and id, what went wrong, its payload, and the redrive and purge that act on it. -#}
+{% block content %}
+  {%- if missing -%}
+    {% include "events/_missing.njk" %}
+  {%- else -%}
+    {%- set idLine -%}
+      {%- call au.Inline({ gap: 'xs', wrap: false }) -%}
+        {{ au.Text({ text: eventId, mono: true, tone: 'subtle', testId: 'event-id' }) }}{{ au.CopyButton({ value: eventId, label: 'Copy event ID' }) }}
+      {%- endcall -%}
+    {%- endset -%}
+
+    {%- set actions -%}
+      {%- if purgeHref %}{{ au.Button({ text: 'Purge', variant: 'danger', href: purgeHref, attributes: { 'data-au-open': purgeDialog.id }, testId: 'event-purge' }) }}{% endif -%}
+      {%- if redriveHref %}{{ au.Button({ text: 'Redrive', variant: 'primary', iconStart: 'refresh-cw', href: redriveHref, attributes: { 'data-au-open': redriveDialog.id }, testId: 'event-redrive' }) }}{% endif -%}
+    {%- endset -%}
+
+    {%- set bannerHtml -%}
+      {%- if banner -%}
+        {%- set bannerActions -%}
+          {%- if banner.redriveHref %}{{ au.Button({ text: 'Redrive now', size: 'sm', variant: 'primary', href: banner.redriveHref, attributes: { 'data-au-open': redriveDialog.id }, testId: 'event-banner-redrive' }) }}{% endif -%}
+        {%- endset -%}
+        {{ au.Alert({ id: 'event-banner', tone: banner.tone, title: banner.title, text: banner.text, actions: bannerActions, dismissible: true, focusOnArrival: true, testId: 'event-banner' }) }}
+      {%- endif -%}
+    {%- endset -%}
+
+    {%- call au.RecordPage({
+      title: title,
+      mono: titleMono,
+      back: { href: back.href, text: back.text, testId: 'event-back' },
+      meta: [au.StatusDot({ text: status.text, tone: status.tone, testId: 'event-status' }), idLine],
+      actions: actions,
+      alert: bannerHtml,
+      aside: details(facts),
+      titleTestId: 'event-title'
+    }) -%}
+      {% include "events/_attempts.njk" %}
+      {% include "events/_payload.njk" %}
+    {%- endcall -%}
+
+    {% include "events/_dialogs.njk" %}
+  {%- endif -%}
+{% endblock %}

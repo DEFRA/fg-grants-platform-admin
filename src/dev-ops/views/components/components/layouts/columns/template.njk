@@ -1,0 +1,2 @@
+{%- from "../../../core/macros.njk" import attrs, cls -%}
+<div class="au-cq"><div class="{{ cls('au-columns' ~ (' au-columns-lg' if p.asideWidth == 'lg' else '') ~ (' au-columns-aside-first' if p.asideFirst else ''), p) }}"{{ attrs(p) }}><div class="au-columns-main">{{ p.mainHtml | safe if p.mainHtml else (caller() if caller) }}</div>{% if p.aside %}<aside class="au-columns-aside" aria-label="{{ p.asideLabel or 'Details' }}">{{ p.aside | safe }}</aside>{% endif %}</div></div>

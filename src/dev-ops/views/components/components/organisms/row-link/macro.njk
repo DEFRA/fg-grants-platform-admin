@@ -1,0 +1,5 @@
+{#- RowLink({ text|html, href, mono, title }) — a row's first cell: the whole row is this link (cut short, it shows its whole text on hover). -#}
+{% macro RowLink(p) -%}
+  {%- set __html %}{% include "./template.njk" %}{% endset -%}
+  {{- __html | trim | safe -}}
+{%- endmacro %}

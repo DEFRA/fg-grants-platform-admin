@@ -1,0 +1,5 @@
+{#- FilterChip({ label, value (the chip's text: with multiple, '2 selected' or the one value), allLabel: 'All', multiple (the items tick on and off: menuitemcheckbox), icon, items: [{ text, href | value, checked, count, testId }], name, form, align, testId, panelId }) caller = items of your own instead -#}
+{% macro FilterChip(p) -%}
+  {%- set __html %}{% include "./template.njk" %}{% endset -%}
+  {{- __html | trim | safe -}}
+{%- endmacro %}

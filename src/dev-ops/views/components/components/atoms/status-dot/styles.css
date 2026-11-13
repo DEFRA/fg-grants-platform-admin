@@ -1,0 +1,4 @@
+.au-status { display: inline-flex; align-items: center; gap: var(--gap-inline-md); white-space: nowrap; }
+.au-status-sm { gap: var(--gap-inline-sm); font-size: var(--font-size-sm); line-height: var(--line-height-sm); letter-spacing: var(--tracking-sm); }
+.au-dot { flex: none; width: var(--size-dot); height: var(--size-dot); border-radius: var(--radius-full); }
+.au-dot-success { background: var(--status-success); } .au-dot-warning { background: var(--status-warning); } .au-dot-danger { background: var(--status-danger); } .au-dot-info { background: var(--status-info); } .au-dot-neutral { background: var(--status-neutral); } .au-dot-violet { background: var(--status-violet); } .au-dot-teal { background: var(--status-teal); }

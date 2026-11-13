@@ -1,0 +1,6 @@
+{#- ListFooter({ state: loading|more|end|error|searched, text|html, searchedTo: { datetime, text }, keepLookingHref, retryHref, nextHref, auto (true), noun })
+    — state more: a "Show more" link to nextHref (the next page, server-drawn). <au-load-more> loads that page in place instead, when the footer scrolls into view (auto) or the link is used, and appends its rows. -#}
+{% macro ListFooter(p) -%}
+  {%- set __html %}{% include "./template.njk" %}{% endset -%}
+  {{- __html | trim | safe -}}
+{%- endmacro %}

@@ -1,0 +1,5 @@
+{#- Grid({ columns: 1|2|3|4, min: sm|md|lg, gap }) caller — `columns` fixes the count (one column when its container is under 640px; four become two under 960px); otherwise `min` fits as many as there's room for. -#}
+{% macro Grid(p) -%}
+  {%- set __html %}{% include "./template.njk" %}{% endset -%}
+  {{- __html | trim | safe -}}
+{%- endmacro %}

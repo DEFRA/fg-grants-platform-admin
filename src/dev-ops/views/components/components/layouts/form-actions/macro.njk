@@ -1,0 +1,5 @@
+{#- FormActions({ end (html, on the far side) }) caller = the buttons, the main one first -#}
+{% macro FormActions(p) -%}
+  {%- set __html %}{% include "./template.njk" %}{% endset -%}
+  {{- __html | trim | safe -}}
+{%- endmacro %}

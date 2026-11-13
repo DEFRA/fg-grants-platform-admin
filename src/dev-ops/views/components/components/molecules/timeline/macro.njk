@@ -1,0 +1,5 @@
+{#- Timeline({ label }) caller = TimelineItem() calls — what happened, oldest first or newest first as given. -#}
+{% macro Timeline(p) -%}
+  {%- set __html %}{% include "./template.njk" %}{% endset -%}
+  {{- __html | trim | safe -}}
+{%- endmacro %}

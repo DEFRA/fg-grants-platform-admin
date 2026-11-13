@@ -1,0 +1,9 @@
+{%- from "../../../core/macros.njk" import attrs, cls -%}
+{%- set id = p.id or auId('au-pop') -%}
+  <au-popover{% if p.align %} data-align="{{ p.align }}"{% endif %}><div class="au-dropdown">
+    <button type="button" class="{{ p.triggerClasses or 'au-btn au-btn-default au-btn-md' }}" popovertarget="{{ id }}" aria-haspopup="dialog"{% if p.triggerTestId %} data-testid="{{ p.triggerTestId }}"{% endif %}>{{ p.trigger | safe }}</button>
+    <div popover id="{{ id }}" role="dialog" aria-label="{{ p.label or p.title }}" tabindex="-1" class="{{ cls('au-float au-popover' ~ (' au-popover-padded' if p.padded !== false else ''), p) }}"{{ attrs(p) }}>
+      {%- if p.title %}<div class="au-popover-head"><span class="heading-xs">{{ p.title }}</span></div>{% endif -%}
+      {{ caller() }}
+    </div>
+  </div></au-popover>
