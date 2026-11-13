@@ -1,0 +1,5 @@
+{#- AccordionItem({ title|titleHtml, leading (html), meta|metaHtml (a Badge, say), open, disabled, id, summaryTestId, panelTestId }) caller = panel -#}
+{% macro AccordionItem(p) -%}
+  {%- set __html %}{% include "./template.njk" %}{% endset -%}
+  {{- __html | trim | safe -}}
+{%- endmacro %}

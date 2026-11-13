@@ -1,0 +1,31 @@
+{% from "workflow/phases-panel.njk" import workflowStatusPanel %}
+
+{%- if phases -%}
+  {%- if phases.findings -%}
+    {%- set found -%}
+      {%- call au.Inline({ gap: 'md' }) -%}
+        {%- for status in phases.findings.statuses -%}
+          {%- call au.Inline({ gap: 'xs' }) %}{{ au.Link({ text: status.name, href: status.href }) }}{{ au.Text({ text: status.lead, tone: 'subtle' }) }}{% endcall -%}
+        {%- endfor -%}
+      {%- endcall -%}
+    {%- endset -%}
+    {{ au.Alert({ tone: 'warning', title: phases.findings.count ~ (' status' if phases.findings.count == 1 else ' statuses') ~ ' with findings', html: found, testId: 'workflow-phases-findings' }) }}
+  {%- endif -%}
+  {%- set aside -%}
+    {%- call au.Stack({ attributes: { id: 'workflow-phase-panels' } }) -%}
+      {%- for panel in phases.panels %}{{ workflowStatusPanel(panel, panel.id != phases.selected) }}{% endfor -%}
+    {%- endcall -%}
+  {%- endset -%}
+  {%- call au.Columns({ aside: aside, asideLabel: 'Selected status' }) -%}
+    {{ au.StateMap({
+      label: 'Workflow statuses',
+      name: 'status',
+      form: phases.form.id,
+      panels: 'workflow-phase-panels',
+      selected: phases.selected,
+      phases: phases.phases,
+      testId: 'workflow-phases-map'
+    }) }}
+  {%- endcall -%}
+  {{ au.Form({ id: phases.form.id, method: 'get', action: phases.form.action, label: 'Pick a status', hidden: phases.form.hidden, attributes: { hidden: true } }) }}
+{%- endif -%}

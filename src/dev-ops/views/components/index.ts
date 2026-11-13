@@ -1,3 +1,4 @@
+import { AuAccordion } from './components/molecules/accordion/web-component.ts'
 import { AuCalendar } from './components/molecules/calendar/web-component.ts'
 import { AuClearable } from './components/atoms/input/web-component.ts'
 import { AuCopy } from './components/molecules/copy-button/web-component.ts'
@@ -13,6 +14,7 @@ import { AuLoadMore } from './components/molecules/list-footer/web-component.ts'
 import { AuPopover } from './components/molecules/popover/web-component.ts'
 import { AuSearchKind } from './components/molecules/search-field/web-component.ts'
 import { AuSegmented } from './components/molecules/segmented-control/web-component.ts'
+import { AuStateMap } from './components/organisms/state-map/web-component.ts'
 import { AuTabs } from './components/molecules/tabs/web-component.ts'
 import { AuThemeToggle } from './components/molecules/theme-toggle/web-component.ts'
 import { AuToastRegion } from './components/molecules/toast-region/web-component.ts'
@@ -25,6 +27,7 @@ import { AuTooltip } from './components/atoms/tooltip/web-component.ts'
  * page; defining twice is harmless.
  */
 const elements: [string, CustomElementConstructor][] = [
+  ['au-accordion', AuAccordion],
   ['au-calendar', AuCalendar],
   ['au-clearable', AuClearable],
   ['au-copy', AuCopy],
@@ -40,6 +43,7 @@ const elements: [string, CustomElementConstructor][] = [
   ['au-popover', AuPopover],
   ['au-search-kind', AuSearchKind],
   ['au-segmented', AuSegmented],
+  ['au-state-map', AuStateMap],
   ['au-tabs', AuTabs],
   ['au-theme-toggle', AuThemeToggle],
   ['au-toast-region', AuToastRegion],
@@ -117,4 +121,4 @@ document.addEventListener('click', (event) => {
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => upgrade(document))
 else upgrade(document)
 
-export { AuCalendar, AuClearable, AuCopy, AuDataTable, AuDateRangeChip, AuDialog, AuDisclosure, AuDismiss, AuDropdown, AuErrorSummary, AuListPage, AuLoadMore, AuPopover, AuSearchKind, AuSegmented, AuTabs, AuThemeToggle, AuToastRegion, AuToast, AuTooltip }
+export { AuAccordion, AuCalendar, AuClearable, AuCopy, AuDataTable, AuDateRangeChip, AuDialog, AuDisclosure, AuDismiss, AuDropdown, AuErrorSummary, AuListPage, AuLoadMore, AuPopover, AuSearchKind, AuSegmented, AuStateMap, AuTabs, AuThemeToggle, AuToastRegion, AuToast, AuTooltip }

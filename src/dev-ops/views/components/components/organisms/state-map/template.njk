@@ -1,0 +1,25 @@
+{%- from "../../../core/macros.njk" import attrs, cls, vh -%}
+{%- from "../../atoms/badge/macro.njk" import Badge -%}
+{%- from "../../atoms/icon/macro.njk" import Icon -%}
+{%- set flat = [] -%}{%- for ph in p.phases %}{% for st in ph.stages %}{% for s in st.states %}{% if not s.disabled %}{% set flat = (flat.push(s.id), flat) %}{% endif %}{% endfor %}{% endfor %}{% endfor -%}
+  {%- set tabStop = p.selected if p.selected in flat else flat[0] -%}
+  <au-state-map{% if p.name %} data-name="{{ p.name }}"{% endif %}{% if p.submit %} data-submit{% endif %}{% if p.panels %} data-panels="{{ p.panels }}"{% endif %}><div class="{{ cls('au-statemap', p) }}" role="radiogroup" aria-label="{{ p.label or 'States' }}"{{ attrs(p) }}>
+    {%- if p.legend %}<ul class="au-statemap-legend" aria-label="Key">{% for l in p.legend %}<li><span class="au-statemap-swatch is-{{ l.kind or 'default' }}" aria-hidden="true"></span>{{ l.label }}</li>{% endfor %}</ul>{% endif -%}
+    {%- for ph in p.phases -%}
+      <div class="au-statemap-phase" role="group" aria-label="{{ ph.label }}">
+        {%- if p.phases | length > 1 or ph.meta %}<div class="au-statemap-phase-head"><span class="au-statemap-phase-title">{{ ph.label }}</span>{% if ph.meta %}<span class="au-statemap-phase-meta">{{ ph.meta }}</span>{% endif %}</div>{% endif -%}
+        <div class="au-statemap-row">
+          {%- for st in ph.stages -%}
+            {%- if not loop.first %}{{ Icon({ name: 'chevron-right', size: 'sm', classes: 'au-statemap-arrow au-dir-icon' }) }}{% endif -%}
+            <div class="au-statemap-stage" role="group" aria-label="{{ st.label }}"><div class="au-statemap-stage-title">{{ st.label }}</div>
+              {%- for s in st.states -%}
+                {%- set on = s.id == p.selected -%}
+                <button type="{{ 'submit' if p.name else 'button' }}" role="radio" aria-checked="{{ 'true' if on else 'false' }}"{% if s.disabled %} disabled{% endif %} tabindex="{{ '0' if s.id == tabStop else '-1' }}" class="au-statemap-state{{ ' is-selected' if on }}{{ (' is-' ~ s.kind) if s.kind }}" data-value="{{ s.id }}"{% if p.name %} name="{{ p.name }}" value="{{ s.id }}"{% endif %}{% if p.form %} form="{{ p.form }}"{% endif %}><span class="au-dot au-dot-{{ s.tone or 'neutral' }}" aria-hidden="true"></span><span class="au-statemap-label">{{ s.label }}{% if s.kind and p.legend %}{% for l in p.legend %}{% if l.kind == s.kind %}{{ vh(', ' ~ l.label) }}{% endif %}{% endfor %}{% endif %}</span>{% if s.icon %}{{ Icon({ name: s.icon, size: 'sm', label: s.iconLabel, classes: 'au-statemap-icon' ~ ((' au-statemap-icon-' ~ s.iconTone) if s.iconTone else '') }) }}{% endif %}{% if s.badge %}{{ Badge({ text: s.badge, size: 'sm', tone: s.badgeTone or 'neutral' }) }}{% endif %}</button>
+              {%- else %}<span class="au-statemap-empty">No states.</span>
+              {%- endfor -%}
+            </div>
+          {%- endfor -%}
+        </div>
+      </div>
+    {%- endfor -%}
+  </div></au-state-map>

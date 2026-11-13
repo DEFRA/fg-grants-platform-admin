@@ -1,0 +1,93 @@
+{% from "workflow/pages-call.njk" import callCell %}
+
+{%- call au.Stack({ gap: 'section', testId: 'workflow-pages' }) -%}
+  {%- call au.Section({ title: 'Case banner', description: 'Shown to caseworkers with ReadWrite and the workflow’s roles.', testId: 'workflow-pages-banner' }) -%}
+    {%- call au.Stack({ gap: 'lg' }) -%}
+      {%- call au.FactsList() -%}
+        {{ au.Fact({ label: 'Heading from', text: pages.banner.heading.text if pages.banner.heading, mono: true }) }}
+      {%- endcall -%}
+      {%- call au.DataTable({ styleNonce: styleNonce, label: 'Banner buttons', columns: [
+        { key: 'name', label: 'Button', width: 'minmax(180px, 1fr)' },
+        { key: 'call', label: 'Calls', width: 'minmax(320px, 2.4fr)' }
+      ], empty: { title: 'No buttons', text: 'CW shows no action buttons in this workflow’s case banner.', icon: 'square-mouse-pointer' } if not pages.banner.buttons | length }) -%}
+        {%- for button in pages.banner.buttons -%}
+          {%- call au.TableRow({ testId: 'workflow-pages-button' }) -%}
+            <td role="cell">{{ button.name }}</td>
+            <td role="cell">{{ callCell(button.call, environmentLabel) }}</td>
+          {%- endcall -%}
+        {%- endfor -%}
+      {%- endcall -%}
+    {%- endcall -%}
+  {%- endcall -%}
+
+  {%- set rowCount = pages.banner.summary | length -%}
+  {%- call au.Section({ title: 'Summary', actions: au.Badge({ text: rowCount ~ (' row' if rowCount == 1 else ' rows'), size: 'sm' }), testId: 'workflow-pages-summary' }) -%}
+    {%- call au.DataTable({ styleNonce: styleNonce, label: 'Summary rows', columns: [
+      { key: 'label', label: 'Label', width: 'minmax(120px, 0.7fr)' },
+      { key: 'from', label: 'Value from', width: 'minmax(260px, 3.4fr)' },
+      { key: 'type', label: 'Type', width: '88px', mono: true }
+    ], empty: { title: 'No summary rows', text: 'The case banner shows no summary.', icon: 'rows-3' } if not rowCount }) -%}
+      {%- for row in pages.banner.summary -%}
+        {%- call au.TableRow({ testId: 'workflow-pages-summary-row' }) -%}
+          <td role="cell">{{ row.label }}</td>
+          <td role="cell">
+            {%- if row.valueFrom -%}
+              {%- call au.Inline({ gap: 'xs', wrap: false }) -%}
+                {{ au.Text({ text: row.valueFrom.text, mono: true, truncate: true, title: row.valueFrom.text }) }}
+                {%- if row.valueFrom.calculated %}{{ au.Badge({ text: 'calculated', size: 'sm', variant: 'outline' }) }}{% endif -%}
+              {%- endcall -%}
+            {%- else -%}{{ au.NoValue() }}{%- endif -%}
+          </td>
+          <td role="cell" class="au-cell-mono">{{ row.type }}</td>
+        {%- endcall -%}
+      {%- endfor -%}
+    {%- endcall -%}
+  {%- endcall -%}
+
+  {%- call au.Section({ title: 'Case tabs', testId: 'workflow-pages-tabs' }) -%}
+    {%- call au.DataTable({ styleNonce: styleNonce, label: 'Case tabs', columns: [
+      { key: 'order', label: 'Order', width: '64px', mono: true },
+      { key: 'name', label: 'Tab', width: 'minmax(150px, 1fr)' },
+      { key: 'when', label: 'Shown when', width: 'minmax(200px, 1.1fr)' },
+      { key: 'fires', label: 'Calls when opened', width: 'minmax(300px, 2.4fr)' },
+      { key: 'comps', label: 'Components', width: 'minmax(120px, 0.6fr)' }
+    ] }) -%}
+      {%- for row in pages.tabs -%}
+        {%- call au.TableRow({ testId: 'workflow-pages-tab' }) -%}
+          <td role="cell" class="au-cell-mono">{{ row.order }}</td>
+          <td role="cell">
+            {%- call au.Stack({ gap: '2xs' }) -%}
+              {%- call au.Inline({ gap: 'xs' }) -%}
+                {{ au.Text({ text: row.label }) }}
+                {%- if row.builtIn %}{{ au.Badge({ text: 'built in', size: 'sm' }) }}{% endif -%}
+              {%- endcall -%}
+              {%- if row.link -%}
+                {%- set linkTo -%}link goes to {% if row.link.address %}{{ au.Text({ text: row.link.address, mono: true }) }}{% else %}an address worked out from the case{% endif %}{%- endset -%}
+                {{ au.Text({ html: linkTo, tone: 'subtle' }) }}
+              {%- endif -%}
+            {%- endcall -%}
+          </td>
+          <td role="cell">
+            {%- if row.shownWhen -%}
+              {%- set when %}{{ au.Code({ text: row.shownWhen.text }) }} is set{% endset -%}
+              {{ au.Text({ html: when }) }}
+            {%- else -%}{{ au.Text({ text: 'Always', tone: 'subtle' }) }}{%- endif -%}
+          </td>
+          <td role="cell">
+            {%- if row.calls | length -%}
+              {%- call au.Stack({ gap: 'sm' }) -%}
+                {%- for call in row.calls %}{{ callCell(call, environmentLabel) }}{% endfor -%}
+              {%- endcall -%}
+            {%- else -%}{{ au.NoValue() }}{%- endif -%}
+          </td>
+          <td role="cell">
+            {%- set count = row.components | length -%}
+            {%- if count -%}
+              {%- call au.Tooltip({ text: row.components | join(', '), focusable: true }) -%}{{ au.Text({ text: count ~ (' component' if count == 1 else ' components') }) }}{%- endcall -%}
+            {%- else -%}{{ au.NoValue() }}{%- endif -%}
+          </td>
+        {%- endcall -%}
+      {%- endfor -%}
+    {%- endcall -%}
+  {%- endcall -%}
+{%- endcall -%}

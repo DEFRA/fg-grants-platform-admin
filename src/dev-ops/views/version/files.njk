@@ -1,0 +1,20 @@
+{% import "design-system/macros.njk" as au %}
+
+{#- The version's definition files: where each is kept and whether it is stored. -#}
+{% macro versionFiles(files) -%}
+  {%- call au.Section({ title: 'Files', testId: 'version-files' }) -%}
+    {%- call au.DataTable({ styleNonce: styleNonce, label: 'Files', columns: [
+      { key: 'file', label: 'File', width: 'auto' },
+      { key: 'location', label: 'Location', width: 'auto', mono: true },
+      { key: 'stored', label: 'Stored', width: 'auto' }
+    ] }) -%}
+      {%- for file in files -%}
+        {%- call au.TableRow({ testId: 'version-file' }) -%}
+          <td role="cell">{{ file.name }}</td>
+          <td role="cell" class="au-cell-mono">{% if file.location %}{{ file.location }}{% else %}{{ au.NoValue() }}{% endif %}</td>
+          <td role="cell">{{ au.StatusDot({ text: file.stored.text, tone: file.stored.tone }) }}</td>
+        {%- endcall -%}
+      {%- endfor -%}
+    {%- endcall -%}
+  {%- endcall -%}
+{%- endmacro %}

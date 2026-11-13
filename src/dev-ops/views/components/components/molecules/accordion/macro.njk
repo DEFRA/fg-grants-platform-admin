@@ -1,0 +1,5 @@
+{#- Accordion({ framed, size: sm, single (one open at a time), headingLevel: 3 }) caller = AccordionItem() calls. Without a script the items are <details>; <au-accordion> turns them into buttons and regions. -#}
+{% macro Accordion(p) -%}
+  {%- set __html %}{% include "./template.njk" %}{% endset -%}
+  {{- __html | trim | safe -}}
+{%- endmacro %}

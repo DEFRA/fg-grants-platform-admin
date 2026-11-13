@@ -1,0 +1,11 @@
+{% import "design-system/macros.njk" as au %}
+
+{#- A sentence a view model wrote as parts: text, codes and links, each drawn its own way. -#}
+{% macro words(parts) -%}
+  {%- for part in parts -%}
+    {%- if part is string %}{{ part }}
+    {%- elif part.code %}{{ au.Code({ text: part.code }) }}
+    {%- elif part.link %}{{ au.Link({ text: part.link, href: part.href }) }}
+    {%- endif -%}
+  {%- endfor -%}
+{%- endmacro %}
