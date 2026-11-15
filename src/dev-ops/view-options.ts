@@ -2,6 +2,7 @@ import path from 'node:path'
 import nunjucks from 'nunjucks'
 
 import { config } from '../common/config.ts'
+import { roles } from '../common/roles.ts'
 import { addDevOpsComponents } from './views/components/nunjucks.ts'
 import {
   devOpsSignedOutPath,
@@ -12,9 +13,10 @@ import { assets } from '../server/plugins/views/assets.ts'
 import { shellCatalogue } from './use-cases/shell-catalogue.ts'
 import { toCodeBreaks } from './view-models/code-text.ts'
 import {
+  devOpsPath,
   toHomeHref,
   toHomeLabel,
-  toNavSections
+  toShellNav
 } from './view-models/bucket-nav.ts'
 import { toClientsPath } from './view-models/access-token-services.ts'
 import { toSidebarSections } from './view-models/shell.ts'
@@ -97,6 +99,10 @@ const toTimesContext = (request: ViewContextRequest, fallback: string) => {
 const userOf = ({ auth }: ViewContextRequest) =>
   toSignedInUser(auth?.credentials?.user)
 
+/** Only someone who may use Dev Ops is offered its Overview: a refused or signed out page leads elsewhere. */
+const mayUseDevOps = ({ auth }: ViewContextRequest): boolean =>
+  [auth?.credentials?.scope ?? []].flat().includes(roles.grantOperationsAdmin)
+
 /** The response's CSP style nonce, for the <style> each DataTable sets its column widths in. */
 const styleNonceOf = ({ plugins }: ViewContextRequest) =>
   plugins?.blankie?.nonces?.style
@@ -111,7 +117,8 @@ const context = async (request: ViewContextRequest = {}) => {
     themeCookieName,
     environmentLabel: config.get('environmentLabel'),
     signedInUser: userOf(request),
-    navSections: toNavSections(catalogue),
+    navSections: toShellNav(catalogue),
+    overviewHref: mayUseDevOps(request) ? devOpsPath : null,
     homeHref,
     homeLabel: toHomeLabel(catalogue),
     tokensHref,

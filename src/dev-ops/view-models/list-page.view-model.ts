@@ -508,6 +508,10 @@ const searchTags = ({ bucket, searched }: Context): Applied[] => {
     : []
 }
 
+/** The words a summary stores for the rows that hold no value of a fact ("No error recorded"): said as words, not a code. */
+const isNoneOf = (bucket: BucketEntry, fact: string, value: string): boolean =>
+  bucket.summaries.some(({ by, none }) => by.includes(fact) && none === value)
+
 /** Every filter set: the chosen values, the time, the search, then the open facts. */
 const toSetFilters = (context: Context, range: RangeModel): Applied[] => {
   const { bucket } = context
@@ -517,7 +521,7 @@ const toSetFilters = (context: Context, range: RangeModel): Applied[] => {
       key: fact.name,
       label: toFactLabel(bucket, fact),
       value: labelOf(fact, value),
-      mono: !hasValues(fact),
+      mono: !hasValues(fact) && !isNoneOf(bucket, fact.name, value),
       removeHref: hrefWith(
         context,
         fact.name,
@@ -1067,8 +1071,12 @@ const toTable = (
 const tabsLabelOf = (bucket: BucketEntry): string =>
   presentationOf(bucket).tabsLabel ?? bucket.page?.label ?? ''
 
-const toTabs = (bucket: BucketEntry, buckets: BucketEntry[]) => {
-  const { tabs } = toPageHead(bucket, pageMates(bucket, buckets))
+const toTabs = (
+  bucket: BucketEntry,
+  buckets: BucketEntry[],
+  filters: BucketFilters
+) => {
+  const { tabs } = toPageHead(bucket, pageMates(bucket, buckets), filters)
 
   return tabs.length
     ? {
@@ -1153,7 +1161,7 @@ export const toListPage = (input: ListPageInput): ListPageModel => {
     navActive: bucket.id,
     title,
     meta: toMeta(bucket),
-    tabs: toTabs(bucket, buckets),
+    tabs: toTabs(bucket, buckets, context.filters),
     filterLabel: `Filter ${bucket.noun.many}`,
     chips: toChipOrder(bucket, bucket.facts.filter(hasValues)).map(
       toChip(context)

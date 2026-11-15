@@ -488,7 +488,7 @@ describe('the list', () => {
     )
   })
 
-  test('Catalogue down: the tokens page still works, and the sidebar keeps only Access tokens', async () => {
+  test('No shell in the answer: the tokens page still works, and the sidebar has no lists, only the Overview and Access tokens', async () => {
     vi.mocked(shellCatalogue).mockReturnValueOnce(null)
 
     const { statusCode, $ } = await get('/dev-ops/clients/gas')
@@ -499,7 +499,7 @@ describe('the list', () => {
       $('[data-testid="shell-nav"] a')
         .map((_i, a) => $(a).attr('href'))
         .get()
-    ).toEqual(['/dev-ops/clients/gas', '/dev-ops/clients/cw'])
+    ).toEqual(['/dev-ops', '/dev-ops/clients/gas', '/dev-ops/clients/cw'])
   })
 
   test('a token, dialog or param the address can’t mean is a bad request', async () => {

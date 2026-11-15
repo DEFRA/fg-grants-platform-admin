@@ -451,6 +451,20 @@ describe('Loaded', () => {
     ])
   })
 
+  test('Outbox dead letters: the Inbox tab opens the inbox on the same filter', async () => {
+    const { $ } = await view(`${outboxPath}?status=DEAD_LETTER`)
+
+    expect(
+      by($, 'list-tabs')
+        .find('a')
+        .toArray()
+        .map((a) => $(a).attr('href'))
+    ).toEqual([
+      `${outboxPath}?status=DEAD_LETTER`,
+      '/dev-ops/events/gas/inbox?status=DEAD_LETTER'
+    ])
+  })
+
   test('CW: the service is Caseworking', async () => {
     const { $ } = await view('/dev-ops/events/cw/outbox')
 
