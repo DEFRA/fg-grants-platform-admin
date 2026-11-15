@@ -1,4 +1,6 @@
 import { statusCodes } from '../../common/status-codes.ts'
+import type { GasFailure } from '../use-cases/gas-status.ts'
+import { timedOutWaiting, toFailureText } from './failure-text.ts'
 import type { RecordType } from './record-type.ts'
 import { toRetryHref, type RetryRequest } from './status-page.ts'
 
@@ -10,78 +12,36 @@ interface Message {
   text: string
 }
 
-interface MissingCopy {
-  unavailable: Message
-  timedOut: Message
-  notFound: Message
-}
-
 /** The address's params, by record: what names it on the page and in its messages. */
 export type MissingKey = Record<string, string>
-
-const answeredWithAnError = (source: string) =>
-  `${source} answered with an error. Nothing has changed — try again in a moment.`
-
-const refreshToRetry = 'Nothing has changed. Refresh to try again.'
 
 const versionNotFound = (source: string, { code, version }: MissingKey) => ({
   title: `${source} has no record of ${code}@${version}.`,
   text: `Check the version. If it was published and ${source} rejected it on arrival, its message is in ${source}’s inbox as a dead letter, unless it has been purged.`
 })
 
-const copies: Record<string, (key: MissingKey) => MissingCopy> = {
+const notFoundCopies: Record<string, (key: MissingKey) => Message> = {
   application: ({ code, clientRef }) => ({
-    unavailable: {
-      title: 'This application couldn’t be loaded from GAS.',
-      text: answeredWithAnError('GAS')
-    },
-    timedOut: {
-      title:
-        'This application couldn’t be loaded: GAS timed out waiting for it.',
-      text: 'Nothing has changed. Try again in a moment.'
-    },
-    notFound: {
-      title: `GAS has no application ${clientRef} for ${code}.`,
-      text: 'Check the reference and the grant — a reference belongs to one grant. Search for it from Applications.'
-    }
+    title: `GAS has no application ${clientRef} for ${code}.`,
+    text: 'Check the reference and the grant — a reference belongs to one grant. Search for it from Applications.'
   }),
   case: ({ caseRef }) => ({
-    unavailable: {
-      title: 'This case could not be loaded from CW.',
-      text: answeredWithAnError('CW')
-    },
-    timedOut: {
-      title: 'This case could not be loaded: CW timed out waiting for it.',
-      text: refreshToRetry
-    },
-    notFound: {
-      title: `CW has no case ${caseRef}.`,
-      text: 'Check the reference — it may belong to a case that was closed and replaced. Search for it from Cases.'
-    }
+    title: `CW has no case ${caseRef}.`,
+    text: 'Check the reference — it may belong to a case that was closed and replaced. Search for it from Cases.'
   }),
-  grant: (key) => ({
-    unavailable: {
-      title: 'This grant could not be loaded from GAS.',
-      text: answeredWithAnError('GAS')
-    },
-    timedOut: {
-      title: 'This grant could not be loaded: GAS timed out waiting for it.',
-      text: refreshToRetry
-    },
-    notFound: versionNotFound('GAS', key)
-  }),
-  workflow: (key) => ({
-    unavailable: {
-      title: 'This workflow couldn’t be loaded from CW.',
-      text: answeredWithAnError('CW')
-    },
-    timedOut: {
-      title: 'This workflow couldn’t be loaded: CW timed out waiting for it.',
-      text: refreshToRetry
-    },
-    notFound: versionNotFound('CW', key)
-  })
+  grant: (key) => versionNotFound('GAS', key),
+  workflow: (key) => versionNotFound('CW', key)
 }
+
+/** A read that says no more than its state: a timeout of the owning service, or an error GAS answered with. */
+const failureOfState = (state: MissingState): GasFailure =>
+  state === 'timed-out' ? { kind: 'timed-out' } : { kind: 'errored' }
+
+/** A read that failed names the service it is down to, as the event page does. */
+const toFailedMessage = (record: RecordType, failure: GasFailure): Message => ({
+  title: `This ${record.itemId} couldn’t be loaded.`,
+  text: `${toFailureText(failure, record.source, timedOutWaiting)} Nothing has changed — try again in a moment.`
+})
 
 /** A version that was never stored may be a message the service refused: its inbox holds it under the code. */
 export interface InboxSearch {
@@ -120,12 +80,15 @@ const toInboxSearch = (
       }
     : null
 
-const messageFor = (copy: MissingCopy, state: MissingState): Message =>
-  ({
-    unavailable: copy.unavailable,
-    'timed-out': copy.timedOut,
-    'not-found': copy.notFound
-  })[state]
+const messageFor = (
+  record: RecordType,
+  key: MissingKey,
+  state: MissingState,
+  failure: GasFailure | undefined
+): Message =>
+  state === 'not-found'
+    ? notFoundCopies[record.itemId](key)
+    : toFailedMessage(record, failure ?? failureOfState(state))
 
 /** A config version is named `code@version`, as everywhere it is written. */
 const nameOf = (record: RecordType, key: MissingKey): string =>
@@ -138,16 +101,18 @@ const toPageTitle = (
 ): string =>
   `${state === 'not-found' ? 'Not found – ' : ''}${record.title} ${nameOf(record, key)}`
 
+/** `failure` is how the read failed, when the caller knows: without it the state alone is said. */
 export const toRecordMissing = (
   record: RecordType,
   key: MissingKey,
   state: MissingState,
-  request: RetryRequest
+  request: RetryRequest,
+  failure?: GasFailure
 ): RecordMissing => ({
   state,
   title: key[record.titleParam],
   pageTitle: toPageTitle(record, key, state),
-  message: messageFor(copies[record.itemId](key), state),
+  message: messageFor(record, key, state, failure),
   inboxSearch: toInboxSearch(record, key, state),
   retryHref: toRetryHref(request, null)
 })

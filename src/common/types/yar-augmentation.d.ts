@@ -6,10 +6,9 @@ import type {
 } from '../../dev-ops/view-models/stored-search.ts'
 import type { TokenNotice } from '../../dev-ops/view-models/access-token-toasts.ts'
 import type { DefinitionFetchFlash } from '../../dev-ops/view-models/definition-fetch.ts'
-import type {
-  EventNotice,
-  PurgeFormNotice
-} from '../../dev-ops/view-models/event-page.view-model.ts'
+import type { EventNotice } from '../../dev-ops/view-models/event-banners.ts'
+import type { PurgeFormNotice } from '../../dev-ops/view-models/event-page.view-model.ts'
+import type { HeldSaves } from '../../dev-ops/view-models/held-saves.ts'
 
 declare module '@hapi/yar' {
   interface YarFlashes {
@@ -28,5 +27,7 @@ declare module '@hapi/yar' {
 
   interface YarValues {
     [key: StoredSearchKey]: StoredSearch
+    /** Saves the service didn't answer, the operator's own edits, by event. */
+    heldSaves: HeldSaves
   }
 }

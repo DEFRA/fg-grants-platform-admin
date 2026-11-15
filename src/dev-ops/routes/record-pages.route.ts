@@ -20,6 +20,7 @@ import { toApplicationPage } from '../view-models/application-page.view-model.ts
 import { applicationType } from '../view-models/applications-page.view-model.ts'
 import { shellCatalogue } from '../use-cases/shell-catalogue.ts'
 import type { Catalogue } from '../use-cases/shell-catalogue.ts'
+import type { GasFailure } from '../use-cases/gas-status.ts'
 import { toBackBucket, toListAt } from '../view-models/bucket-nav.ts'
 import { toCasePage } from '../view-models/case-page.view-model.ts'
 import { caseType } from '../view-models/cases-page.view-model.ts'
@@ -124,10 +125,22 @@ const missingView = (
   {
     from,
     catalogue,
-    state
-  }: { from: string; catalogue: Catalogue | null; state: MissingState }
+    state,
+    failure
+  }: {
+    from: string
+    catalogue: Catalogue | null
+    state: MissingState
+    failure?: GasFailure
+  }
 ) => {
-  const missing = toRecordMissing(record, request.params, state, request)
+  const missing = toRecordMissing(
+    record,
+    request.params,
+    state,
+    request,
+    failure
+  )
 
   return h
     .view('record-missing', {
@@ -189,7 +202,7 @@ const recordPageRoute = <K, P, T extends string, N = never, Q = object>({
     )
     const from = toSafeFrom(back)
     const notice = takeNotice<N>(request, noticeKey)
-    const { outcome, page } = await read(key, tab)
+    const { outcome, page, failure } = await read(key, tab)
 
     if (outcome === 'not-found') {
       return missingView(request, h, record, {
@@ -209,7 +222,8 @@ const recordPageRoute = <K, P, T extends string, N = never, Q = object>({
       return missingView(request, h, record, {
         from,
         catalogue,
-        state: toMissingState(outcome)
+        state: toMissingState(outcome),
+        failure
       })
     }
 
@@ -259,7 +273,7 @@ const currentVersionRoute = ({
     const { tab, back, status } =
       request.query as unknown as RecordPageQuery<string>
     const from = toSafeFrom(back)
-    const { outcome, page } = await read(asked)
+    const { outcome, page, failure } = await read(asked)
 
     if (outcome === 'not-found') {
       throw Boom.notFound()
@@ -269,7 +283,8 @@ const currentVersionRoute = ({
       return missingView(request, h, record, {
         from,
         catalogue: shellCatalogue(request),
-        state: toMissingState(outcome)
+        state: toMissingState(outcome),
+        failure
       })
     }
 

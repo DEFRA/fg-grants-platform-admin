@@ -1,3 +1,5 @@
+import { statusCodes } from '../../common/status-codes.ts'
+
 /**
  * The status fg-gas-backend answered with, dug out of the error `@hapi/wreck`
  * throws for it.
@@ -26,7 +28,8 @@ export const toGasStatusCode = (error: unknown): number | null => {
 const toGasErrorPayload = (error: unknown): unknown =>
   (error as { data?: { payload?: unknown } })?.data?.payload
 
-const toGasErrorBody = (error: unknown): Record<string, unknown> => {
+/** The backend's response body, or none. */
+export const toGasErrorBody = (error: unknown): Record<string, unknown> => {
   const payload = toGasErrorPayload(error)
 
   return payload === null || typeof payload !== 'object'
@@ -41,4 +44,97 @@ export const toGasErrorField = (
   const value = toGasErrorBody(error)[field]
 
   return typeof value === 'string' ? value : null
+}
+
+/** GAS's answer when it could not reach Caseworking at all, so nothing was sent on. */
+export const cwNotReachedCode = 'CW_UNREACHABLE'
+
+/**
+ * How a call to GAS failed, as far as this app can tell. The app talks only
+ * to GAS, CW's lists and tokens included, so every status is GAS's.
+ *
+ * - `not-connected`: no connection to GAS was made.
+ * - `cw-not-reached`: GAS answered that it couldn't reach CW at all.
+ * - `refused`: GAS, or CW through it, answered with a 4xx.
+ * - `errored`: GAS answered with a 5xx; `upstream` for its 502, the failure of
+ *   the service it called for the answer (CW, for anything of CW's).
+ * - `timed-out`: GAS's 504: it waited for CW, or whatever it called, in vain.
+ * - `no-answer`: GAS sent nothing: a timeout here, or a connection dropped mid-request.
+ *   Any other failure of the call is `errored`: GAS may have answered something unreadable.
+ */
+export type GasFailure =
+  | { kind: 'not-connected' }
+  | { kind: 'cw-not-reached' }
+  | { kind: 'refused'; statusCode: number; errorCode: string | null }
+  | { kind: 'errored'; upstream?: true }
+  | { kind: 'timed-out' }
+  | { kind: 'no-answer' }
+
+const neverConnectedCodes = new Set(['ECONNREFUSED', 'ENOTFOUND', 'EAI_AGAIN'])
+
+/** A connection that dropped or went quiet before GAS's answer came. */
+const droppedCodes = new Set(['ECONNRESET', 'EPIPE', 'ETIMEDOUT'])
+
+/** wreck boomifies a failed connection's socket error as a 502, keeping its code. */
+const neverConnected = (error: unknown): boolean =>
+  neverConnectedCodes.has(String((error as { code?: unknown })?.code))
+
+/** Only a status GAS itself answered with is GAS's: wreck's own 408 or 504 is a read that timed out. */
+const isResponseError = (error: unknown): boolean =>
+  (error as { data?: { isResponseError?: unknown } })?.data?.isResponseError ===
+  true
+
+const isClientError = (statusCode: number | null): statusCode is number =>
+  statusCode !== null &&
+  statusCode >= statusCodes.badRequest &&
+  statusCode < statusCodes.internalServerError
+
+/** GAS's 502 is the failure of the service it called, its 504 that service not answering. */
+const serverFailures: Record<number, GasFailure> = {
+  [statusCodes.badGateway]: { kind: 'errored', upstream: true },
+  [statusCodes.gatewayTimeout]: { kind: 'timed-out' }
+}
+
+const toServerFailure = (statusCode: number | null): GasFailure => ({
+  ...(serverFailures[statusCode ?? 0] ?? { kind: 'errored' })
+})
+
+/** A failure by the status GAS answered with and the code its body named. */
+export const toAnsweredFailure = (
+  statusCode: number | null,
+  errorCode: string | null
+): GasFailure => {
+  if (errorCode === cwNotReachedCode) {
+    return { kind: 'cw-not-reached' }
+  }
+
+  return isClientError(statusCode)
+    ? { kind: 'refused', statusCode, errorCode }
+    : toServerFailure(statusCode)
+}
+
+/** wreck's own timeouts are a 408 or 504 with no response; a dropped socket keeps its code. */
+const isNoAnswer = (error: unknown): boolean =>
+  droppedCodes.has(String((error as { code?: unknown })?.code)) ||
+  [statusCodes.requestTimeout, statusCodes.gatewayTimeout].includes(
+    toGasStatusCode(error) ?? 0
+  )
+
+/** GAS's 504, or nothing from GAS at all: whatever was asked may still have happened. */
+export const isUnanswered = ({ kind }: GasFailure): boolean =>
+  kind === 'timed-out' || kind === 'no-answer'
+
+export const toGasFailure = (error: unknown): GasFailure => {
+  if (neverConnected(error)) {
+    return { kind: 'not-connected' }
+  }
+
+  if (isResponseError(error)) {
+    return toAnsweredFailure(
+      toGasStatusCode(error),
+      toGasErrorField(error, 'errorCode')
+    )
+  }
+
+  return isNoAnswer(error) ? { kind: 'no-answer' } : { kind: 'errored' }
 }

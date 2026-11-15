@@ -147,14 +147,26 @@ export interface PayloadEdit {
   revision: number
 }
 
-/** GAS answers a saved edit with the new revision and the changed paths; the page reads the event again instead. */
+/** The redrive that followed a save GAS was asked to redrive; the save stands whatever it says. */
+export type SaveRedrive =
+  | { outcome: 'redriven' }
+  | { outcome: 'conflict'; status: string | null; statusLabel: string | null }
+  | { outcome: 'failed' }
+
+export interface SavedPayload {
+  payloadRevision: number
+  /** Null when no redrive was asked for. */
+  redrive: SaveRedrive | null
+}
+
+/** Save, or Save and redrive in one call: GAS redrives a save that landed. */
 export const editPayload = async (
   key: EventKey,
   { payload, note, revision }: PayloadEdit,
-  actor: string
-): Promise<void> => {
-  await postToGas(`${toPath(key)}/payload`, {
-    payload: { payload, note, revision },
+  actor: string,
+  redrive: boolean
+): Promise<SavedPayload> =>
+  postToGas<SavedPayload>(`${toPath(key)}/payload`, {
+    payload: { payload, note, revision, redrive },
     actor
   })
-}

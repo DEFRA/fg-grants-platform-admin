@@ -63,7 +63,7 @@ const tokenId = '6710c4a2e1b3f40012ab34cd'
 const tokenUrl = `/dev-ops/clients/gas/fg-gas-backend/tokens/${tokenId}`
 
 const shellCall = 'GET /grant-admin/shell'
-const queryCall = 'POST /grant-admin/buckets/{id}/query'
+const listCall = 'POST /grant-admin/lists/query'
 const eventCall = 'GET /grant-admin/events/{service}/{box}/{id}'
 const tokensCall = 'GET /grant-admin/clients/{service}'
 
@@ -91,7 +91,7 @@ const event = {
   revision: 3
 }
 
-const listResult = {
+const listPage = {
   bucket: 'gas.outbox',
   plan: {
     kind: 'index',
@@ -105,6 +105,17 @@ const listResult = {
   page: { next: null, keepLooking: null, searchedTo: null, complete: true },
   groups: []
 }
+
+const listAnswer = (list: object = {}) => ({
+  bucket: 'gas.outbox',
+  list: {
+    ...listPage,
+    pageRows: [0],
+    stopped: null,
+    refusedSearch: null,
+    ...list
+  }
+})
 
 const listed = {
   tokenId,
@@ -218,59 +229,153 @@ const lists: Row[] = [
   {
     name: 'a list',
     url: '/dev-ops/events/gas/outbox',
-    gas: {
-      [shellCall]: withShell(),
-      [queryCall]: { body: listResult }
-    },
-    calls: [shellCall, queryCall],
+    gas: { [listCall]: withShell(listAnswer()) },
+    calls: [listCall],
     status: statusCodes.ok,
-    drawn: 'shell',
-    pending: true
+    drawn: 'shell'
+  },
+  {
+    name: 'a later page of a list',
+    url: '/dev-ops/events/gas/outbox?cursor=c2&page=2',
+    gas: { [listCall]: withShell(listAnswer()) },
+    calls: [listCall],
+    status: statusCodes.ok,
+    drawn: 'shell'
+  },
+  {
+    name: 'every page of a list through one, read by GAS in turn',
+    url: '/dev-ops/events/gas/outbox?through=3',
+    gas: { [listCall]: withShell(listAnswer({ pageRows: [0, 0, 0] })) },
+    calls: [listCall],
+    status: statusCodes.ok,
+    drawn: 'shell'
+  },
+  {
+    name: 'a list GAS read without the search it refused',
+    url: '/dev-ops/events/gas/outbox',
+    gas: {
+      [listCall]: withShell(listAnswer({ refusedSearch: { refusal: null } }))
+    },
+    calls: [listCall],
+    status: statusCodes.ok,
+    drawn: 'shell'
+  },
+  {
+    name: 'an address GAS refuses',
+    url: '/dev-ops/events/gas/outbox?nope=1',
+    gas: {
+      [listCall]: refusal(statusCodes.badRequest, {
+        code: 'ADDRESS_REFUSED',
+        problems: {
+          unknownKeys: ['nope'],
+          repeatedKeys: [],
+          unknownValues: []
+        },
+        bucket: 'gas.outbox'
+      })
+    },
+    calls: [listCall],
+    status: statusCodes.badRequest,
+    drawn: 'shell'
+  },
+  {
+    name: 'a time range GPA can’t read, the address checked only',
+    url: '/dev-ops/events/gas/outbox?from=yesterday',
+    gas: { [listCall]: withShell({ bucket: 'gas.outbox', list: null }) },
+    calls: [listCall],
+    status: statusCodes.badRequest,
+    drawn: 'shell'
+  },
+  {
+    name: 'Clear all',
+    url: '/dev-ops/events/gas/outbox?clear=all',
+    calls: [],
+    status: statusCodes.found,
+    drawn: 'redirect'
+  },
+  {
+    name: 'an old link with the retired audit switch',
+    url: '/dev-ops/events/gas/outbox?audit=on',
+    calls: [],
+    status: statusCodes.found,
+    drawn: 'redirect'
+  },
+  {
+    name: 'a later page of a search no longer held',
+    url: '/dev-ops/events/gas/outbox?cursor=c2&searched=0b7c1d1e-0000-4000-8000-000000000001',
+    calls: [],
+    status: statusCodes.found,
+    drawn: 'redirect'
   },
   {
     name: 'a path no list is at',
     url: '/dev-ops/nothing/here',
-    gas: { [shellCall]: withShell() },
-    calls: [shellCall],
+    gas: {
+      [listCall]: refusal(statusCodes.notFound, { code: 'LIST_NOT_FOUND' })
+    },
+    calls: [listCall],
     status: statusCodes.notFound,
-    drawn: 'shell',
-    pending: true
+    drawn: 'shell'
+  },
+  {
+    name: 'a CW list while GAS can’t reach CW',
+    url: '/dev-ops/events/cw/outbox',
+    gas: {
+      [listCall]: refusal(statusCodes.serviceUnavailable, {
+        code: 'CW_UNREACHABLE'
+      })
+    },
+    calls: [listCall],
+    status: statusCodes.serviceUnavailable,
+    drawn: 'shell'
+  },
+  {
+    name: 'a list while GAS can’t build its catalogue',
+    url: '/dev-ops/events/gas/outbox',
+    gas: {
+      [listCall]: {
+        status: statusCodes.serviceUnavailable,
+        body: { code: 'CATALOGUE_UNAVAILABLE', shell: null }
+      }
+    },
+    calls: [listCall],
+    status: statusCodes.serviceUnavailable,
+    drawn: 'no-lists'
   },
   {
     name: 'a list, when GAS does not answer',
     url: '/dev-ops/events/gas/outbox',
-    gas: { [shellCall]: timeout },
-    calls: [shellCall],
+    gas: { [listCall]: timeout },
+    calls: [listCall],
     status: statusCodes.serviceUnavailable,
-    drawn: 'no-lists',
-    pending: true
+    drawn: 'no-lists'
   },
   {
     name: 'a search, stored and redirected to',
     method: 'POST',
     url: '/dev-ops/events/gas/outbox',
     payload: { 'ref-kind': 'ref', 'ref-value': event.eventId },
-    gas: { [shellCall]: withShell() },
-    calls: [shellCall],
+    calls: [],
     status: statusCodes.seeOther,
-    drawn: 'redirect',
-    pending: true
+    drawn: 'redirect'
   },
   {
-    name: 'a search that cannot be one, drawn again',
+    name: 'a search that cannot be one, drawn again over the list',
     method: 'POST',
     url: '/dev-ops/events/gas/outbox',
-    payload: { 'ref-kind': 'nothing', 'ref-value': 'x' },
-    gas: {
-      [shellCall]: withShell(),
-      [queryCall]: { body: listResult }
-    },
-    calls: [shellCall, queryCall],
+    payload: { 'ref-kind': 'ref', 'ref-value': 'x y' },
+    gas: { [listCall]: withShell(listAnswer()) },
+    calls: [listCall],
     status: statusCodes.badRequest,
-    drawn: 'shell',
-    pending: true
+    drawn: 'shell'
   }
 ]
+
+const purgeCall = 'POST /grant-admin/events/{service}/{box}/{id}/purge'
+const payloadCall = 'POST /grant-admin/events/{service}/{box}/{id}/payload'
+const redriveCall = 'POST /grant-admin/events/{service}/{box}/{id}/redrive'
+
+const saveForm = { text: '{"id":"3f2c1a0e"}', revision: 3, note: 'Fixed' }
 
 const events: Row[] = [
   {
@@ -282,11 +387,27 @@ const events: Row[] = [
     drawn: 'shell'
   },
   {
+    name: 'an event, its editor open',
+    url: `${eventUrl}?edit=payload`,
+    gas: { [eventCall]: withShell(event) },
+    calls: [eventCall],
+    status: statusCodes.ok,
+    drawn: 'shell'
+  },
+  {
+    name: 'an event, its purge dialog open',
+    url: `${eventUrl}?confirm=purge`,
+    gas: { [eventCall]: withShell(event) },
+    calls: [eventCall],
+    status: statusCodes.ok,
+    drawn: 'shell'
+  },
+  {
     name: 'an event GAS has not got',
     url: eventUrl,
     gas: { [eventCall]: refusal(statusCodes.notFound) },
     calls: [eventCall],
-    status: statusCodes.ok,
+    status: statusCodes.notFound,
     drawn: 'shell'
   },
   {
@@ -294,31 +415,54 @@ const events: Row[] = [
     url: eventUrl,
     gas: { [eventCall]: timeout },
     calls: [eventCall],
-    status: statusCodes.ok,
+    status: statusCodes.gatewayTimeout,
     drawn: 'no-lists'
   },
   {
     name: 'a redrive',
     method: 'POST',
     url: `${eventUrl}/redrive`,
-    gas: { 'POST /grant-admin/events/{service}/{box}/{id}/redrive': {} },
-    calls: ['POST /grant-admin/events/{service}/{box}/{id}/redrive'],
+    gas: { [redriveCall]: {} },
+    calls: [redriveCall],
     status: statusCodes.seeOther,
     drawn: 'redirect'
   },
   {
-    name: 'a purge, read again before it is made',
+    name: 'a redrive GAS refuses',
+    method: 'POST',
+    url: `${eventUrl}/redrive`,
+    gas: {
+      [redriveCall]: refusal(statusCodes.conflict, { status: 'PUBLISHED' })
+    },
+    calls: [redriveCall],
+    status: statusCodes.seeOther,
+    drawn: 'redirect'
+  },
+  {
+    name: 'a purge, sent without reading the event first',
+    method: 'POST',
+    url: `${eventUrl}/purge`,
+    payload: { reasonCode: 'SENT_IN_ERROR', note: '' },
+    gas: { [purgeCall]: {} },
+    calls: [purgeCall],
+    status: statusCodes.seeOther,
+    drawn: 'redirect'
+  },
+  {
+    name: 'a purge GAS says isn’t purgeable',
     method: 'POST',
     url: `${eventUrl}/purge`,
     payload: { reasonCode: 'SENT_IN_ERROR', note: '' },
     gas: {
-      [eventCall]: withShell(event),
-      'POST /grant-admin/events/{service}/{box}/{id}/purge': {}
+      [purgeCall]: refusal(statusCodes.conflict, {
+        code: 'NOT_PURGEABLE',
+        status: null,
+        statusLabel: null
+      })
     },
-    calls: [eventCall, 'POST /grant-admin/events/{service}/{box}/{id}/purge'],
+    calls: [purgeCall],
     status: statusCodes.seeOther,
-    drawn: 'redirect',
-    pending: true
+    drawn: 'redirect'
   },
   {
     name: 'a purge form with nothing chosen',
@@ -327,8 +471,7 @@ const events: Row[] = [
     payload: {},
     calls: [],
     status: statusCodes.seeOther,
-    drawn: 'redirect',
-    pending: true
+    drawn: 'redirect'
   },
   {
     name: 'a payload review',
@@ -344,64 +487,99 @@ const events: Row[] = [
     name: 'a payload saved',
     method: 'POST',
     url: `${eventUrl}/payload`,
-    payload: { text: '{"id":"3f2c1a0e"}', revision: 3, note: 'Fixed' },
-    gas: { 'POST /grant-admin/events/{service}/{box}/{id}/payload': {} },
-    calls: ['POST /grant-admin/events/{service}/{box}/{id}/payload'],
+    payload: saveForm,
+    gas: { [payloadCall]: { body: { payloadRevision: 4, redrive: null } } },
+    calls: [payloadCall],
     status: statusCodes.seeOther,
-    drawn: 'redirect',
-    pending: true
+    drawn: 'redirect'
+  },
+  {
+    name: 'a payload saved and redriven, in one call',
+    method: 'POST',
+    url: `${eventUrl}/payload`,
+    payload: { ...saveForm, then: 'redrive' },
+    gas: {
+      [payloadCall]: {
+        body: { payloadRevision: 4, redrive: { outcome: 'redriven' } }
+      }
+    },
+    calls: [payloadCall],
+    status: statusCodes.seeOther,
+    drawn: 'redirect'
+  },
+  {
+    name: 'a payload saved whose redrive failed',
+    method: 'POST',
+    url: `${eventUrl}/payload`,
+    payload: { ...saveForm, then: 'redrive' },
+    gas: {
+      [payloadCall]: {
+        body: { payloadRevision: 4, redrive: { outcome: 'failed' } }
+      }
+    },
+    calls: [payloadCall],
+    status: statusCodes.seeOther,
+    drawn: 'redirect'
   },
   {
     name: 'a payload save with no note',
     method: 'POST',
     url: `${eventUrl}/payload`,
-    payload: { text: '{"id":"3f2c1a0e"}', revision: 3, note: '' },
+    payload: { ...saveForm, note: '' },
     gas: { [eventCall]: withShell(event) },
     calls: [eventCall],
     status: statusCodes.ok,
-    drawn: 'shell',
-    pending: true
+    drawn: 'shell'
   },
   {
-    name: 'a payload save made stale',
+    name: 'a payload save made stale, drawn over the event GAS answered with',
     method: 'POST',
     url: `${eventUrl}/payload`,
-    payload: { text: '{"id":"3f2c1a0e"}', revision: 3, note: 'Fixed' },
+    payload: saveForm,
     gas: {
-      'POST /grant-admin/events/{service}/{box}/{id}/payload': refusal(
-        statusCodes.preconditionFailed
-      ),
-      [eventCall]: withShell(event)
+      [payloadCall]: refusal(statusCodes.preconditionFailed, {
+        code: 'STALE_REVISION',
+        event: { ...event, payloadRevision: 4 }
+      })
     },
-    calls: ['POST /grant-admin/events/{service}/{box}/{id}/payload', eventCall],
+    calls: [payloadCall],
     status: statusCodes.ok,
-    drawn: 'shell',
-    pending: true
+    drawn: 'shell'
   },
   {
-    name: 'a redrive GAS refuses',
+    name: 'a payload save made stale, the event not read again',
     method: 'POST',
-    url: `${eventUrl}/redrive`,
+    url: `${eventUrl}/payload`,
+    payload: saveForm,
     gas: {
-      'POST /grant-admin/events/{service}/{box}/{id}/redrive': refusal(
-        statusCodes.conflict,
-        { status: 'PUBLISHED' }
-      )
+      [payloadCall]: refusal(statusCodes.preconditionFailed, {
+        code: 'STALE_REVISION',
+        event: null
+      })
     },
-    calls: ['POST /grant-admin/events/{service}/{box}/{id}/redrive'],
+    calls: [payloadCall],
+    status: statusCodes.serviceUnavailable,
+    drawn: 'shell'
+  },
+  {
+    name: 'a payload save GAS did not answer, held',
+    method: 'POST',
+    url: `${eventUrl}/payload`,
+    payload: saveForm,
+    gas: { [payloadCall]: timeout },
+    calls: [payloadCall],
     status: statusCodes.seeOther,
     drawn: 'redirect'
   },
   {
-    name: 'a payload save GAS did not answer',
+    name: 'a payload save GAS failed, held',
     method: 'POST',
     url: `${eventUrl}/payload`,
-    payload: { text: '{"id":"3f2c1a0e"}', revision: 3, note: 'Fixed' },
-    gas: { 'POST /grant-admin/events/{service}/{box}/{id}/payload': timeout },
-    calls: ['POST /grant-admin/events/{service}/{box}/{id}/payload'],
+    payload: saveForm,
+    gas: { [payloadCall]: refusal(statusCodes.internalServerError) },
+    calls: [payloadCall],
     status: statusCodes.seeOther,
-    drawn: 'redirect',
-    pending: true
+    drawn: 'redirect'
   }
 ]
 
@@ -920,7 +1098,7 @@ describe('one call per request: the shell for a page that asks GAS nothing', () 
         url: eventUrl,
         gas: { [eventCall]: { status: statusCodes.serviceUnavailable } },
         calls: [eventCall],
-        status: statusCodes.ok,
+        status: statusCodes.serviceUnavailable,
         drawn: 'no-lists'
       })
     ).resolves.toBeUndefined()

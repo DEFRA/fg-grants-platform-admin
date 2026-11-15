@@ -89,65 +89,81 @@ describe('toRecordMissing', () => {
       applicationType,
       application,
       'unavailable',
-      'This application couldn’t be loaded from GAS.',
-      'GAS answered with an error. Nothing has changed — try again in a moment.'
+      'application',
+      'GAS answered with an error.'
     ],
     [
       applicationType,
       application,
       'timed-out',
-      'This application couldn’t be loaded: GAS timed out waiting for it.',
-      'Nothing has changed. Try again in a moment.'
+      'application',
+      'GAS timed out waiting for it.'
     ],
-    [
-      caseType,
-      aCase,
-      'unavailable',
-      'This case could not be loaded from CW.',
-      'CW answered with an error. Nothing has changed — try again in a moment.'
-    ],
-    [
-      caseType,
-      aCase,
-      'timed-out',
-      'This case could not be loaded: CW timed out waiting for it.',
-      'Nothing has changed. Refresh to try again.'
-    ],
-    [
-      grantType,
-      version,
-      'unavailable',
-      'This grant could not be loaded from GAS.',
-      'GAS answered with an error. Nothing has changed — try again in a moment.'
-    ],
-    [
-      grantType,
-      version,
-      'timed-out',
-      'This grant could not be loaded: GAS timed out waiting for it.',
-      'Nothing has changed. Refresh to try again.'
-    ],
+    [caseType, aCase, 'unavailable', 'case', 'GAS answered with an error.'],
+    [caseType, aCase, 'timed-out', 'case', 'CW timed out waiting for it.'],
+    [grantType, version, 'unavailable', 'grant', 'GAS answered with an error.'],
+    [grantType, version, 'timed-out', 'grant', 'GAS timed out waiting for it.'],
     [
       workflowType,
       version,
       'unavailable',
-      'This workflow couldn’t be loaded from CW.',
-      'CW answered with an error. Nothing has changed — try again in a moment.'
+      'workflow',
+      'GAS answered with an error.'
     ],
     [
       workflowType,
       version,
       'timed-out',
-      'This workflow couldn’t be loaded: CW timed out waiting for it.',
-      'Nothing has changed. Refresh to try again.'
+      'workflow',
+      'CW timed out waiting for it.'
     ]
   ] as const)(
-    'says a $title is %s in the prototype’s words',
-    (record, key, state, title, text) => {
+    'says a $title is %s with no more known, as the event page does',
+    (record, key, state, noun, reason) => {
       expect(toRecordMissing(record, key, state, request).message).toEqual({
-        title,
-        text
+        title: `This ${noun} couldn’t be loaded.`,
+        text: `${reason} Nothing has changed — try again in a moment.`
       })
+    }
+  )
+
+  test.each([
+    [caseType, aCase, { kind: 'not-connected' }, 'GAS couldn’t be reached.'],
+    [
+      workflowType,
+      version,
+      { kind: 'not-connected' },
+      'GAS couldn’t be reached.'
+    ],
+    [
+      applicationType,
+      application,
+      { kind: 'not-connected' },
+      'GAS couldn’t be reached.'
+    ],
+    [grantType, version, { kind: 'not-connected' }, 'GAS couldn’t be reached.'],
+    [caseType, aCase, { kind: 'cw-not-reached' }, 'CW couldn’t be reached.'],
+    [
+      caseType,
+      aCase,
+      { kind: 'errored', upstream: true },
+      'CW answered with an error.'
+    ],
+    [
+      workflowType,
+      version,
+      { kind: 'errored', upstream: true },
+      'CW answered with an error.'
+    ],
+    [grantType, version, { kind: 'errored' }, 'GAS answered with an error.'],
+    [caseType, aCase, { kind: 'no-answer' }, 'GAS timed out waiting for it.']
+  ] as const)(
+    'names the service a $title’s failed read is down to: %o',
+    (record, key, failure, reason) => {
+      expect(
+        toRecordMissing(record, key, 'unavailable', request, failure).message
+          .text
+      ).toBe(`${reason} Nothing has changed — try again in a moment.`)
     }
   )
 

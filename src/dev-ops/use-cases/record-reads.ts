@@ -1,7 +1,13 @@
 import { describeError } from '../../common/describe-error.ts'
 import { logger } from '../../common/logger.ts'
 import { statusCodes } from '../../common/status-codes.ts'
-import { toGasErrorField, toGasStatusCode } from './gas-status.ts'
+import {
+  isUnanswered,
+  toGasErrorField,
+  toGasFailure,
+  toGasStatusCode
+} from './gas-status.ts'
+import type { GasFailure } from './gas-status.ts'
 
 export type {
   Counterpart,
@@ -15,13 +21,15 @@ export type {
 } from '../repositories/record-page.ts'
 export { recordTabs } from '../repositories/record-page.ts'
 
-export interface ListResult<P> {
-  page: P
-  unavailable: boolean
-  refused: boolean
-  /** GAS's own reason for a refusal: fixed text that never repeats what was sent. */
-  refusal: string | null
-}
+/**
+ * A list read: the page, GAS refusing the parameters (a 400 is a bad link,
+ * not an outage; its reason is fixed text that never repeats what was sent),
+ * or how the read failed. A list has one source, so a failed read has no rows.
+ */
+export type ListResult<P> =
+  | { kind: 'read'; page: P }
+  | { kind: 'refused'; refusal: string | null }
+  | { kind: 'failed'; failure: GasFailure }
 
 const logListFailure = (name: string, refused: boolean, error: unknown) => {
   if (refused) {
@@ -37,31 +45,22 @@ const logListFailure = (name: string, refused: boolean, error: unknown) => {
   )
 }
 
-/** A list has one source, so any failure leaves it empty; a 400 is a bad link, not an outage. */
-export const readList = async <P>(
-  name: string,
-  read: () => Promise<P>,
-  empty: P
-): Promise<ListResult<P>> => {
-  try {
-    return {
-      page: await read(),
-      unavailable: false,
-      refused: false,
-      refusal: null
-    }
-  } catch (error) {
-    const refused = toGasStatusCode(error) === statusCodes.badRequest
+const isRefusal = (failure: GasFailure): boolean =>
+  failure.kind === 'refused' && failure.statusCode === statusCodes.badRequest
 
-    logListFailure(name, refused, error)
+/** How a list read failed: GAS refusing the parameters, or failing. */
+export const toFailedList = <P>(
+  error: unknown,
+  name: string
+): ListResult<P> => {
+  const failure = toGasFailure(error)
+  const refused = isRefusal(failure)
 
-    return {
-      page: empty,
-      unavailable: !refused,
-      refused,
-      refusal: refused ? toGasErrorField(error, 'message') : null
-    }
-  }
+  logListFailure(name, refused, error)
+
+  return refused
+    ? { kind: 'refused', refusal: toGasErrorField(error, 'message') }
+    : { kind: 'failed', failure }
 }
 
 export type RecordOutcome = 'found' | 'not-found' | 'timed-out' | 'unavailable'
@@ -69,23 +68,21 @@ export type RecordOutcome = 'found' | 'not-found' | 'timed-out' | 'unavailable'
 export interface RecordResult<P> {
   outcome: RecordOutcome
   page: P | null
+  /** How a read that timed out or was unavailable failed. */
+  failure?: GasFailure
 }
 
 /** A tab for a file the record has not got is hidden, not empty. */
 export interface HiddenTab {
   outcome: 'hidden'
   page: null
+  failure?: undefined
 }
 
 /** Only the backend's own miss is a missing record; a bare 404 is a route GAS has not got. */
 export const isMissing = (error: unknown, reason: string): boolean =>
   toGasStatusCode(error) === statusCodes.notFound &&
   toGasErrorField(error, 'reason') === reason
-
-const toFailure = (error: unknown): RecordOutcome =>
-  toGasStatusCode(error) === statusCodes.gatewayTimeout
-    ? 'timed-out'
-    : 'unavailable'
 
 /** The ref is in the URL already, so no log line repeats it. */
 export const readRecord = async <P>(
@@ -106,6 +103,12 @@ export const readRecord = async <P>(
       `Could not read a ${name} from fg-gas-backend: ${describeError(error)}`
     )
 
-    return { outcome: toFailure(error), page: null }
+    const failure = toGasFailure(error)
+
+    return {
+      outcome: isUnanswered(failure) ? 'timed-out' : 'unavailable',
+      page: null,
+      failure
+    }
   }
 }

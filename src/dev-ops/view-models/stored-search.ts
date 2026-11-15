@@ -15,8 +15,9 @@ export interface StoredSearch {
 
 export type StoredSearchKey = `bucketSearch:${string}`
 
-export const toSearchKey = (bucketId: string): StoredSearchKey =>
-  `bucketSearch:${bucketId}`
+/** By the list's path below the admin's root, as its GET and its search's POST both read it. */
+export const toSearchKey = (path: string): StoredSearchKey =>
+  `bucketSearch:${path}`
 
 const maxAgeMs = 15 * 60 * 1000
 
@@ -99,3 +100,13 @@ export const peekSearch = (
     ? { q: stored.q, repeat: false, id }
     : null
 }
+
+const searchable = /^[A-Za-z0-9._:@-]{1,200}$/
+
+/** A box GAS would refuse: said beside the box, and never stored. */
+export const searchError =
+  'Enter an identifier using only letters, numbers and . _ : @ -'
+
+/** What is stored for a search, or null for a value it could not hold. A kind the list hasn't got is GAS's to refuse. */
+export const toSearchQuery = (kind: string, value: string): string | null =>
+  searchable.test(value) ? `${kind}:${value}` : null

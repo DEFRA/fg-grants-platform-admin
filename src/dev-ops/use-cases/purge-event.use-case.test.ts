@@ -1,3 +1,5 @@
+import Boom from '@hapi/boom'
+
 import { logger } from '../../common/logger.ts'
 import type { EventKey } from '../repositories/events.repository.ts'
 import { purgeEvent } from '../repositories/events.repository.ts'
@@ -17,7 +19,7 @@ const reason = { reasonCode: 'BROKEN_PAYLOAD', note: 'sheetId is a number' }
 const responseError = (statusCode: number, body: object = {}) =>
   Object.assign(new Error(`Response Error: ${statusCode}`), {
     output: { statusCode },
-    data: { payload: body, res: {} }
+    data: { isResponseError: true, payload: body, res: {} }
   })
 
 describe('purgeEventUseCase', () => {
@@ -41,7 +43,8 @@ describe('purgeEventUseCase', () => {
   test('reports a purge the backend accepted', async () => {
     await expect(purgeEventUseCase(key, reason)).resolves.toEqual({
       outcome: 'purged',
-      status: null
+      status: null,
+      failure: null
     })
   })
 
@@ -52,7 +55,8 @@ describe('purgeEventUseCase', () => {
 
     await expect(purgeEventUseCase(key, reason)).resolves.toEqual({
       outcome: 'conflict',
-      status: 'Resubmitted'
+      status: 'Resubmitted',
+      failure: null
     })
   })
 
@@ -71,7 +75,8 @@ describe('purgeEventUseCase', () => {
 
     await expect(purgeEventUseCase(key, reason)).resolves.toEqual({
       outcome: 'conflict',
-      status: null
+      status: null,
+      failure: null
     })
   })
 
@@ -80,7 +85,8 @@ describe('purgeEventUseCase', () => {
 
     await expect(purgeEventUseCase(key, reason)).resolves.toEqual({
       outcome: 'not-found',
-      status: null
+      status: null,
+      failure: null
     })
   })
 
@@ -89,16 +95,39 @@ describe('purgeEventUseCase', () => {
 
     await expect(purgeEventUseCase(key, reason)).resolves.toEqual({
       outcome: 'timed-out',
-      status: null
+      status: null,
+      failure: { kind: 'timed-out' }
     })
   })
 
-  test('reports a backend that could not be reached as unavailable', async () => {
+  test.each([
+    ['wreck’s own 408, its read timing out', Boom.clientTimeout()],
+    [
+      'a connection reset before GAS answered',
+      Object.assign(Boom.badGateway('Client request error'), {
+        code: 'ECONNRESET'
+      })
+    ]
+  ])(
+    'reports %s as unanswered: GAS may still have purged it',
+    async (_name, error) => {
+      vi.mocked(purgeEvent).mockRejectedValue(error)
+
+      await expect(purgeEventUseCase(key, reason)).resolves.toEqual({
+        outcome: 'timed-out',
+        status: null,
+        failure: { kind: 'no-answer' }
+      })
+    }
+  )
+
+  test('reports the service behind GAS failing as unavailable', async () => {
     vi.mocked(purgeEvent).mockRejectedValue(responseError(502))
 
     await expect(purgeEventUseCase(key, reason)).resolves.toEqual({
       outcome: 'unavailable',
-      status: null
+      status: null,
+      failure: { kind: 'errored', upstream: true }
     })
   })
 
@@ -109,7 +138,8 @@ describe('purgeEventUseCase', () => {
 
       await expect(purgeEventUseCase(key, reason)).resolves.toEqual({
         outcome: 'rejected',
-        status: null
+        status: null,
+        failure: null
       })
     }
   )

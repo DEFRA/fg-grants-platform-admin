@@ -7,7 +7,7 @@ import { toEventHref, toTimeCell } from './event-formats.ts'
 import type { Zone } from './event-formats.ts'
 import { toStampedEventName } from './event-names.ts'
 import type { EventName } from './event-names.ts'
-import { isDeadLetterStatus } from './event-state.ts'
+import { isDeadLetterStatus } from '../use-cases/event-state.ts'
 import { toFittingBack } from './record-filters.ts'
 
 export interface EventRow {

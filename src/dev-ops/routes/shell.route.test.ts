@@ -15,7 +15,7 @@ import {
 import { listAccessTokensUseCase } from '../use-cases/access-tokens.use-case.ts'
 import { catalogue, outboxBucket } from '../use-cases/test-fixtures.ts'
 
-vi.mock(import('../use-cases/get-bucket-at.use-case.ts'))
+vi.mock(import('../repositories/lists.repository.ts'))
 vi.mock(import('../use-cases/shell-catalogue.ts'))
 vi.mock(import('../use-cases/get-application-page.use-case.ts'))
 vi.mock(import('../use-cases/access-tokens.use-case.ts'))
@@ -437,6 +437,26 @@ describe('saving Times', () => {
 
     expect(back).toBe(
       `/dev-ops/events/gas/outbox?status=failed&from=${encodeURIComponent('2026-06-16T08:00:00.000Z')}`
+    )
+  })
+
+  test('keeps a Custom range of whole days as the first and last moments of those days in UK time', async () => {
+    const { headers } = await saveFrom(
+      `${list}&from=2026-06-16&to=2026-06-16`,
+      'dev-ops-times=uk'
+    )
+
+    expect(headers.location).toBe(
+      `/dev-ops/events/gas/outbox?status=failed&from=${encodeURIComponent('2026-06-15T23:00:00.000Z')}&to=${encodeURIComponent('2026-06-16T22:59:59.999Z')}`
+    )
+  })
+
+  test('leaves a quick range’s pinned start as it is', async () => {
+    const back = `${list}&range=24h&from=${encodeURIComponent('2026-06-16T08:00:00.000Z')}`
+    const { headers } = await saveFrom(back, 'dev-ops-times=uk')
+
+    expect(headers.location).toBe(
+      `${list}&range=24h&from=${encodeURIComponent('2026-06-16T08:00:00.000Z')}`
     )
   })
 

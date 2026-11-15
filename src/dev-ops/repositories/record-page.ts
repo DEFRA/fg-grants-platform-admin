@@ -40,7 +40,3 @@ export type RecordTab = (typeof recordTabs)[number]
 
 /** Null while the other service could not say whether the counterpart exists. */
 export type Counterpart = { exists: boolean } | null
-
-/** Marks a Back or a refresh re-running a first page already shown, so GAS audits it as a repeat. */
-export const toRepeatOptions = (repeat: boolean) =>
-  repeat ? { headers: { 'x-search-repeat': '1' } } : {}

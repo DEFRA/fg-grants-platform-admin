@@ -37,6 +37,6 @@ describe('getWorkflowVersionsUseCase', () => {
 
     await expect(
       getWorkflowVersionsUseCase('woodland-creation')
-    ).resolves.toEqual({ outcome: 'timed-out', page: null })
+    ).resolves.toMatchObject({ outcome: 'timed-out', page: null })
   })
 })

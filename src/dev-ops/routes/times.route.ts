@@ -33,7 +33,9 @@ const toParam = (key: string, value: string, zone: Zone): string => {
   }
 
   return rangeKeys.has(key)
-    ? (toRangeInstants({ [key]: value }, zone)[key as 'from' | 'to'] ?? value)
+    ? (toRangeInstants({ [key]: value }, zone, new Date())[
+        key as 'from' | 'to'
+      ] ?? value)
     : value
 }
 

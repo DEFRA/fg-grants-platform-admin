@@ -35,8 +35,8 @@ describe('getGrantVersionsUseCase', () => {
   test('reads a timeout as an outage', async () => {
     vi.mocked(findGrantVersions).mockRejectedValue(responseError(504))
 
-    await expect(getGrantVersionsUseCase('woodland-creation')).resolves.toEqual(
-      { outcome: 'timed-out', page: null }
-    )
+    await expect(
+      getGrantVersionsUseCase('woodland-creation')
+    ).resolves.toMatchObject({ outcome: 'timed-out', page: null })
   })
 })

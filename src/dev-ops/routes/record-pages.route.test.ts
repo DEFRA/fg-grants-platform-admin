@@ -415,12 +415,12 @@ describe('the application page', () => {
     [
       'unavailable',
       statusCodes.serviceUnavailable,
-      'This application couldn’t be loaded from GAS. GAS answered with an error. Nothing has changed — try again in a moment.'
+      'This application couldn’t be loaded. GAS answered with an error. Nothing has changed — try again in a moment.'
     ],
     [
       'timed-out',
       statusCodes.gatewayTimeout,
-      'This application couldn’t be loaded: GAS timed out waiting for it. Nothing has changed. Try again in a moment.'
+      'This application couldn’t be loaded. GAS timed out waiting for it. Nothing has changed — try again in a moment.'
     ]
   ] as const)('says so when GAS is %s', async (outcome, code, message) => {
     vi.mocked(getApplicationPageUseCase).mockResolvedValue({
@@ -1250,6 +1250,31 @@ describe('the case page', () => {
     ).toBe('CW has no case f02-7d8-a61.')
   })
 
+  test.each([
+    [{ kind: 'not-connected' }, 'GAS couldn’t be reached.'],
+    [{ kind: 'cw-not-reached' }, 'CW couldn’t be reached.'],
+    [{ kind: 'errored', upstream: true }, 'CW answered with an error.']
+  ] as const)(
+    'names the service a failed read is down to: %o',
+    async (failure, reason) => {
+      vi.mocked(getCasePageUseCase).mockResolvedValue({
+        outcome: 'unavailable',
+        page: null,
+        failure
+      })
+
+      const { $ } = await viewPage(casePath)
+      const alert = part($, 'record-missing-unavailable')
+
+      expect(flatten(alert.find('.gpa-alert-title').text())).toBe(
+        'This case couldn’t be loaded.'
+      )
+      expect(alertText($, 'record-missing-unavailable')).toBe(
+        `This case couldn’t be loaded. ${reason} Nothing has changed — try again in a moment.`
+      )
+    }
+  )
+
   test('says CW timed out rather than drawing a partial case', async () => {
     vi.mocked(getCasePageUseCase).mockResolvedValue({
       outcome: 'timed-out',
@@ -1263,7 +1288,7 @@ describe('the case page', () => {
       flatten(
         part($, 'record-missing-timed-out').find('.gpa-alert-title').text()
       )
-    ).toBe('This case could not be loaded: CW timed out waiting for it.')
+    ).toBe('This case couldn’t be loaded.')
     expect(textOf($, 'record-missing-title')).toBe('f02-7d8-a61')
     expect(part($, 'case-tabs')).toHaveLength(0)
   })
@@ -1620,12 +1645,12 @@ describe('the grant page', () => {
     [
       'unavailable',
       statusCodes.serviceUnavailable,
-      'This grant could not be loaded from GAS. GAS answered with an error. Nothing has changed — try again in a moment.'
+      'This grant couldn’t be loaded. GAS answered with an error. Nothing has changed — try again in a moment.'
     ],
     [
       'timed-out',
       statusCodes.gatewayTimeout,
-      'This grant could not be loaded: GAS timed out waiting for it. Nothing has changed. Refresh to try again.'
+      'This grant couldn’t be loaded. GAS timed out waiting for it. Nothing has changed — try again in a moment.'
     ]
   ] as const)(
     'names the code when GAS is %s',
@@ -3817,7 +3842,7 @@ describe('the grant Entitlements tab', () => {
       flatten(
         part($, 'record-missing-unavailable').find('.gpa-alert-title').text()
       )
-    ).toBe('This grant could not be loaded from GAS.')
+    ).toBe('This grant couldn’t be loaded.')
   })
 })
 
@@ -3901,7 +3926,7 @@ describe('the bare grant URL', () => {
       flatten(
         part($, 'record-missing-timed-out').find('.gpa-alert-title').text()
       )
-    ).toBe('This grant could not be loaded: GAS timed out waiting for it.')
+    ).toBe('This grant couldn’t be loaded.')
     expect(textOf($, 'record-missing-title')).toBe('woodland-creation')
   })
 

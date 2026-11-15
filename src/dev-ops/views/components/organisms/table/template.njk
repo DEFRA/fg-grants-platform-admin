@@ -1,0 +1,6 @@
+{%- from "../../core/macros.njk" import attrs, cls -%}
+<div class="{{ cls('gpa-table', p) }}"{{ attrs(p) }}><div class="gpa-table-scroll" tabindex="0"{% if p.label %} role="region" aria-label="{{ p.label }}"{% endif %}>
+      <table class="gpa-htable{{ ' gpa-minw-' ~ p.minWidth if p.minWidth }}"{% if p.label %} aria-label="{{ p.label }}"{% endif %}{% if p.tableTestId %} data-testid="{{ p.tableTestId }}"{% endif %}>{{ caller() }}</table>
+    </div>
+    {%- if p.footer %}{{ p.footer | safe }}{% endif -%}
+  </div>
