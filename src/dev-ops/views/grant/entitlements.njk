@@ -1,0 +1,109 @@
+{% from "version/words.njk" import words %}
+
+{%- macro yesNo(value) -%}{% if value %}Yes{% else %}No{% endif %}{%- endmacro -%}
+
+{%- macro positions(chips) -%}
+  {%- if chips | length -%}
+    {%- for chip in chips -%}
+      {{ ', ' if not loop.first }}{{ gpa.Link({ text: chip.label, href: chip.href, title: chip.code }) }}{% if chip.any %} {{ gpa.Text({ text: 'any status' if chip.any == 'status' else 'any stage, any status', tone: 'subtle' }) }}{% endif %}
+    {%- endfor -%}
+  {%- else -%}{{ gpa.NoValue() }}{%- endif -%}
+{%- endmacro -%}
+
+{%- macro roleLines(roles) -%}
+  {%- call gpa.Stack({ gap: 'xs' }) -%}
+    {%- if roles.allOf | length -%}{% set line %}All of: {% for role in roles.allOf %}{{ ', ' if not loop.first }}{{ gpa.Code({ text: role }) }}{% endfor %}{% endset %}{{ gpa.Text({ html: line }) }}{%- endif -%}
+    {%- if roles.anyOf | length -%}{% set line %}Any of: {% for role in roles.anyOf %}{{ ', ' if not loop.first }}{{ gpa.Code({ text: role }) }}{% endfor %}{% endset %}{{ gpa.Text({ html: line }) }}{%- endif -%}
+  {%- endcall -%}
+{%- endmacro -%}
+
+{%- macro problem(alert) -%}
+  {%- set body %}{{ words(alert.text) }}{% endset -%}
+  {{ gpa.Alert({ tone: alert.tone, title: alert.title, html: body, testId: 'entitlements-problem' }) }}
+{%- endmacro -%}
+
+{%- if entitlements.nothing -%}
+  {%- call gpa.Card() -%}
+    {{ gpa.EmptyState({ icon: 'ticket', title: 'No entitlement templates', text: 'No entitlement templates in this version, so nothing can be claimed on it.', testId: 'entitlements-none' }) }}
+  {%- endcall -%}
+{%- else -%}
+  {%- set claims = entitlements.claims -%}
+  {%- set afterLast -%}
+    {%- if claims.move -%}
+      {%- call gpa.Inline({ gap: 'xs' }) -%}
+        {{ gpa.Link({ text: claims.move.from.label, href: claims.move.from.href, title: claims.move.from.code }) }}{{ gpa.Icon({ name: 'arrow-right', size: 'sm', label: 'moves to', classes: 'gpa-dir-icon' }) }}{{ gpa.Link({ text: claims.move.to.label, href: claims.move.to.href, title: claims.move.to.code }) }}
+      {%- endcall -%}
+    {%- endif -%}
+  {%- endset -%}
+  {{ gpa.FactsCard({ title: 'Claims (all templates)', testId: 'entitlements-claims', facts: [
+    { label: 'After the last claim', html: afterLast if claims.move },
+    { label: 'Payment definition', text: 'Payment definition' if claims.paymentHref, href: claims.paymentHref },
+    { label: 'Claim roles', html: roleLines(claims.roles) if claims.roles else 'Any operator' }
+  ] }) }}
+
+  {%- call gpa.Accordion({ framed: true, testId: 'entitlements-templates' }) -%}
+    {%- for template in entitlements.templates -%}
+      {%- set meta %}{{ gpa.Badge({ text: template.badge.text, tone: template.badge.tone, size: 'sm' }) }}{% endset -%}
+      {%- call gpa.AccordionItem({
+        title: template.name,
+        leading: gpa.StatusMark({ tone: 'warning', label: 'Can’t be claimed' }) if template.cantClaim,
+        metaHtml: meta,
+        open: loop.first,
+        testId: 'entitlements-template'
+      }) -%}
+        {%- call gpa.Stack({ gap: 'lg' }) -%}
+          {%- if template.description %}{{ gpa.Text({ text: template.description, tone: 'muted' }) }}{% endif -%}
+          {%- for alert in template.alerts %}{{ problem(alert) }}{% endfor -%}
+          {%- call gpa.Grid({ columns: 2, gap: 'xl' }) -%}
+            {%- call gpa.Section({ title: 'How it’s created', headingLevel: 4 }) -%}
+              {%- call gpa.FactsList() -%}
+                {{ gpa.Fact({ label: 'Created by', text: 'Materialised: projected from the application’s position and past claims, which GAS doesn’t derive yet' if template.materialised else 'An operator (claimable item)' }) }}
+                {{ gpa.Fact({ label: 'Max per application', text: template.maxEntitlements | string }) }}
+                {{ gpa.Fact({ label: 'Can be created at', html: positions(template.availableAt) }) }}
+              {%- endcall -%}
+            {%- endcall -%}
+            {%- call gpa.Section({ title: 'Claiming', headingLevel: 4 }) -%}
+              {%- set claim = template.claim -%}
+              {%- call gpa.FactsList() -%}
+                {{ gpa.Fact({ label: 'Claimable at', html: positions(claim.claimableAt) if claim }) }}
+                {{ gpa.Fact({ label: 'Max claims', text: (claim.maximumClaims ~ ' per entitlement') if claim }) }}
+                {{ gpa.Fact({ label: 'Partial', text: yesNo(claim.partial) if claim }) }}
+                {{ gpa.Fact({ label: 'Approval', text: yesNo(claim.approval) if claim }) }}
+                {{ gpa.Fact({ label: 'Evidence', text: yesNo(claim.evidence) if claim }) }}
+              {%- endcall -%}
+            {%- endcall -%}
+          {%- endcall -%}
+          {%- if template.fields | length -%}
+            {%- call gpa.DataTable({ styleNonce: styleNonce, label: template.name ~ ' fields', columns: [
+              { key: 'field', label: 'Field', width: 'minmax(140px, 1fr)', mono: true },
+              { key: 'source', label: 'Source', width: 'minmax(120px, 0.8fr)' },
+              { key: 'value', label: 'Label or value', width: 'minmax(180px, 1.4fr)' },
+              { key: 'unit', label: 'Unit', width: 'minmax(70px, 0.5fr)' },
+              { key: 'bounds', label: 'Bounds', width: 'minmax(110px, 0.7fr)' }
+            ] }) -%}
+              {%- for field in template.fields -%}
+                {%- call gpa.TableRow({ testId: 'entitlements-field' }) -%}
+                  <td role="cell" class="gpa-cell-mono">{{ field.name }}</td>
+                  <td role="cell">{{ field.source }}</td>
+                  <td role="cell">{% if field.text %}{{ gpa.Text({ text: field.text, mono: field.text.startsWith('$') }) }}{% else %}{{ gpa.NoValue() }}{% endif %}</td>
+                  <td role="cell">{{ field.unit }}</td>
+                  <td role="cell">{% if field.bounds | length %}{{ field.bounds | join(', ') }}{% else %}{{ gpa.NoValue() }}{% endif %}</td>
+                {%- endcall -%}
+              {%- endfor -%}
+            {%- endcall -%}
+          {%- endif -%}
+          {%- if template.help -%}
+            {%- call gpa.Disclosure({ text: 'Help: ' ~ template.help.summary, hideText: 'Hide help', testId: 'entitlements-help' }) -%}
+              {%- call gpa.Stack({ gap: 'sm' }) -%}
+                {%- for block in template.help.content -%}
+                  {%- if block.text %}{{ gpa.Text({ text: block.text, as: 'p' }) }}
+                  {%- else %}{% for item in block.items %}{{ gpa.Text({ text: item, as: 'p' }) }}{% endfor %}{% endif -%}
+                {%- endfor -%}
+              {%- endcall -%}
+            {%- endcall -%}
+          {%- endif -%}
+        {%- endcall -%}
+      {%- endcall -%}
+    {%- endfor -%}
+  {%- endcall -%}
+{%- endif -%}

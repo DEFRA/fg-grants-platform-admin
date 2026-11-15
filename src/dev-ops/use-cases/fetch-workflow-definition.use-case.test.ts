@@ -10,7 +10,7 @@ const ref = { code: 'woodland-creation', version: '2.0.0' }
 const responseError = (statusCode: number) =>
   Object.assign(new Error(`Response Error: ${statusCode}`), {
     output: { statusCode },
-    data: { payload: {}, res: {} }
+    data: { isResponseError: true, payload: {}, res: {} }
   })
 
 describe('fetchWorkflowDefinitionUseCase', () => {
@@ -36,7 +36,8 @@ describe('fetchWorkflowDefinitionUseCase', () => {
 
     await expect(fetchWorkflowDefinitionUseCase(ref)).resolves.toEqual({
       outcome: 'not-found',
-      files: []
+      files: [],
+      failure: expect.objectContaining({ kind: 'refused', statusCode: 404 })
     })
     expect(logger.warn).toHaveBeenCalledWith(
       'Did not fetch workflow woodland-creation@2.0.0: not-found'
@@ -48,7 +49,8 @@ describe('fetchWorkflowDefinitionUseCase', () => {
 
     await expect(fetchWorkflowDefinitionUseCase(ref)).resolves.toEqual({
       outcome: 'unavailable',
-      files: []
+      files: [],
+      failure: { kind: 'errored', upstream: true }
     })
     expect(logger.error).toHaveBeenCalledWith(
       expect.stringContaining(

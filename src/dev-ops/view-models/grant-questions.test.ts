@@ -659,6 +659,35 @@ describe('toGrantQuestions schema tree', () => {
   })
 
   test.each([
+    [{ $ref: '#/$defs/flag' }, null],
+    [{ $ref: '#/$defs/flag', default: true }, 'true'],
+    [{ $ref: '#/$defs/missing', default: 1 }, '1']
+  ])('reads the default %j on the property itself as %j', (property, value) => {
+    const card = schemaCard({
+      $defs: { flag: { type: 'boolean', default: false } },
+      properties: { x: property }
+    })
+
+    expect(fieldsOf(card.rows)[0]?.defaultValue).toBe(value)
+  })
+
+  test('keeps a default on a field inside a ref target, where Ajv fills it', () => {
+    const card = schemaCard({
+      $defs: {
+        box: { properties: { a: { type: 'boolean', default: false } } }
+      },
+      properties: { x: { $ref: '#/$defs/box' } }
+    })
+
+    expect(
+      fieldsOf(card.rows).map(({ name, defaultValue }) => [name, defaultValue])
+    ).toEqual([
+      ['x', null],
+      ['a', 'false']
+    ])
+  })
+
+  test.each([
     [true, 'any'],
     [false, 'not allowed'],
     ['x', 'not a schema'],

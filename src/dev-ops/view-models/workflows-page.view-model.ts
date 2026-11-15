@@ -11,7 +11,6 @@ const workflowTabLabels: Record<(typeof workflowTabIds)[number], string> = {
   tasks: 'Tasks',
   pages: 'Pages',
   integrations: 'Integrations',
-  events: 'Events',
   raw: 'Raw'
 }
 
@@ -24,7 +23,8 @@ export const workflowType: RecordType = {
   linkLabel: 'View workflow',
   tabs: workflowTabIds.map((id) => ({ id, label: workflowTabLabels[id] })),
   view: 'workflow',
-  titleParam: 'code'
+  titleParam: 'code',
+  retiredTabs: ['events']
 }
 
 export const toWorkflowHref = (ref: WorkflowVersionRef): string =>

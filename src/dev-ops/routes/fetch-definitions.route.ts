@@ -50,7 +50,9 @@ export const fetchDefinitionsRoute = ({
       // A body-less POST is `null`, which a Joi `default` alone would refuse.
       payload: Joi.object({
         back: backSchema.default(''),
-        tab: recordTabSchema(record).default('overview')
+        tab: recordTabSchema(record)
+          .valid(...(record.retiredTabs ?? []))
+          .default('overview')
       })
         .empty(null)
         .default({})
@@ -59,7 +61,11 @@ export const fetchDefinitionsRoute = ({
   async handler(request: Request, h: ResponseToolkit) {
     const { code, version } = request.params
     const ref = { code, version }
-    const { back, tab } = request.payload as { back: string; tab: string }
+    const { back, tab: asked } = request.payload as {
+      back: string
+      tab: string
+    }
+    const tab = record.retiredTabs?.includes(asked) ? 'overview' : asked
     const page = toVersionPath(record, ref)
     const result = await fetch(ref, toActor(request))
     const notice: DefinitionFetchFlash = { ...result, page }

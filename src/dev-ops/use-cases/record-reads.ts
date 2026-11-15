@@ -10,7 +10,6 @@ import {
 import type { GasFailure } from './gas-status.ts'
 
 export type {
-  Counterpart,
   ListTotal,
   Position,
   PositionNames,
@@ -18,7 +17,9 @@ export type {
   RecordSectionError,
   RecordSeries,
   RecordTab,
-  StoredDate
+  StoredDate,
+  GrantVersionEvents,
+  VersionEvents
 } from '../repositories/record-page.ts'
 export { recordTabs } from '../repositories/record-page.ts'
 

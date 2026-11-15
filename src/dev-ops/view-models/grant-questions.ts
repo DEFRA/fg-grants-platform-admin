@@ -469,8 +469,11 @@ const toResolvedConstraints = ({
   ...also.flatMap(toConstraints)
 ]
 
-const defaultOf = (property: Schema): string | null =>
-  property.default === undefined ? null : json(property.default)
+/** Ajv's `useDefaults` fills a property from the `default` written on it, never from its ref's target. */
+const defaultOf = (property: unknown): string | null =>
+  !isSchema(property) || property.default === undefined
+    ? null
+    : json(property.default)
 
 /** Where a property's children and rules sit: the property itself, or its array's items. */
 interface Scope {
@@ -525,7 +528,7 @@ const toField = (
     required,
     type: toFieldType(property, found),
     constraints: toResolvedConstraints(found),
-    defaultValue: defaultOf(schema),
+    defaultValue: defaultOf(property),
     closed: scopeOf(schema, walk)?.schema.additionalProperties === false,
     from,
     indent: walk.depth

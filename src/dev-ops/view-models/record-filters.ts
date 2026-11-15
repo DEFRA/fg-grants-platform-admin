@@ -1,6 +1,7 @@
 import Joi from 'joi'
 import type { Schema } from 'joi'
 
+import { toVersionName } from './record-type.ts'
 import type { RecordType } from './record-type.ts'
 
 const refMax = 100
@@ -101,11 +102,13 @@ const backPages: [RegExp, (parts: string[]) => string][] = [
   [/^\/dev-ops\/cases\/[^/]+\/[^/]+$/, () => 'case'],
   [
     /^\/dev-ops\/grants\/([^/]+)\/([^/]+)$/,
-    ([code, version]) => `grant ${decode(code)} ${decode(version)}`
+    ([code, version]) =>
+      `grant ${toVersionName({ code: decode(code), version: decode(version) })}`
   ],
   [
     /^\/dev-ops\/workflows\/([^/]+)\/([^/]+)$/,
-    ([code, version]) => `workflow ${decode(code)} ${decode(version)}`
+    ([code, version]) =>
+      `workflow ${toVersionName({ code: decode(code), version: decode(version) })}`
   ],
   [/^\/dev-ops\/events\/[^/]+\/[^/]+\/[^/]+$/, () => 'event']
 ]

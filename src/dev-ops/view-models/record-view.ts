@@ -4,6 +4,7 @@ import type { EventsTab, TabNotice } from './record-events-tab.ts'
 import { toFittingBack } from './record-filters.ts'
 import { toTabHref, toTabs } from './record-page.view-model.ts'
 import type { RawTab } from './record-raw-tab.ts'
+import { toVersionName } from './record-type.ts'
 import type { RecordType } from './record-type.ts'
 import type { Times } from './times.ts'
 import type { Catalogue } from '../repositories/buckets.repository.ts'
@@ -116,7 +117,7 @@ export const toVersionLink = (
 ): VersionLink =>
   version
     ? {
-        text: `${code}@${version}`,
+        text: toVersionName({ code, version }),
         href: toLinkBack(toVersionHref({ code, version }), recordHref, from)
       }
     : { text: `${code}, version not recorded`, href: null }

@@ -7,10 +7,11 @@ import type {
   VersionSummary
 } from './config-versions.ts'
 import type { SourceError } from './events.repository.ts'
+import type { GrantLifecycle } from './grants.repository.ts'
 import type {
   Counterpart,
-  RecordEvents,
-  RecordSectionError
+  RecordSectionError,
+  VersionEvents
 } from './record-page.ts'
 
 export type WorkflowVersionRef = VersionRef
@@ -205,6 +206,11 @@ export interface WorkflowDefinition {
   addresses: ServiceAddress[]
 }
 
+/** What GAS will do with the statuses a workflow sends, as far as the grant of the same code and version says. */
+export type GrantStatusMap =
+  | { outcome: 'found'; lifecycle: GrantLifecycle }
+  | { outcome: 'no-grant' | 'not-stored' | 'unreadable' | 'unavailable' }
+
 export interface WorkflowVersionPage {
   header: WorkflowVersionHeader
   overview?: WorkflowVersionOverview | null
@@ -213,14 +219,17 @@ export interface WorkflowVersionPage {
   /** The stored workflow, as Caseworking keeps it; null when not stored or too large. */
   raw?: object | null
   storedBytes?: number | null
-  events?: RecordEvents | null
+  /** On the Overview alone. */
+  versionEvents?: VersionEvents
+  /** On Phases alone; null without the workflow's definition. */
+  grantStatusMap?: GrantStatusMap | null
   sourceErrors: SourceError[]
   sectionErrors: RecordSectionError[]
 }
 
 export type WorkflowVersions = ConfigVersions
 
-export type WorkflowRead = 'overview' | 'definition' | 'events' | 'raw'
+export type WorkflowRead = 'overview' | 'definition' | 'phases' | 'raw'
 
 const workflowPath = (code: string) =>
   `/grant-admin/workflows/${encodeURIComponent(code)}/versions`

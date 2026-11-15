@@ -1,6 +1,7 @@
 import { statusCodes } from '../../common/status-codes.ts'
 import type { GasFailure } from '../use-cases/gas-status.ts'
 import { timedOutWaiting, toFailureText } from './failure-text.ts'
+import { toVersionName } from './record-type.ts'
 import type { RecordType } from './record-type.ts'
 import { toRetryHref, type RetryRequest } from './status-page.ts'
 
@@ -16,7 +17,7 @@ interface Message {
 export type MissingKey = Record<string, string>
 
 const versionNotFound = (source: string, { code, version }: MissingKey) => ({
-  title: `${source} has no record of ${code}@${version}.`,
+  title: `${source} has no record of ${toVersionName({ code, version })}.`,
   text: `Check the version. If it was published and ${source} rejected it on arrival, its message is in ${source}’s inbox as a dead letter, unless it has been purged.`
 })
 
@@ -90,9 +91,10 @@ const messageFor = (
     ? notFoundCopies[record.itemId](key)
     : toFailedMessage(record, failure ?? failureOfState(state))
 
-/** A config version is named `code@version`, as everywhere it is written. */
 const nameOf = (record: RecordType, key: MissingKey): string =>
-  'version' in key ? `${key.code}@${key.version}` : key[record.titleParam]
+  'version' in key
+    ? toVersionName({ code: key.code, version: key.version })
+    : key[record.titleParam]
 
 const toPageTitle = (
   record: RecordType,

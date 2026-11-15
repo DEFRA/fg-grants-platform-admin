@@ -1,5 +1,14 @@
 import type { GrantLifecycle } from '../use-cases/get-grant-page.use-case.ts'
-import { toLifecycleNames } from './lifecycle-names.ts'
+import {
+  phaseCodeOf,
+  stageCodeOf,
+  stageKeyOf,
+  statusCodeOf,
+  toLifecycleNames,
+  toPosition,
+  toPositionParts,
+  toStageKey
+} from './lifecycle-names.ts'
 
 const lifecycle: GrantLifecycle = {
   phases: [
@@ -55,5 +64,34 @@ describe('toLifecycleNames', () => {
     expect([...names.stages]).toEqual(['PRE_AWARD:REVIEW', 'PRE_AWARD:OFFER'])
     expect(names.repeated('PRE_AWARD:OFFER:WITHDRAWN')).toBe(true)
     expect(names.repeated('PRE_AWARD:REVIEW:IN_REVIEW')).toBe(false)
+  })
+})
+
+describe('the position format', () => {
+  test('builds a position and its stage key from their codes', () => {
+    expect(toPosition('PRE_AWARD', 'REVIEW', 'IN_REVIEW')).toBe(
+      'PRE_AWARD:REVIEW:IN_REVIEW'
+    )
+    expect(toStageKey('PRE_AWARD', 'REVIEW')).toBe('PRE_AWARD:REVIEW')
+  })
+
+  test('reads back each code it was built from', () => {
+    const position = toPosition('PRE_AWARD', 'REVIEW', 'IN_REVIEW')
+
+    expect(toPositionParts(position)).toEqual([
+      'PRE_AWARD',
+      'REVIEW',
+      'IN_REVIEW'
+    ])
+    expect(phaseCodeOf(position)).toBe('PRE_AWARD')
+    expect(stageKeyOf(position)).toBe(toStageKey('PRE_AWARD', 'REVIEW'))
+    expect(stageCodeOf(position)).toBe('REVIEW')
+    expect(stageCodeOf(toStageKey('PRE_AWARD', 'REVIEW'))).toBe('REVIEW')
+    expect(statusCodeOf(position)).toBe('IN_REVIEW')
+  })
+
+  test('reads a bare status code as itself', () => {
+    expect(toPositionParts('IN_REVIEW')).toEqual(['IN_REVIEW'])
+    expect(statusCodeOf('IN_REVIEW')).toBe('IN_REVIEW')
   })
 })
