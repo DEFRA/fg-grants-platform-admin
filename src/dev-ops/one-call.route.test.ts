@@ -50,6 +50,7 @@ interface Row {
   url: string
   payload?: object
   credentials?: object | null
+  headers?: Record<string, string>
   gas?: FakeGas
   calls: string[]
   status: number
@@ -171,7 +172,10 @@ const inject = (row: Row) =>
       method: row.method ?? 'GET',
       url: row.url,
       payload: row.payload,
-      headers: row.method === 'POST' ? sameOrigin() : {},
+      headers: {
+        ...(row.method === 'POST' ? sameOrigin() : {}),
+        ...row.headers
+      },
       ...authOf(row)
     },
     row.gas ?? {}
@@ -1427,6 +1431,216 @@ const shellPages: Row[] = [
   }
 ]
 
+const vocabularyCall = 'GET /grant-admin/explore/vocabulary'
+const exploreCall = 'POST /grant-admin/explore/query'
+const listsCall = 'POST /grant-admin/lists/query'
+
+const vocabulary = { sources: [] }
+
+const explored = {
+  source: { name: 'applications', noun: 'application' },
+  mode: 'rows',
+  read: 'windowed',
+  columns: [
+    { key: 'c0', label: 'business', kind: 'text', aggregate: false },
+    { key: 'c1', label: 'sbi', kind: 'text', aggregate: false }
+  ],
+  rows: [{ open: null, cells: { c0: 'Hilltop Farm', c1: '200000002' } }],
+  count: null,
+  groups: false,
+  unwound: false,
+  partial: false,
+  unseen: [],
+  window: { to: '2026-10-01T00:00:00.000Z', end: false, positions: 'p' }
+}
+
+const typedQuery = 'db.applications.find()'
+const notHeld = '0b6f3e2a-5c1d-4e8f-9a7b-2c3d4e5f6a7b'
+const exploreUrl = '/dev-ops/explore'
+const loadMore = { 'x-requested-with': 'gpa-load-more' }
+
+const explore: Row[] = [
+  {
+    name: 'Explore, first opened',
+    url: exploreUrl,
+    gas: { [vocabularyCall]: withShell(vocabulary) },
+    calls: [vocabularyCall],
+    status: statusCodes.ok,
+    drawn: 'shell'
+  },
+  {
+    name: 'Explore, when GAS does not answer',
+    url: exploreUrl,
+    gas: { [vocabularyCall]: timeout },
+    calls: [vocabularyCall],
+    status: statusCodes.ok,
+    drawn: 'no-lists'
+  },
+  {
+    name: 'a run no longer held',
+    url: `${exploreUrl}?run=${notHeld}`,
+    gas: { [vocabularyCall]: withShell(vocabulary) },
+    calls: [vocabularyCall],
+    status: statusCodes.ok,
+    drawn: 'shell'
+  },
+  {
+    name: 'every window of a run no longer held',
+    url: `${exploreUrl}?run=${notHeld}&through=60`,
+    gas: { [vocabularyCall]: withShell(vocabulary) },
+    calls: [vocabularyCall],
+    status: statusCodes.ok,
+    drawn: 'shell'
+  },
+  {
+    name: 'a typed query, checked and held',
+    method: 'POST',
+    url: exploreUrl,
+    payload: { q: typedQuery },
+    gas: { [exploreCall]: withShell({ ok: true, source: 'applications' }) },
+    calls: [exploreCall],
+    status: statusCodes.seeOther,
+    drawn: 'redirect'
+  },
+  {
+    name: 'a typed query GAS finds invalid, drawn from its check',
+    method: 'POST',
+    url: exploreUrl,
+    payload: { q: 'db.applications.find(' },
+    gas: {
+      [exploreCall]: refusal(statusCodes.badRequest, {
+        reason: 'QUERY_INVALID',
+        error: { message: 'Close the list', at: 20, end: 21 },
+        vocabulary
+      })
+    },
+    calls: [exploreCall],
+    status: statusCodes.badRequest,
+    drawn: 'shell'
+  },
+  {
+    name: 'a typed query too long to check',
+    method: 'POST',
+    url: exploreUrl,
+    payload: { q: `db.applications.find({ x: '${'x'.repeat(4000)}' })` },
+    gas: { [vocabularyCall]: withShell(vocabulary) },
+    calls: [vocabularyCall],
+    status: statusCodes.badRequest,
+    drawn: 'shell'
+  },
+  {
+    name: 'a starting point picked',
+    method: 'POST',
+    url: exploreUrl,
+    payload: { pick: 'frps-cases-by-status', q: typedQuery },
+    calls: [],
+    status: statusCodes.seeOther,
+    drawn: 'redirect'
+  },
+  {
+    name: 'a pick no longer held',
+    method: 'POST',
+    url: exploreUrl,
+    payload: { pick: 'gone', q: typedQuery },
+    gas: { [vocabularyCall]: withShell(vocabulary) },
+    calls: [vocabularyCall],
+    status: statusCodes.ok,
+    drawn: 'shell'
+  },
+  {
+    name: 'Keep looking without script',
+    method: 'POST',
+    url: exploreUrl,
+    payload: { run: notHeld, page: '2' },
+    calls: [],
+    status: statusCodes.seeOther,
+    drawn: 'redirect'
+  },
+  {
+    name: 'Keep looking in place on a run no longer held',
+    method: 'POST',
+    url: exploreUrl,
+    payload: { run: notHeld, page: '2' },
+    headers: loadMore,
+    calls: [],
+    status: statusCodes.conflict,
+    drawn: 'no-lists'
+  },
+  {
+    name: 'a list opened in Explore',
+    method: 'POST',
+    url: exploreUrl,
+    payload: { from: 'events/gas/outbox', list: 'type=CreateCase' },
+    gas: { [listsCall]: withShell({ bucket: 'gas.outbox', list: null }) },
+    calls: [listsCall],
+    status: statusCodes.seeOther,
+    drawn: 'redirect'
+  },
+  {
+    name: 'a list GAS has not got, opened in Explore',
+    method: 'POST',
+    url: exploreUrl,
+    payload: { from: 'events/gas/nowhere', list: '' },
+    gas: {
+      [listsCall]: refusal(statusCodes.notFound, { code: 'LIST_NOT_FOUND' })
+    },
+    calls: [listsCall],
+    status: statusCodes.notFound,
+    drawn: 'shell'
+  },
+  {
+    name: 'a list opened in Explore, when GAS does not answer',
+    method: 'POST',
+    url: exploreUrl,
+    payload: { from: 'events/gas/outbox', list: '' },
+    gas: { [listsCall]: timeout },
+    calls: [listsCall],
+    status: statusCodes.serviceUnavailable,
+    drawn: 'no-lists'
+  },
+  {
+    name: 'Find others',
+    method: 'POST',
+    url: exploreUrl,
+    payload: {
+      find: 'payments-by-sbi',
+      record: '/dev-ops/applications/woodland/wmp-aa1-bb2'
+    },
+    gas: { [exploreCall]: withShell({ ...explored, vocabulary }) },
+    calls: [exploreCall],
+    status: statusCodes.seeOther,
+    drawn: 'redirect'
+  },
+  {
+    name: 'Find others GAS refuses, drawn from its refusal',
+    method: 'POST',
+    url: exploreUrl,
+    payload: {
+      find: 'payments-by-sbi',
+      record: '/dev-ops/applications/woodland/wmp-aa1-bb2'
+    },
+    gas: {
+      [exploreCall]: refusal(statusCodes.badRequest, {
+        reason: 'QUERY_REFUSED',
+        vocabulary
+      })
+    },
+    calls: [exploreCall],
+    status: statusCodes.badRequest,
+    drawn: 'shell'
+  },
+  {
+    name: 'a CSV of a run no longer held',
+    method: 'POST',
+    url: `${exploreUrl}.csv`,
+    payload: { run: notHeld },
+    gas: { [vocabularyCall]: withShell(vocabulary) },
+    calls: [vocabularyCall],
+    status: statusCodes.ok,
+    drawn: 'shell'
+  }
+]
+
 describe('one call per request: lists', () => {
   test.each(lists.map((row) => [row.name, row]))('%s', async (_name, row) => {
     await expect(check(row)).resolves.toBeUndefined()
@@ -1489,6 +1703,214 @@ describe('one call per request: the Overview', () => {
       await expect(check(row)).resolves.toBeUndefined()
     }
   )
+})
+
+describe('one call per request: explore', () => {
+  test.each(explore.map((row) => [row.name, row]))('%s', async (_name, row) => {
+    await expect(check(row)).resolves.toBeUndefined()
+  })
+
+  const cookieOf = (setCookie: string | string[] | undefined): string =>
+    [setCookie ?? []]
+      .flat()
+      .map((cookie) => cookie.split(';')[0])
+      .join('; ')
+
+  /** A run held by a typed query, and with `read` its first window read, in a session of its own. */
+  const holdRun = async (read = false) => {
+    const { response } = await inject({
+      ...explore[4],
+      gas: { [exploreCall]: withShell({ ok: true, source: 'applications' }) }
+    })
+    const cookie = cookieOf(response.headers['set-cookie'])
+    const id = new URL(
+      String(response.headers.location),
+      'http://x'
+    ).searchParams.get('run')!
+
+    if (read) {
+      await inject({
+        ...explore[0],
+        url: `${exploreUrl}?run=${id}`,
+        headers: { cookie },
+        gas: { [exploreCall]: withShell(explored) }
+      })
+    }
+
+    return { cookie, id }
+  }
+
+  const joined = { ...explored, windowRows: [1, 1], stopped: null, vocabulary }
+
+  const heldRows: [
+    string,
+    boolean,
+    (id: string) => Omit<Row, 'name' | 'headers'>
+  ][] = [
+    [
+      'a run’s first window',
+      false,
+      (id) => ({
+        url: `${exploreUrl}?run=${id}`,
+        gas: { [exploreCall]: withShell({ ...explored, vocabulary }) },
+        calls: [exploreCall],
+        status: statusCodes.ok,
+        drawn: 'shell'
+      })
+    ],
+    [
+      'a run’s first window, when GAS does not answer',
+      false,
+      (id) => ({
+        url: `${exploreUrl}?run=${id}`,
+        gas: { [exploreCall]: timeout },
+        calls: [exploreCall],
+        status: statusCodes.serviceUnavailable,
+        drawn: 'no-lists'
+      })
+    ],
+    [
+      'every window of a run through the one named, read in one call',
+      true,
+      (id) => ({
+        url: `${exploreUrl}?run=${id}&through=2`,
+        gas: { [exploreCall]: withShell(joined) },
+        calls: [exploreCall],
+        status: statusCodes.ok,
+        drawn: 'shell'
+      })
+    ],
+    [
+      'every window of a run, a later one stopped',
+      true,
+      (id) => ({
+        url: `${exploreUrl}?run=${id}&through=2`,
+        gas: {
+          [exploreCall]: withShell({
+            ...joined,
+            windowRows: [1],
+            stopped: { statusCode: 504, code: 'TIMED_OUT' }
+          })
+        },
+        calls: [exploreCall],
+        status: statusCodes.ok,
+        drawn: 'shell'
+      })
+    ],
+    [
+      'every window of a run through one not yet reached',
+      false,
+      (id) => ({
+        url: `${exploreUrl}?run=${id}&through=5`,
+        calls: [],
+        status: statusCodes.seeOther,
+        drawn: 'redirect'
+      })
+    ],
+    [
+      'Keep looking in place',
+      true,
+      (id) => ({
+        method: 'POST',
+        url: exploreUrl,
+        payload: { run: id, page: '2' },
+        extra: loadMore,
+        gas: { [exploreCall]: withShell({ ...explored, vocabulary }) },
+        calls: [exploreCall],
+        status: statusCodes.ok,
+        drawn: 'shell'
+      })
+    ],
+    [
+      'a run’s first window, while another query of this person’s runs',
+      false,
+      (id) => ({
+        url: `${exploreUrl}?run=${id}`,
+        gas: {
+          [exploreCall]: refusal(statusCodes.tooManyRequests, {
+            reason: 'QUERY_BUSY'
+          })
+        },
+        calls: [exploreCall],
+        status: statusCodes.tooManyRequests,
+        drawn: 'shell'
+      })
+    ],
+    [
+      'every window of a run, while another query of this person’s runs',
+      true,
+      (id) => ({
+        url: `${exploreUrl}?run=${id}&through=2`,
+        gas: {
+          [exploreCall]: refusal(statusCodes.tooManyRequests, {
+            reason: 'QUERY_BUSY'
+          })
+        },
+        calls: [exploreCall],
+        status: statusCodes.tooManyRequests,
+        drawn: 'shell'
+      })
+    ],
+    [
+      'Keep looking in place, while another query of this person’s runs',
+      true,
+      (id) => ({
+        method: 'POST',
+        url: exploreUrl,
+        payload: { run: id, page: '2' },
+        extra: loadMore,
+        gas: {
+          [exploreCall]: refusal(statusCodes.tooManyRequests, {
+            reason: 'QUERY_BUSY'
+          })
+        },
+        calls: [exploreCall],
+        status: statusCodes.ok,
+        drawn: 'shell'
+      })
+    ],
+    [
+      'a CSV of a run',
+      true,
+      (id) => ({
+        method: 'POST',
+        url: `${exploreUrl}.csv`,
+        payload: { run: id },
+        gas: { [exploreCall]: withShell(explored) },
+        calls: [exploreCall],
+        status: statusCodes.ok,
+        drawn: 'no-lists'
+      })
+    ],
+    [
+      'a CSV GAS refuses, drawn from its refusal',
+      true,
+      (id) => ({
+        method: 'POST',
+        url: `${exploreUrl}.csv`,
+        payload: { run: id },
+        gas: {
+          [exploreCall]: refusal(statusCodes.serviceUnavailable, {
+            vocabulary
+          })
+        },
+        calls: [exploreCall],
+        status: statusCodes.serviceUnavailable,
+        drawn: 'shell'
+      })
+    ]
+  ]
+
+  test.each(heldRows)('%s', async (name, read, toRow) => {
+    const { cookie, id } = await holdRun(read)
+    const { extra, ...row } = toRow(id) as Omit<Row, 'name'> & {
+      extra?: Record<string, string>
+    }
+
+    await expect(
+      check({ ...row, name, headers: { cookie, ...extra } })
+    ).resolves.toBeUndefined()
+  })
 })
 
 describe('one call per request: the shell', () => {
@@ -1565,7 +1987,8 @@ describe('one call per request: every route', () => {
     ...versionPages,
     ...tokenWrites,
     ...overview,
-    ...shellPages
+    ...shellPages,
+    ...explore
   ]
 
   test('has a row for each Dev Ops route', () => {

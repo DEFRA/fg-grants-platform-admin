@@ -18,6 +18,8 @@ import {
   fetchGrantDefinitionsRoute,
   fetchWorkflowDefinitionRoute
 } from './routes/fetch-definitions.route.ts'
+import { downloadExploreRoute } from './routes/download-explore.route.ts'
+import { runExploreRoute, viewExploreRoute } from './routes/explore.route.ts'
 import { viewOverviewRoute } from './routes/overview.route.ts'
 import { purgeEventRoute } from './routes/purge-event.route.ts'
 import {
@@ -35,6 +37,7 @@ import { viewEventRoute } from './routes/view-event.route.ts'
 import { saveTimesRoute, viewTimesRoute } from './routes/times.route.ts'
 import { toSignedOutRoute } from './routes/signed-out.route.ts'
 import { fetchMissingShell } from './shell-fallback.ts'
+import { provideExploreRunsStore } from './repositories/explore-runs.repository.ts'
 import { toStatusResponse } from './status-pages.ts'
 import { countUpstream, guardOneCall } from './upstream.ts'
 import { timesCookieName } from './view-models/times.ts'
@@ -67,6 +70,7 @@ export const devOps = {
       compileComponentMacros()
 
       server.state(timesCookieName, timesCookieOptions)
+      provideExploreRunsStore(server)
 
       // Before the CSP plugin, so the page it draws in place of an error gets the header too.
       server.ext('onPreResponse', fetchMissingShell, {
@@ -87,6 +91,7 @@ export const devOps = {
           asOperator(
             countUpstream([
               viewOverviewRoute,
+              viewExploreRoute,
               viewBucketRoute,
               viewApplicationRoute,
               viewCaseRoute,
@@ -98,6 +103,8 @@ export const devOps = {
               viewAccessTokensRoute,
               viewTimesRoute,
               ...sameOriginOnly([
+                runExploreRoute,
+                downloadExploreRoute,
                 searchBucketRoute,
                 fetchGrantDefinitionsRoute,
                 fetchWorkflowDefinitionRoute,

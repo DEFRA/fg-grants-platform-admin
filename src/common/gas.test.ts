@@ -65,6 +65,28 @@ describe('getFromGas', () => {
   })
 })
 
+describe('getFromGas with headers of its own', () => {
+  beforeEach(() => {
+    vi.mocked(wreck.get).mockResolvedValue({ payload: {} } as never)
+  })
+
+  test('sends them beside the service token', async () => {
+    await getFromGas('/grant-admin/explore/vocabulary', {
+      'x-actor-roles': 'FCP.GrantOperationsAdmin'
+    })
+
+    expect(wreck.get).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({
+        headers: {
+          authorization: `Bearer ${config.get('gas.serviceToken')}`,
+          'x-actor-roles': 'FCP.GrantOperationsAdmin'
+        }
+      })
+    )
+  })
+})
+
 describe('postToGas', () => {
   beforeEach(() => {
     vi.mocked(wreck.post).mockResolvedValue({
@@ -88,6 +110,15 @@ describe('postToGas', () => {
     expect(wreck.post).toHaveBeenCalledWith(
       expect.any(String),
       expect.objectContaining({ timeout: 1234 })
+    )
+  })
+
+  test('gives up after the timeout the call asks for', async () => {
+    await postToGas('/grant-admin/explore/query', { timeoutMs: 12000 })
+
+    expect(wreck.post).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({ timeout: 12000 })
     )
   })
 

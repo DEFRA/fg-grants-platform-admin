@@ -1,5 +1,6 @@
 import {
   timeRangeFilters,
+  toListWindow,
   toRangeChip,
   toRangeInstants
 } from './time-range.view-model.ts'
@@ -92,6 +93,32 @@ describe('toRangeInstants', () => {
         to: '9999-12-31T23:59:59.000Z'
       }
     )
+  })
+})
+
+describe('toListWindow', () => {
+  test('reads a list address’s range, and nothing else in it', () => {
+    expect(
+      toListWindow(
+        { from: '2026-07-01', to: '2026-07-02', status: 'DEAD_LETTER' },
+        'UTC',
+        now
+      )
+    ).toEqual({
+      from: '2026-07-01T00:00:00.000Z',
+      to: '2026-07-02T23:59:59.999Z'
+    })
+  })
+
+  test('a quick range is back from now on a first page, and its pinned start on a later one', () => {
+    const address = { range: '24h', from: '2026-11-01T08:00' }
+
+    expect(toListWindow(address, 'UTC', now)).toEqual({
+      from: '2026-11-09T12:00:00.000Z'
+    })
+    expect(toListWindow(address, 'UTC', now, true)).toEqual({
+      from: '2026-11-01T08:00:00.000Z'
+    })
   })
 })
 

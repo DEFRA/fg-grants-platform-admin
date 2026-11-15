@@ -35,6 +35,21 @@ export const clearAuthSession = (request: Request) => {
   request.yar.clear(sessionKey)
 }
 
+/**
+ * A sign-in or a sign-out starts a new session, with a new id: nothing one
+ * person left in it (a list's search, Explore's runs and Recent) reaches
+ * whoever signs in next on that browser. The theme and Times are cookies of
+ * their own, so they stay.
+ */
+export const startAuthSession = (request: Request, session: OidcToken) => {
+  request.yar.reset()
+  setAuthSession(request, session)
+}
+
+export const endAuthSession = (request: Request) => {
+  request.yar.reset()
+}
+
 // The claims come back from Redis as untyped JSON, so this asserts rather than
 // proves the shape. Entra ID issues `oid` on every token it signs.
 const claimsOf = (session: OidcToken) =>

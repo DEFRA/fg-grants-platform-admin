@@ -3,6 +3,7 @@ import { watchScroll } from "./core/scroll.ts";
 import { GpaAccordion } from "./molecules/accordion/web-component.ts";
 import { GpaCalendar } from "./molecules/calendar/web-component.ts";
 import { GpaClearable } from "./atoms/input/web-component.ts";
+import { GpaQueryEditor } from "./molecules/query-editor/web-component.ts";
 import { GpaConfirm } from "./organisms/confirm-dialog/web-component.ts";
 import { GpaCopy } from "./molecules/copy-button/web-component.ts";
 import { GpaDataTable } from "./organisms/data-table/web-component.ts";
@@ -29,6 +30,7 @@ const elements: [string, CustomElementConstructor][] = [
   ["gpa-accordion", GpaAccordion],
   ["gpa-calendar", GpaCalendar],
   ["gpa-clearable", GpaClearable],
+  ["gpa-query-editor", GpaQueryEditor],
   ["gpa-confirm", GpaConfirm],
   ["gpa-copy", GpaCopy],
   ["gpa-data-table", GpaDataTable],
@@ -134,6 +136,7 @@ export {
   GpaAccordion,
   GpaCalendar,
   GpaClearable,
+  GpaQueryEditor,
   GpaConfirm,
   GpaCopy,
   GpaDataTable,

@@ -1,0 +1,10 @@
+@media (scripting: none) {
+  .gpa-qe-foot {
+    display: none;
+  }
+}
+@media (scripting: enabled) {
+  gpa-query-editor:not(:defined) .gpa-qe-foot {
+    animation: gpa-ssr-fallback 0s 4s forwards;
+  }
+}
