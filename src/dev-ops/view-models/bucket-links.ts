@@ -4,7 +4,7 @@ import { toApplicationHref } from './applications-page.view-model.ts'
 import type {
   BucketEntry,
   Catalogue
-} from '../use-cases/get-catalogue.use-case.ts'
+} from '../repositories/buckets.repository.ts'
 import { toBucketPath } from './bucket-nav.ts'
 import { toUrlQuery } from './bucket-urls.ts'
 import { toCaseHref } from './cases-page.view-model.ts'

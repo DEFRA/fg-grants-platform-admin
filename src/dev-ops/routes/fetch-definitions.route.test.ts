@@ -12,7 +12,7 @@ import type {
 } from '../use-cases/get-grant-page.use-case.ts'
 import { getGrantPageUseCase } from '../use-cases/get-grant-page.use-case.ts'
 
-vi.mock(import('../use-cases/get-catalogue.use-case.ts'))
+vi.mock(import('../use-cases/shell-catalogue.ts'))
 vi.mock(import('../use-cases/fetch-grant-definitions.use-case.ts'))
 vi.mock(import('../use-cases/get-grant-page.use-case.ts'), async () => ({
   ...(await vi.importActual<

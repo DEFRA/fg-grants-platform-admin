@@ -9,7 +9,8 @@ import { getEventUseCase } from '../use-cases/get-event.use-case.ts'
 import type { RedriveResult } from '../use-cases/redrive-event.use-case.ts'
 import { redriveEventUseCase } from '../use-cases/redrive-event.use-case.ts'
 
-vi.mock(import('../use-cases/get-catalogue.use-case.ts'))
+vi.mock(import('../use-cases/get-bucket-at.use-case.ts'))
+vi.mock(import('../use-cases/shell-catalogue.ts'))
 vi.mock(import('../use-cases/redrive-event.use-case.ts'))
 vi.mock(import('../use-cases/get-event.use-case.ts'))
 

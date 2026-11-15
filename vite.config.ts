@@ -13,7 +13,9 @@ export default defineConfig({
         'html-assets': 'src/client/assets.html',
         application: 'src/client/javascripts/application.ts',
         'application-css': 'src/client/stylesheets/application.scss',
-        'dev-ops-css': 'src/dev-ops/client/dev-ops.css',
+        'legacy-css': 'src/dev-ops/client/dev-ops.css',
+        legacy: 'src/dev-ops/views/legacy/index.ts',
+        'dev-ops-css': 'src/dev-ops/views/components/index.css',
         'dev-ops': 'src/dev-ops/views/components/index.ts'
       }
     },

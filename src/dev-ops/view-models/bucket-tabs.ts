@@ -1,4 +1,4 @@
-import type { BucketEntry } from '../use-cases/get-catalogue.use-case.ts'
+import type { BucketEntry } from '../repositories/buckets.repository.ts'
 import { toBucketPath } from './bucket-nav.ts'
 
 export interface PageTab {

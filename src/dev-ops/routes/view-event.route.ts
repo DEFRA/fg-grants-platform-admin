@@ -1,7 +1,7 @@
 import type { Request, ResponseToolkit, ServerRoute } from '@hapi/hapi'
 import Joi from 'joi'
 
-import { getCatalogueUseCase } from '../use-cases/get-catalogue.use-case.ts'
+import { shellCatalogue } from '../use-cases/shell-catalogue.ts'
 import { getEventUseCase } from '../use-cases/get-event.use-case.ts'
 import { toBackBucket } from '../view-models/bucket-nav.ts'
 import { eventAddress, toEventKey } from '../view-models/event-address.ts'
@@ -14,6 +14,7 @@ import {
   toSafeFrom
 } from '../view-models/event-page.view-model.ts'
 import { fromMax } from '../view-models/record-filters.ts'
+import { shellQuery, timesOf } from '../view-models/times.ts'
 
 export const viewEventRoute: ServerRoute = {
   method: 'GET',
@@ -27,7 +28,8 @@ export const viewEventRoute: ServerRoute = {
         // Bounded because it is echoed into every link on the page.
         back: Joi.string().allow('').max(fromMax),
         confirm: Joi.string(),
-        edit: Joi.string()
+        edit: Joi.string(),
+        ...shellQuery
       })
     }
   },
@@ -40,7 +42,7 @@ export const viewEventRoute: ServerRoute = {
     const [form] = request.yar.flash(purgeFormKey)
     const result = await getEventUseCase(key)
     const from = toSafeFrom(query.back)
-    const bucket = toBackBucket(await getCatalogueUseCase(), from)
+    const bucket = toBackBucket(shellCatalogue(request), from)
     const navActive = bucket?.id ?? null
 
     if (result.outcome === 'not-found') {
@@ -53,7 +55,16 @@ export const viewEventRoute: ServerRoute = {
 
     return h.view('event', {
       pageTitle: 'Event',
-      ...toEventPage(result, key, query, notice, form, undefined, bucket)
+      ...toEventPage(
+        result,
+        key,
+        query,
+        timesOf(request).zone,
+        notice,
+        form,
+        undefined,
+        bucket
+      )
     })
   }
 }

@@ -1,4 +1,4 @@
-import type { BucketEntry } from '../use-cases/get-catalogue.use-case.ts'
+import type { BucketEntry } from '../repositories/buckets.repository.ts'
 import type { BucketFilters } from './bucket-links.ts'
 import { showKey, shownFacts } from './bucket-toggles.ts'
 

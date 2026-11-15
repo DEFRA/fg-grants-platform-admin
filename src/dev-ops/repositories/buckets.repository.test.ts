@@ -1,22 +1,7 @@
-import { getFromGas, postToGas } from '../../common/gas.ts'
-import {
-  findBuckets,
-  queryBucket,
-  summariseBucket
-} from './buckets.repository.ts'
+import { postToGas } from '../../common/gas.ts'
+import { queryBucket, summariseBucket } from './buckets.repository.ts'
 
 vi.mock(import('../../common/gas.ts'))
-
-describe('findBuckets', () => {
-  test('reads the catalogue from fg-gas-backend', async () => {
-    const catalogue = { buckets: [], sourceErrors: [{ hop: 'CW-BE' }] }
-
-    vi.mocked(getFromGas).mockResolvedValue(catalogue)
-
-    await expect(findBuckets()).resolves.toEqual(catalogue)
-    expect(getFromGas).toHaveBeenCalledWith('/grant-admin/buckets')
-  })
-})
 
 describe('queryBucket', () => {
   test('posts the query, so a ref never travels in a URL', async () => {

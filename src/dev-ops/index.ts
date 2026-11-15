@@ -1,8 +1,10 @@
 import type { Server } from '@hapi/hapi'
 
+import { devOpsSignedOutPath } from '../server/plugins/auth/paths.ts'
 import { sameOriginOnly } from '../server/plugins/auth/same-origin.ts'
 import { scopedTo } from '../server/plugins/auth/scoped-to.ts'
 import { asOperator } from '../common/as-operator.ts'
+import { config } from '../common/config.ts'
 import { roles } from '../common/roles.ts'
 import {
   accessTokenWriteRoutes,
@@ -30,7 +32,28 @@ import { redriveEventRoute } from './routes/redrive-event.route.ts'
 import { reviewPayloadRoute } from './routes/review-payload.route.ts'
 import { savePayloadRoute } from './routes/save-payload.route.ts'
 import { viewEventRoute } from './routes/view-event.route.ts'
-import { devOpsViewOptions } from './view-options.ts'
+import { saveTimesRoute, viewTimesRoute } from './routes/times.route.ts'
+import { toSignedOutRoute } from './routes/signed-out.route.ts'
+import { fetchMissingShell } from './shell-fallback.ts'
+import { toStatusResponse } from './status-pages.ts'
+import { countUpstream, guardOneCall } from './upstream.ts'
+import { timesCookieName } from './view-models/times.ts'
+import { compileComponentMacros, devOpsViewOptions } from './view-options.ts'
+
+const daysInYear = 365
+const yearMs = daysInYear * 24 * 60 * 60 * 1000
+
+/** The Times setting, kept a year like the theme; only the server reads it. */
+const timesCookieOptions = {
+  ttl: yearMs,
+  path: '/',
+  isSecure: config.get('session.cookie.secure'),
+  isHttpOnly: true,
+  isSameSite: 'Strict' as const,
+  encoding: 'none' as const,
+  clearInvalid: true,
+  ignoreErrors: true
+}
 
 export const devOps = {
   plugin: {
@@ -41,30 +64,49 @@ export const devOps = {
         relativeTo: import.meta.dirname,
         path: 'views'
       })
+      compileComponentMacros()
+
+      server.state(timesCookieName, timesCookieOptions)
+
+      // Before the CSP plugin, so the page it draws in place of an error gets the header too.
+      server.ext('onPreResponse', fetchMissingShell, {
+        sandbox: 'plugin',
+        before: ['errors', 'blankie']
+      })
+      server.ext('onPreResponse', toStatusResponse, {
+        sandbox: 'plugin',
+        before: ['errors', 'blankie']
+      })
+      server.ext('onPreResponse', guardOneCall, { sandbox: 'plugin' })
+
+      server.route(toSignedOutRoute(devOpsSignedOutPath))
 
       server.route(
         scopedTo(
           roles.grantOperationsAdmin,
-          asOperator([
-            viewDevOpsRoute,
-            viewBucketRoute,
-            searchBucketRoute,
-            viewApplicationRoute,
-            viewCaseRoute,
-            viewGrantRoute,
-            viewCurrentGrantRoute,
-            fetchGrantDefinitionsRoute,
-            viewWorkflowRoute,
-            viewCurrentWorkflowRoute,
-            fetchWorkflowDefinitionRoute,
-            viewEventRoute,
-            redriveEventRoute,
-            purgeEventRoute,
-            reviewPayloadRoute,
-            savePayloadRoute,
-            viewAccessTokensRoute,
-            ...sameOriginOnly(accessTokenWriteRoutes)
-          ])
+          asOperator(
+            countUpstream([
+              viewDevOpsRoute,
+              viewBucketRoute,
+              searchBucketRoute,
+              viewApplicationRoute,
+              viewCaseRoute,
+              viewGrantRoute,
+              viewCurrentGrantRoute,
+              fetchGrantDefinitionsRoute,
+              viewWorkflowRoute,
+              viewCurrentWorkflowRoute,
+              fetchWorkflowDefinitionRoute,
+              viewEventRoute,
+              redriveEventRoute,
+              purgeEventRoute,
+              reviewPayloadRoute,
+              savePayloadRoute,
+              viewAccessTokensRoute,
+              viewTimesRoute,
+              ...sameOriginOnly([...accessTokenWriteRoutes, saveTimesRoute])
+            ])
+          )
         )
       )
     }

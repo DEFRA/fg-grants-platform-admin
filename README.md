@@ -176,6 +176,15 @@ To update dependencies use [npm-check-updates](https://github.com/raineorshine/n
 ncu --interactive --format group
 ```
 
+### Dev Ops components
+
+`src/dev-ops/views/components` is generated and never edited by hand. Its
+`manifest.json` holds a checksum for each file and the extra icon names.
+
+The icon set holds only the icons the views use. When a view uses an icon
+the set lacks, `src/dev-ops/icons.test.ts` names it; the set is then
+regenerated with that icon added to the manifest's extra icons.
+
 ### Formatting
 
 #### Windows prettier issue

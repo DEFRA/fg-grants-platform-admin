@@ -1,3 +1,4 @@
+import { ukZone } from './zoned-clock.ts'
 import Joi from 'joi'
 
 import {
@@ -25,7 +26,7 @@ const applications: TimeRangeList<ApplicationsQuery> = {
 }
 
 const rangeFor = (query: ApplicationsQuery = {}) =>
-  toTimeRange(applications, query, now)
+  toTimeRange(applications, query, now, ukZone)
 
 describe('toTimeRange', () => {
   test('offers All and the same six presets on any list', () => {
@@ -101,7 +102,10 @@ describe('toTimeRange', () => {
 describe('toRangeInstants', () => {
   test('takes the first pass of the repeated autumn hour for From, the second for To', () => {
     expect(
-      toRangeInstants({ from: '2026-10-25T01:30', to: '2026-10-25T01:30' })
+      toRangeInstants(
+        { from: '2026-10-25T01:30', to: '2026-10-25T01:30' },
+        ukZone
+      )
     ).toEqual({
       from: '2026-10-25T00:30:00.000Z',
       to: '2026-10-25T01:30:00.000Z'
@@ -109,13 +113,27 @@ describe('toRangeInstants', () => {
   })
 
   test('passes an instant from a preset link through untouched', () => {
-    expect(toRangeInstants({ from: '2026-06-16T09:00:00.000Z' })).toEqual({
+    expect(
+      toRangeInstants({ from: '2026-06-16T09:00:00.000Z' }, ukZone)
+    ).toEqual({
       from: '2026-06-16T09:00:00.000Z'
     })
   })
 
   test('leaves out an empty box', () => {
-    expect(toRangeInstants({ from: '', to: undefined })).toEqual({})
+    expect(toRangeInstants({ from: '', to: undefined }, ukZone)).toEqual({})
+  })
+
+  test('leaves a box with no instant in the zone, as year 0 has none, as typed', () => {
+    expect(toRangeInstants({ from: '0000-01-01T00:00' }, ukZone)).toEqual({
+      from: '0000-01-01T00:00'
+    })
+  })
+
+  test('reads the last second the calendar has, though the hours after it cannot be read', () => {
+    expect(toRangeInstants({ to: '9999-12-31T23:59:59' }, ukZone)).toEqual({
+      to: '9999-12-31T23:59:59.000Z'
+    })
   })
 })
 

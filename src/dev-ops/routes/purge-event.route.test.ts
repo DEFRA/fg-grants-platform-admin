@@ -9,7 +9,8 @@ import { getEventUseCase } from '../use-cases/get-event.use-case.ts'
 import type { PurgeResult } from '../use-cases/purge-event.use-case.ts'
 import { purgeEventUseCase } from '../use-cases/purge-event.use-case.ts'
 
-vi.mock(import('../use-cases/get-catalogue.use-case.ts'))
+vi.mock(import('../use-cases/get-bucket-at.use-case.ts'))
+vi.mock(import('../use-cases/shell-catalogue.ts'))
 vi.mock(import('../use-cases/purge-event.use-case.ts'))
 vi.mock(import('../use-cases/get-event.use-case.ts'))
 
@@ -90,7 +91,8 @@ const follow = async (cookie: string, url = page): Promise<CheerioAPI> => {
   const { result } = await server.inject({
     method: 'GET',
     url,
-    headers: { cookie },
+    // UK time, the setting these expectations are written in.
+    headers: { cookie: `${cookie}; dev-ops-times=uk` },
     auth: { strategy: 'session', credentials }
   })
 
@@ -454,7 +456,7 @@ describe('a purge form the admin refused', () => {
 
     expect($('#purge-note').text()).toBe(xss)
     expect($('main script')).toHaveLength(0)
-    expect($('script')).toHaveLength(1)
+    expect($('script:not([src^="/public/"])')).toHaveLength(0)
   })
 })
 

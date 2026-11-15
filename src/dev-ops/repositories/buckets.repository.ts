@@ -1,4 +1,4 @@
-import { getFromGas, postToGas } from '../../common/gas.ts'
+import { postToGas } from '../../common/gas.ts'
 import type { BadgeRole, SourceError } from './events.repository.ts'
 import type { ListTotal, Position } from './record-page.ts'
 import { toRepeatOptions } from './record-page.ts'
@@ -194,9 +194,6 @@ export interface SummaryQuery {
   from?: string
   to?: string
 }
-
-export const findBuckets = async (): Promise<Catalogue> =>
-  getFromGas<Catalogue>('/grant-admin/buckets')
 
 /** A POST, so a searched ref travels in the body and never in a logged URL. */
 export const queryBucket = async (
