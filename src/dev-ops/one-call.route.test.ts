@@ -820,65 +820,106 @@ const workflowCall =
   'GET /grant-admin/workflows/{code}/versions/{version}/{read}'
 const workflowVersionsCall = 'GET /grant-admin/workflows/{code}/versions'
 
-const records: Row[] = [
-  {
-    name: 'an application',
-    url: applicationUrl,
-    gas: {
-      [applicationCall]: withShell(
-        recordPage({
-          clientRef: 'a7c-2f1-9e4',
-          code: 'woodland',
-          position,
-          counterpart: null,
-          fetchedAt: at
-        })
-      )
-    },
-    calls: [applicationCall],
-    status: statusCodes.ok,
-    drawn: 'shell'
-  },
-  {
-    name: 'an application GAS has not got',
-    url: applicationUrl,
-    gas: {
-      [applicationCall]: refusal(statusCodes.notFound, {
-        reason: 'APPLICATION_NOT_FOUND'
+const names = {
+  phases: [{ code: 'PHASE_PRE_AWARD', name: 'Pre award' }],
+  stage: 'Review application',
+  status: 'Application received'
+}
+
+const recordNames: [string, object | null][] = [
+  ['with the names of where it is', names],
+  ['with no names', null],
+  [
+    'with its phases named but not its stage or status',
+    { ...names, stage: null, status: null }
+  ]
+]
+
+const tabs = [
+  ['Overview', ''],
+  ['Events', '?tab=events'],
+  ['Raw', '?tab=raw']
+]
+
+const caseUrl = '/dev-ops/cases/woodland/f02-7d8-a61'
+
+const applicationHeader = (header: object) => ({
+  clientRef: 'a7c-2f1-9e4',
+  code: 'woodland',
+  position,
+  counterpart: null,
+  fetchedAt: at,
+  ...header
+})
+
+const caseHeader = (header: object) => ({
+  caseRef: 'f02-7d8-a61',
+  workflowCode: 'woodland',
+  position,
+  closed: false,
+  closedAt: null,
+  counterpart: null,
+  fetchedAt: at,
+  ...header
+})
+
+/** Every tab of a record, with or without names, then each way GAS can fail to answer for it. */
+const recordRows = (
+  noun: string,
+  url: string,
+  call: string,
+  header: (names: object) => object,
+  reason: string
+): Row[] => [
+  ...tabs.flatMap(([tab, query]) =>
+    recordNames.map(
+      ([named, given]): Row => ({
+        name: `${noun}’s ${tab}, ${named}`,
+        url: `${url}${query}`,
+        gas: {
+          [call]: withShell(recordPage(header({ names: given })))
+        },
+        calls: [call],
+        status: statusCodes.ok,
+        drawn: 'shell'
       })
-    },
-    calls: [applicationCall],
+    )
+  ),
+  {
+    name: `${noun} GAS has not got`,
+    url,
+    gas: { [call]: refusal(statusCodes.notFound, { reason }) },
+    calls: [call],
     status: statusCodes.notFound,
     drawn: 'shell'
   },
   {
-    name: 'an application, when GAS does not answer',
-    url: applicationUrl,
-    gas: { [applicationCall]: timeout },
-    calls: [applicationCall],
-    status: statusCodes.gatewayTimeout,
-    drawn: 'no-lists'
-  },
-  {
-    name: 'a case',
-    url: '/dev-ops/cases/woodland/f02-7d8-a61',
-    gas: {
-      [caseCall]: withShell(
-        recordPage({
-          caseRef: 'f02-7d8-a61',
-          workflowCode: 'woodland',
-          position,
-          closed: false,
-          closedAt: null,
-          counterpart: null,
-          fetchedAt: at
-        })
-      )
-    },
-    calls: [caseCall],
-    status: statusCodes.ok,
+    name: `${noun} GAS could not read`,
+    url,
+    gas: { [call]: refusal(statusCodes.serviceUnavailable) },
+    calls: [call],
+    status: statusCodes.serviceUnavailable,
     drawn: 'shell'
   },
+  {
+    name: `${noun}, when GAS does not answer`,
+    url,
+    gas: { [call]: timeout },
+    calls: [call],
+    status: statusCodes.gatewayTimeout,
+    drawn: 'no-lists'
+  }
+]
+
+const records: Row[] = [
+  ...recordRows(
+    'an application',
+    applicationUrl,
+    applicationCall,
+    applicationHeader,
+    'APPLICATION_NOT_FOUND'
+  ),
+  ...recordRows('a case', caseUrl, caseCall, caseHeader, 'CASE_NOT_FOUND'),
   {
     name: 'a grant version',
     url: '/dev-ops/grants/woodland/1.2.0',

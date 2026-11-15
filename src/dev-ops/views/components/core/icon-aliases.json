@@ -4,5 +4,6 @@
   "alert-circle": "circle-alert",
   "alert-triangle": "triangle-alert",
   "check-circle-2": "circle-check",
+  "file-warning": "file-exclamation-point",
   "file-question": "file-question-mark"
 }

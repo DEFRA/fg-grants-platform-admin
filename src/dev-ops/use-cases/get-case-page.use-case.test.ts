@@ -36,14 +36,15 @@ describe('getCasePageUseCase', () => {
   })
 
   test.each([
-    ['CW timing out', 504, 'timed-out'],
-    ['CW down', 502, 'unavailable']
-  ])('reads %s as an outage', async (_name, status, outcome) => {
+    ['CW timing out', 504, 'timed-out', { kind: 'timed-out' }],
+    ['CW down', 502, 'unavailable', { kind: 'errored', upstream: true }]
+  ])('reads %s as an outage', async (_name, status, outcome, failure) => {
     vi.mocked(findCasePage).mockRejectedValue(responseError(status))
 
     await expect(getCasePageUseCase(ref, 'events')).resolves.toMatchObject({
       outcome,
-      page: null
+      page: null,
+      failure
     })
   })
 
