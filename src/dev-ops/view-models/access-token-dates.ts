@@ -6,9 +6,6 @@ import {
   ukZone
 } from './zoned-clock.ts'
 
-const hourMs = 3_600_000
-export const dayMs = 24 * hourMs
-
 /** The day it is in the UK at that instant, `yyyy-mm-dd`, as a date box holds it. */
 export const toUkDate = (date: Date): string =>
   toZonedInput(date, ukZone).slice(0, 10)

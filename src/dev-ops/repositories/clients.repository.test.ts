@@ -1,3 +1,5 @@
+import Boom from '@hapi/boom'
+
 import {
   deleteFromGas,
   getFromGas,
@@ -11,10 +13,17 @@ import {
   issueToken,
   listTokens,
   revokeToken,
-  rotateToken
+  rotateToken,
+  toRefusalBody
 } from './clients.repository.ts'
 
-vi.mock(import('../../common/gas.ts'))
+vi.mock(import('../../common/gas.ts'), async (original) => ({
+  ...(await original()),
+  deleteFromGas: vi.fn(),
+  getFromGas: vi.fn(),
+  postToGas: vi.fn(),
+  putToGas: vi.fn()
+}))
 
 const token: ApiToken = {
   tokenId: '6650c1f2a9e4b1d07c20bd91',
@@ -42,7 +51,11 @@ const tokenPath = `/grant-admin/clients/cw/grants-ui/tokens/${token.tokenId}`
 describe('the clients repository', () => {
   beforeEach(() => {
     vi.mocked(getFromGas).mockResolvedValue({ service: 'gas', tokens: [token] })
-    vi.mocked(postToGas).mockResolvedValue({ service: 'gas', token })
+    vi.mocked(postToGas).mockResolvedValue({
+      service: 'gas',
+      token,
+      tokens: [token]
+    })
     vi.mocked(putToGas).mockResolvedValue({ service: 'gas', token })
   })
 
@@ -51,13 +64,13 @@ describe('the clients repository', () => {
     expect(getFromGas).toHaveBeenCalledWith('/grant-admin/clients/gas')
   })
 
-  test('issues a token for a new client with its hash, hint and expiry', async () => {
+  test('issues a token with its hash, hint and expiry, answering it and the list after it', async () => {
     await expect(
       issueToken('gas', 'grants-ui', hash, {
         expiresAt: '2027-02-02T13:50:00.000Z',
-        newClient: true
+        confirmed: false
       })
-    ).resolves.toEqual(token)
+    ).resolves.toEqual({ token, tokens: [token] })
     expect(postToGas).toHaveBeenCalledWith(
       '/grant-admin/clients/gas/grants-ui/tokens',
       {
@@ -65,37 +78,22 @@ describe('the clients repository', () => {
           tokenHash: hash.tokenHash,
           tokenHint: 'x7Qa',
           expiresAt: '2027-02-02T13:50:00.000Z',
-          newClient: true
+          confirmed: false
         }
       }
     )
   })
 
-  test('sends GAS nothing but the hash, the hint, the expiry and newClient', async () => {
-    await issueToken('gas', 'grants-ui', hash, {
-      expiresAt: null,
-      newClient: true
-    })
-    await rotateToken(key, hash, '24h')
-
-    const [issued, rotated] = vi
-      .mocked(postToGas)
-      .mock.calls.map(([, options]) =>
-        Object.keys(options?.payload ?? {}).sort()
-      )
-
-    expect(issued).toEqual(['expiresAt', 'newClient', 'tokenHash', 'tokenHint'])
-    expect(rotated).toEqual(['keepOld', 'tokenHash', 'tokenHint'])
-  })
-
-  test('leaves newClient out for a client that already exists', async () => {
-    await issueToken('gas', 'grants-ui', hash, {
-      expiresAt: null,
-      newClient: false
+  test('answers a null list as GAS sends it', async () => {
+    vi.mocked(postToGas).mockResolvedValue({
+      service: 'gas',
+      token,
+      tokens: null
     })
 
-    expect(vi.mocked(postToGas).mock.calls[0][1]).toEqual({
-      payload: { tokenHash: hash.tokenHash, tokenHint: 'x7Qa', expiresAt: null }
+    await expect(rotateToken(key, hash, '24h')).resolves.toEqual({
+      token,
+      tokens: null
     })
   })
 
@@ -108,7 +106,10 @@ describe('the clients repository', () => {
   })
 
   test('rotates a token, saying how long the old one keeps working', async () => {
-    await expect(rotateToken(key, hash, '7d')).resolves.toEqual(token)
+    await expect(rotateToken(key, hash, '7d')).resolves.toEqual({
+      token,
+      tokens: [token]
+    })
     expect(postToGas).toHaveBeenCalledWith(`${tokenPath}/rotate`, {
       payload: { tokenHash: hash.tokenHash, tokenHint: 'x7Qa', keepOld: '7d' }
     })
@@ -131,5 +132,67 @@ describe('the clients repository', () => {
     await deleteToken(key)
 
     expect(deleteFromGas).toHaveBeenCalledWith(tokenPath)
+  })
+})
+
+/** As @hapi/wreck rejects for GAS's answer, carrying its body. */
+const refusal = (statusCode: number, body: unknown) =>
+  new Boom.Boom(`Response Error: ${statusCode}`, {
+    statusCode,
+    data: { isResponseError: true, payload: body }
+  })
+
+describe('toRefusalBody', () => {
+  const listed = { ...token, stored: {}, expiringSoon: false }
+
+  test.each([
+    [
+      'the list after a refusal',
+      refusal(422, { code: 'EXPIRY_PAST', tokens: [listed] }),
+      { tokens: [listed], active: null }
+    ],
+    [
+      'a list GAS could not read',
+      refusal(422, { code: 'EXPIRY_PAST', tokens: null }),
+      { tokens: null, active: null }
+    ],
+    [
+      'the active count of a client that has some',
+      refusal(409, { code: 'HAS_ACTIVE', active: 2, tokens: [listed] }),
+      { tokens: [listed], active: 2 }
+    ],
+    [
+      'no count on any other code',
+      refusal(409, { code: 'NOT_ACTIVE', active: 2 }),
+      { tokens: null, active: null }
+    ],
+    [
+      'no list when a token lacks GAS’s expiring-soon verdict',
+      refusal(422, { code: 'EXPIRY_PAST', tokens: [token] }),
+      { tokens: null, active: null }
+    ],
+    [
+      'no list or count in a malformed body',
+      refusal(409, { code: 'HAS_ACTIVE', active: '2', tokens: ['x'] }),
+      { tokens: null, active: null }
+    ],
+    [
+      'nothing from a failure with no body',
+      new Error('ECONNREFUSED'),
+      {
+        tokens: null,
+        active: null
+      }
+    ],
+    [
+      'nothing from a body that is not an object',
+      refusal(500, 'oops'),
+      {
+        tokens: null,
+        active: null
+      }
+    ]
+  ])('reads %s', (_case, error, expected) => {
+    expect(toRefusalBody(error)).toEqual(expected)
   })
 })

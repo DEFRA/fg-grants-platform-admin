@@ -279,11 +279,14 @@ describe('the grant version page', () => {
     expect(part($, 'version-back').attr('href')).toBe(listed)
   })
 
-  test('loads only the components, never the old stylesheet', async () => {
+  test('loads only the components, and nothing else', async () => {
     const { $ } = await viewPage()
 
-    expect($('link[href*="dev-ops.css"]')).toHaveLength(0)
-    expect($('script[src*="views/legacy"]')).toHaveLength(0)
+    expect(
+      $('link[rel="stylesheet"]')
+        .map((_i, link) => $(link).attr('href'))
+        .get()
+    ).toEqual(['/public/src/dev-ops/views/components/index.css'])
   })
 
   test('is never stored', async () => {

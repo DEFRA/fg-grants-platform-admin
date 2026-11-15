@@ -39,7 +39,8 @@ const keepShell = (upstream: Upstream, body: unknown): void => {
   upstream.shell = shellOf(body) ?? upstream.shell
 }
 
-const errorBodyOf = (error: unknown): unknown =>
+/** The body GAS answered a failed call with, as @hapi/wreck carries it. */
+export const errorBodyOf = (error: unknown): unknown =>
   (error as { data?: { payload?: unknown } } | null)?.data?.payload
 
 /**
