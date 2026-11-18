@@ -6,10 +6,16 @@ import type {
   PurgeReason
 } from '../repositories/events.repository.ts'
 import { purgeEvent } from '../repositories/events.repository.ts'
-import { toGasErrorField, toGasStatusCode } from './gas-status.ts'
+import {
+  isUnanswered,
+  toGasErrorField,
+  toGasFailure,
+  toGasStatusCode
+} from './gas-status.ts'
+import type { GasFailure } from './gas-status.ts'
 
 /**
- * `conflict`: the event is no longer dead-lettered, so the page names the state it is in.
+ * `conflict`: GAS's NOT_PURGEABLE, the event not dead-lettered with a deletion date, so the page names the state it is in when GAS does.
  * `rejected`: the backend answered and refused the request, which is not the same as being down.
  */
 export type PurgeOutcome =
@@ -24,18 +30,25 @@ export interface PurgeResult {
   outcome: PurgeOutcome
   /** Only a conflict reports one. */
   status: string | null
+  /** Only a purge that went unanswered or failed reports one. */
+  failure: GasFailure | null
 }
 
-/** A timeout leaves the purge's outcome unknown: the owning service may still have applied it. */
 const failureOutcomes: Record<number, PurgeOutcome> = {
-  [statusCodes.notFound]: 'not-found',
-  [statusCodes.gatewayTimeout]: 'timed-out'
+  [statusCodes.notFound]: 'not-found'
 }
 
 const toConflict = (error: unknown): PurgeResult => ({
   outcome: 'conflict',
   status:
-    toGasErrorField(error, 'statusLabel') ?? toGasErrorField(error, 'status')
+    toGasErrorField(error, 'statusLabel') ?? toGasErrorField(error, 'status'),
+  failure: null
+})
+
+const toFailed = (error: unknown, outcome: PurgeOutcome): PurgeResult => ({
+  outcome,
+  status: null,
+  failure: outcome === 'unavailable' ? toGasFailure(error) : null
 })
 
 const isClientError = (statusCode: number): boolean =>
@@ -53,12 +66,19 @@ const toFailureOutcome = (statusCode: number | null): PurgeOutcome => {
   )
 }
 
+/** A purge nobody answered leaves its outcome unknown: it may still have been applied. */
 const toOutcome = (error: unknown): PurgeResult => {
+  const failure = toGasFailure(error)
+
+  if (isUnanswered(failure)) {
+    return { outcome: 'timed-out', status: null, failure }
+  }
+
   const statusCode = toGasStatusCode(error)
 
   return statusCode === statusCodes.conflict
     ? toConflict(error)
-    : { outcome: toFailureOutcome(statusCode), status: null }
+    : toFailed(error, toFailureOutcome(statusCode))
 }
 
 /** The backend answered: the event moved on, went away or the request was refused, so a warning, not an error. */
@@ -82,7 +102,7 @@ export const purgeEventUseCase = async (
   try {
     await purgeEvent(key, reason, actor)
 
-    return { outcome: 'purged', status: null }
+    return { outcome: 'purged', status: null, failure: null }
   } catch (error) {
     const result = toOutcome(error)
     const where = `${key.service}/${key.box}/${key.id}`

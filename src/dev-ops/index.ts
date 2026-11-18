@@ -88,23 +88,26 @@ export const devOps = {
             countUpstream([
               viewDevOpsRoute,
               viewBucketRoute,
-              searchBucketRoute,
               viewApplicationRoute,
               viewCaseRoute,
               viewGrantRoute,
               viewCurrentGrantRoute,
-              fetchGrantDefinitionsRoute,
               viewWorkflowRoute,
               viewCurrentWorkflowRoute,
-              fetchWorkflowDefinitionRoute,
               viewEventRoute,
-              redriveEventRoute,
-              purgeEventRoute,
-              reviewPayloadRoute,
-              savePayloadRoute,
               viewAccessTokensRoute,
               viewTimesRoute,
-              ...sameOriginOnly([...accessTokenWriteRoutes, saveTimesRoute])
+              ...sameOriginOnly([
+                searchBucketRoute,
+                fetchGrantDefinitionsRoute,
+                fetchWorkflowDefinitionRoute,
+                redriveEventRoute,
+                purgeEventRoute,
+                reviewPayloadRoute,
+                savePayloadRoute,
+                ...accessTokenWriteRoutes,
+                saveTimesRoute
+              ])
             ])
           )
         )

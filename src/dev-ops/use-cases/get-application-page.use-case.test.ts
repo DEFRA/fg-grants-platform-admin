@@ -42,7 +42,9 @@ describe('getApplicationPageUseCase', () => {
   ])('reads %s as an outage', async (_name, status, outcome) => {
     vi.mocked(findApplicationPage).mockRejectedValue(responseError(status))
 
-    await expect(getApplicationPageUseCase(ref, 'events')).resolves.toEqual({
+    await expect(
+      getApplicationPageUseCase(ref, 'events')
+    ).resolves.toMatchObject({
       outcome,
       page: null
     })

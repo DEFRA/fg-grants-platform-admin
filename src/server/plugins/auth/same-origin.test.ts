@@ -1,5 +1,6 @@
 import hapi from '@hapi/hapi'
-import type { Request } from '@hapi/hapi'
+import type { Request, ResponseToolkit } from '@hapi/hapi'
+import Joi from 'joi'
 
 import { config } from '../../../common/config.ts'
 import { isSameOrigin, sameOriginOnly } from './same-origin.ts'
@@ -60,7 +61,10 @@ describe('sameOriginOnly', () => {
         {
           method: 'POST',
           path: '/write',
-          options: { pre: [{ method: () => 'later', assign: 'later' }] },
+          options: {
+            pre: [{ method: () => 'later', assign: 'later' }],
+            validate: { payload: Joi.object({ name: Joi.string().required() }) }
+          },
           handler
         }
       ])
@@ -79,10 +83,56 @@ describe('sameOriginOnly', () => {
     expect(handler).not.toHaveBeenCalled()
   })
 
+  test('refuses a cross-site write before it validates the payload', async () => {
+    const { statusCode } = await server.inject({
+      method: 'POST',
+      url: '/write',
+      payload: {},
+      headers: { 'sec-fetch-site': 'cross-site' }
+    })
+
+    expect(statusCode).toBe(403)
+  })
+
+  test('keeps a route’s own post-auth step, after the check', async () => {
+    const own = vi.fn((_request: Request, h: ResponseToolkit) => h.continue)
+    const guarded = hapi.server()
+
+    guarded.route(
+      sameOriginOnly([
+        {
+          method: 'POST',
+          path: '/own',
+          options: { ext: { onPostAuth: { method: own } } },
+          handler: () => 'done'
+        }
+      ])
+    )
+
+    const refused = await guarded.inject({
+      method: 'POST',
+      url: '/own',
+      headers: { 'sec-fetch-site': 'cross-site' }
+    })
+
+    expect(refused.statusCode).toBe(403)
+    expect(own).not.toHaveBeenCalled()
+
+    const through = await guarded.inject({
+      method: 'POST',
+      url: '/own',
+      headers: { 'sec-fetch-site': 'same-origin' }
+    })
+
+    expect(through.result).toBe('done')
+    expect(own).toHaveBeenCalledTimes(1)
+  })
+
   test('lets a same-origin write through, still running its own steps', async () => {
     const { statusCode, result } = await server.inject({
       method: 'POST',
       url: '/write',
+      payload: { name: 'Ada' },
       headers: { 'sec-fetch-site': 'same-origin' }
     })
 

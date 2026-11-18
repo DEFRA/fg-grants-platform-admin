@@ -15,7 +15,7 @@ import {
   rotateAccessTokenUseCase
 } from '../use-cases/access-tokens.use-case.ts'
 
-vi.mock(import('../use-cases/get-bucket-at.use-case.ts'))
+vi.mock(import('../repositories/lists.repository.ts'))
 vi.mock(import('../use-cases/shell-catalogue.ts'))
 vi.mock(import('../use-cases/access-tokens.use-case.ts'))
 

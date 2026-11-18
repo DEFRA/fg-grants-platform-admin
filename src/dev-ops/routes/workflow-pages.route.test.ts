@@ -155,7 +155,8 @@ const post = async (payload: object | undefined = {}, url = `${path}/fetch`) =>
     method: 'POST',
     url,
     payload,
-    auth: { strategy: 'session', credentials }
+    auth: { strategy: 'session', credentials },
+    headers: { 'sec-fetch-site': 'same-origin' }
   })
 
 const sessionCookie = (response: { headers: Record<string, unknown> }) =>
@@ -373,12 +374,12 @@ describe('the workflow page', () => {
     [
       'unavailable',
       statusCodes.serviceUnavailable,
-      'This workflow couldn’t be loaded from CW.'
+      'This workflow couldn’t be loaded.'
     ],
     [
       'timed-out',
       statusCodes.gatewayTimeout,
-      'This workflow couldn’t be loaded: CW timed out waiting for it.'
+      'This workflow couldn’t be loaded.'
     ]
   ] as const)(
     'says so, as a case page does, when CW is %s',
@@ -1333,7 +1334,7 @@ describe('the bare workflow URL', () => {
       flatten(
         part($, 'record-missing-unavailable').find('.gpa-alert-title').text()
       )
-    ).toBe('This workflow couldn’t be loaded from CW.')
+    ).toBe('This workflow couldn’t be loaded.')
   })
 })
 

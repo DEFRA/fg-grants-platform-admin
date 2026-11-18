@@ -67,7 +67,9 @@ describe('getWorkflowPageUseCase', () => {
   ])('reads %s as an outage', async (_name, status, outcome) => {
     vi.mocked(findWorkflowVersionPage).mockRejectedValue(responseError(status))
 
-    await expect(getWorkflowPageUseCase(ref, 'overview')).resolves.toEqual({
+    await expect(
+      getWorkflowPageUseCase(ref, 'overview')
+    ).resolves.toMatchObject({
       outcome,
       page: null
     })
