@@ -8,7 +8,7 @@ import { devOps } from '../index.ts'
 import type { EventDetail } from '../use-cases/get-event.use-case.ts'
 import { getEventUseCase } from '../use-cases/get-event.use-case.ts'
 
-vi.mock(import('../use-cases/get-catalogue.use-case.ts'))
+vi.mock(import('../use-cases/shell-catalogue.ts'))
 vi.mock(import('../use-cases/get-event.use-case.ts'))
 
 const credentials = {

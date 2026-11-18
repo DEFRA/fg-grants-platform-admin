@@ -11,7 +11,7 @@ import {
   rotateToken
 } from '../repositories/clients.repository.ts'
 
-vi.mock(import('../use-cases/get-catalogue.use-case.ts'))
+vi.mock(import('../use-cases/shell-catalogue.ts'))
 vi.mock(import('../repositories/clients.repository.ts'))
 // Every line the app logs, request logs from hapi-pino included, kept to read back.
 vi.mock(import('../../common/logger.ts'), async () => {

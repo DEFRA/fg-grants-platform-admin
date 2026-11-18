@@ -3,7 +3,7 @@ import type {
   BucketFact,
   BucketSummary,
   Catalogue
-} from './get-catalogue.use-case.ts'
+} from '../repositories/buckets.repository.ts'
 import type { AgreementDefinition } from './get-grant-page.use-case.ts'
 import type {
   StoredAction,

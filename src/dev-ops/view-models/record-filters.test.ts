@@ -64,6 +64,12 @@ describe('toFittingBack', () => {
     )
   })
 
+  test('fits a page whose own address is too long as no back', () => {
+    const long = `/dev-ops/grants/${'x'.repeat(fromMax)}?tab=phases`
+
+    expect(toFittingBack(long)).toBe('')
+  })
+
   test('keeps the query of an innermost page whose params only end in back', () => {
     const inner = `/dev-ops/applications?feedback=${'x'.repeat(fromMax)}&grant=woodland`
     const long = `/dev-ops/grants/woodland/1.2.0?tab=phases&back=${encodeURIComponent(inner)}`

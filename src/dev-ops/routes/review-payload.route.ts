@@ -7,7 +7,7 @@ import {
   toEditNoteProblem
 } from '../use-cases/edit-payload-command.ts'
 import type { PayloadSubmission } from '../use-cases/edit-payload-step.ts'
-import { getCatalogueUseCase } from '../use-cases/get-catalogue.use-case.ts'
+import { shellCatalogue } from '../use-cases/shell-catalogue.ts'
 import { getEventUseCase } from '../use-cases/get-event.use-case.ts'
 import { toBackBucket } from '../view-models/bucket-nav.ts'
 import { eventAddress, toEventKey } from '../view-models/event-address.ts'
@@ -17,6 +17,7 @@ import {
 } from '../view-models/event-page.view-model.ts'
 import { toPayloadPage } from '../view-models/payload-edit-page.ts'
 import { fromMax } from '../view-models/record-filters.ts'
+import { timesOf } from '../view-models/times.ts'
 
 /** As the save route bounds it. */
 const noteMax = 2000
@@ -90,10 +91,13 @@ export const reviewPayloadRoute: ServerRoute = {
     const result = await getEventUseCase(key)
     const submission = toSubmission(request.payload as ReviewPayload)
     const bucket = toBackBucket(
-      await getCatalogueUseCase(),
+      shellCatalogue(request),
       toSafeFrom(submission.from)
     )
 
-    return h.view('event', toPayloadPage(result, key, submission, bucket))
+    return h.view(
+      'event',
+      toPayloadPage(result, key, submission, timesOf(request).zone, bucket)
+    )
   }
 }

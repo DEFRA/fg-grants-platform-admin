@@ -5,6 +5,7 @@ export default defineConfig({
     globals: true,
     environment: 'node',
     clearMocks: true,
+    setupFiles: ['./test/setup/one-call.ts'],
     // The config module validates as it loads, so anything it requires has to
     // be here: importing it is the first thing most of these tests do.
     env: {
@@ -27,7 +28,8 @@ export default defineConfig({
         'src/types/**',
         'src/**/__mocks__/**',
         'src/**/test-utils.ts',
-        'src/**/test-fixtures.ts'
+        'src/**/test-fixtures.ts',
+        'src/dev-ops/views/components/**'
       ]
     }
   }

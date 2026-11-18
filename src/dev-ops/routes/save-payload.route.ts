@@ -7,7 +7,7 @@ import {
 } from '../use-cases/edit-payload-command.ts'
 import type { PayloadSubmission } from '../use-cases/edit-payload-step.ts'
 import { editPayloadUseCase } from '../use-cases/edit-payload.use-case.ts'
-import { getCatalogueUseCase } from '../use-cases/get-catalogue.use-case.ts'
+import { shellCatalogue } from '../use-cases/shell-catalogue.ts'
 import type { EventKey } from '../use-cases/get-event.use-case.ts'
 import { getEventUseCase } from '../use-cases/get-event.use-case.ts'
 import { toActor } from '../../common/view-models/actor.ts'
@@ -26,6 +26,7 @@ import {
 } from '../view-models/payload-edit-page.ts'
 import { seeOther } from '../view-models/see-other.ts'
 import { fromMax } from '../view-models/record-filters.ts'
+import { timesOf } from '../view-models/times.ts'
 
 /** Four times the limit the form enforces: past 500 is the operator's mistake, to be shown with the note in front of them. */
 const noteMax = 2000
@@ -59,11 +60,14 @@ const rerender = async (
   const key = toEventKey(request.params)
   const result = await getEventUseCase(key)
   const bucket = toBackBucket(
-    await getCatalogueUseCase(),
+    shellCatalogue(request),
     toSafeFrom(submission.from)
   )
 
-  return h.view('event', toPayloadPage(result, key, submission, bucket))
+  return h.view(
+    'event',
+    toPayloadPage(result, key, submission, timesOf(request).zone, bucket)
+  )
 }
 
 /**
@@ -112,7 +116,11 @@ export const savePayloadRoute: ServerRoute = {
     if (actor === undefined) {
       return h.view(
         'event',
-        toUnattributedPage(key, { text, revision, from, note: check.edit.note })
+        toUnattributedPage(
+          key,
+          { text, revision, from, note: check.edit.note },
+          timesOf(request).zone
+        )
       )
     }
 

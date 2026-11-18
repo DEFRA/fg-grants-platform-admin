@@ -8,6 +8,8 @@ import {
   toHeaderActor
 } from './gas.ts'
 import { wreck } from './wreck.ts'
+import type { Upstream } from '../dev-ops/upstream.ts'
+import { withUpstream } from '../dev-ops/upstream.ts'
 
 vi.mock(import('./wreck.ts'), () => ({
   wreck: {
@@ -347,5 +349,81 @@ describe('deleteFromGas', () => {
     expect(vi.mocked(wreck.delete).mock.calls[0][1]).not.toHaveProperty(
       'payload'
     )
+  })
+})
+
+describe('the calls a Dev Ops request makes', () => {
+  const shell = { catalogue: { buckets: [], sourceErrors: [] } }
+
+  const inRequest = async (work: () => Promise<unknown>) => {
+    const request = { app: {} } as Parameters<typeof withUpstream>[0]
+
+    await withUpstream(request, work).catch(() => undefined)
+
+    return request.app.upstream as Upstream
+  }
+
+  test('counts each call, reads and writes alike', async () => {
+    vi.mocked(wreck.get).mockResolvedValue({ payload: {} } as never)
+    vi.mocked(wreck.post).mockResolvedValue({ payload: {} } as never)
+
+    const upstream = await inRequest(async () => {
+      await getFromGas('/grant-admin/shell')
+      await postToGas('/grant-admin/events/gas/outbox/1/redrive')
+    })
+
+    expect(upstream).toEqual({ calls: 2, shell: null })
+  })
+
+  test('keeps the shell an answer carries', async () => {
+    vi.mocked(wreck.get).mockResolvedValue({ payload: { shell } } as never)
+
+    const upstream = await inRequest(() => getFromGas('/grant-admin/shell'))
+
+    expect(upstream).toEqual({ calls: 1, shell })
+  })
+
+  test('keeps the shell a refusal carries, and still rejects with it', async () => {
+    const refusal = Object.assign(new Error('Response Error: 404'), {
+      data: { payload: { reason: 'NOT_FOUND', shell } }
+    })
+    vi.mocked(wreck.put).mockRejectedValue(refusal)
+    let rejected: unknown
+
+    const upstream = await inRequest(() =>
+      putToGas('/grant-admin/clients/gas/a/tokens/1/expiry').catch(
+        (error: unknown) => {
+          rejected = error
+        }
+      )
+    )
+
+    expect(upstream).toEqual({ calls: 1, shell })
+    expect(rejected).toBe(refusal)
+  })
+
+  test('counts a call that had no answer, keeping no shell', async () => {
+    vi.mocked(wreck.delete).mockRejectedValue(
+      new Error('Client request timeout')
+    )
+
+    const upstream = await inRequest(() =>
+      deleteFromGas('/grant-admin/clients/gas/a/tokens/1')
+    )
+
+    expect(upstream).toEqual({ calls: 1, shell: null })
+  })
+
+  test('keeps an earlier shell when a later answer carries none', async () => {
+    vi.mocked(wreck.get)
+      .mockResolvedValueOnce({ payload: { shell } } as never)
+      .mockResolvedValueOnce({ payload: { shell: null } } as never)
+
+    const upstream = await inRequest(async () => {
+      await getFromGas('/grant-admin/shell')
+      await getFromGas('/grant-admin/clients/gas')
+    })
+
+    expect(upstream).toEqual({ calls: 2, shell })
   })
 })

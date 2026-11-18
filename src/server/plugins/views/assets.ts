@@ -35,7 +35,7 @@ const loadViteManifest = async (): Promise<ViteManifest | undefined> => {
 
 /**
  * The asset-resolution half of a view context: build plumbing rather than
- * design system, so it is shared by every domain's context however different
+ * components, so it is shared by every domain's context however different
  * their pages look. In production, resolves through the Vite manifest to the
  * hashed file; otherwise straight to source, where the Vite middleware serves
  * it.

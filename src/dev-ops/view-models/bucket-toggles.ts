@@ -1,4 +1,4 @@
-import type { BucketEntry } from '../use-cases/get-catalogue.use-case.ts'
+import type { BucketEntry } from '../repositories/buckets.repository.ts'
 import type { BucketFilters } from './bucket-links.ts'
 
 /** The URL key that lists, comma-separated, the facts whose hidden values are shown. */

@@ -8,7 +8,7 @@ import type {
   BucketEntry,
   BucketFactValue,
   Catalogue
-} from '../use-cases/get-catalogue.use-case.ts'
+} from '../repositories/buckets.repository.ts'
 import type { FactLine } from './record-page.view-model.ts'
 import type { RecordType } from './record-type.ts'
 import type { Words } from './words.ts'

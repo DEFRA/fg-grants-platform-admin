@@ -6,7 +6,11 @@ import { createTypeScriptImportResolver } from 'eslint-import-resolver-typescrip
 export default [
   ...neostandard({
     env: ['node', 'vitest'],
-    ignores: [...neostandard.resolveIgnoresFromGitignore()],
+    ignores: [
+      ...neostandard.resolveIgnoresFromGitignore(),
+      // Generated, never edited by hand: see Dev Ops components in the README.
+      'src/dev-ops/views/components/**'
+    ],
     noJsx: true,
     noStyle: true,
     ts: true
