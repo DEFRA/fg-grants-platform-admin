@@ -1,5 +1,6 @@
 import {
   deleteFromGas,
+  errorBodyOf,
   getFromGas,
   postToGas,
   putToGas
@@ -39,6 +40,8 @@ export type StoredToken = Record<string, unknown>
 /** A token as the list answers it, with its row as stored. */
 export interface ListedToken extends ApiToken {
   stored: StoredToken
+  /** GAS's rule, the one its Overview counts by. */
+  expiringSoon: boolean
 }
 
 export interface TokenKey {
@@ -66,6 +69,45 @@ interface OneToken {
   token: ApiToken
 }
 
+/** A new token, and the service's list after it: null when GAS couldn't read it. */
+export interface Issued {
+  token: ApiToken
+  tokens: ListedToken[] | null
+}
+
+/**
+ * What GAS's refusal of a token write carries: the list after it, null when
+ * the answer has none, and on HAS_ACTIVE the client's active token count.
+ */
+export interface TokenRefusal {
+  tokens: ListedToken[] | null
+  active: number | null
+}
+
+const hasActiveCode = 'HAS_ACTIVE'
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value)
+
+const isListed = (token: unknown): boolean =>
+  isRecord(token) && typeof token.expiringSoon === 'boolean'
+
+const toListed = (tokens: unknown): ListedToken[] | null =>
+  Array.isArray(tokens) && tokens.every(isListed)
+    ? (tokens as unknown as ListedToken[])
+    : null
+
+const toActive = ({ code, active }: Record<string, unknown>): number | null =>
+  code === hasActiveCode && Number.isInteger(active) ? (active as number) : null
+
+export const toRefusalBody = (error: unknown): TokenRefusal => {
+  const body = errorBodyOf(error)
+
+  return isRecord(body)
+    ? { tokens: toListed(body.tokens), active: toActive(body) }
+    : { tokens: null, active: null }
+}
+
 const clientsPath = (service: ClientService): string =>
   `/grant-admin/clients/${encodeURIComponent(service)}`
 
@@ -83,23 +125,23 @@ export const listTokens = async (
   return tokens
 }
 
-/** `newClient` is sent only when set: GAS defaults it to false. */
+/**
+ * The owning service creates the client when it has no tokens. `confirmed`
+ * is always sent: false refuses, issuing nothing, while the client has
+ * active tokens.
+ */
 export const issueToken = async (
   service: ClientService,
   clientId: string,
   { tokenHash, tokenHint }: TokenHash,
-  { expiresAt, newClient }: { expiresAt: string | null; newClient: boolean }
-): Promise<ApiToken> => {
-  const { token } = await postToGas<OneToken>(tokensPath(service, clientId), {
-    payload: {
-      tokenHash,
-      tokenHint,
-      expiresAt,
-      ...(newClient ? { newClient } : {})
-    }
-  })
+  { expiresAt, confirmed }: { expiresAt: string | null; confirmed: boolean }
+): Promise<Issued> => {
+  const { token, tokens } = await postToGas<Issued>(
+    tokensPath(service, clientId),
+    { payload: { tokenHash, tokenHint, expiresAt, confirmed } }
+  )
 
-  return token
+  return { token, tokens }
 }
 
 /** Answers the new token; the old one's expiry moves to the end of the overlap, which the service ends at 23:59:59 UK time on its day. */
@@ -107,12 +149,13 @@ export const rotateToken = async (
   key: TokenKey,
   { tokenHash, tokenHint }: TokenHash,
   keepOld: KeepOld
-): Promise<ApiToken> => {
-  const { token } = await postToGas<OneToken>(`${tokenPath(key)}/rotate`, {
-    payload: { tokenHash, tokenHint, keepOld }
-  })
+): Promise<Issued> => {
+  const { token, tokens } = await postToGas<Issued>(
+    `${tokenPath(key)}/rotate`,
+    { payload: { tokenHash, tokenHint, keepOld } }
+  )
 
-  return token
+  return { token, tokens }
 }
 
 export const changeTokenExpiry = async (

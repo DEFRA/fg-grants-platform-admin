@@ -1,3 +1,4 @@
+import Boom from '@hapi/boom'
 import { load, type CheerioAPI } from 'cheerio'
 import type { Server } from '@hapi/hapi'
 
@@ -5,6 +6,7 @@ import { config } from '../../common/config.ts'
 import { statusCodes } from '../../common/status-codes.ts'
 import { plugins } from '../../main.ts'
 import { createServer } from '../../server/index.ts'
+import { queryList } from '../repositories/lists.repository.ts'
 import { getApplicationPageUseCase } from '../use-cases/get-application-page.use-case.ts'
 import { shellCatalogue } from '../use-cases/shell-catalogue.ts'
 import {
@@ -103,7 +105,10 @@ beforeEach(() => {
     outcome: 'not-found',
     page: null
   })
-  vi.mocked(listAccessTokensUseCase).mockResolvedValue([])
+  vi.mocked(listAccessTokensUseCase).mockResolvedValue({
+    outcome: 'done',
+    tokens: []
+  })
 })
 
 afterAll(async () => {
@@ -266,30 +271,36 @@ describe('the shell', () => {
     }
   )
 
-  test('links the old stylesheet and elements only on pages not yet rebuilt', async () => {
-    const old = (await visit(tokensPath)).$
-    const rebuilt = [
-      (await visit('/dev-ops/events')).$,
-      (await visit(applicationPath)).$,
-      (await visit('/dev-ops/signed-out')).$
+  test('every Dev Ops page loads the components’ stylesheet and script, and nothing else', async () => {
+    vi.mocked(queryList).mockRejectedValueOnce(
+      Boom.badGateway(
+        'Client request error',
+        Object.assign(new Error('connect ECONNREFUSED'), {
+          code: 'ECONNREFUSED'
+        })
+      )
+    )
+    const pages = [
+      tokensPath,
+      `${tokensPath}?times=open`,
+      '/dev-ops/events',
+      '/dev-ops/events/gas/outbox',
+      applicationPath,
+      '/dev-ops/no-such-page',
+      '/dev-ops/signed-out'
     ]
 
-    // First, so its cascade layers are declared before the components' and never win over them.
-    expect(stylesheets(old)).toEqual([
-      '/public/src/dev-ops/client/dev-ops.css',
-      '/public/src/dev-ops/views/components/index.css'
-    ])
-    expect(
-      old('script[src="/public/src/dev-ops/views/legacy/index.ts"]')
-    ).toHaveLength(1)
+    for (const path of pages) {
+      const { $ } = await visit(path)
 
-    for (const $ of rebuilt) {
       expect(stylesheets($)).toEqual([
         '/public/src/dev-ops/views/components/index.css'
       ])
       expect(
-        $('script[src="/public/src/dev-ops/views/legacy/index.ts"]')
-      ).toHaveLength(0)
+        $('script[src]')
+          .toArray()
+          .map((script) => $(script).attr('src'))
+      ).toEqual(['/public/src/dev-ops/views/components/index.ts'])
     }
   })
 })

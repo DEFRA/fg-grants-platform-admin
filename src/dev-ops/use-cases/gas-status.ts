@@ -124,17 +124,24 @@ const isNoAnswer = (error: unknown): boolean =>
 export const isUnanswered = ({ kind }: GasFailure): boolean =>
   kind === 'timed-out' || kind === 'no-answer'
 
-export const toGasFailure = (error: unknown): GasFailure => {
-  if (neverConnected(error)) {
-    return { kind: 'not-connected' }
+const toFailureNamedIn =
+  (codeField: 'errorCode' | 'code') =>
+  (error: unknown): GasFailure => {
+    if (neverConnected(error)) {
+      return { kind: 'not-connected' }
+    }
+
+    if (isResponseError(error)) {
+      return toAnsweredFailure(
+        toGasStatusCode(error),
+        toGasErrorField(error, codeField)
+      )
+    }
+
+    return isNoAnswer(error) ? { kind: 'no-answer' } : { kind: 'errored' }
   }
 
-  if (isResponseError(error)) {
-    return toAnsweredFailure(
-      toGasStatusCode(error),
-      toGasErrorField(error, 'errorCode')
-    )
-  }
+export const toGasFailure = toFailureNamedIn('errorCode')
 
-  return isNoAnswer(error) ? { kind: 'no-answer' } : { kind: 'errored' }
-}
+/** A token write's failure names its reason in `code`, null on a 5xx. */
+export const toGasWriteFailure = toFailureNamedIn('code')

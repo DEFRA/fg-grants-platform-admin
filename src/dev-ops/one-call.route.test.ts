@@ -3,9 +3,9 @@ import type { Server } from '@hapi/hapi'
 
 import { config } from '../common/config.ts'
 import { statusCodes } from '../common/status-codes.ts'
+import { wreck } from '../common/wreck.ts'
 import { plugins } from '../main.ts'
 import { createServer } from '../server/index.ts'
-import { pendingOneCall } from './one-call.pending.ts'
 import {
   injectCounted,
   sidebarHrefs,
@@ -53,8 +53,6 @@ interface Row {
   calls: string[]
   status: number
   drawn: Drawn
-  /** A route that still makes more than one call in some state, as `one-call.pending.ts` lists it. */
-  pending?: true
 }
 
 const eventId = '665f1c2e9a1b2c3d4e5f6a7b'
@@ -205,8 +203,6 @@ const check = async (row: Row) => {
   expect(calls).toEqual(toCalls(row.calls))
   expect(response.statusCode).toBe(row.status)
   expect(drawnOf(response.payload, response.statusCode)).toBe(row.drawn)
-  expect(pendingOneCall.includes(routeKeyOf(row))).toBe(row.pending === true)
-  expect(row.calls.length <= 1 || row.pending === true).toBe(true)
 }
 
 const lists: Row[] = [
@@ -583,6 +579,188 @@ const events: Row[] = [
   }
 ]
 
+const issueCall = 'POST /grant-admin/clients/{service}/{clientId}/tokens'
+const tokenCall =
+  'DELETE /grant-admin/clients/{service}/{clientId}/tokens/{tokenId}'
+const rotateCall =
+  'POST /grant-admin/clients/{service}/{clientId}/tokens/{tokenId}/rotate'
+const expiryCall =
+  'PUT /grant-admin/clients/{service}/{clientId}/tokens/{tokenId}/expiry'
+const revokeCall =
+  'POST /grant-admin/clients/{service}/{clientId}/tokens/{tokenId}/revoke'
+
+/** A token write GAS refused, naming its code (null on a 5xx) and carrying the list, or null for one it couldn't read. */
+const tokenRefusal = (
+  status: number,
+  code: string | null,
+  list: object[] | null = [listed],
+  more: object = {}
+): GasAnswer =>
+  refusal(status, { code, message: 'Refused', tokens: list, ...more })
+
+/** A token issued or rotated, with the service's list after it. */
+const tokenIssued = (
+  list: object[] | null = [listed],
+  answered: object | null = shell
+): GasAnswer => ({
+  status: 201,
+  body: { service: 'gas', token: listed, tokens: list, shell: answered }
+})
+
+const newToken = { clientId: 'fg-gas-backend', expiry: 'never', date: '' }
+const revokeTyped = { confirmText: 'fg-gas-backend', hint: 'a1B2' }
+
+/** Each refusal a write can meet, drawn from its own answer in one call, whether or not it carries the list. */
+const tokenRefusals: [string, string, object, string, number, string][] = [
+  [
+    'issue',
+    '/dev-ops/clients/gas/tokens',
+    newToken,
+    issueCall,
+    400,
+    'API_CLIENT_INVALID_NAME'
+  ],
+  [
+    'issue',
+    '/dev-ops/clients/gas/tokens',
+    newToken,
+    issueCall,
+    400,
+    'API_TOKEN_INVALID_EXPIRY'
+  ],
+  [
+    'issue',
+    '/dev-ops/clients/gas/tokens',
+    newToken,
+    issueCall,
+    409,
+    'API_TOKEN_DUPLICATE'
+  ],
+  [
+    'rotate',
+    `${tokenUrl}/rotate`,
+    { keepOld: 'none' },
+    rotateCall,
+    409,
+    'API_TOKEN_NOT_ACTIVE'
+  ],
+  [
+    'rotate',
+    `${tokenUrl}/rotate`,
+    { keepOld: 'none' },
+    rotateCall,
+    409,
+    'API_TOKEN_IN_USE'
+  ],
+  [
+    'rotate',
+    `${tokenUrl}/rotate`,
+    { keepOld: 'none' },
+    rotateCall,
+    409,
+    'API_TOKEN_DUPLICATE'
+  ],
+  [
+    'rotate',
+    `${tokenUrl}/rotate`,
+    { keepOld: 'none' },
+    rotateCall,
+    404,
+    'API_TOKEN_NOT_FOUND'
+  ],
+  [
+    'expiry',
+    `${tokenUrl}/expiry`,
+    { expiry: 'custom', date: '2099-01-31' },
+    expiryCall,
+    400,
+    'EXPIRY_PAST'
+  ],
+  [
+    'expiry',
+    `${tokenUrl}/expiry`,
+    { expiry: 'custom', date: '2099-01-31' },
+    expiryCall,
+    409,
+    'EXPIRY_UNCHANGED'
+  ],
+  [
+    'expiry',
+    `${tokenUrl}/expiry`,
+    { expiry: 'never' },
+    expiryCall,
+    409,
+    'EXPIRY_UNCHANGED'
+  ],
+  [
+    'expiry',
+    `${tokenUrl}/expiry`,
+    { expiry: '30' },
+    expiryCall,
+    400,
+    'API_TOKEN_INVALID_EXPIRY'
+  ],
+  [
+    'expiry',
+    `${tokenUrl}/expiry`,
+    { expiry: '30' },
+    expiryCall,
+    409,
+    'API_TOKEN_IN_USE'
+  ],
+  [
+    'expiry',
+    `${tokenUrl}/expiry`,
+    { expiry: '30' },
+    expiryCall,
+    409,
+    'API_TOKEN_NOT_ACTIVE'
+  ],
+  [
+    'revoke',
+    `${tokenUrl}/revoke`,
+    revokeTyped,
+    revokeCall,
+    409,
+    'API_TOKEN_NOT_ACTIVE'
+  ],
+  [
+    'revoke',
+    `${tokenUrl}/revoke`,
+    revokeTyped,
+    revokeCall,
+    409,
+    'API_TOKEN_IN_USE'
+  ],
+  [
+    'revoke',
+    `${tokenUrl}/revoke`,
+    revokeTyped,
+    revokeCall,
+    404,
+    'API_TOKEN_NOT_FOUND'
+  ],
+  ['delete', `${tokenUrl}/delete`, {}, tokenCall, 409, 'API_TOKEN_ACTIVE'],
+  ['delete', `${tokenUrl}/delete`, {}, tokenCall, 404, 'API_TOKEN_NOT_FOUND']
+]
+
+const tokenRefusalRows: Row[] = tokenRefusals.flatMap(
+  ([action, url, payload, call, status, errorCode]) =>
+    [
+      ['with the list', [listed]],
+      ['with no list GAS could read', null]
+    ].map(([how, list]) => ({
+      name: `${action} refused ${errorCode} (${JSON.stringify(payload)}), ${how}`,
+      method: 'POST' as const,
+      url,
+      payload,
+      gas: { [call]: tokenRefusal(status, errorCode, list as object[] | null) },
+      calls: [call],
+      status: statusCodes.badRequest,
+      drawn: 'shell' as const
+    }))
+)
+
 const tokenWrites: Row[] = [
   {
     name: 'the access tokens',
@@ -593,193 +771,209 @@ const tokenWrites: Row[] = [
     drawn: 'shell'
   },
   {
-    name: 'a token issued',
+    name: 'the access tokens, when GAS does not answer',
+    url: '/dev-ops/clients/cw',
+    gas: { [tokensCall]: timeout },
+    calls: [tokensCall],
+    status: statusCodes.serviceUnavailable,
+    drawn: 'no-lists'
+  },
+  {
+    name: 'a token issued, revealed from its answer',
     method: 'POST',
     url: '/dev-ops/clients/gas/tokens',
-    payload: { clientId: 'fg-gas-backend', expiry: 'never' },
+    payload: newToken,
     gas: {
-      [tokensCall]: withShell(tokens),
-      'POST /grant-admin/clients/{service}/{clientId}/tokens': {
-        status: 201,
-        body: { token: listed }
+      [issueCall]: tokenIssued()
+    },
+    calls: [issueCall],
+    status: statusCodes.ok,
+    drawn: 'shell'
+  },
+  {
+    name: 'a token issued whose list GAS could not read',
+    method: 'POST',
+    url: '/dev-ops/clients/gas/tokens',
+    payload: newToken,
+    gas: {
+      [issueCall]: tokenIssued(null)
+    },
+    calls: [issueCall],
+    status: statusCodes.ok,
+    drawn: 'shell'
+  },
+  {
+    name: 'a token issued with no shell GAS could build',
+    method: 'POST',
+    url: '/dev-ops/clients/gas/tokens',
+    payload: newToken,
+    gas: { [issueCall]: tokenIssued([listed], null) },
+    calls: [issueCall],
+    status: statusCodes.ok,
+    drawn: 'no-lists'
+  },
+  {
+    name: 'a token GAS failed with a 5xx and no code, carrying the list',
+    method: 'POST',
+    url: '/dev-ops/clients/gas/tokens',
+    payload: newToken,
+    gas: { [issueCall]: tokenRefusal(500, null) },
+    calls: [issueCall],
+    status: statusCodes.seeOther,
+    drawn: 'redirect'
+  },
+  {
+    name: 'a revoke GAS failed with a 5xx and no code, with no list',
+    method: 'POST',
+    url: `${tokenUrl}/revoke`,
+    payload: revokeTyped,
+    gas: { [revokeCall]: tokenRefusal(500, null, null) },
+    calls: [revokeCall],
+    status: statusCodes.seeOther,
+    drawn: 'redirect'
+  },
+  {
+    name: 'a revoke refused with no shell GAS could build',
+    method: 'POST',
+    url: `${tokenUrl}/revoke`,
+    payload: revokeTyped,
+    gas: {
+      [revokeCall]: {
+        status: 409,
+        body: {
+          code: 'API_TOKEN_IN_USE',
+          message: 'Refused',
+          tokens: [listed],
+          shell: null
+        }
       }
     },
-    calls: [
-      tokensCall,
-      'POST /grant-admin/clients/{service}/{clientId}/tokens',
-      tokensCall
-    ],
-    status: statusCodes.ok,
-    drawn: 'shell',
-    pending: true
+    calls: [revokeCall],
+    status: statusCodes.badRequest,
+    drawn: 'no-lists'
+  },
+  ...[
+    ['with the list', [listed]],
+    ['with no list GAS could read', null]
+  ].map(
+    ([how, list]): Row => ({
+      name: `a token for a client with active tokens, not confirmed, ${how}`,
+      method: 'POST',
+      url: '/dev-ops/clients/gas/tokens',
+      payload: newToken,
+      gas: {
+        [issueCall]: tokenRefusal(409, 'HAS_ACTIVE', list as object[] | null, {
+          active: 1
+        })
+      },
+      calls: [issueCall],
+      status: statusCodes.ok,
+      drawn: 'shell'
+    })
+  ),
+  {
+    name: 'a token for CW, when GAS could not reach CW',
+    method: 'POST',
+    url: '/dev-ops/clients/cw/tokens',
+    payload: newToken,
+    gas: { [issueCall]: tokenRefusal(503, 'CW_UNREACHABLE', null) },
+    calls: [issueCall],
+    status: statusCodes.badRequest,
+    drawn: 'shell'
+  },
+  {
+    name: 'a token GAS did not answer for in time',
+    method: 'POST',
+    url: '/dev-ops/clients/gas/tokens',
+    payload: newToken,
+    gas: { [issueCall]: timeout },
+    calls: [issueCall],
+    status: statusCodes.seeOther,
+    drawn: 'redirect'
   },
   {
     name: 'a token form with no client',
     method: 'POST',
     url: '/dev-ops/clients/gas/tokens',
-    payload: { clientId: '', expiry: 'never' },
+    payload: { ...newToken, clientId: '' },
     gas: { [tokensCall]: withShell(tokens) },
     calls: [tokensCall],
     status: statusCodes.badRequest,
-    drawn: 'shell',
-    pending: true
+    drawn: 'shell'
   },
   {
-    name: 'a token rotated',
+    name: 'a token rotated, revealed from its answer',
     method: 'POST',
     url: `${tokenUrl}/rotate`,
     payload: { keepOld: 'none' },
     gas: {
-      'POST /grant-admin/clients/{service}/{clientId}/tokens/{tokenId}/rotate':
-        { status: 201, body: { token: listed } },
-      [tokensCall]: withShell(tokens)
+      [rotateCall]: tokenIssued()
     },
-    calls: [
-      'POST /grant-admin/clients/{service}/{clientId}/tokens/{tokenId}/rotate',
-      tokensCall
-    ],
+    calls: [rotateCall],
     status: statusCodes.ok,
-    drawn: 'shell',
-    pending: true
+    drawn: 'shell'
   },
   {
-    name: 'an expiry changed',
+    name: 'an expiry changed to a preset',
     method: 'POST',
     url: `${tokenUrl}/expiry`,
-    payload: { expiry: 'never' },
-    gas: {
-      'PUT /grant-admin/clients/{service}/{clientId}/tokens/{tokenId}/expiry': {
-        body: { token: listed }
-      }
-    },
-    calls: [
-      'PUT /grant-admin/clients/{service}/{clientId}/tokens/{tokenId}/expiry'
-    ],
+    payload: { expiry: '30' },
+    gas: { [expiryCall]: { body: { service: 'gas', token: listed } } },
+    calls: [expiryCall],
     status: statusCodes.seeOther,
-    drawn: 'redirect',
-    pending: true
+    drawn: 'redirect'
   },
   {
-    name: 'an expiry GAS refuses',
+    name: 'an expiry changed to a custom date',
     method: 'POST',
     url: `${tokenUrl}/expiry`,
-    payload: { expiry: 'never' },
-    gas: {
-      'PUT /grant-admin/clients/{service}/{clientId}/tokens/{tokenId}/expiry':
-        refusal(statusCodes.badRequest, {
-          errorCode: 'API_TOKEN_INVALID_EXPIRY'
-        }),
-      [tokensCall]: withShell(tokens)
-    },
-    calls: [
-      'PUT /grant-admin/clients/{service}/{clientId}/tokens/{tokenId}/expiry',
-      tokensCall
-    ],
+    payload: { expiry: 'custom', date: '2099-01-31' },
+    gas: { [expiryCall]: { body: { service: 'gas', token: listed } } },
+    calls: [expiryCall],
+    status: statusCodes.seeOther,
+    drawn: 'redirect'
+  },
+  {
+    name: 'a custom expiry with no date',
+    method: 'POST',
+    url: `${tokenUrl}/expiry`,
+    payload: { expiry: 'custom', date: '' },
+    gas: { [tokensCall]: withShell(tokens) },
+    calls: [tokensCall],
     status: statusCodes.badRequest,
-    drawn: 'shell',
-    pending: true
+    drawn: 'shell'
   },
   {
     name: 'a token revoked',
     method: 'POST',
     url: `${tokenUrl}/revoke`,
-    payload: { confirm: 'fg-gas-backend' },
-    gas: {
-      'POST /grant-admin/clients/{service}/{clientId}/tokens/{tokenId}/revoke':
-        { status: 204 }
-    },
-    calls: [
-      'POST /grant-admin/clients/{service}/{clientId}/tokens/{tokenId}/revoke'
-    ],
+    payload: revokeTyped,
+    gas: { [revokeCall]: { status: 204 } },
+    calls: [revokeCall],
     status: statusCodes.seeOther,
-    drawn: 'redirect',
-    pending: true
+    drawn: 'redirect'
   },
   {
     name: 'a revoke not confirmed',
     method: 'POST',
     url: `${tokenUrl}/revoke`,
-    payload: { confirm: 'something else' },
+    payload: { ...revokeTyped, confirmText: 'something else' },
     gas: { [tokensCall]: withShell(tokens) },
     calls: [tokensCall],
     status: statusCodes.badRequest,
-    drawn: 'shell',
-    pending: true
+    drawn: 'shell'
   },
   {
     name: 'a token deleted',
     method: 'POST',
     url: `${tokenUrl}/delete`,
     payload: {},
-    gas: {
-      'DELETE /grant-admin/clients/{service}/{clientId}/tokens/{tokenId}': {
-        status: 204
-      }
-    },
-    calls: [
-      'DELETE /grant-admin/clients/{service}/{clientId}/tokens/{tokenId}'
-    ],
+    gas: { [tokenCall]: { status: 204 } },
+    calls: [tokenCall],
     status: statusCodes.seeOther,
-    drawn: 'redirect',
-    pending: true
+    drawn: 'redirect'
   },
-  {
-    name: 'a token GAS refuses to issue',
-    method: 'POST',
-    url: '/dev-ops/clients/gas/tokens',
-    payload: { clientId: 'fg-gas-backend', expiry: 'never' },
-    gas: {
-      [tokensCall]: withShell(tokens),
-      'POST /grant-admin/clients/{service}/{clientId}/tokens': refusal(
-        statusCodes.conflict,
-        { errorCode: 'API_CLIENT_EXISTS' }
-      )
-    },
-    calls: [
-      tokensCall,
-      'POST /grant-admin/clients/{service}/{clientId}/tokens',
-      tokensCall
-    ],
-    status: statusCodes.badRequest,
-    drawn: 'shell',
-    pending: true
-  },
-  {
-    name: 'a revoke GAS refuses',
-    method: 'POST',
-    url: `${tokenUrl}/revoke`,
-    payload: { confirm: 'fg-gas-backend' },
-    gas: {
-      'POST /grant-admin/clients/{service}/{clientId}/tokens/{tokenId}/revoke':
-        refusal(statusCodes.conflict, { errorCode: 'API_TOKEN_NOT_ACTIVE' }),
-      [tokensCall]: withShell(tokens)
-    },
-    calls: [
-      'POST /grant-admin/clients/{service}/{clientId}/tokens/{tokenId}/revoke',
-      tokensCall
-    ],
-    status: statusCodes.badRequest,
-    drawn: 'shell',
-    pending: true
-  },
-  {
-    name: 'a delete GAS refuses',
-    method: 'POST',
-    url: `${tokenUrl}/delete`,
-    payload: {},
-    gas: {
-      'DELETE /grant-admin/clients/{service}/{clientId}/tokens/{tokenId}':
-        refusal(statusCodes.conflict, { errorCode: 'API_TOKEN_ACTIVE' }),
-      [tokensCall]: withShell(tokens)
-    },
-    calls: [
-      'DELETE /grant-admin/clients/{service}/{clientId}/tokens/{tokenId}',
-      tokensCall
-    ],
-    status: statusCodes.badRequest,
-    drawn: 'shell',
-    pending: true
-  }
+  ...tokenRefusalRows
 ]
 
 const at = '2026-10-10T16:25:00.000Z'
@@ -1221,6 +1415,25 @@ describe('one call per request: tokens', () => {
       await expect(check(row)).resolves.toBeUndefined()
     }
   )
+
+  test('an issue for another client than the one warned about is not confirmed', async () => {
+    await inject({
+      name: 'issue',
+      method: 'POST',
+      url: '/dev-ops/clients/gas/tokens',
+      payload: { ...newToken, confirmFor: 'grants-ui' },
+      gas: {
+        [issueCall]: tokenIssued()
+      },
+      calls: [issueCall],
+      status: statusCodes.ok,
+      drawn: 'shell'
+    })
+
+    const [[, options]] = vi.mocked(wreck.post).mock.calls
+
+    expect(options?.payload).toMatchObject({ confirmed: false })
+  })
 })
 
 describe('one call per request: the shell', () => {
@@ -1307,14 +1520,6 @@ describe('one call per request: every route', () => {
       .map((route) => toRouteKey({ route } as never))
 
     expect(routes.filter((route) => !covered.has(route))).toEqual([])
-  })
-
-  test('lists as pending only routes that still make more than one call', () => {
-    const multiple = new Set(
-      rows.filter((row) => row.calls.length > 1).map(routeKeyOf)
-    )
-
-    expect(pendingOneCall.filter((route) => !multiple.has(route))).toEqual([])
   })
 
   test('draws each of two pages at once from its own answer’s shell', async () => {
