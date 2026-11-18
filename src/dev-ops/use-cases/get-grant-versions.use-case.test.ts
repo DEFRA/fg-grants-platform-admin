@@ -7,7 +7,7 @@ vi.mock(import('../../common/logger.ts'))
 const responseError = (statusCode: number, body: object = {}) =>
   Object.assign(new Error(`Response Error: ${statusCode}`), {
     output: { statusCode },
-    data: { payload: body }
+    data: { isResponseError: true, payload: body }
   })
 
 describe('getGrantVersionsUseCase', () => {
@@ -35,8 +35,8 @@ describe('getGrantVersionsUseCase', () => {
   test('reads a timeout as an outage', async () => {
     vi.mocked(findGrantVersions).mockRejectedValue(responseError(504))
 
-    await expect(
-      getGrantVersionsUseCase('woodland-creation')
-    ).resolves.toMatchObject({ outcome: 'timed-out', page: null })
+    await expect(getGrantVersionsUseCase('woodland-creation')).resolves.toEqual(
+      { outcome: 'timed-out', page: null, failure: { kind: 'timed-out' } }
+    )
   })
 })

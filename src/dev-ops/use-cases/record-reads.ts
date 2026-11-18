@@ -13,6 +13,7 @@ export type {
   Counterpart,
   ListTotal,
   Position,
+  PositionNames,
   RecordEvents,
   RecordSectionError,
   RecordSeries,

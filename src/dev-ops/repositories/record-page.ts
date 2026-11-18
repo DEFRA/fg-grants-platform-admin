@@ -8,6 +8,13 @@ export interface Position {
   status: string | null
 }
 
+/** The phases of the definition the record's version names, in order, and its own stage and status by name. */
+export interface PositionNames {
+  phases: { code: string; name: string | null }[]
+  stage: string | null
+  status: string | null
+}
+
 export interface ListTotal {
   count: number
   capped: boolean

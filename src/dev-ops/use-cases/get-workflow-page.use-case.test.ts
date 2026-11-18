@@ -14,7 +14,7 @@ const ref = { code: 'woodland-creation', version: '1.2.0' }
 const responseError = (statusCode: number, body: object = {}) =>
   Object.assign(new Error(`Response Error: ${statusCode}`), {
     output: { statusCode },
-    data: { payload: body }
+    data: { isResponseError: true, payload: body }
   })
 
 const stored = {
@@ -61,17 +61,28 @@ describe('getWorkflowPageUseCase', () => {
   })
 
   test.each([
-    ['a 404 with no reason, a route GAS has not got', 404, 'unavailable'],
-    ['a gateway timeout', 504, 'timed-out'],
-    ['a bad gateway, CW down behind GAS', 502, 'unavailable']
-  ])('reads %s as an outage', async (_name, status, outcome) => {
+    [
+      'a 404 with no reason, a route GAS has not got',
+      404,
+      'unavailable',
+      { kind: 'refused', statusCode: 404, errorCode: null }
+    ],
+    ['a gateway timeout', 504, 'timed-out', { kind: 'timed-out' }],
+    [
+      'a bad gateway, CW down behind GAS',
+      502,
+      'unavailable',
+      { kind: 'errored', upstream: true }
+    ]
+  ])('reads %s as an outage', async (_name, status, outcome, failure) => {
     vi.mocked(findWorkflowVersionPage).mockRejectedValue(responseError(status))
 
     await expect(
       getWorkflowPageUseCase(ref, 'overview')
     ).resolves.toMatchObject({
       outcome,
-      page: null
+      page: null,
+      failure
     })
   })
 

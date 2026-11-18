@@ -3,6 +3,7 @@ import type { SourceError } from './events.repository.ts'
 import type {
   Counterpart,
   Position,
+  PositionNames,
   RecordEvents,
   RecordSectionError,
   RecordSeries,
@@ -19,6 +20,7 @@ export interface CaseHeader {
   caseRef: string
   workflowCode: string
   position: Position
+  names: PositionNames | null
   closed: boolean | null
   closedAt: StoredDate
   counterpart: Counterpart

@@ -7,7 +7,7 @@ vi.mock(import('../../common/logger.ts'))
 const responseError = (statusCode: number, body: object = {}) =>
   Object.assign(new Error(`Response Error: ${statusCode}`), {
     output: { statusCode },
-    data: { payload: body }
+    data: { isResponseError: true, payload: body }
   })
 
 describe('getWorkflowVersionsUseCase', () => {
@@ -37,6 +37,10 @@ describe('getWorkflowVersionsUseCase', () => {
 
     await expect(
       getWorkflowVersionsUseCase('woodland-creation')
-    ).resolves.toMatchObject({ outcome: 'timed-out', page: null })
+    ).resolves.toEqual({
+      outcome: 'timed-out',
+      page: null,
+      failure: { kind: 'timed-out' }
+    })
   })
 })
