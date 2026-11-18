@@ -1,4 +1,9 @@
-import { toFileRows, toLocation, toStoredDot } from './version-files.ts'
+import {
+  toFetchErrorDot,
+  toFileRows,
+  toLocation,
+  toStoredDot
+} from './version-files.ts'
 
 describe('toStoredDot', () => {
   test.each([
@@ -15,6 +20,21 @@ describe('toStoredDot', () => {
   ] as const)('reads %o as %s', (file, text, tone) => {
     expect(toStoredDot(file)).toEqual({ text, tone })
   })
+})
+
+describe('toFetchErrorDot', () => {
+  test.each([
+    ['permanent_error', 'Failed', 'danger'],
+    ['transient_error', 'Fetch error', 'warning']
+  ] as const)(
+    'draws a listed %s as an unstored file with it',
+    (status, text, tone) => {
+      expect(toFetchErrorDot(status)).toEqual({ text, tone })
+      expect(toFetchErrorDot(status)).toEqual(
+        toStoredDot({ stored: false, fetchStatus: status })
+      )
+    }
+  )
 })
 
 describe('toLocation', () => {

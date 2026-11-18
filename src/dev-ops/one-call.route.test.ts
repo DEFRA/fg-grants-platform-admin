@@ -14,6 +14,7 @@ import {
   type GasAnswer
 } from './test-utils.ts'
 import { toRouteKey } from './upstream.ts'
+import { needsAttention } from './use-cases/overview-fixtures.ts'
 import { woodlandDefinition } from './use-cases/test-fixtures.ts'
 
 vi.mock(import('../common/config.ts'))
@@ -206,22 +207,6 @@ const check = async (row: Row) => {
 }
 
 const lists: Row[] = [
-  {
-    name: 'the root opens the first list',
-    url: '/dev-ops',
-    gas: { [shellCall]: withShell() },
-    calls: [shellCall],
-    status: statusCodes.found,
-    drawn: 'redirect'
-  },
-  {
-    name: 'the root, when GAS does not answer',
-    url: '/dev-ops',
-    gas: { [shellCall]: timeout },
-    calls: [shellCall],
-    status: statusCodes.serviceUnavailable,
-    drawn: 'no-lists'
-  },
   {
     name: 'a list',
     url: '/dev-ops/events/gas/outbox',
@@ -1346,6 +1331,67 @@ const versionPages: Row[] = [
   }
 ]
 
+const overviewCall = 'GET /grant-admin/overview'
+
+const overview: Row[] = [
+  {
+    name: 'the Overview',
+    url: '/dev-ops',
+    gas: { [overviewCall]: withShell(needsAttention) },
+    calls: [overviewCall],
+    status: statusCodes.ok,
+    drawn: 'shell'
+  },
+  {
+    name: 'the Overview, from a GAS without it',
+    url: '/dev-ops',
+    gas: { [overviewCall]: refusal(statusCodes.notFound) },
+    calls: [overviewCall],
+    status: statusCodes.ok,
+    drawn: 'shell'
+  },
+  {
+    name: 'the Overview, from a GAS without it or its shell',
+    url: '/dev-ops',
+    gas: { [overviewCall]: { status: statusCodes.notFound } },
+    calls: [overviewCall],
+    status: statusCodes.ok,
+    drawn: 'no-lists'
+  },
+  {
+    name: 'the Overview GAS refuses',
+    url: '/dev-ops',
+    gas: { [overviewCall]: refusal(statusCodes.badRequest) },
+    calls: [overviewCall],
+    status: statusCodes.serviceUnavailable,
+    drawn: 'shell'
+  },
+  {
+    name: 'the Overview GAS fails with a body',
+    url: '/dev-ops',
+    gas: { [overviewCall]: refusal(statusCodes.internalServerError) },
+    calls: [overviewCall],
+    status: statusCodes.serviceUnavailable,
+    drawn: 'shell'
+  },
+  {
+    name: 'the Overview GAS fails without a body',
+    url: '/dev-ops',
+    gas: { [overviewCall]: { status: statusCodes.serviceUnavailable } },
+    calls: [overviewCall],
+    status: statusCodes.serviceUnavailable,
+    drawn: 'no-lists'
+  },
+  {
+    name: 'the Overview, when GAS does not answer',
+    url: '/dev-ops',
+    gas: { [overviewCall]: timeout },
+    calls: [overviewCall],
+    status: statusCodes.serviceUnavailable,
+    drawn: 'no-lists'
+  }
+]
+
 const shellPages: Row[] = [
   {
     name: 'the Times address',
@@ -1436,6 +1482,15 @@ describe('one call per request: tokens', () => {
   })
 })
 
+describe('one call per request: the Overview', () => {
+  test.each(overview.map((row) => [row.name, row]))(
+    '%s',
+    async (_name, row) => {
+      await expect(check(row)).resolves.toBeUndefined()
+    }
+  )
+})
+
 describe('one call per request: the shell', () => {
   test.each(shellPages.map((row) => [row.name, row]))(
     '%s',
@@ -1509,6 +1564,7 @@ describe('one call per request: every route', () => {
     ...records,
     ...versionPages,
     ...tokenWrites,
+    ...overview,
     ...shellPages
   ]
 

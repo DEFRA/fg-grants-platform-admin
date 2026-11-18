@@ -3,10 +3,7 @@ import type { Request, ResponseToolkit, ServerRoute } from '@hapi/hapi'
 import Joi from 'joi'
 
 import type { BucketEntry } from '../use-cases/shell-catalogue.ts'
-import {
-  readShellUseCase,
-  shellCatalogue
-} from '../use-cases/shell-catalogue.ts'
+import { shellCatalogue } from '../use-cases/shell-catalogue.ts'
 import type {
   AddressRefusal,
   BucketListing,
@@ -15,11 +12,7 @@ import type {
 } from '../use-cases/list-bucket.use-case.ts'
 import { listBucketUseCase } from '../use-cases/list-bucket.use-case.ts'
 import type { BucketFilters } from '../view-models/bucket-links.ts'
-import {
-  devOpsPath,
-  toCaseworkingListAt,
-  toHomeHref
-} from '../view-models/bucket-nav.ts'
+import { devOpsPath, toCaseworkingListAt } from '../view-models/bucket-nav.ts'
 import type { CaseworkingList } from '../view-models/bucket-nav.ts'
 import { fromUrlQuery, withOfferedValues } from '../view-models/bucket-urls.ts'
 import { listPageCache, toFilterHref } from '../view-models/list-filters.ts'
@@ -584,25 +577,6 @@ const viewAddress = (request: Request, h: ResponseToolkit, path: string) => {
     search,
     notice: toNotice(expired)
   })
-}
-
-/**
- * The admin's own root opens its first list, as the catalogue orders them.
- * Found rather than moved permanently, so a browser never caches it past a
- * change of order. No other path is redirected.
- */
-export const viewDevOpsRoute: ServerRoute = {
-  method: 'GET',
-  path: devOpsPath,
-  async handler(request: Request, h: ResponseToolkit) {
-    await readShellUseCase()
-
-    const home = toHomeHref(shellCatalogue(request))
-
-    return home === null
-      ? viewCatalogueUnavailable(request, h)
-      : h.redirect(home)
-  }
 }
 
 /** Every path below the admin's root no other route takes: a list, or a 404. */

@@ -273,6 +273,10 @@
   {%- set __html %}{% include "./molecules/stepper/template.njk" %}{% endset -%}
   {{- __html | trim | safe -}}
 {%- endmacro %}
+{% macro Stat(p) -%}
+  {%- set __html %}{% include "./molecules/stat/template.njk" %}{% endset -%}
+  {{- __html | trim | safe -}}
+{%- endmacro %}
 {% macro Timeline(p) -%}
   {%- set __html %}{% include "./molecules/timeline/template.njk" %}{% endset -%}
   {{- __html | trim | safe -}}
@@ -333,6 +337,10 @@
   {%- set __html %}{% include "./layouts/form-actions/template.njk" %}{% endset -%}
   {{- __html | trim | safe -}}
 {%- endmacro %}
+{% macro StatGrid(p) -%}
+  {%- set __html %}{% include "./layouts/stat-grid/template.njk" %}{% endset -%}
+  {{- __html | trim | safe -}}
+{%- endmacro %}
 {% macro Page(p) -%}
   {%- set __html %}{% include "./templates/page/template.njk" %}{% endset -%}
   {{- __html | trim | safe -}}
@@ -351,6 +359,10 @@
 {%- endmacro %}
 {% macro ConfirmDialog(p) -%}
   {%- set __html %}{% include "./organisms/confirm-dialog/template.njk" %}{% endset -%}
+  {{- __html | trim | safe -}}
+{%- endmacro %}
+{% macro Sparkline(p) -%}
+  {%- set __html %}{% include "./atoms/sparkline/template.njk" %}{% endset -%}
   {{- __html | trim | safe -}}
 {%- endmacro %}
 {% macro StatusPage(p) -%}

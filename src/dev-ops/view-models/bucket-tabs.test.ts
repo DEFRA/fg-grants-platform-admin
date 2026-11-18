@@ -64,10 +64,40 @@ describe('toPageHead', () => {
     expect(toPageHead(outboxBucket, [outboxBucket]).tabs).toEqual([])
   })
 
-  test('links each tab to the plain list, so nothing chosen on this one goes with it', () => {
+  test('links each tab to the plain list when nothing is chosen', () => {
     expect(head(pagedInbox).tabs.map(({ href }) => href)).toEqual([
       '/dev-ops/events/gas/outbox',
       '/dev-ops/events/gas/inbox'
     ])
+  })
+
+  test('carries the filters and time range to the other tab, so the Inbox opens on the same dead letters', () => {
+    const filters = {
+      status: ['DEAD_LETTER'],
+      grantCode: 'woodland',
+      from: '2026-10-12T15:00:00.000Z',
+      to: '2026-10-13T15:00:00.000Z'
+    }
+
+    expect(
+      toPageHead(pagedOutbox, mates, filters).tabs.map(({ href }) => href)
+    ).toEqual([
+      '/dev-ops/events/gas/outbox?status=DEAD_LETTER&grant=woodland&from=2026-10-12T15%3A00%3A00.000Z&to=2026-10-13T15%3A00%3A00.000Z',
+      '/dev-ops/events/gas/inbox?status=DEAD_LETTER&grant=woodland&from=2026-10-12T15%3A00%3A00.000Z&to=2026-10-13T15%3A00%3A00.000Z'
+    ])
+  })
+
+  test('leaves out a value the other tab doesn’t offer, and a key it doesn’t declare', () => {
+    const inbox = {
+      ...pagedInbox,
+      facts: pagedInbox.facts.filter(({ name }) => name !== 'grantCode')
+    }
+
+    expect(
+      toPageHead(pagedOutbox, [pagedOutbox, inbox], {
+        eventType: ['Audit', 'UpdateCaseStatus'],
+        grantCode: 'woodland'
+      }).tabs[1]?.href
+    ).toBe('/dev-ops/events/gas/inbox?event=UpdateCaseStatus')
   })
 })

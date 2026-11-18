@@ -1,4 +1,7 @@
-import type { DefinitionFile } from '../use-cases/definition-fetches.ts'
+import type {
+  DefinitionFile,
+  FetchStatus
+} from '../use-cases/definition-fetches.ts'
 
 export type VersionFileType = 'grant' | 'agreement' | 'payment' | 'workflow'
 
@@ -37,20 +40,33 @@ export const fileNames: Record<VersionFileType, string> = {
   workflow: 'Workflow definition'
 }
 
+export type FetchErrorStatus = Extract<
+  FetchStatus,
+  'transient_error' | 'permanent_error'
+>
+
+/** What a fetch error reads as when no stored copy is in use. */
+const fetchErrorStates: Record<FetchErrorStatus, StoredState> = {
+  permanent_error: 'Failed',
+  transient_error: 'Fetch error'
+}
+
 /** A file marked Failed is failed even when a copy is stored: the service won't use it. */
 export const toStoredState = ({
   stored,
   fetchStatus
 }: DefinitionFile): StoredState => {
   if (fetchStatus === 'permanent_error') {
-    return 'Failed'
+    return fetchErrorStates.permanent_error
   }
 
   if (stored) {
     return 'Stored'
   }
 
-  return fetchStatus === 'transient_error' ? 'Fetch error' : 'Not stored yet'
+  return fetchStatus === 'transient_error'
+    ? fetchErrorStates.transient_error
+    : 'Not stored yet'
 }
 
 export interface StoredDot {
@@ -58,11 +74,17 @@ export interface StoredDot {
   tone: StatusTone
 }
 
-export const toStoredDot = (file: DefinitionFile): StoredDot => {
-  const text = toStoredState(file)
+const toDot = (text: StoredState): StoredDot => ({
+  text,
+  tone: storedTones[text]
+})
 
-  return { text, tone: storedTones[text] }
-}
+export const toStoredDot = (file: DefinitionFile): StoredDot =>
+  toDot(toStoredState(file))
+
+/** A definition a service lists as failed, drawn as the version pages draw its file. */
+export const toFetchErrorDot = (status: FetchErrorStatus): StoredDot =>
+  toDot(fetchErrorStates[status])
 
 /** `bucket/key`, or null when either part is unknown. */
 export const toLocation = (
