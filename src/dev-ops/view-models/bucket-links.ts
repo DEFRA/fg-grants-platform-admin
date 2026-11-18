@@ -1,7 +1,6 @@
 import type {
   BucketLink,
-  BucketEntry,
-  Catalogue
+  BucketEntry
 } from '../repositories/buckets.repository.ts'
 import type { EventKey } from '../use-cases/get-event.use-case.ts'
 import { toApplicationHref } from './applications-page.view-model.ts'
@@ -29,29 +28,6 @@ export const toBucketHref = (
   const query = toUrlQuery(bucket, filters)
 
   return toFilterHref(toBucketPath(bucket), Object.keys(query), query, params)
-}
-
-/** The facts a list names a version's code and version by. */
-interface VersionFacts {
-  codeFact: string
-  versionFact: string
-}
-
-const declaresAll = ({ facts }: BucketEntry, names: string[]): boolean =>
-  names.every((name) => facts.some((fact) => fact.name === name))
-
-/** Null unless the list declares both facts: an undeclared one would drop out of the URL and widen the list. */
-export const toVersionListHref = (
-  catalogue: Catalogue | null,
-  bucketId: string,
-  { codeFact, versionFact }: VersionFacts,
-  { code, version }: { code: string; version: string }
-): string | null => {
-  const bucket = catalogue?.buckets.find(({ id }) => id === bucketId)
-
-  return bucket && declaresAll(bucket, [codeFact, versionFact])
-    ? toBucketHref(bucket, { [codeFact]: code, [versionFact]: version })
-    : null
 }
 
 /** The key that carries the page to go back to. */

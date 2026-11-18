@@ -1,4 +1,3 @@
-import type { BadgeRole } from '../use-cases/get-event.use-case.ts'
 import type {
   ExternalStatusMapping,
   GrantLifecycle,
@@ -25,25 +24,20 @@ import type {
 } from './lifecycle-effects.ts'
 import {
   sourceLabel,
+  phaseCodeOf,
   stageCodeOf,
   stageKeyOf,
+  toPosition,
+  toStageKey,
   toLifecycleNames
 } from './lifecycle-names.ts'
 import type { LifecycleNames } from './lifecycle-names.ts'
-import { firstByPosition, toStateGraphs } from './state-graph.view-model.ts'
-import type {
-  MoveKind,
-  StateGraphs,
-  StateMap,
-  StateMove
-} from './state-graph.view-model.ts'
-import { toThemeRole } from './workflow-theme.ts'
+import { firstByPosition, pickPosition, toPhasesForm } from './state-map.ts'
+import type { MapPhase, MapState, PhasesForm } from './state-map.ts'
+import { toThemeTone } from './workflow-theme.ts'
+import type { ThemeTone } from './workflow-theme.ts'
 import { checksTasks } from './workflow-transitions.ts'
-
-interface LegendItem {
-  kind: MoveKind | 'flagged' | 'other-phase' | 'start' | 'colour'
-  label: string
-}
+import { toVersionName } from './record-type.ts'
 
 type FlagName = 'start' | 'tasks read-only' | 'closes case' | 'hides tasks'
 
@@ -83,6 +77,17 @@ type TasksNote =
   | { kind: 'gas-blocked'; stageName: string; href: string }
   | { kind: 'none-in-stage' }
 
+interface WayOutTasks {
+  badge: string | null
+  note: { text: string; link: { text: string; href: string } } | null
+}
+
+type FlagTone = 'warning' | 'neutral'
+
+interface PanelFlag extends PanelBadge<FlagName> {
+  tone: FlagTone
+}
+
 interface TellsGasLine {
   stage: { code: string; name: string }
   phase: { code: string; name: string }
@@ -92,22 +97,22 @@ interface TellsGasLine {
 }
 
 type TellsGas =
-  | { kind: 'none' }
+  | { kind: 'text'; text: 'start' | 'gas-only' }
   | {
-      kind: 'text'
-      text: 'start' | 'gas-only' | Exclude<GrantStatusMap['outcome'], 'found'>
+      kind: 'grant'
+      /** Null for words said without an alert. */
+      alert: { tone: 'info' | 'warning'; title: string } | null
+      text: string
+      link: { text: string; href: string } | null
     }
-  | { kind: 'not-stored'; version: string; href: string }
   | { kind: 'ignored' }
   | { kind: 'mapped'; lines: TellsGasLine[] }
 
 export interface WorkflowStatusPanel {
-  code: string
+  id: string
   name: string
-  /** The CW theme, which `role` colours. */
-  theme: string
-  role: BadgeRole | null
-  flags: PanelBadge<FlagName>[]
+  tone: ThemeTone
+  flags: PanelFlag[]
   phase: { code: string; name: string }
   stage: { code: string; name: string }
   findings: Finding[]
@@ -125,28 +130,25 @@ export interface WorkflowStatusPanel {
     move:
       | { kind: 'action'; name: string; code: string; badges: string[] }
       | { kind: 'gas' }
-    tasks: TasksNote | null
+    tasks: WayOutTasks | null
   }[]
   closes: boolean
   tellsGas: TellsGas
 }
 
+/** Each status with a finding, once, by its first finding. */
 interface FindingsSummary {
-  /** Statuses with a finding, each once. */
   count: number
-  groups: {
-    kind: Finding['kind']
-    /** `stageName` only when the code is in more than one stage. */
-    statuses: { code: string; stageName: string | null; href: string }[]
-  }[]
+  statuses: { name: string; href: string; lead: Finding['kind'] }[]
 }
 
 export interface WorkflowPhasesTab {
-  graphs: StateGraphs
-  legend: LegendItem[]
+  selected: string
+  phases: MapPhase[]
   /** Null when nothing is found: it never says the workflow and grant agree. */
   findings: FindingsSummary | null
-  panel: WorkflowStatusPanel | null
+  panels: WorkflowStatusPanel[]
+  form: PhasesForm
 }
 
 interface WorkflowPhasesLinks {
@@ -180,18 +182,23 @@ const deadLettersHref = '/dev-ops/events/cw/inbox?status=DEAD_LETTER'
 const flagTitles: Record<FlagName, string> = {
   start: 'New cases start here',
   'tasks read-only':
-    "Caseworkers can't change tasks in this status (interactive: false)",
+    'Caseworkers can’t change tasks in this status (interactive: false)',
   'hides tasks': 'The case page hides the task list in this status',
   'closes case': 'CW marks the case closed here'
 }
 
-const positionOf = (...codes: string[]) => codes.join(':')
+const flagTones: Record<FlagName, FlagTone> = {
+  start: 'neutral',
+  'tasks read-only': 'neutral',
+  'hides tasks': 'neutral',
+  'closes case': 'warning'
+}
 
 const flattenPlaces = (phases: StoredWorkflowPhase[]) =>
   phases.flatMap((phase) =>
     phase.stages.flatMap((stage) =>
       stage.statuses.map((status) => ({
-        position: positionOf(phase.code, stage.code, status.code),
+        position: toPosition(phase.code, stage.code, status.code),
         phase,
         stage,
         status
@@ -203,7 +210,7 @@ const flattenPlaces = (phases: StoredWorkflowPhase[]) =>
 const initialOf = ([phase]: StoredWorkflowPhase[]) => {
   const status = phase?.stages[0]?.statuses[0]
 
-  return status && positionOf(phase.code, phase.stages[0].code, status.code)
+  return status && toPosition(phase.code, phase.stages[0].code, status.code)
 }
 
 const isUnreached = ({ position, in: waysIn }: Place, initial?: string) =>
@@ -404,65 +411,47 @@ const withFindings = (
   return initial
 }
 
-const toMove = (
-  from: string,
-  { targetPosition, action }: StoredTransition
-): StateMove => ({
-  from,
-  to: targetPosition,
-  kind: action ? 'plain' : 'dashed',
-  title: action ? `${action.name} (${action.code})` : 'GAS may send'
+const hasFinding = ({ findings }: Place) => findings.length > 0
+
+const findingIcon: Pick<MapState, 'icon' | 'iconLabel' | 'iconTone'> = {
+  icon: 'triangle-alert',
+  iconTone: 'warning',
+  iconLabel: 'Has findings'
+}
+
+const toMapBadge = (place: Place, initial: string | undefined) => {
+  if (place.position === initial) {
+    return { badge: 'start' }
+  }
+
+  return place.status.closes === true ? { badge: 'closes' } : {}
+}
+
+const toMapState = (place: Place, initial: string | undefined): MapState => ({
+  id: place.position,
+  label: place.status.name,
+  tone: toThemeTone(place.status.theme),
+  ...toMapBadge(place, initial),
+  ...(hasFinding(place) ? findingIcon : {})
 })
 
-const findingNames = ({ findings }: Place) => [
-  ...new Set(findings.map(({ kind }) => kind))
-]
-
-const toStateMap = (
+/** Each position once, where it first appears, as CW takes it. */
+const toMapPhases = (
   phases: StoredWorkflowPhase[],
   index: Map<string, Place>,
   initial: string | undefined
-): StateMap => ({
-  phases: phases.map((phase) => ({
-    code: phase.code,
-    name: phase.name,
+): MapPhase[] =>
+  phases.map((phase) => ({
+    id: phase.code,
+    label: phase.name,
     stages: phase.stages.map((stage) => ({
-      code: stage.code,
-      name: stage.name,
-      statuses: stage.statuses.map(({ code, name, theme }) => {
-        const position = positionOf(phase.code, stage.code, code)
-        const place = index.get(position)
-        const findings = place ? findingNames(place) : []
-
-        return {
-          code,
-          name,
-          theme,
-          tone: toThemeRole(theme) ?? 'neutral',
-          flagged: findings.length > 0,
-          findings,
-          ...(position === initial ? { chip: 'start' as const } : {})
-        }
-      })
+      id: toStageKey(phase.code, stage.code),
+      label: stage.name,
+      states: [...index.values()]
+        .filter((place) => place.phase === phase && place.stage === stage)
+        .map((place) => toMapState(place, initial))
     }))
-  })),
-  moves: [...index.values()].flatMap(({ position, status }) =>
-    status.transitions
-      .filter(({ targetPosition }) => index.has(targetPosition))
-      .map((transition) => toMove(position, transition))
-  )
-})
-
-const toLegend = (index: Map<string, Place>): LegendItem[] => [
-  { kind: 'plain', label: 'Action' },
-  { kind: 'dashed', label: 'GAS may send' },
-  ...([...index.values()].some(({ findings }) => findings.length)
-    ? [{ kind: 'flagged' as const, label: 'Finding' }]
-    : []),
-  { kind: 'start', label: 'Start' },
-  { kind: 'colour', label: 'colour = how CW shows the status to caseworkers' },
-  { kind: 'other-phase', label: 'Other phase' }
-]
+  }))
 
 const flagTests: [FlagName, (status: StoredWorkflowStatus) => boolean][] = [
   ['tasks read-only', ({ interactive }) => !interactive],
@@ -470,14 +459,11 @@ const flagTests: [FlagName, (status: StoredWorkflowStatus) => boolean][] = [
   ['hides tasks', ({ hideTaskGroups }) => hideTaskGroups]
 ]
 
-const toFlags = (
-  status: StoredWorkflowStatus,
-  start: boolean
-): PanelBadge<FlagName>[] =>
+const toFlags = (status: StoredWorkflowStatus, start: boolean): PanelFlag[] =>
   toPanelBadges(flagTitles, [
     ...(start ? (['start'] as const) : []),
     ...flagTests.filter(([, test]) => test(status)).map(([label]) => label)
-  ])
+  ]).map((flag) => ({ ...flag, tone: flagTones[flag.label] }))
 
 const commentBadges = (comment: { mandatory: boolean } | null) => {
   if (!comment) {
@@ -509,6 +495,25 @@ const toBlockingNote = (
       }
     : { kind: 'gas-blocked', stageName: stage.name, href: deadLettersHref }
 
+const needsTasks = 'needs tasks'
+
+const toWayOutTasks = (note: TasksNote): WayOutTasks => {
+  switch (note.kind) {
+    case 'needs-tasks':
+      return { badge: needsTasks, note: null }
+    case 'gas-blocked':
+      return {
+        badge: needsTasks,
+        note: {
+          text: `CW rejects GAS’s message while mandatory tasks in ${note.stageName} (the case’s current stage) are open. After its retries the message goes to CW’s inbox as a dead letter, and nothing re-applies it:`,
+          link: { text: 'redrive it once the tasks are done', href: note.href }
+        }
+      }
+    case 'none-in-stage':
+      return { badge: null, note: null }
+  }
+}
+
 /** A move that checks tasks blocks only while the stage has a mandatory task; otherwise it never does. */
 const toTasksNote = (
   transition: StoredTransition,
@@ -523,6 +528,14 @@ const toTasksNote = (
   return hasMandatoryTasks(stage)
     ? toBlockingNote(transition, phase, stage, links)
     : { kind: 'none-in-stage' }
+}
+
+const toTasksShown = (
+  ...args: Parameters<typeof toTasksNote>
+): WayOutTasks | null => {
+  const note = toTasksNote(...args)
+
+  return note && toWayOutTasks(note)
 }
 
 const toWayOutMove = ({
@@ -557,7 +570,7 @@ const toMappedLines = (
 ): TellsGas => {
   const names = toLifecycleNames(lifecycle)
   const lines = cwMappingsOf(lifecycle, position).map((mapping) => {
-    const phase = mapping.whileIn.split(':')[0]
+    const phase = phaseCodeOf(mapping.whileIn)
 
     return {
       stage: {
@@ -573,22 +586,51 @@ const toMappedLines = (
   return lines.length ? { kind: 'mapped', lines } : { kind: 'ignored' }
 }
 
+type UnfoundGrant = Exclude<GrantStatusMap['outcome'], 'found'>
+
+const notShown = 'What GAS does with this message can’t be shown.'
+
+const unfoundTells: Record<
+  UnfoundGrant,
+  (name: string, href: string) => Extract<TellsGas, { kind: 'grant' }>
+> = {
+  'no-grant': (name) => ({
+    kind: 'grant',
+    alert: null,
+    text: `No GAS grant has the version ${name}.`,
+    link: null
+  }),
+  'not-stored': (name, href) => ({
+    kind: 'grant',
+    alert: { tone: 'info', title: 'Grant definition not stored.' },
+    text: notShown,
+    link: { text: `Open ${name}`, href }
+  }),
+  unreadable: (name, href) => ({
+    kind: 'grant',
+    alert: { tone: 'warning', title: 'GAS can’t read the grant definition.' },
+    text: notShown,
+    link: { text: `Open ${name}`, href }
+  }),
+  unavailable: (name, href) => ({
+    kind: 'grant',
+    alert: { tone: 'warning', title: 'GAS couldn’t read the grant’s phases.' },
+    text: notShown,
+    link: { text: `Open ${name}`, href }
+  })
+}
+
 const toGrantTells = (
   place: Place,
   grant: GrantStatusMap,
   links: WorkflowPhasesLinks,
-  version: string
-): TellsGas => {
-  if (grant.outcome === 'found') {
-    return toMappedLines(grant.lifecycle, place.position, (position) =>
-      links.grantStatus(position, place.position)
-    )
-  }
-
-  return grant.outcome === 'not-stored'
-    ? { kind: 'not-stored', version, href: links.grant(place.position) }
-    : { kind: 'text', text: grant.outcome }
-}
+  name: string
+): TellsGas =>
+  grant.outcome === 'found'
+    ? toMappedLines(grant.lifecycle, place.position, (position) =>
+        links.grantStatus(position, place.position)
+      )
+    : unfoundTells[grant.outcome](name, links.grant(place.position))
 
 /** What GAS does with the `CaseStatusUpdated` CW sends on reaching the status, which only an action does. */
 const toTellsGas = (
@@ -596,10 +638,10 @@ const toTellsGas = (
   initial: string | undefined,
   grant: GrantStatusMap,
   links: WorkflowPhasesLinks,
-  version: string
+  name: string
 ): TellsGas => {
   if (hasActionIn(place)) {
-    return toGrantTells(place, grant, links, version)
+    return toGrantTells(place, grant, links, name)
   }
 
   if (place.position === initial) {
@@ -608,7 +650,7 @@ const toTellsGas = (
 
   return place.in.length
     ? { kind: 'text', text: 'gas-only' }
-    : toGrantTells(place, grant, links, version)
+    : toGrantTells(place, grant, links, name)
 }
 
 interface PanelContext {
@@ -616,7 +658,8 @@ interface PanelContext {
   initial: string | undefined
   grant: GrantStatusMap
   links: WorkflowPhasesLinks
-  version: string
+  /** The grant version of the same code and version, `code@version`. */
+  name: string
 }
 
 const refFor =
@@ -632,7 +675,7 @@ const refFor =
             name: place.status.name,
             stageName: place.stage.name,
             repeated: false,
-            href: `${links.status(target)}#panel`
+            href: links.status(target)
           }
         : null
     )
@@ -650,14 +693,13 @@ const toWaysIn = (place: Place, refOf: (target: string) => StatusRef) =>
 
 const toPanel = (place: Place, context: PanelContext): WorkflowStatusPanel => {
   const { position, phase, stage, status } = place
-  const { index, initial, grant, links, version } = context
+  const { index, initial, grant, links, name } = context
   const refOf = refFor(index, links, position)
 
   return {
-    code: status.code,
+    id: position,
     name: status.name,
-    theme: status.theme,
-    role: toThemeRole(status.theme),
+    tone: toThemeTone(status.theme),
     flags: toFlags(status, position === initial),
     phase: { code: phase.code, name: phase.name },
     stage: { code: stage.code, name: stage.name },
@@ -668,67 +710,63 @@ const toPanel = (place: Place, context: PanelContext): WorkflowStatusPanel => {
     waysOut: status.transitions.map((transition) => ({
       to: refOf(transition.targetPosition),
       move: toWayOutMove(transition),
-      tasks: toTasksNote(transition, phase, stage, links)
+      tasks: toTasksShown(transition, phase, stage, links)
     })),
     closes: status.closes === true,
-    tellsGas: toTellsGas(place, initial, grant, links, version)
+    tellsGas: toTellsGas(place, initial, grant, links, name)
   }
 }
-
-const findingOrder: Finding['kind'][] = ['dead end', 'unreachable', 'mismatch']
 
 const toFindingsSummary = (
   index: Map<string, Place>,
   links: WorkflowPhasesLinks
 ): FindingsSummary | null => {
-  const places = [...index.values()]
-  const repeated = (code: string) =>
-    places.filter(({ status }) => status.code === code).length > 1
-  const groups = findingOrder
-    .map((kind) => ({
-      kind,
-      statuses: places
-        .filter(({ findings }) => findings.some((item) => item.kind === kind))
-        .map(({ position, stage, status }) => ({
-          code: status.code,
-          stageName: repeated(status.code) ? stage.name : null,
-          href: `${links.status(position)}#panel`
-        }))
+  const statuses = [...index.values()]
+    .filter(hasFinding)
+    .map(({ position, status, findings }) => ({
+      name: status.name,
+      href: links.status(position),
+      lead: findings[0].kind
     }))
-    .filter(({ statuses }) => statuses.length)
-  const count = places.filter(({ findings }) => findings.length).length
 
-  return count ? { count, groups } : null
+  return statuses.length ? { count: statuses.length, statuses } : null
+}
+
+interface WorkflowVersion {
+  code: string
+  version: string
 }
 
 /**
- * The workflow's state graphs, with a finding on each status no transition
- * reaches or no transition leaves, or that GAS may send a status it has no
- * move to, and the selected status's panel. Targets are matched literally, as
- * CW matches them; one that is not on the map is listed but not drawn.
+ * The workflow's statuses by phase and stage, with a finding on each status no
+ * transition reaches or no transition leaves, or that GAS may send a status it
+ * has no move to, and a panel for each. Targets are matched literally, as CW
+ * matches them; one not on the map is listed but has no link.
  */
 export const toWorkflowPhases = (
   phases: StoredWorkflowPhase[],
   grant: GrantStatusMap,
   asked: string | undefined,
   links: WorkflowPhasesLinks,
-  version: string
+  { code, version }: WorkflowVersion,
+  form: { href: string; from: string }
 ): WorkflowPhasesTab => {
   const index = indexPlaces(phases)
   const initial = withFindings(index, phases, grant, version)
-  const graphs = toStateGraphs(
-    toStateMap(phases, index, initial),
-    asked,
-    (position) => `${links.status(position)}#panel`
-  )
-  const selected = graphs.selected && index.get(graphs.selected.position)
+  const context = {
+    index,
+    initial,
+    grant,
+    links,
+    name: toVersionName({ code, version })
+  }
+  const positions = [...index.keys()]
 
   return {
-    graphs,
-    legend: toLegend(index),
+    selected: pickPosition(positions, asked, positions[0]) ?? '',
+    phases: toMapPhases(phases, index, initial),
     findings: toFindingsSummary(index, links),
-    panel: selected
-      ? toPanel(selected, { index, initial, grant, links, version })
-      : null
+    panels: [...index.values()].map((place) => toPanel(place, context)),
+    form: toPhasesForm(form.href, form.from)
   }
 }

@@ -1,5 +1,6 @@
 import { focusOnArrival } from "./core/dom.ts";
 import { watchScroll } from "./core/scroll.ts";
+import { GpaAccordion } from "./molecules/accordion/web-component.ts";
 import { GpaCalendar } from "./molecules/calendar/web-component.ts";
 import { GpaClearable } from "./atoms/input/web-component.ts";
 import { GpaCopy } from "./molecules/copy-button/web-component.ts";
@@ -15,6 +16,7 @@ import { GpaLoadMore } from "./molecules/list-footer/web-component.ts";
 import { GpaPopover } from "./molecules/popover/web-component.ts";
 import { GpaSearchKind } from "./molecules/search-field/web-component.ts";
 import { GpaSegmented } from "./molecules/segmented-control/web-component.ts";
+import { GpaStateMap } from "./organisms/state-map/web-component.ts";
 import { GpaTabs } from "./molecules/tabs/web-component.ts";
 import { GpaThemeToggle } from "./molecules/theme-toggle/web-component.ts";
 import { GpaToastRegion } from "./molecules/toast-region/web-component.ts";
@@ -22,6 +24,7 @@ import { GpaToast } from "./molecules/toast/web-component.ts";
 import { GpaTooltip } from "./atoms/tooltip/web-component.ts";
 
 const elements: [string, CustomElementConstructor][] = [
+  ["gpa-accordion", GpaAccordion],
   ["gpa-calendar", GpaCalendar],
   ["gpa-clearable", GpaClearable],
   ["gpa-copy", GpaCopy],
@@ -37,6 +40,7 @@ const elements: [string, CustomElementConstructor][] = [
   ["gpa-popover", GpaPopover],
   ["gpa-search-kind", GpaSearchKind],
   ["gpa-segmented", GpaSegmented],
+  ["gpa-state-map", GpaStateMap],
   ["gpa-tabs", GpaTabs],
   ["gpa-theme-toggle", GpaThemeToggle],
   ["gpa-toast-region", GpaToastRegion],
@@ -123,6 +127,7 @@ if (document.readyState === "loading")
 else upgrade(document);
 
 export {
+  GpaAccordion,
   GpaCalendar,
   GpaClearable,
   GpaCopy,
@@ -138,6 +143,7 @@ export {
   GpaPopover,
   GpaSearchKind,
   GpaSegmented,
+  GpaStateMap,
   GpaTabs,
   GpaThemeToggle,
   GpaToastRegion,

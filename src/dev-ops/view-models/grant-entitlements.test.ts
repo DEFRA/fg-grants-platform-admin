@@ -28,6 +28,14 @@ const completeChip = {
   href: '/phases?status=POST_AWARD:AGREEMENT:CLAIMS_COMPLETE'
 }
 
+const materialisedAlert = {
+  tone: 'warning',
+  title: 'Maintenance payment can’t be claimed.',
+  text: [
+    'It is materialised, which GAS doesn’t derive yet, so its claim rules never apply.'
+  ]
+}
+
 const offered = { phase: 'POST_AWARD', stage: 'AGREEMENT', status: 'OFFERED' }
 const complete = {
   phase: 'POST_AWARD',
@@ -69,13 +77,11 @@ const tabOf = (
 ) =>
   toEntitlementsTab({ entitlements: entitlements(overrides), payment }, hrefs)
 
-const onSubmitOf = (
+const cardOf = (
   overrides: Partial<EntitlementTemplate>,
-  rest: Partial<GrantEntitlements> = {},
   payment: PaymentFileState | null = 'stored'
 ) =>
-  tabOf({ entitlementTemplates: [template(overrides)], ...rest }, payment)
-    .templates[0].onSubmit
+  tabOf({ entitlementTemplates: [template(overrides)] }, payment).templates[0]
 
 const lastClaim = {
   claims: {
@@ -89,91 +95,62 @@ const readsAgreement = { sbi: '$.agreement.identifiers.sbi' }
 
 describe('toEntitlementsTab: On submit', () => {
   test.each([
-    [
-      'a materialised template with a claim',
-      { materialised: true },
-      'materialised'
-    ],
+    ['a materialised template with a claim', { materialised: true }],
     [
       'a materialised template with no claim',
-      { materialised: true, claim: undefined },
-      'materialised'
+      { materialised: true, claim: undefined }
     ],
-    ['a template with no claim', { claim: undefined }, 'no-claimable-at'],
-    [
-      'an empty claimableAt',
-      { claim: { ...claim, claimableAt: [] } },
-      'no-claimable-at'
-    ],
-    [
-      'no claimableAt',
-      { claim: { ...claim, claimableAt: undefined } },
-      'no-claimable-at'
-    ]
-  ])("can't be claimed for %s, saying why", (_name, overrides, reason) => {
-    expect(onSubmitOf(overrides, lastClaim)).toEqual({
-      kind: 'cant-claim',
-      reason
+    ['a template with no claim', { claim: undefined }],
+    ['an empty claimableAt', { claim: { ...claim, claimableAt: [] } }],
+    ['no claimableAt', { claim: { ...claim, claimableAt: undefined } }]
+  ])("can't be claimed for %s", (_name, overrides) => {
+    expect(cardOf(overrides)).toMatchObject({
+      badge: { text: 'Can’t be claimed', tone: 'danger' },
+      cantClaim: true
     })
-  })
-
-  test('waits for approval, with no move even on the last claim', () => {
-    expect(
-      onSubmitOf({ claim: { ...claim, requiresApproval: true } }, lastClaim)
-    ).toEqual({ kind: 'waits-for-approval' })
-  })
-
-  test('requests payment when the version has a payment file', () => {
-    expect(onSubmitOf({})).toEqual({
-      kind: 'requests-payment',
-      payment: 'stored',
-      move: null
-    })
-    expect(tabOf().templates[0].onSubmitRole).toBe('success')
   })
 
   test.each(['not-stored', 'failed'] as const)(
-    'says when the payment file is %s',
+    'requests payment when the payment file is %s',
     (payment) => {
-      expect(onSubmitOf({}, {}, payment)).toMatchObject({
-        kind: 'requests-payment',
-        payment
+      expect(cardOf({}, payment).badge).toEqual({
+        text: 'On submit: Requests payment',
+        tone: 'neutral'
       })
     }
   )
+})
 
-  test('has no payment file to pay with when the version has none', () => {
-    expect(onSubmitOf({}, {}, null)).toEqual({
-      kind: 'no-payment-file',
-      move: null
-    })
-  })
-
-  test.each(['stored', null] as const)(
-    'says where the last claim moves the application, payment file %s',
-    (payment) => {
-      expect(onSubmitOf({}, lastClaim, payment)).toMatchObject({ move })
-    }
-  )
-
+describe('toEntitlementsTab: the on-submit badge', () => {
   test.each([
-    ['its own stage', [{ phase: 'POST_AWARD', stage: 'AGREEMENT' }], move],
-    ['its phase', [{ phase: 'POST_AWARD' }], move],
-    ['exactly that status', [offered], move],
     [
-      'another status',
-      [{ phase: 'POST_AWARD', stage: 'AGREEMENT', status: 'ACCEPTED' }],
-      null
+      'a template that can’t be claimed',
+      cardOf({ materialised: true }),
+      { text: 'Can’t be claimed', tone: 'danger' },
+      true
     ],
-    ['another stage', [{ phase: 'POST_AWARD', stage: 'CLAIMS' }], null]
-  ])(
-    'says the move only when Claimable at covers the status it moves from: %s',
-    (_name, claimableAt, expected) => {
-      expect(
-        onSubmitOf({ claim: { ...claim, claimableAt } }, lastClaim)
-      ).toMatchObject({ move: expected })
-    }
-  )
+    [
+      'a claim that waits for approval',
+      cardOf({ claim: { ...claim, requiresApproval: true } }),
+      { text: 'On submit: Waits for approval', tone: 'neutral' },
+      false
+    ],
+    [
+      'a claim that requests payment',
+      cardOf({}),
+      { text: 'On submit: Requests payment', tone: 'neutral' },
+      false
+    ],
+    [
+      'a claim with no payment file to pay with',
+      cardOf({}, null),
+      { text: 'On submit: No payment file', tone: 'warning' },
+      false
+    ]
+  ])('%s', (_name, card, badge, cantClaim) => {
+    expect(card.badge).toEqual(badge)
+    expect(card.cantClaim).toBe(cantClaim)
+  })
 })
 
 describe('toEntitlementsTab: warnings', () => {
@@ -190,22 +167,44 @@ describe('toEntitlementsTab: warnings', () => {
       payment: readsAgreement
     })
 
-    expect(tab.templates.map(({ warnings }) => warnings)).toEqual([
-      [{ kind: 'materialised-claim', claimCode: 'CAPITAL' }],
+    expect(tab.templates.map(({ alerts }) => alerts)).toEqual([
+      [materialisedAlert],
       [
         {
-          kind: 'claim-payment-reads-agreement',
-          claimCode: 'MAINTENANCE',
-          paymentHref
+          tone: 'warning',
+          title: 'Claim payments for Maintenance payment fail.',
+          text: [
+            'Claim payments can only read ',
+            { code: '$.claim' },
+            ' and ',
+            { code: '$.execution' },
+            ', but the ',
+            { link: 'payment definition', href: paymentHref },
+            ' reads ',
+            { code: '$.agreement' },
+            ', so those fields resolve empty and GAS refuses the payment.'
+          ]
         }
       ],
-      [{ kind: 'no-claimable-at', claimCode: 'SURVEY' }]
+      [
+        {
+          tone: 'danger',
+          title: 'Maintenance payment can’t be claimed.',
+          text: [
+            'Its claim rules list no “Claimable at” status, so GAS rejects every claim (',
+            { code: 'WRONG_POSITION' },
+            '). Publish a version that sets ',
+            { code: 'claim.claimableAt' },
+            '.'
+          ]
+        }
+      ]
     ])
   })
 
   test('gives none for a clean definition', () => {
     expect(
-      tabOf({ payment: { sbi: '$.claim.sbi' } }).templates[0].warnings
+      tabOf({ payment: { sbi: '$.claim.sbi' } }).templates[0].alerts
     ).toEqual([])
   })
 
@@ -225,7 +224,7 @@ describe('toEntitlementsTab: warnings', () => {
       { payment: { sbi: '$.agreementNumber' } }
     ]
   ])('gives no claim payment warning for %s', (_name, overrides) => {
-    expect(tabOf(overrides).templates[0].warnings).toEqual([])
+    expect(tabOf(overrides).templates[0].alerts).toEqual([])
   })
 
   test('gives no claimableAt warning to a materialised template', () => {
@@ -237,8 +236,8 @@ describe('toEntitlementsTab: warnings', () => {
             claim: { ...claim, claimableAt: undefined }
           })
         ]
-      }).templates[0].warnings
-    ).toEqual([{ kind: 'materialised-claim', claimCode: 'MAINTENANCE' }])
+      }).templates[0].alerts
+    ).toEqual([materialisedAlert])
   })
 })
 
@@ -313,26 +312,13 @@ describe('toEntitlementsTab: claims', () => {
     expect(tabOf({ claims: null }, null).claims).toEqual({
       move: null,
       paymentHref: null,
-      paymentLink: null,
       roles: null
     })
   })
 
-  test('links the payment definition when the version has one, by its state', () => {
-    expect(tabOf().claims).toMatchObject({
-      paymentHref,
-      paymentLink: 'Stored · Payment tab ›'
-    })
-    expect(tabOf({}, 'not-stored').claims.paymentLink).toBe(
-      'Not stored yet · Payment tab ›'
-    )
-    expect(tabOf({}, 'failed').claims.paymentLink).toBe(
-      'Failed · Payment tab ›'
-    )
-    expect(tabOf({}, null).claims).toMatchObject({
-      paymentHref: null,
-      paymentLink: null
-    })
+  test('links the payment definition when the version has one', () => {
+    expect(tabOf().claims.paymentHref).toBe(paymentHref)
+    expect(tabOf({}, null).claims.paymentHref).toBeNull()
   })
 
   test('gives roles a list the grant leaves out as empty', () => {
@@ -373,16 +359,15 @@ describe('toEntitlementsTab: templates', () => {
         ]
       }).templates[0]
     ).toEqual({
-      claimCode: 'MAINTENANCE',
       name: 'Maintenance payment',
       description: null,
       materialised: true,
       maxEntitlements: 1,
       availableAt: [offeredChip],
       claim: null,
-      onSubmit: { kind: 'cant-claim', reason: 'materialised' },
-      onSubmitRole: 'neutral',
-      warnings: [],
+      badge: { text: 'Can’t be claimed', tone: 'danger' },
+      cantClaim: true,
+      alerts: [],
       fields: [],
       help: null
     })

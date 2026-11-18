@@ -34,7 +34,8 @@ const answeredText = (failure: GasFailure, service: string): string =>
     ? `${service} answered with an error.`
     : answeredTexts[failure.kind as Answered]
 
-const unansweredBy = (failure: GasFailure, service: string): string =>
+/** GAS's 504 is the service it waited on; anything else unanswered is GAS's own silence. */
+export const unansweredBy = (failure: GasFailure, service: string): string =>
   failure.kind === 'timed-out' ? service : 'GAS'
 
 export const toFailureText = (

@@ -22,6 +22,7 @@ import { pageMates, toPageHead } from './bucket-tabs.ts'
 import { toUrlQuery } from './bucket-urls.ts'
 import {
   presentationOf,
+  toChipOrder,
   toFactLabel,
   toListColumns,
   toTimeLabel,
@@ -39,6 +40,7 @@ import { toRangeChip } from './time-range.view-model.ts'
 import type { TimeRangeQuery } from './time-range.view-model.ts'
 import { toTime } from './times.ts'
 import type { TimeText, Times } from './times.ts'
+import { toVersionName } from './record-type.ts'
 
 /** A search box that was refused: what was typed, handed back with the reason. */
 export interface SearchAttempt {
@@ -529,7 +531,7 @@ const toSetFilters = (context: Context, range: RangeModel): Applied[] => {
   }
 
   return [
-    ...bucket.facts.filter(hasValues).flatMap(tagsOf),
+    ...toChipOrder(bucket, bucket.facts.filter(hasValues)).flatMap(tagsOf),
     ...timeTags(context, range),
     ...searchTags(context),
     ...bucket.facts.filter((fact) => !hasValues(fact)).flatMap(tagsOf)
@@ -623,7 +625,9 @@ const versionOf = ({ bucket }: Context, row: BucketRow): string | null => {
 const toTitle = (context: Context, row: BucketRow): string | null => {
   const version = versionOf(context, row)
 
-  return row.title !== null && version ? `${row.title}@${version}` : row.title
+  return row.title !== null && version
+    ? toVersionName({ code: row.title, version })
+    : row.title
 }
 
 /** A subtitle the catalogue sends for a list GPA gives no subtitle column is drawn under the title, so none is lost. */
@@ -1151,7 +1155,9 @@ export const toListPage = (input: ListPageInput): ListPageModel => {
     meta: toMeta(bucket),
     tabs: toTabs(bucket, buckets),
     filterLabel: `Filter ${bucket.noun.many}`,
-    chips: bucket.facts.filter(hasValues).map(toChip(context)),
+    chips: toChipOrder(bucket, bucket.facts.filter(hasValues)).map(
+      toChip(context)
+    ),
     range,
     searchField: toSearchField(context, input.attempt),
     applied: set,

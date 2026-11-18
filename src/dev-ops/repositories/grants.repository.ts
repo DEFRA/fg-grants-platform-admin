@@ -9,9 +9,9 @@ import type {
 import type { SourceError } from './events.repository.ts'
 import type {
   Counterpart,
-  RecordEvents,
   RecordSectionError,
-  StoredDate
+  StoredDate,
+  GrantVersionEvents
 } from './record-page.ts'
 
 export type GrantVersionRef = VersionRef
@@ -291,7 +291,8 @@ export interface GrantVersionPage {
   payment?: Record<string, unknown> | null
   /** Null when not stored or too large. */
   agreement?: GrantAgreement | null
-  events?: RecordEvents | null
+  /** On the Overview alone. */
+  versionEvents?: GrantVersionEvents
   /** Null when the grant file is not stored, too large, or refused by GAS's model (each with its section error). */
   entitlements?: GrantEntitlements | null
   sourceErrors: SourceError[]
@@ -307,7 +308,6 @@ export type GrantRead =
   | 'entitlements'
   | 'agreement'
   | 'payment'
-  | 'events'
 
 const grantPath = (code: string) =>
   `/grant-admin/grants/${encodeURIComponent(code)}/versions`

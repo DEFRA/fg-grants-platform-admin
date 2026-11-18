@@ -17,7 +17,7 @@ const files: DefinitionFetchFile<DefinitionFileType>[] = [
 const responseError = (statusCode: number) =>
   Object.assign(new Error(`Response Error: ${statusCode}`), {
     output: { statusCode },
-    data: { payload: {}, res: {} }
+    data: { isResponseError: true, payload: {}, res: {} }
   })
 
 describe('fetchGrantDefinitionsUseCase', () => {
@@ -52,7 +52,8 @@ describe('fetchGrantDefinitionsUseCase', () => {
 
     await expect(fetchGrantDefinitionsUseCase(ref)).resolves.toEqual({
       outcome: 'not-found',
-      files: []
+      files: [],
+      failure: expect.objectContaining({ kind: 'refused', statusCode: 404 })
     })
     expect(logger.warn).toHaveBeenCalledWith(
       'Did not fetch grant woodland-creation@2.0.0: not-found'
@@ -65,26 +66,37 @@ describe('fetchGrantDefinitionsUseCase', () => {
 
     await expect(fetchGrantDefinitionsUseCase(ref)).resolves.toEqual({
       outcome: 'timed-out',
-      files: []
+      files: [],
+      failure: { kind: 'timed-out' }
     })
     expect(logger.error).toHaveBeenCalledTimes(1)
   })
 
   test.each([
-    ['stopped part-way', responseError(500)],
-    ['refused', responseError(400)],
-    ['unreachable', new Error('connect ECONNREFUSED')]
-  ])('reports a fetch GAS %s as unavailable', async (_name, error) => {
-    vi.mocked(fetchGrantDefinitions).mockRejectedValue(error)
+    ['stopped part-way', responseError(500), 'errored'],
+    ['refused', responseError(400), 'refused'],
+    [
+      'unreachable',
+      Object.assign(new Error('connect ECONNREFUSED'), {
+        code: 'ECONNREFUSED'
+      }),
+      'not-connected'
+    ]
+  ])(
+    'reports a fetch GAS %s as unavailable, and how it failed',
+    async (_name, error, kind) => {
+      vi.mocked(fetchGrantDefinitions).mockRejectedValue(error)
 
-    await expect(fetchGrantDefinitionsUseCase(ref)).resolves.toEqual({
-      outcome: 'unavailable',
-      files: []
-    })
-    expect(logger.error).toHaveBeenCalledWith(
-      expect.stringContaining(
-        'Could not fetch grant woodland-creation@2.0.0 in fg-gas-backend: '
+      await expect(fetchGrantDefinitionsUseCase(ref)).resolves.toEqual({
+        outcome: 'unavailable',
+        files: [],
+        failure: expect.objectContaining({ kind })
+      })
+      expect(logger.error).toHaveBeenCalledWith(
+        expect.stringContaining(
+          'Could not fetch grant woodland-creation@2.0.0 in fg-gas-backend: '
+        )
       )
-    )
-  })
+    }
+  )
 })

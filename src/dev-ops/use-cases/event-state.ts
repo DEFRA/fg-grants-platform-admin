@@ -16,7 +16,12 @@ export interface EventState {
 const isRedrivenSinceAttempts = (event: EventDetail): boolean =>
   event.lastRedrive !== null && event.attemptHistory.length === 0
 
-const isCompletedStatus = (status: string): boolean => status === 'COMPLETED'
+export const isCompletedStatus = (status: string): boolean =>
+  status === 'COMPLETED'
+
+/** Queued or being processed: on its way to completing, with no failed attempt yet. */
+export const isInFlightStatus = (status: string): boolean =>
+  status === 'PUBLISHED' || status === 'PROCESSING'
 
 export const isDeadLetterStatus = (status: string): boolean =>
   status === 'DEAD_LETTER'

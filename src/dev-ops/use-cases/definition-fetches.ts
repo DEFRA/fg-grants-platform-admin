@@ -5,7 +5,8 @@ import type {
   DefinitionFetch,
   DefinitionFetchFile
 } from '../repositories/config-versions.ts'
-import { toGasStatusCode } from './gas-status.ts'
+import { toGasFailure, toGasStatusCode } from './gas-status.ts'
+import type { GasFailure } from './gas-status.ts'
 
 export type {
   DefinitionFetchFile,
@@ -31,6 +32,8 @@ export interface DefinitionFetchResult<F extends string = string> {
   outcome: DefinitionFetchOutcome
   /** Only a `fetched` outcome lists any. */
   files: DefinitionFetchFile<F>[]
+  /** How any other outcome failed. */
+  failure?: GasFailure
 }
 
 const failureOutcomes: Record<number, DefinitionFetchOutcome> = {
@@ -67,6 +70,6 @@ export const fetchDefinitions = async <F extends string>(
       )
     }
 
-    return { outcome, files: [] }
+    return { outcome, files: [], failure: toGasFailure(error) }
   }
 }

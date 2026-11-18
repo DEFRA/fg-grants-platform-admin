@@ -919,12 +919,166 @@ const records: Row[] = [
     applicationHeader,
     'APPLICATION_NOT_FOUND'
   ),
-  ...recordRows('a case', caseUrl, caseCall, caseHeader, 'CASE_NOT_FOUND'),
+  ...recordRows('a case', caseUrl, caseCall, caseHeader, 'CASE_NOT_FOUND')
+]
+
+const eventsRead = {
+  outcome: 'read',
+  events: { rows: [], more: false },
+  sourceErrors: []
+}
+
+/** GAS judges a grant version's retention itself; a workflow's comes without it. */
+const grantOverview = (versionEvents: object | null) =>
+  withShell({
+    ...recordPage(grantHeader),
+    ...(versionEvents && {
+      versionEvents:
+        versionEvents === eventsRead
+          ? { ...eventsRead, pastDeletion: false }
+          : versionEvents
+    })
+  })
+
+const workflowOverview = (versionEvents: object | null) =>
+  withShell({
+    ...recordPage(workflowHeader),
+    ...(versionEvents && { versionEvents })
+  })
+
+const phasesCall = 'GET /grant-admin/workflows/{code}/versions/{version}/phases'
+
+const phases = (grantStatusMap: object | null) =>
+  withShell({
+    ...recordPage(workflowHeader),
+    definition: grantStatusMap && woodlandDefinition,
+    grantStatusMap
+  })
+
+const lifecycle = {
+  phases: [],
+  initialPosition: null,
+  amendablePositions: [],
+  waysIn: [],
+  externalMappings: [],
+  claimApproval: null
+}
+
+const versionPages: Row[] = [
+  ...[
+    ['read', eventsRead],
+    ['timed out', { outcome: 'timed-out' }],
+    ['failed', { outcome: 'failed' }]
+  ].flatMap(([name, versionEvents]): Row[] => [
+    {
+      name: `a grant version’s Overview, its events ${name}`,
+      url: '/dev-ops/grants/woodland/1.2.0',
+      gas: { [grantCall]: grantOverview(versionEvents as object) },
+      calls: [grantCall],
+      status: statusCodes.ok,
+      drawn: 'shell'
+    },
+    {
+      name: `a workflow version’s Overview, its events ${name}`,
+      url: '/dev-ops/workflows/woodland/1.2.0',
+      gas: { [workflowCall]: workflowOverview(versionEvents as object) },
+      calls: [workflowCall],
+      status: statusCodes.ok,
+      drawn: 'shell'
+    }
+  ]),
   {
-    name: 'a grant version',
-    url: '/dev-ops/grants/woodland/1.2.0',
-    gas: { [grantCall]: withShell(recordPage(grantHeader)) },
+    name: 'a workflow version’s Overview, answered with no shell',
+    url: '/dev-ops/workflows/woodland/1.2.0',
+    gas: {
+      [workflowCall]: {
+        body: {
+          ...recordPage(workflowHeader),
+          versionEvents: eventsRead,
+          shell: null
+        }
+      }
+    },
+    calls: [workflowCall],
+    status: statusCodes.ok,
+    drawn: 'no-lists'
+  },
+  {
+    name: 'a grant version’s other tab',
+    url: '/dev-ops/grants/woodland/1.2.0?tab=raw',
+    gas: {
+      [grantCall]: withShell({ ...recordPage(grantHeader), definition: null })
+    },
     calls: [grantCall],
+    status: statusCodes.ok,
+    drawn: 'shell'
+  },
+  {
+    name: 'a grant version’s retired Events tab',
+    url: '/dev-ops/grants/woodland/1.2.0?tab=events',
+    calls: [],
+    status: statusCodes.found,
+    drawn: 'redirect'
+  },
+  {
+    name: 'a grant version GAS has not got',
+    url: '/dev-ops/grants/woodland/9.9.9',
+    gas: {
+      [grantCall]: refusal(statusCodes.notFound, {
+        reason: 'GRANT_VERSION_NOT_FOUND'
+      })
+    },
+    calls: [grantCall],
+    status: statusCodes.notFound,
+    drawn: 'shell'
+  },
+  {
+    name: 'a grant version, when GAS does not answer',
+    url: '/dev-ops/grants/woodland/1.2.0',
+    gas: { [grantCall]: timeout },
+    calls: [grantCall],
+    status: statusCodes.gatewayTimeout,
+    drawn: 'no-lists'
+  },
+  ...[
+    ['found', { outcome: 'found', lifecycle }],
+    ['no-grant', { outcome: 'no-grant' }],
+    ['not-stored', { outcome: 'not-stored' }],
+    ['unreadable', { outcome: 'unreadable' }],
+    ['unavailable', { outcome: 'unavailable' }],
+    ['null, the workflow not stored', null]
+  ].map(
+    ([name, grantStatusMap]): Row => ({
+      name: `a workflow version’s Phases, its grant status map ${name}`,
+      url: '/dev-ops/workflows/woodland/1.2.0?tab=phases',
+      gas: { [phasesCall]: phases(grantStatusMap as object | null) },
+      calls: [phasesCall],
+      status: statusCodes.ok,
+      drawn: 'shell'
+    })
+  ),
+  {
+    name: 'a workflow version’s Phases GAS has not got',
+    url: '/dev-ops/workflows/woodland/9.9.9?tab=phases',
+    gas: {
+      [phasesCall]: refusal(statusCodes.notFound, {
+        reason: 'WORKFLOW_VERSION_NOT_FOUND'
+      })
+    },
+    calls: [phasesCall],
+    status: statusCodes.notFound,
+    drawn: 'shell'
+  },
+  {
+    name: 'a workflow version’s other tab',
+    url: '/dev-ops/workflows/woodland/1.2.0?tab=tasks',
+    gas: {
+      [workflowCall]: withShell({
+        ...recordPage(workflowHeader),
+        definition: woodlandDefinition
+      })
+    },
+    calls: [workflowCall],
     status: statusCodes.ok,
     drawn: 'shell'
   },
@@ -970,30 +1124,6 @@ const records: Row[] = [
     drawn: 'redirect'
   },
   {
-    name: 'a workflow version',
-    url: '/dev-ops/workflows/woodland/1.2.0',
-    gas: { [workflowCall]: withShell(recordPage(workflowHeader)) },
-    calls: [workflowCall],
-    status: statusCodes.ok,
-    drawn: 'shell',
-    pending: true
-  },
-  {
-    name: 'a workflow version’s Phases, read with its grant’s',
-    url: '/dev-ops/workflows/woodland/1.2.0?tab=phases',
-    gas: {
-      [workflowCall]: withShell({
-        ...recordPage(workflowHeader),
-        definition: woodlandDefinition
-      }),
-      [grantCall]: withShell(recordPage(grantHeader))
-    },
-    calls: [workflowCall, grantCall],
-    status: statusCodes.ok,
-    drawn: 'shell',
-    pending: true
-  },
-  {
     name: 'a workflow, opening its current version',
     url: '/dev-ops/workflows/woodland',
     gas: {
@@ -1019,18 +1149,6 @@ const records: Row[] = [
     calls: ['POST /grant-admin/workflows/{code}/versions/{version}/fetch'],
     status: statusCodes.seeOther,
     drawn: 'redirect'
-  },
-  {
-    name: 'a grant version GAS has not got',
-    url: '/dev-ops/grants/woodland/9.9.9',
-    gas: {
-      [grantCall]: refusal(statusCodes.notFound, {
-        reason: 'GRANT_VERSION_NOT_FOUND'
-      })
-    },
-    calls: [grantCall],
-    status: statusCodes.notFound,
-    drawn: 'shell'
   }
 ]
 
@@ -1085,6 +1203,15 @@ describe('one call per request: records', () => {
   test.each(records.map((row) => [row.name, row]))('%s', async (_name, row) => {
     await expect(check(row)).resolves.toBeUndefined()
   })
+})
+
+describe('one call per request: versions', () => {
+  test.each(versionPages.map((row) => [row.name, row]))(
+    '%s',
+    async (_name, row) => {
+      await expect(check(row)).resolves.toBeUndefined()
+    }
+  )
 })
 
 describe('one call per request: tokens', () => {
@@ -1163,7 +1290,14 @@ describe('one call per request: the shell for a page that asks GAS nothing', () 
 })
 
 describe('one call per request: every route', () => {
-  const rows = [...lists, ...events, ...records, ...tokenWrites, ...shellPages]
+  const rows = [
+    ...lists,
+    ...events,
+    ...records,
+    ...versionPages,
+    ...tokenWrites,
+    ...shellPages
+  ]
 
   test('has a row for each Dev Ops route', () => {
     const covered = new Set(rows.map(routeKeyOf))

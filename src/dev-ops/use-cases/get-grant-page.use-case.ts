@@ -20,7 +20,6 @@ export type {
   GrantEntitlements,
   GrantLifecycle,
   GrantVersionHeader,
-  GrantVersionOverview,
   GrantVersionPage,
   GrantVersionRef,
   HelpBlock,
@@ -30,7 +29,9 @@ export type {
   WayIn
 } from '../repositories/grants.repository.ts'
 
-export type GrantPageResult = RecordResult<GrantVersionPage> | HiddenTab
+export type GrantPage = GrantVersionPage
+
+export type GrantPageResult = RecordResult<GrantPage> | HiddenTab
 
 const hidden: HiddenTab = { outcome: 'hidden', page: null }
 
@@ -50,19 +51,22 @@ const findTabPage = async (
   }
 }
 
-export const getGrantPageUseCase = async (
-  ref: GrantVersionRef,
-  tab: GrantTabId
-): Promise<GrantPageResult> => {
-  const { read } = grantTabs[tab]
-  const { outcome, page } = await readRecord(
+const readPage = (ref: GrantVersionRef, read: GrantRead) =>
+  readRecord(
     'grant version',
     () => findTabPage(ref, read),
     'GRANT_VERSION_NOT_FOUND'
   )
 
+/** Overview's answer carries the version's events. */
+export const getGrantPageUseCase = async (
+  ref: GrantVersionRef,
+  tab: GrantTabId
+): Promise<GrantPageResult> => {
+  const { outcome, page, failure } = await readPage(ref, grantTabs[tab].read)
+
   if (page === null) {
-    return outcome === 'found' ? hidden : { outcome, page }
+    return outcome === 'found' ? hidden : { outcome, page, failure }
   }
 
   return offersTab(page.header, tab) ? { outcome, page } : hidden

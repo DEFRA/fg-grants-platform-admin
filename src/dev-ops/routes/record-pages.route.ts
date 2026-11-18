@@ -8,7 +8,7 @@ import { getApplicationPageUseCase } from '../use-cases/get-application-page.use
 import { getCasePageUseCase } from '../use-cases/get-case-page.use-case.ts'
 import { getGrantPageUseCase } from '../use-cases/get-grant-page.use-case.ts'
 import type {
-  GrantVersionPage,
+  GrantPage,
   GrantVersionRef
 } from '../use-cases/get-grant-page.use-case.ts'
 import type { GrantTabId } from '../use-cases/grant-tabs.ts'
@@ -28,7 +28,10 @@ import { toSafeFrom } from '../view-models/event-page.view-model.ts'
 import { definitionFetchNoticeKey } from '../view-models/definition-fetch.ts'
 import type { DefinitionFetchFlash } from '../view-models/definition-fetch.ts'
 import { toGrantPage } from '../view-models/grant-page.view-model.ts'
-import type { GrantPageQuery } from '../view-models/grant-page.view-model.ts'
+import type {
+  GrantPageModel,
+  GrantPageQuery
+} from '../view-models/grant-page.view-model.ts'
 import { grantType } from '../view-models/grants-page.view-model.ts'
 import { recordPageCache } from '../view-models/list-filters.ts'
 import {
@@ -42,8 +45,6 @@ import {
   workflowCodeSchema
 } from '../view-models/record-filters.ts'
 import { toTabHref } from '../view-models/record-page.view-model.ts'
-import type { RecordPageModel } from '../view-models/record-page.view-model.ts'
-import { roles as appRoles } from '../../common/roles.ts'
 import type { RecordType } from '../view-models/record-type.ts'
 import { toBackHref } from '../view-models/record-view.ts'
 import { toVersionPath } from '../view-models/record-type.ts'
@@ -80,7 +81,6 @@ interface RecordPageRoute<
       notice?: N
       query: Q
       catalogue: Catalogue | null
-      roles: string[]
       zone: Zone
       times: Times
     }
@@ -182,15 +182,26 @@ const toQuerySchema = (
   query: Record<string, Schema> = {}
 ) =>
   Joi.object({
-    tab: recordTabSchema(record).default('overview'),
+    tab: recordTabSchema(record)
+      .valid(...(record.retiredTabs ?? []))
+      .default('overview'),
     back: backSchema,
     ...query,
     ...shellQuery
   })
 
-/** Hapi types the credentials scope as either one role or many. */
-const rolesOf = (request: Request): string[] =>
-  [request.auth.credentials.scope ?? []].flat()
+/** An old link to a tab the page no longer has opens its Overview, keeping where it goes back to. */
+const toRetiredTabRedirect =
+  ({ retiredTabs = [] }: RecordType) =>
+  (request: Request, h: ResponseToolkit) => {
+    const { tab, back } = request.query as RecordPageQuery<string>
+
+    return retiredTabs.includes(tab)
+      ? h
+          .redirect(toTabHref(request.path, 'overview', toSafeFrom(back)))
+          .takeover()
+      : h.continue
+  }
 
 /**
  * One tab of one record per render. A record the service has not got, or
@@ -202,7 +213,7 @@ const recordPageRoute = <
   T extends string,
   N = never,
   Q = object,
-  M extends { navActive: string | null } = RecordPageModel
+  M extends { navActive: string | null } = { navActive: string | null }
 >({
   record,
   params,
@@ -220,7 +231,8 @@ const recordPageRoute = <
     validate: {
       params: recordParamsSchema(params),
       query: toQuerySchema(record, query)
-    }
+    },
+    pre: [{ method: toRetiredTabRedirect(record) }]
   },
   async handler(request: Request, h: ResponseToolkit) {
     const key = request.params as unknown as K
@@ -259,7 +271,6 @@ const recordPageRoute = <
       notice,
       query: extra as Q,
       catalogue,
-      roles: rolesOf(request),
       zone: times.zone,
       times
     })
@@ -295,7 +306,8 @@ const currentVersionRoute = ({
     validate: {
       params: recordParamsSchema({ code }),
       query: toQuerySchema(record, { status: statusSchema })
-    }
+    },
+    pre: [{ method: toRetiredTabRedirect(record) }]
   },
   async handler(request: Request, h: ResponseToolkit) {
     const { code: asked } = request.params
@@ -350,20 +362,17 @@ export const viewCaseRoute = recordPageRoute({
 
 export const viewGrantRoute = recordPageRoute<
   GrantVersionRef,
-  GrantVersionPage,
+  GrantPage,
   GrantTabId,
   DefinitionFetchFlash,
-  GrantPageQuery
+  GrantPageQuery,
+  GrantPageModel
 >({
   record: grantType,
   params: { code: slugFilterSchema, version: versionSchema },
   query: { status: statusSchema },
   read: getGrantPageUseCase,
-  toPage: (page, tab, from, { roles, ...options }) =>
-    toGrantPage(page, tab, from, {
-      ...options,
-      canAdministerGrants: roles.includes(appRoles.grantApplicationsAdmin)
-    }),
+  toPage: toGrantPage,
   noticeKey: definitionFetchNoticeKey
 })
 

@@ -3,7 +3,13 @@ import type {
   GrantLifecycle,
   WayIn
 } from '../use-cases/get-grant-page.use-case.ts'
-import { stageKeyOf, statusCodeOf } from './lifecycle-names.ts'
+import {
+  phaseCodeOf,
+  stageCodeOf,
+  stageKeyOf,
+  statusCodeOf,
+  toPosition
+} from './lifecycle-names.ts'
 
 /** Whether GAS says what its processes do; an older GAS does not, and every warning built on it is left out. */
 export const knowsEffects = ({ waysIn }: GrantLifecycle): boolean =>
@@ -11,7 +17,7 @@ export const knowsEffects = ({ waysIn }: GrantLifecycle): boolean =>
 
 /** A process's `setsStatus` lands in the stage of the move it runs on. */
 export const gasSetPosition = (target: string, setsStatus: string): string =>
-  `${stageKeyOf(target)}:${setsStatus}`
+  toPosition(phaseCodeOf(target), stageCodeOf(target), setsStatus)
 
 /** A way GAS can take: a move from a status, or one from any status. An unmatched `validFrom` entry never runs. */
 export type RunningWay = Extract<WayIn, { kind: 'move' | 'any' }>

@@ -13,7 +13,6 @@ const grantTabLabels: Record<GrantTabId, string> = {
   entitlements: 'Entitlements',
   agreement: 'Agreement',
   payment: 'Payment',
-  events: 'Events',
   raw: 'Raw'
 }
 
@@ -26,7 +25,8 @@ export const grantType: RecordType = {
   linkLabel: 'View grant',
   tabs: grantTabIds.map((id) => ({ id, label: grantTabLabels[id] })),
   view: 'grant',
-  titleParam: 'code'
+  titleParam: 'code',
+  retiredTabs: ['events']
 }
 
 export const toGrantHref = (ref: GrantVersionRef): string =>
