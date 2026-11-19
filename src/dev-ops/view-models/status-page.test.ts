@@ -48,6 +48,7 @@ describe('toStatusPage', () => {
       statusCode: 500,
       pageTitle: 'Something went wrong',
       emptySidebar: false,
+      navActive: null,
       backHref: null,
       retryHref: '/dev-ops/applications/a/b?tab=raw',
       requiredRole: roles.grantOperationsAdmin,

@@ -301,6 +301,23 @@
 .gpa-tr.is-link:has(.gpa-sticky-col) {
   cursor: pointer;
 }
+.gpa-tr.is-link:has(.gpa-sticky-col)::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  outline: var(--focus-ring-width) none transparent;
+  outline-offset: var(--focus-ring-offset-inset);
+  transition: var(--transition-focus);
+}
+.gpa-tr.is-link:has(.gpa-sticky-col):has(.gpa-rowlink:focus-visible) {
+  outline-color: transparent;
+}
+.gpa-tr.is-link:has(.gpa-sticky-col):has(.gpa-rowlink:focus-visible)::before {
+  outline-style: solid;
+  outline-color: var(--border-focus);
+}
 .gpa-table.is-virtual .gpa-table-body > .gpa-tr {
   height: var(--size-row);
   min-height: 0;

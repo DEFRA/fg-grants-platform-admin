@@ -10,7 +10,7 @@ const item = (id: string, icon: string, ids = [id], perService = false) => ({
 })
 
 describe('toSidebarSections', () => {
-  test('names each service in full and draws its pages with their icons', () => {
+  test('names each service in full and by its short name, and draws its pages with their icons', () => {
     expect(
       toSidebarSections(
         [
@@ -25,6 +25,7 @@ describe('toSidebarSections', () => {
     ).toEqual([
       {
         title: 'Grant Application Service',
+        short: 'GAS',
         items: [
           {
             id: 'gas.outbox',
@@ -38,6 +39,7 @@ describe('toSidebarSections', () => {
       },
       {
         title: 'Caseworking',
+        short: 'CW',
         items: [
           {
             id: 'cw.cases',
@@ -50,6 +52,15 @@ describe('toSidebarSections', () => {
         ]
       }
     ])
+  })
+
+  test('gives the untitled first section no short name', () => {
+    const [section] = toSidebarSections(
+      [{ title: '', items: [item('overview', 'layout-dashboard')] }],
+      null
+    )
+
+    expect(section).not.toHaveProperty('short')
   })
 
   test('keeps a list it does not map under the catalogue’s own name and icon', () => {

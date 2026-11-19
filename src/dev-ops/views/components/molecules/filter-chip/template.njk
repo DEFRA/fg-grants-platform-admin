@@ -1,3 +1,4 @@
+{%- from "../../atoms/button/macro.njk" import Button -%}
 {%- from "../../atoms/icon/macro.njk" import Icon -%}
 {%- from "../../atoms/menu-item/macro.njk" import MenuItem -%}
 {%- from "../../molecules/dropdown/macro.njk" import Dropdown -%}
@@ -10,4 +11,22 @@
     {%- endfor -%}
     {%- endif -%}
   {%- endset -%}
+  {%- if p.multiple and p.name and not caller -%}
+    {%- set fid = p.form -%}
+    {%- set panel -%}
+      {%- if not fid %}<form class="gpa-menu gpa-menu-{{ p.menuWidth or 'md' }} gpa-chip-apply" role="dialog" aria-label="{{ p.menuLabel or p.label }}" method="get" action="{{ p.action or '' }}">{% for k in p.keep %}<input type="hidden" name="{{ k.name }}" value="{{ k.value }}">{% endfor %}{% else %}<div class="gpa-menu gpa-menu-{{ p.menuWidth or 'md' }} gpa-chip-apply" role="dialog" aria-label="{{ p.menuLabel or p.label }}">{% endif -%}
+      <div class="gpa-chip-options" role="group">
+        {%- for item in p.items -%}
+          <label class="gpa-menuitem gpa-menu-check"{% if item.testId %} data-testid="{{ item.testId }}"{% endif %}><input type="checkbox" name="{{ p.name }}" value="{{ item.value }}"{% if fid %} form="{{ fid }}"{% endif %}{% if item.checked %} checked{% endif %}><span class="gpa-menu-box" aria-hidden="true">{{ Icon({ name: 'check', size: 'xs', strokeWidth: 3 }) }}</span><span class="gpa-menuitem-label{{ ' gpa-mono' if item.mono }}">{{ item.text }}</span>{% if item.count is defined and item.count !== null and item.count !== '' %}<span class="gpa-menuitem-meta">{{ item.count }}</span>{% endif %}</label>
+        {%- endfor -%}
+      </div>
+      <div class="gpa-menu-actions">
+        {%- if p.clearHref %}{{ Button({ text: 'Clear', href: p.clearHref, variant: 'tertiary', size: 'sm', disabled: not (p.items | selectattr('checked') | length) }) }}{% endif -%}
+        {{- Button({ text: 'Apply', type: 'submit', form: fid, variant: 'primary', size: 'sm', attributes: { 'data-gpa-apply': '' } }) -}}
+      </div>
+      {%- if not fid %}</form>{% else %}</div>{% endif -%}
+    {%- endset -%}
+  {{- Dropdown({ trigger: trigger, panelHtml: panel, popupRole: 'dialog', triggerClasses: 'gpa-chip' ~ (' is-set' if isSet else ''), triggerTestId: p.triggerTestId, triggerTitle: p.triggerTitle, align: p.align, id: p.panelId, panelTestId: p.panelTestId, testId: p.testId, attributes: p.attributes, classes: p.classes }) -}}
+  {%- else -%}
   {{- Dropdown({ trigger: trigger, menuHtml: items, triggerClasses: 'gpa-chip' ~ (' is-set' if isSet else ''), triggerTestId: p.triggerTestId, triggerTitle: p.triggerTitle, menuLabel: p.menuLabel or p.label, menuWidth: p.menuWidth or 'md', align: p.align, id: p.panelId, panelTestId: p.panelTestId, testId: p.testId, attributes: p.attributes, classes: p.classes }) -}}
+  {%- endif -%}

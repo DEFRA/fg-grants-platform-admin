@@ -1513,7 +1513,7 @@ const explore: Row[] = [
     drawn: 'shell'
   },
   {
-    name: 'a starting point picked',
+    name: 'an example picked',
     method: 'POST',
     url: exploreUrl,
     payload: { pick: 'frps-cases-by-status', q: typedQuery },

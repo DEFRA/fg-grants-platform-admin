@@ -56,3 +56,22 @@ export const watchScroll = (scroll: HTMLElement) => {
   addEventListener("scroll", follow, { capture: true, passive: true });
   addEventListener("resize", follow);
 };
+
+export const showCurrentNav = (nav: HTMLElement) => {
+  if (nav.scrollWidth <= nav.clientWidth + 1) return;
+  const cur = nav.querySelector<HTMLElement>('[aria-current="page"]');
+  if (!cur) return;
+  const short = cur
+    .closest(".gpa-sidebar-section")
+    ?.querySelector<HTMLElement>(".gpa-sidebar-short");
+  const n = nav.getBoundingClientRect(),
+    c = cur.getBoundingClientRect(),
+    s = short && short.offsetWidth ? short.getBoundingClientRect() : c;
+  const left = Math.min(s.left, c.left),
+    right = Math.max(s.right, c.right);
+  if (right - left > n.width) {
+    nav.scrollLeft += c.left + c.width / 2 - (n.left + n.width / 2);
+    return;
+  }
+  nav.scrollLeft += (left + right) / 2 - (n.left + n.width / 2);
+};

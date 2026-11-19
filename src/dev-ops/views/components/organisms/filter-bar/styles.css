@@ -1,6 +1,7 @@
 .gpa-filterbar-row > .gpa-searchfield {
   flex: 1 1 var(--size-search-basis);
   width: auto;
+  max-width: var(--size-search-max);
 }
 
 .gpa-filterbar {

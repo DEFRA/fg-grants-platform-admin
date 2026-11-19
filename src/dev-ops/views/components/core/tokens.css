@@ -611,6 +611,7 @@
   --size-grid-min-md: 280px;
   --size-grid-min-lg: 360px;
   --size-search-basis: 320px;
+  --size-search-max: 400px;
   --size-code-gutter: 48px;
   --size-toggle-width: 48px;
   --size-toggle-height: 24px;

@@ -346,7 +346,7 @@ describe('the editor', () => {
     })
   })
 
-  test('has the run keys, Copy query and Clear under it, buttons that submit nothing', async () => {
+  test('has the run keys and Clear under it, a button that submits nothing', async () => {
     const { $ } = await view()
     const tools = $('gpa-query-editor .gpa-qe-foot')
     const buttons = tools.find('button').toArray()
@@ -359,14 +359,8 @@ describe('the editor', () => {
         .map((part) => flat($(part).text()))
     ).toEqual(['⌘Enter', 'or', 'CtrlEnter'])
     expect(flat(tools.find('.gpa-qe-hint').text())).toMatch(/ to run$/)
-    expect(buttons.map((button) => flat($(button).text()))).toEqual([
-      'Copy query',
-      'Clear'
-    ])
-    expect(buttons.map((button) => $(button).attr('type'))).toEqual([
-      'button',
-      'button'
-    ])
+    expect(buttons.map((button) => flat($(button).text()))).toEqual(['Clear'])
+    expect(buttons.map((button) => $(button).attr('type'))).toEqual(['button'])
   })
 
   test('takes the shell’s Times opener and refuses any other address', async () => {
@@ -394,6 +388,18 @@ describe('Explore in the sidebar', () => {
     expect(links.eq(1).attr('href')).toBe('/dev-ops/explore')
     expect(links.eq(1).find('svg').attr('data-icon')).toBe('telescope')
     expect(links.eq(1).attr('aria-current')).toBe('page')
+  })
+
+  test('is current on the page for an Explore address it can’t read', async () => {
+    const { $, statusCode } = await view('/dev-ops/explore?run=nope&page=-1')
+
+    expect(statusCode).toBe(statusCodes.badRequest)
+    expect(flat(by($, 'status-bad-request').find('h1').text())).toBe(
+      'This link doesn’t work'
+    )
+    expect(by($, 'shell-nav').find('[aria-current="page"]').attr('href')).toBe(
+      '/dev-ops/explore'
+    )
   })
 })
 
@@ -2402,13 +2408,46 @@ describe('the Queries menu', () => {
       .filter(({ recent }) => recent)
       .map(({ text }) => text)
 
-  test('offers the starting points, each a submit of the editor’s form', async () => {
+  /** Each group by the name its heading gives it, with its items' kinds. */
+  const groups = ($: CheerioAPI) =>
+    by($, 'explore-queries-menu')
+      .find('[role="group"]')
+      .toArray()
+      .map((group) => ({
+        name: flat($(`#${$(group).attr('aria-labelledby')}`).text()),
+        items: [
+          ...new Set(
+            $(group)
+              .find('button')
+              .toArray()
+              .map((item) => $(item).attr('data-testid'))
+          )
+        ]
+      }))
+
+  /** The menu's own children: its groups by name, and the dividers between them. */
+  const layout = ($: CheerioAPI) =>
+    by($, 'explore-queries-menu')
+      .children()
+      .children()
+      .toArray()
+      .map((child) =>
+        $(child).is('.gpa-divider')
+          ? '—'
+          : flat($(`#${$(child).attr('aria-labelledby')}`).text())
+      )
+
+  test('with no recent query, offers only the examples, each a submit of the editor’s form, with no icons', async () => {
     const { $ } = await view()
 
     expect(textOf($, 'explore-queries')).toBe('Queries')
+    expect(groups($)).toEqual([
+      { name: 'Examples', items: ['explore-example'] }
+    ])
+    expect(layout($)).toEqual(['Examples'])
     expect(
-      flat(by($, 'explore-queries-menu').find('.gpa-menu-heading').text())
-    ).toBe('Starting points')
+      by($, 'explore-queries-menu').find('.gpa-menuitem svg')
+    ).toHaveLength(0)
     expect(items($).map(({ text }) => text)).toEqual([
       'Applications',
       'Grassland applications, last 30 days',
@@ -2444,9 +2483,11 @@ describe('the Queries menu', () => {
 
     const { $ } = await view()
 
-    expect(
-      flat(by($, 'explore-queries-menu').find('.gpa-menu-heading').text())
-    ).toBe('Recent, then starting points')
+    expect(groups($)).toEqual([
+      { name: 'Your recent queries', items: ['explore-recent'] },
+      { name: 'Examples', items: ['explore-example'] }
+    ])
+    expect(layout($)).toEqual(['Your recent queries', '—', 'Examples'])
     expect(recentOf($)).toEqual([
       "db.applications.find( { grant: 'woodland…",
       'db.cases.find()'
