@@ -212,11 +212,6 @@ const refusedBy = (service: ExploreService, text: string | null) => ({
   startHref: explorePath
 })
 
-const notOffered: Record<ExploreService, string> = {
-  GAS: 'The Grant Application Service doesn’t offer Explore yet.',
-  CW: 'Caseworking doesn’t offer queries yet.'
-}
-
 /** GAS names the source's indexed paths when it says why; without that, the editor marks them. */
 const tooSlow = 'It took too long. Narrow it with an indexed path.'
 
@@ -242,13 +237,6 @@ const failureAlerts: ByKind<AlertFailure, [string], ExploreAlert> = {
     title: `${serviceNames[service]} is running as many queries as it can.`,
     text: 'Try again in a moment.',
     retryHref: selfHref,
-    startHref: null
-  }),
-  'not-offered': ({ service }) => ({
-    tone: 'warning',
-    title: notOffered[service],
-    text: 'Nothing was read.',
-    retryHref: null,
     startHref: null
   }),
   errored: ({ service }, selfHref) =>
@@ -950,7 +938,6 @@ const failureCodes: Record<ExploreFailure['kind'], number> = {
   'too-slow': statusCodes.serviceUnavailable,
   busy: statusCodes.tooManyRequests,
   full: statusCodes.tooManyRequests,
-  'not-offered': statusCodes.ok,
   unavailable: statusCodes.serviceUnavailable,
   'no-answer': statusCodes.serviceUnavailable,
   errored: statusCodes.serviceUnavailable

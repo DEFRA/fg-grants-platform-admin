@@ -218,9 +218,7 @@ describe('needing attention', () => {
       'CW outbox: 1 dead letter, last 24 hours',
       'CW inbox: 11 dead letters, last 24 hours'
     ])
-    expect(flatten(part($, 'overview-dead-letters-note').text())).toBe(
-      'Counted by when each event was created: when it was dead-lettered isn’t stored.'
-    )
+    expect(part($, 'overview-dead-letters-note')).toHaveLength(0)
     expect(part($, 'overview-dead-letters-cw-inbox').attr('href')).toBe(
       '/dev-ops/events/cw/inbox?status=DEAD_LETTER&from=2026-10-12T15%3A00%3A00.000Z&to=2026-10-13T15%3A00%3A00.000Z'
     )
@@ -420,9 +418,7 @@ describe('all clear', () => {
 
     expect(figureValue($, 'overview-figure-dead-letters-gas')).toBe('0')
     expect(part($, 'overview-dead-letter-links')).toHaveLength(0)
-    expect(flatten(part($, 'overview-dead-letters-note').text())).toBe(
-      'Counted by when each event was created: when it was dead-lettered isn’t stored.'
-    )
+    expect(part($, 'overview-dead-letters-note')).toHaveLength(0)
     expect(
       ['overview-top-errors', 'overview-config', 'overview-tokens'].map(empty)
     ).toEqual([
@@ -560,25 +556,6 @@ describe('a part that couldn’t be read', () => {
 
     expect(part($, 'overview-config-table')).toHaveLength(0)
     expect(part($, 'overview-config-alert')).toHaveLength(2)
-  })
-
-  test('says a CW without access tokens with the tokens page’s wording, as a warning', async () => {
-    show({
-      ...needsAttention,
-      tokensExpiring: {
-        ...needsAttention.tokensExpiring,
-        cw: failed({ hop: 'CW-BE', reason: 'NOT_OFFERED' })
-      }
-    })
-
-    const { $ } = await visit()
-    const alert = part($, 'overview-tokens-alert')
-
-    expect(alert.hasClass('gpa-alert-warning')).toBe(true)
-    expect(flatten(alert.text())).toContain(
-      'This CW doesn’t offer access tokens.'
-    )
-    expect(rowCells($, 'overview-token-row')).toHaveLength(1)
   })
 })
 

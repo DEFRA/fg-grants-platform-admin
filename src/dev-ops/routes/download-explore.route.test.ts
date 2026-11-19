@@ -108,12 +108,11 @@ afterAll(async () => {
 })
 
 describe('Download CSV', () => {
-  test('asks the use case for the run alone, as this session and user, with their roles', async () => {
+  test('asks the use case for the run alone, as this session and user', async () => {
     await download()
 
     expect(downloadExploreUseCase).toHaveBeenCalledExactlyOnceWith({
       owner: { session: expect.any(String), user: credentials.user.id },
-      roles: credentials.scope,
       run: id
     })
   })

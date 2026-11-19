@@ -6,7 +6,7 @@
 
 {#- A service's access tokens: the list, each token's drawer and its dialogs, all drawn on the page so the script opens them in place; the address opens any of them without one. -#}
 {% block content %}
-  {%- set newButton = gpa.Button({ text: 'New token', variant: 'primary', iconStart: 'plus', href: newHref, attributes: { 'data-gpa-open': newToken.id }, testId: 'token-new-open' }) if newToken else '' -%}
+  {%- set newButton = gpa.Button({ text: 'New token', variant: 'primary', iconStart: 'plus', href: newHref, attributes: { 'data-gpa-open': newToken.id }, testId: 'token-new-open' }) -%}
   {%- set alertHtml -%}
     {%- call gpa.Stack({ gap: 'lg' }) -%}
       {%- for a in alerts -%}
@@ -49,7 +49,7 @@
   {%- for t in tokens -%}
     {{ token.drawer(t) }}
   {%- endfor -%}
-  {%- if newToken %}{{ newToken_.newTokenDialog(newToken, prod) }}{% endif -%}
+  {{ newToken_.newTokenDialog(newToken, prod) }}
   {%- for t in tokens -%}
     {%- if t.rotate %}{{ token.rotateDialog(t, prod) }}{% endif -%}
     {%- if t.expiry %}{{ token.expiryDialog(t, prod) }}{% endif -%}
