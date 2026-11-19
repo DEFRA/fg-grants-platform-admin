@@ -10,32 +10,12 @@ import type {
 } from './get-overview.use-case.ts'
 import overviewCounts from './overview-counts.json' with { type: 'json' }
 
-const overviewAt = '2026-10-13T15:00:00.000Z'
-
-const windowFrom = '2026-10-12T15:00:00.000Z'
-
 const sum = (counts: number[]) => counts.reduce((a, b) => a + b, 0)
 
-const half = (counts: number[]) => counts.length / 2
-
-export const toDeadLetters = (
-  service: 'gas' | 'cw',
-  counts: number[]
-): DeadLetters => ({
+export const toDeadLetters = (counts: number[]): DeadLetters => ({
   count: sum(counts),
   capped: false,
-  bars: counts.map((count) => ({ count })),
-  lists: (['outbox', 'inbox'] as const).map((box, i) => ({
-    box,
-    count: sum(
-      i === 0 ? counts.slice(0, half(counts)) : counts.slice(half(counts))
-    ),
-    capped: false,
-    list: {
-      path: `events/${service}/${box}`,
-      query: { status: 'DEAD_LETTER', from: windowFrom, to: overviewAt }
-    }
-  }))
+  bars: counts.map((count) => ({ count }))
 })
 
 export const read = <T>(data: T): OverviewPart<T> => ({
@@ -205,8 +185,8 @@ export const cwCounts = overviewCounts.cw
 /** Something to look at in every part. */
 export const needsAttention: Overview = {
   deadLetters: {
-    gas: read(toDeadLetters('gas', gasCounts)),
-    cw: read(toDeadLetters('cw', cwCounts))
+    gas: read(toDeadLetters(gasCounts)),
+    cw: read(toDeadLetters(cwCounts))
   },
   topErrors: { gas: read(gasTopErrors), cw: read(cwTopErrors) },
   configFailed: { gas: read(gasConfigFailed), cw: read(cwConfigFailed) },
@@ -221,8 +201,8 @@ const noErrors: TopErrors = { entries: [], more: false, complete: true }
 export const allClear: Overview = {
   ...needsAttention,
   deadLetters: {
-    gas: read(toDeadLetters('gas', zeros)),
-    cw: read(toDeadLetters('cw', zeros))
+    gas: read(toDeadLetters(zeros)),
+    cw: read(toDeadLetters(zeros))
   },
   topErrors: { gas: read(noErrors), cw: read(noErrors) },
   configFailed: {

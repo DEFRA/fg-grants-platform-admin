@@ -110,7 +110,7 @@ const partAlerts = <T>(part: PartName, parts: PerService<T>): SectionAlert[] =>
 const noneRead = <T>(parts: PerService<T>): boolean =>
   readParts(parts).length === 0
 
-/** A list as GAS links it: Top errors with no time range (they are the current dead letters), a box's dead letters over the window. */
+/** A list as GAS links it: a Top errors group's dead letters, with no time range, as they are the current ones. */
 const toListHref = ({ path, query }: ListLink): string =>
   `${devOpsPath}/${path}?${new URLSearchParams(query).toString()}`
 
@@ -229,12 +229,6 @@ export interface TopErrorRow {
   href: string
 }
 
-export interface ListAction {
-  text: string
-  href: string
-  testId: string
-}
-
 export interface TableEmpty {
   title: string
   text: string
@@ -282,21 +276,6 @@ const incompleteOf = (read: Read<TopErrors>[]): string | null => {
     ? `${services.join(' and ')} met more kinds of error than ${counter}, so this ranking may miss some.`
     : null
 }
-
-const deadLetterWord = ({ count, capped }: OverviewCount): string =>
-  count === 1 && !capped ? 'dead letter' : deadLettersName
-
-/** Each box that has dead letters in the window, opening its list on exactly those: Top errors are the current ones, so these sit with the 24-hour figures. */
-const toDeadLetterLinks = (overview: Overview): ListAction[] =>
-  readParts(overview.deadLetters).flatMap(({ service, data }) =>
-    data.lists
-      .filter(({ count, capped }) => count > 0 || capped)
-      .map((box) => ({
-        text: `${shortName(service)} ${box.box}: ${toCount(box)} ${deadLetterWord(box)}, last 24 hours`,
-        href: toListHref(box.list),
-        testId: `overview-dead-letters-${service}-${box.box}`
-      }))
-  )
 
 const toTopErrorsEmpty = (only: ClientService | null): TableEmpty =>
   only === null
@@ -520,7 +499,6 @@ export interface OverviewSections {
   figures: Figure[]
   topErrors: TopErrorsSection
   deadLetterAlerts: SectionAlert[]
-  deadLetterLinks: ListAction[]
   configFailed: TableSection<ConfigRow>
   tokensExpiring: TableSection<TokenRow>
 }
@@ -537,7 +515,6 @@ const toSections = (overview: Overview, times: Times): OverviewSections => ({
   figures: toFigures(overview),
   topErrors: toTopErrors(overview, times),
   deadLetterAlerts: partAlerts('deadLetters', overview.deadLetters),
-  deadLetterLinks: toDeadLetterLinks(overview),
   configFailed: toConfigFailed(overview, times),
   tokensExpiring: toTokensExpiring(overview)
 })

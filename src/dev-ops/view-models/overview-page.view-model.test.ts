@@ -10,7 +10,6 @@ import {
   cwTopErrors,
   failed,
   gasConfigFailed,
-  gasCounts,
   gasTokensExpiring,
   gasTopErrors,
   needsAttention,
@@ -114,7 +113,7 @@ describe('the figures', () => {
       deadLetters: {
         ...needsAttention.deadLetters,
         gas: read({
-          ...toDeadLetters('gas', [10_000, ...Array(11).fill(0)]),
+          ...toDeadLetters([10_000, ...Array(11).fill(0)]),
           capped: true
         })
       }
@@ -316,51 +315,12 @@ describe('Top errors', () => {
   })
 })
 
-describe('the dead letters beside the figures', () => {
-  test('links each box that has dead letters to exactly what it counted, over the window', () => {
-    const links = sections(needsAttention).deadLetterLinks
-
-    expect(links.map(({ text }) => text)).toEqual([
-      'GAS outbox: 6 dead letters, last 24 hours',
-      'GAS inbox: 60 dead letters, last 24 hours',
-      'CW outbox: 1 dead letter, last 24 hours',
-      'CW inbox: 11 dead letters, last 24 hours'
-    ])
-    expect(links[1]!.href).toBe(
-      '/dev-ops/events/gas/inbox?status=DEAD_LETTER&from=2026-10-12T15%3A00%3A00.000Z&to=2026-10-13T15%3A00%3A00.000Z'
-    )
-  })
-
-  test('leaves out a box with none, and writes a capped box’s count with a plus', () => {
-    const dead = toDeadLetters('gas', gasCounts)
-    const overview: Overview = {
-      ...needsAttention,
-      deadLetters: {
-        gas: read({
-          ...dead,
-          lists: [
-            { ...dead.lists[0]!, count: 0 },
-            { ...dead.lists[1]!, count: 10_000, capped: true }
-          ]
-        }),
-        cw: read(toDeadLetters('cw', Array(12).fill(0)))
-      }
-    }
-
-    expect(sections(overview).deadLetterLinks.map(({ text }) => text)).toEqual([
-      'GAS inbox: 10,000+ dead letters, last 24 hours'
-    ])
-  })
-
-  test('has no links when all is clear', () => {
-    expect(sections(allClear).deadLetterLinks).toEqual([])
-  })
-
+describe('the dead letters’ alerts beside the figures', () => {
   test('has no alerts when all is clear', () => {
     expect(sections(allClear).deadLetterAlerts).toEqual([])
   })
 
-  test('says when one service is unread, and links the other’s boxes', () => {
+  test('says when one service is unread', () => {
     const overview: Overview = {
       ...needsAttention,
       deadLetters: {
@@ -375,10 +335,6 @@ describe('the dead letters beside the figures', () => {
         title: 'GAS’s dead letters couldn’t be loaded.',
         text: 'GAS couldn’t be reached. The rest of the page is unaffected.'
       }
-    ])
-    expect(sections(overview).deadLetterLinks.map(({ text }) => text)).toEqual([
-      'CW outbox: 1 dead letter, last 24 hours',
-      'CW inbox: 11 dead letters, last 24 hours'
     ])
   })
 })
