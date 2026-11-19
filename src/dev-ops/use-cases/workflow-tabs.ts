@@ -5,17 +5,18 @@ import type {
 
 interface WorkflowTab {
   read: WorkflowRead
+  /** The section GAS names when the tab's document is too large, when not the read's own. */
+  capped?: WorkflowRead
   /** The file the tab shows; null for a tab that needs none. */
   file: WorkflowFileType | null
 }
 
 export const workflowTabs = {
   overview: { read: 'overview', file: null },
-  phases: { read: 'definition', file: 'workflow' },
+  phases: { read: 'phases', capped: 'definition', file: 'workflow' },
   tasks: { read: 'definition', file: 'workflow' },
   pages: { read: 'definition', file: 'workflow' },
   integrations: { read: 'definition', file: 'workflow' },
-  events: { read: 'events', file: null },
   raw: { read: 'raw', file: 'workflow' }
 } as const satisfies Record<string, WorkflowTab>
 

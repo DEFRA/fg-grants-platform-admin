@@ -1,5 +1,6 @@
 import Joi from 'joi'
 
+import { formatDate, formatRange } from '../views/components/nunjucks.ts'
 import {
   fromZonedInput,
   hoursPerDay,
@@ -8,9 +9,8 @@ import {
   toValidDate,
   toZonedInput
 } from './event-formats.ts'
-import type { ZonedEdge } from './event-formats.ts'
-import { present, toFields, toFilterHref } from './list-filters.ts'
-import type { FilterField, FilterKeys } from './list-filters.ts'
+import type { Zone, ZonedEdge } from './event-formats.ts'
+import { present } from './list-filters.ts'
 
 export interface TimeRangeQuery {
   from?: string
@@ -18,40 +18,10 @@ export interface TimeRangeQuery {
   range?: string
 }
 
-/** The list the menu sits on: where its links go, what else they carry, and how a preset is described. */
-export interface TimeRangeList<Q extends TimeRangeQuery> {
-  basePath: string
-  filterKeys: FilterKeys<Q>
-  /** Ends just before the preset's key, as "Events from the last". */
-  presetTitlePrefix: string
-}
-
-interface TimeRangePreset {
-  key: string
-  label: string
-  href: string
-  title: string
-  active: boolean
-}
-
-export interface TimeRange {
-  label: string
-  title: string
-  active: boolean
-  presets: TimeRangePreset[]
-  anyTimeHref: string
-  anyTimeActive: boolean
-  action: string
-  hiddenFields: FilterField[]
-  fromInput: string
-  toInput: string
-}
-
-const rangeKeys = ['from', 'to', 'range'] as const
-
-const rangeKeySet = new Set<string>(rangeKeys)
-
 const datetimeLocal = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?$/
+
+/** A calendar day, as the range chip's calendar and its From/To boxes send it. */
+const isoDay = /^\d{4}-\d{2}-\d{2}$/
 
 /** A box may or may not carry seconds; `fromZonedInput` takes the full wall clock. */
 const toWallClock = (value: string, seconds: string | undefined): string =>
@@ -73,15 +43,24 @@ const isRealDatetime = (
   )
 }
 
+const isRealDay = (value: string): boolean =>
+  isRealDatetime(`${value}T00:00`, undefined)
+
+/** Anything not shaped like a day or a wall clock is an instant, checked where it is read. */
+const isWallClockOk = (value: string): boolean => {
+  const match = datetimeLocal.exec(value)
+
+  return match === null || isRealDatetime(value, match[1])
+}
+
+const isRealBox = (value: string): boolean =>
+  isoDay.test(value) ? isRealDay(value) : isWallClockOk(value)
+
 const rangeBox = Joi.string()
   .allow('')
-  .custom((value: string, helpers) => {
-    const match = datetimeLocal.exec(value)
-
-    return match === null || isRealDatetime(value, match[1])
-      ? value
-      : helpers.error('any.invalid')
-  })
+  .custom((value: string, helpers) =>
+    isRealBox(value) ? value : helpers.error('any.invalid')
+  )
 
 export const timeRangeFilters = {
   from: rangeBox,
@@ -89,147 +68,217 @@ export const timeRangeFilters = {
   range: Joi.string().allow('')
 }
 
-/**
- * What a Custom box means. The digits carry no zone and the page fills them in
- * UK time, so they are read in UK time: typing 09:00 means 09:00 as the
- * operator means it.
- */
+/** A day starts at its first moment and ends at its last, on the clock the person reads times by. */
+const dayEdges: Record<ZonedEdge, string> = {
+  earliest: 'T00:00:00',
+  latest: 'T23:59:59'
+}
+
+/** A wall clock the zone cannot be read at, like year 0, has no instant: the box stays as typed, unreadable. */
+const toIsoOr = (value: string, instant: Date): string =>
+  Number.isNaN(instant.getTime()) ? value : instant.toISOString()
+
+const toClockInstant = (value: string, edge: ZonedEdge, zone: Zone): string => {
+  const match = datetimeLocal.exec(value)
+
+  return match === null || !isRealDatetime(value, match[1])
+    ? value
+    : toIsoOr(value, fromZonedInput(toWallClock(value, match[1]), edge, zone))
+}
+
+/** The last moment of a day is its last millisecond, as GAS compares `to` inclusively. */
+const lastMs: Record<ZonedEdge, number> = { earliest: 0, latest: 999 }
+
+const toDayEdge = (value: string, edge: ZonedEdge, zone: Zone): string =>
+  isRealDay(value)
+    ? toIsoOr(
+        value,
+        new Date(
+          fromZonedInput(`${value}${dayEdges[edge]}`, edge, zone).getTime() +
+            lastMs[edge]
+        )
+      )
+    : value
+
+/** What a box means: a day, or a wall clock, read in the person's zone; an instant is taken as it is. */
 const toInstant = (
   value: string | undefined,
-  edge: ZonedEdge
+  edge: ZonedEdge,
+  zone: Zone
 ): string | undefined => {
   if (!value) {
     return undefined
   }
 
-  const match = datetimeLocal.exec(value)
-
-  return match === null || !isRealDatetime(value, match[1])
-    ? value
-    : fromZonedInput(toWallClock(value, match[1]), edge).toISOString()
+  return isoDay.test(value)
+    ? toDayEdge(value, edge, zone)
+    : toClockInstant(value, edge, zone)
 }
 
-/** The window as instants, whether it came from a preset link or the Custom boxes. */
-export const toRangeInstants = ({
-  from,
-  to
-}: TimeRangeQuery): Pick<TimeRangeQuery, 'from' | 'to'> => ({
-  ...present('from', toInstant(from, 'earliest')),
-  ...present('to', toInstant(to, 'latest'))
-})
+const weekDays = 7
+const monthDays = 30
 
-/** Every filter the list holds but the window, which the menu sets itself. */
-const otherKeys = <Q extends TimeRangeQuery>(
-  list: TimeRangeList<Q>
-): FilterKeys<Q> => list.filterKeys.filter((key) => !rangeKeySet.has(key))
-
-const toHref = <Q extends TimeRangeQuery>(
-  list: TimeRangeList<Q>,
-  query: Q
-): string =>
-  toFilterHref(list.basePath, [...otherKeys(list), ...rangeKeys], query)
-
-/**
- * `datetime-local` carries no zone, so the digits in the Custom boxes have to
- * be the ones the page displays. Writing the UTC wall clock into a control the
- * browser reads as local was an hour out at both edges of a range under BST.
- */
-const toRangeInput = (value: string | undefined): string => {
-  if (!value) {
-    return ''
+/** The components' quick ranges. */
+const quickRanges: { key: string; text: string; minutes: number }[] = [
+  { key: '1h', text: 'Last hour', minutes: minutesPerHour },
+  { key: '24h', text: 'Last 24 hours', minutes: hoursPerDay * minutesPerHour },
+  {
+    key: '7d',
+    text: 'Last 7 days',
+    minutes: weekDays * hoursPerDay * minutesPerHour
+  },
+  {
+    key: '30d',
+    text: 'Last 30 days',
+    minutes: monthDays * hoursPerDay * minutesPerHour
   }
-
-  const date = toValidDate(value)
-
-  return date === null ? value : toZonedInput(date)
-}
-
-const timeRangePresets: { key: string; minutes: number }[] = [
-  { key: '15m', minutes: 15 },
-  { key: '1h', minutes: minutesPerHour },
-  { key: '6h', minutes: 6 * minutesPerHour },
-  { key: '24h', minutes: hoursPerDay * minutesPerHour },
-  { key: '7d', minutes: 7 * hoursPerDay * minutesPerHour },
-  { key: '30d', minutes: 30 * hoursPerDay * minutesPerHour }
 ]
 
-const presetLabel = (key: string) => `Last ${key}`
+/** A quick range in force: one the release has, open-ended. */
+const toActiveRange = ({ from, to, range }: TimeRangeQuery) =>
+  from && !to ? quickRanges.find(({ key }) => key === range) : undefined
 
-const toActivePreset = ({ from, to, range }: TimeRangeQuery) =>
-  from && !to
-    ? timeRangePresets.find((preset) => preset.key === range)
-    : undefined
+const minutesBefore = (now: Date, minutes: number): string =>
+  new Date(now.getTime() - minutes * msPerMinute).toISOString()
 
-const toPresets = <Q extends TimeRangeQuery>(
-  list: TimeRangeList<Q>,
-  query: Q,
+/**
+ * The window as instants. A quick range is the span back from `now`, whatever
+ * its link's `from` says, so a page opened from an old link still shows what
+ * its name says; the calendar's days and times are read in the zone.
+ */
+export const toRangeInstants = (
+  query: TimeRangeQuery,
+  zone: Zone,
   now: Date
-): TimeRangePreset[] => {
-  const active = toActivePreset(query)
+): Pick<TimeRangeQuery, 'from' | 'to'> => {
+  const quick = toActiveRange(query)
 
-  return timeRangePresets.map(({ key, minutes }) => ({
-    key,
-    label: presetLabel(key),
-    title: `${list.presetTitlePrefix} ${key}`,
-    active: active?.key === key,
-    href: toHref(list, {
-      ...query,
-      from: new Date(now.getTime() - minutes * msPerMinute).toISOString(),
-      to: undefined,
-      range: key
-    })
-  }))
+  return quick
+    ? { from: minutesBefore(now, quick.minutes) }
+    : {
+        ...present('from', toInstant(query.from, 'earliest', zone)),
+        ...present('to', toInstant(query.to, 'latest', zone))
+      }
 }
 
-const toAbsoluteMinute = (value: string): string => {
+/**
+ * A quick range's start as its first page read it, so its later pages carry
+ * that start rather than move it on; any other window is left as it is spelt.
+ */
+export const pinQuickRange = <Query extends TimeRangeQuery>(
+  query: Query,
+  now: Date
+): Query => {
+  const quick = toActiveRange(query)
+
+  return quick ? { ...query, from: minutesBefore(now, quick.minutes) } : query
+}
+
+const toEdgeMs = (value: string | undefined, none: number): number =>
+  value === undefined ? none : Date.parse(value)
+
+/** Both edges are instants, and the window doesn't end before it starts. */
+export const isReadableWindow = ({
+  from,
+  to
+}: Pick<TimeRangeQuery, 'from' | 'to'>): boolean => {
+  const start = toEdgeMs(from, -Infinity)
+  const end = toEdgeMs(to, Infinity)
+
+  return !Number.isNaN(start) && !Number.isNaN(end) && start <= end
+}
+
+const anyTime = 'Any time'
+
+const dayOfInstant = (value: string, zone: Zone): string | undefined => {
   const date = toValidDate(value)
 
-  return date === null
-    ? value
-    : toZonedInput(date).slice(0, 'yyyy-mm-ddThh:mm'.length).replace('T', ' ')
+  return date ? toZonedInput(date, zone).slice(0, 10) : undefined
 }
 
-const toAbsoluteRangeLabel = (from?: string, to?: string): string => {
-  const start = from ? toAbsoluteMinute(from) : 'earliest'
-  const end = to ? toAbsoluteMinute(to) : 'now'
-
-  return `${start} – ${end}`
-}
-
-const toTimeRangeLabel = (query: TimeRangeQuery): string => {
-  const { from, to } = query
-
-  if (!from && !to) {
-    return 'All'
+/** The day a box falls on in the zone: a wall clock is the zone's already; a value that is no instant is no day. */
+const toDay = (value: string | undefined, zone: Zone): string | undefined => {
+  if (!value) {
+    return undefined
   }
 
-  const preset = toActivePreset(query)
-
-  return preset ? presetLabel(preset.key) : toAbsoluteRangeLabel(from, to)
+  return isoDay.test(value) || datetimeLocal.test(value)
+    ? value.slice(0, 10)
+    : dayOfInstant(value, zone)
 }
 
-export const toTimeRange = <Q extends TimeRangeQuery>(
-  list: TimeRangeList<Q>,
-  query: Q,
-  now: Date
-): TimeRange => {
-  const label = toTimeRangeLabel(query)
+export interface RangeChoice {
+  text: string
+  href: string
+  checked: boolean
+}
+
+export interface RangeChip {
+  /** The chip's text, which the applied tag repeats. */
+  text: string
+  /** Nothing chosen, so no tag. */
+  isSet: boolean
+  start: string | undefined
+  end: string | undefined
+  presets: RangeChoice[]
+  /** Today in the zone: nothing later can have been kept. */
+  max: string
+}
+
+const toOneSided = (start: string | undefined, end: string | undefined) => {
+  if (start) {
+    return `From ${formatDate(start)}`
+  }
+
+  return end ? `Until ${formatDate(end)}` : anyTime
+}
+
+/** "3–9 Nov 2026", "From 3 Nov 2026", "Until 9 Nov 2026", a quick range's name or "Any time". */
+const toRangeText = (
+  query: TimeRangeQuery,
+  start: string | undefined,
+  end: string | undefined
+): string => {
+  const quick = toActiveRange(query)
+
+  if (quick) {
+    return quick.text
+  }
+
+  return start && end ? formatRange(start, end) : toOneSided(start, end)
+}
+
+/**
+ * A list's time filter. `toHref` gives the list's own link with another
+ * window, so every choice keeps the other filters.
+ */
+export const toRangeChip = (
+  query: TimeRangeQuery,
+  toHref: (window: TimeRangeQuery) => string,
+  now: Date,
+  zone: Zone
+): RangeChip => {
+  const quick = toActiveRange(query)
+  const start = quick ? undefined : toDay(query.from, zone)
+  const end = quick ? undefined : toDay(query.to, zone)
+  const isSet = Boolean(query.from ?? query.to)
 
   return {
-    label,
-    title: `Time range: ${label}`,
-    active: Boolean(query.from ?? query.to),
-    presets: toPresets(list, query, now),
-    anyTimeHref: toHref(list, {
-      ...query,
-      from: undefined,
-      to: undefined,
-      range: undefined
-    }),
-    anyTimeActive: !query.from && !query.to,
-    action: list.basePath,
-    hiddenFields: toFields(query, otherKeys(list)),
-    fromInput: toRangeInput(query.from),
-    toInput: toRangeInput(query.to)
+    text: toRangeText(query, start, end),
+    isSet,
+    start,
+    end,
+    presets: [
+      { text: anyTime, href: toHref({}), checked: !isSet },
+      ...quickRanges.map(({ key, text, minutes }) => ({
+        text,
+        href: toHref({
+          from: minutesBefore(now, minutes),
+          range: key
+        }),
+        checked: quick?.key === key
+      }))
+    ],
+    max: toZonedInput(now, zone).slice(0, 10)
   }
 }

@@ -23,17 +23,35 @@ const sourceLabels = new Map([
 export const sourceLabel = (source: string): string =>
   sourceLabels.get(source) ?? `unknown source ${source}`
 
+/** A position is `PHASE:STAGE:STATUS`; its stage is the `PHASE:STAGE` key. */
+const separator = ':'
+
+/** The codes a position, stage key or bare status code is made of. */
+export const toPositionParts = (text: string): string[] => text.split(separator)
+
+export const toStageKey = (phase: string, stage: string): string =>
+  [phase, stage].join(separator)
+
+export const toPosition = (
+  phase: string,
+  stage: string,
+  status: string
+): string => [phase, stage, status].join(separator)
+
 export const stageKeyOf = (position: string): string =>
-  position.split(':').slice(0, 2).join(':')
+  toPositionParts(position).slice(0, 2).join(separator)
 
 export const statusCodeOf = (position: string): string =>
-  position.split(':')[2] ?? position
+  toPositionParts(position)[2] ?? position
 
-/** The stage's own code in a `PHASE:STAGE` key. */
+/** The stage's own code in a `PHASE:STAGE` key or a position. */
 export const stageCodeOf = (stageKey: string): string =>
-  stageKey.split(':')[1] ?? stageKey
+  toPositionParts(stageKey)[1] ?? stageKey
 
-const lastOf = (key: string) => key.split(':').at(-1) ?? key
+/** The phase's code in a position or stage key. */
+export const phaseCodeOf = (key: string): string => toPositionParts(key)[0]
+
+const lastOf = (key: string) => toPositionParts(key).at(-1) ?? key
 
 export const toLifecycleNames = ({
   phases
@@ -46,11 +64,14 @@ export const toLifecycleNames = ({
   phases.forEach((phase) => {
     phaseNames.set(phase.code, phase.name ?? toHumanCode(phase.code))
     phase.stages.forEach((stage) => {
-      const key = `${phase.code}:${stage.code}`
+      const key = toStageKey(phase.code, stage.code)
 
       stages.set(key, stage.name ?? toHumanCode(stage.code))
       stage.statuses.forEach(({ code, name }) => {
-        statuses.set(`${key}:${code}`, name ?? toHumanCode(code))
+        statuses.set(
+          toPosition(phase.code, stage.code, code),
+          name ?? toHumanCode(code)
+        )
         codeCounts.set(code, (codeCounts.get(code) ?? 0) + 1)
       })
     })

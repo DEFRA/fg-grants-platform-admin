@@ -1,10 +1,5 @@
-import {
-  casesBucket,
-  catalogue,
-  outboxBucket,
-  toggledBucket
-} from '../use-cases/test-fixtures.ts'
-import { toBucketHref, toRowHref, toVersionListHref } from './bucket-links.ts'
+import { auditedOutbox, outboxBucket } from '../use-cases/test-fixtures.ts'
+import { toBucketHref, toRowHref } from './bucket-links.ts'
 
 const from = '/dev-ops/events/gas/outbox?status=DEAD_LETTER'
 
@@ -15,17 +10,17 @@ describe('toBucketHref', () => {
     expect(toBucketHref(outboxBucket, {})).toBe('/dev-ops/events/gas/outbox')
   })
 
-  test('spells each fact by its URL key, a toggle that is on as on, and leaves out an unset one', () => {
+  test('spells each fact by its URL key, repeats one with several values, and leaves out an unset one', () => {
     expect(
-      toBucketHref(toggledBucket, {
+      toBucketHref(auditedOutbox, {
+        status: ['DEAD_LETTER', 'FAILED'],
         'lastError.name': 'TypeError',
         grantCode: undefined,
-        show: 'eventType',
         from: '2026-10-08T12:00:00.000Z',
         range: '24h'
       })
     ).toBe(
-      '/dev-ops/events/gas/outbox?error=TypeError&audit=on&from=2026-10-08T12%3A00%3A00.000Z&range=24h'
+      '/dev-ops/events/gas/outbox?status=DEAD_LETTER&status=FAILED&error=TypeError&from=2026-10-08T12%3A00%3A00.000Z&range=24h'
     )
   })
 
@@ -37,36 +32,6 @@ describe('toBucketHref', () => {
         new URLSearchParams({ cursor: 'eyJ0Ijoi' })
       )
     ).toBe('/dev-ops/events/gas/outbox?cursor=eyJ0Ijoi&status=DEAD_LETTER')
-  })
-})
-
-describe('toVersionListHref', () => {
-  const caseFacts = {
-    codeFact: 'workflowCode',
-    versionFact: 'currentConfigVersion'
-  }
-  const ref = { code: 'woodland-creation', version: '1.2.0' }
-
-  test('filters the list by the code and the version', () => {
-    expect(toVersionListHref(catalogue, 'cw.cases', caseFacts, ref)).toBe(
-      '/dev-ops/cases?workflow=woodland-creation&version=1.2.0'
-    )
-  })
-
-  test('is null when the list does not declare both facts', () => {
-    const narrowed = {
-      ...catalogue,
-      buckets: [{ ...casesBucket, facts: casesBucket.facts.slice(0, 1) }]
-    }
-
-    expect(toVersionListHref(narrowed, 'cw.cases', caseFacts, ref)).toBeNull()
-  })
-
-  test('is null when the list is missing or there is no catalogue', () => {
-    expect(
-      toVersionListHref(catalogue, 'cw.nothing', caseFacts, ref)
-    ).toBeNull()
-    expect(toVersionListHref(null, 'cw.cases', caseFacts, ref)).toBeNull()
   })
 })
 

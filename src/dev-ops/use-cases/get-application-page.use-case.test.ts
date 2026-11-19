@@ -10,7 +10,7 @@ const ref = { code: 'frps-private-beta', clientRef: 'a7c-2f1-9e4' }
 const responseError = (statusCode: number, body: object = {}) =>
   Object.assign(new Error(`Response Error: ${statusCode}`), {
     output: { statusCode },
-    data: { payload: body }
+    data: { isResponseError: true, payload: body }
   })
 
 describe('getApplicationPageUseCase', () => {
@@ -36,15 +36,23 @@ describe('getApplicationPageUseCase', () => {
   })
 
   test.each([
-    ['a 404 with no reason, a route GAS has not got', 404, 'unavailable'],
-    ['a gateway timeout', 504, 'timed-out'],
-    ['any other failure', 500, 'unavailable']
-  ])('reads %s as an outage', async (_name, status, outcome) => {
+    [
+      'a 404 with no reason, a route GAS has not got',
+      404,
+      'unavailable',
+      { kind: 'refused', statusCode: 404, errorCode: null }
+    ],
+    ['a gateway timeout', 504, 'timed-out', { kind: 'timed-out' }],
+    ['any other failure', 500, 'unavailable', { kind: 'errored' }]
+  ])('reads %s as an outage', async (_name, status, outcome, failure) => {
     vi.mocked(findApplicationPage).mockRejectedValue(responseError(status))
 
-    await expect(getApplicationPageUseCase(ref, 'events')).resolves.toEqual({
+    await expect(
+      getApplicationPageUseCase(ref, 'events')
+    ).resolves.toMatchObject({
       outcome,
-      page: null
+      page: null,
+      failure
     })
   })
 })

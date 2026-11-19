@@ -1,7 +1,5 @@
-import { getFromGas, postToGas } from '../../common/gas.ts'
 import type { BadgeRole, SourceError } from './events.repository.ts'
 import type { ListTotal, Position } from './record-page.ts'
-import { toRepeatOptions } from './record-page.ts'
 
 export type FactValue = string
 
@@ -11,15 +9,6 @@ export interface BucketFactValue {
   tone?: BadgeRole
   /** What the value means, for a badge's title and under it in a menu. */
   hint?: string
-  /** Left out of the list until the fact's toggle is switched on. */
-  hidden?: boolean
-}
-
-/** A fact with hidden values, drawn with a switch that shows them. */
-export interface BucketToggle {
-  label: string
-  /** Its key in this admin's URLs, set to `on` while it is. */
-  param: string
 }
 
 export interface BucketFact {
@@ -29,7 +18,6 @@ export interface BucketFact {
   label: string
   /** Null for an open fact: one with no list to choose from. */
   values: BucketFactValue[] | null
-  toggle: BucketToggle | null
   /** The fact this one is scoped to, as a version is to its grant; choosing that fact clears this one. */
   within: string | null
 }
@@ -101,19 +89,6 @@ export interface Catalogue {
   sourceErrors: SourceError[]
 }
 
-export interface BucketQuery {
-  where?: Record<string, string>
-  /** The facts whose hidden values are asked for. */
-  show?: string[]
-  /** One `kind:value`. */
-  ref?: string
-  from?: string
-  to?: string
-  cursor?: string
-  limit?: number
-  groupBy?: string[]
-}
-
 export interface BucketPlan {
   kind: string
   index: string[]
@@ -147,74 +122,11 @@ export interface BucketPaging {
   complete: boolean
 }
 
-export interface BucketGroupValue {
-  value: FactValue
-  count: number
-  capped: boolean
-}
-
-export interface BucketGroup {
-  by: string
-  /** Null when the counts could not be read exactly. */
-  values: BucketGroupValue[] | null
-  /** The list with this fact's own filter left out; null when it could not be counted exactly. */
-  total: ListTotal | null
-}
-
 export interface BucketResult {
   bucket: string
   plan: BucketPlan
   rows: BucketRow[]
   page: BucketPaging
-  groups: BucketGroup[]
+  /** The list counted with every filter; null when not counted, absent from a service that doesn't count yet. */
+  total?: ListTotal | null
 }
-
-export interface SummaryEntry {
-  /** One value per `by` fact; null for the rows that hold none. */
-  values: Record<string, FactValue | null>
-  count: number
-  capped: boolean
-  firstAt: string | null
-  lastAt: string | null
-}
-
-export interface SummaryResult {
-  bucket: string
-  summary: string
-  entries: SummaryEntry[]
-  /** Entries were left off the end. */
-  more: boolean
-  /** False when there were more distinct values than are counted. */
-  complete: boolean
-}
-
-export interface SummaryQuery {
-  /** The facts whose hidden values are counted too. */
-  show?: string[]
-  from?: string
-  to?: string
-}
-
-export const findBuckets = async (): Promise<Catalogue> =>
-  getFromGas<Catalogue>('/grant-admin/buckets')
-
-/** A POST, so a searched ref travels in the body and never in a logged URL. */
-export const queryBucket = async (
-  bucketId: string,
-  query: BucketQuery,
-  repeat: boolean
-): Promise<BucketResult> =>
-  postToGas<BucketResult>(
-    `/grant-admin/buckets/${encodeURIComponent(bucketId)}/query`,
-    { payload: query, ...toRepeatOptions(repeat) }
-  )
-
-export const summariseBucket = async (
-  bucketId: string,
-  summaryId: string,
-  query: SummaryQuery
-): Promise<SummaryResult> =>
-  postToGas<SummaryResult>(
-    `/grant-admin/buckets/${encodeURIComponent(bucketId)}/summaries/${encodeURIComponent(summaryId)}`,
-    { payload: query }
-  )

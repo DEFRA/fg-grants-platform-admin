@@ -13,7 +13,6 @@ export interface RecordType {
   path: string
   /** The service a failed read is blamed on. */
   source: string
-  showClosed: boolean
   linkLabel: string
   /** In the order they are offered. */
   tabs: readonly RecordTabEntry[]
@@ -21,6 +20,8 @@ export interface RecordType {
   view: string
   /** The URL param named after the title. */
   titleParam: string
+  /** Tabs the page no longer has: an old link to one, or a Fetch posted from one, opens Overview. */
+  retiredTabs?: readonly string[]
 }
 
 export const recordTabEntries: readonly RecordTabEntry[] = [
@@ -28,6 +29,15 @@ export const recordTabEntries: readonly RecordTabEntry[] = [
   { id: 'events', label: 'Events' },
   { id: 'raw', label: 'Raw' }
 ]
+
+/** A config version's name, as everywhere it is written. */
+export const toVersionName = ({
+  code,
+  version
+}: {
+  code: string
+  version: string
+}): string => `${code}@${version}`
 
 /** A config version's own page: its record's path, then its code and version. */
 export const toVersionPath = (

@@ -1,10 +1,9 @@
-import type { BucketLink } from '../use-cases/query-bucket.use-case.ts'
+import type {
+  BucketLink,
+  BucketEntry
+} from '../repositories/buckets.repository.ts'
 import type { EventKey } from '../use-cases/get-event.use-case.ts'
 import { toApplicationHref } from './applications-page.view-model.ts'
-import type {
-  BucketEntry,
-  Catalogue
-} from '../use-cases/get-catalogue.use-case.ts'
 import { toBucketPath } from './bucket-nav.ts'
 import { toUrlQuery } from './bucket-urls.ts'
 import { toCaseHref } from './cases-page.view-model.ts'
@@ -14,8 +13,11 @@ import { toFilterHref } from './list-filters.ts'
 import { toWorkflowHref } from './workflows-page.view-model.ts'
 import { toFittingBack } from './record-filters.ts'
 
+/** One value, or the values a fact with offered values is filtered by. */
+export type FilterValue = string | string[]
+
 /** Everything a list's URL holds but its position: one key per filtered fact, and the time range. */
-export type BucketFilters = Record<string, string | undefined>
+export type BucketFilters = Record<string, FilterValue | undefined>
 
 /** The list under these filters, spelled as its URL spells them; `params` goes first, as a cursor does. */
 export const toBucketHref = (
@@ -26,29 +28,6 @@ export const toBucketHref = (
   const query = toUrlQuery(bucket, filters)
 
   return toFilterHref(toBucketPath(bucket), Object.keys(query), query, params)
-}
-
-/** The facts a list names a version's code and version by. */
-interface VersionFacts {
-  codeFact: string
-  versionFact: string
-}
-
-const declaresAll = ({ facts }: BucketEntry, names: string[]): boolean =>
-  names.every((name) => facts.some((fact) => fact.name === name))
-
-/** Null unless the list declares both facts: an undeclared one would drop out of the URL and widen the list. */
-export const toVersionListHref = (
-  catalogue: Catalogue | null,
-  bucketId: string,
-  { codeFact, versionFact }: VersionFacts,
-  { code, version }: { code: string; version: string }
-): string | null => {
-  const bucket = catalogue?.buckets.find(({ id }) => id === bucketId)
-
-  return bucket && declaresAll(bucket, [codeFact, versionFact])
-    ? toBucketHref(bucket, { [codeFact]: code, [versionFact]: version })
-    : null
 }
 
 /** The key that carries the page to go back to. */

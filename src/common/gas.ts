@@ -1,3 +1,5 @@
+import { currentUpstream, type Upstream } from '../dev-ops/upstream.ts'
+import type { Shell } from '../dev-ops/repositories/shell.repository.ts'
 import { config } from './config.ts'
 import { currentGasActor, toHeaderActor } from './gas-actor.ts'
 import { wreck } from './wreck.ts'
@@ -27,34 +29,67 @@ const toHeaders = (actor?: string): Record<string, string> => {
   }
 }
 
-/** @param path An absolute path, with its segments already escaped. */
-export const getFromGas = async <T>(path: string): Promise<T> => {
-  const { payload } = await wreck.get<T>(`${config.get('gas.apiUrl')}${path}`, {
-    json: true,
-    timeout: config.get('gas.timeoutMs'),
-    headers: toHeaders()
-  })
+const shellOf = (body: unknown): Shell | null => {
+  const shell = (body as { shell?: unknown } | null)?.shell
 
-  return payload
+  return typeof shell === 'object' && shell !== null ? (shell as Shell) : null
 }
+
+const keepShell = (upstream: Upstream, body: unknown): void => {
+  upstream.shell = shellOf(body) ?? upstream.shell
+}
+
+/** The body GAS answered a failed call with, as @hapi/wreck carries it. */
+export const errorBodyOf = (error: unknown): unknown =>
+  (error as { data?: { payload?: unknown } } | null)?.data?.payload
+
+/**
+ * Inside a Dev Ops request each call is counted, and the shell an answer
+ * carries, refusals included, is kept for the page drawn from it.
+ */
+const counted = async <T>(call: () => Promise<{ payload: T }>): Promise<T> => {
+  const upstream = currentUpstream()
+
+  if (upstream === null) {
+    return (await call()).payload
+  }
+
+  upstream.calls += 1
+
+  try {
+    const { payload } = await call()
+    keepShell(upstream, payload)
+
+    return payload
+  } catch (error) {
+    keepShell(upstream, errorBodyOf(error))
+    throw error
+  }
+}
+
+/** @param path An absolute path, with its segments already escaped. */
+export const getFromGas = async <T>(path: string): Promise<T> =>
+  counted(() =>
+    wreck.get<T>(`${config.get('gas.apiUrl')}${path}`, {
+      json: true,
+      timeout: config.get('gas.timeoutMs'),
+      headers: toHeaders()
+    })
+  )
 
 const writeToGas = async <T>(
   method: 'post' | 'put' | 'delete',
   path: string,
   { payload, actor, headers = {} }: GasWriteOptions = {}
-): Promise<T> => {
-  const { payload: body } = await wreck[method]<T>(
-    `${config.get('gas.apiUrl')}${path}`,
-    {
+): Promise<T> =>
+  counted(() =>
+    wreck[method]<T>(`${config.get('gas.apiUrl')}${path}`, {
       json: true,
       timeout: config.get('gas.timeoutMs'),
       ...(payload === undefined ? {} : { payload }),
       headers: { ...toHeaders(actor), ...headers }
-    }
+    })
   )
-
-  return body
-}
 
 /**
  * A non-2xx rejects with wreck's Boom unchanged: callers read the status and body from it.

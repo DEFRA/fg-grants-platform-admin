@@ -1,19 +1,41 @@
 import type { Request, ResponseToolkit, ServerRoute } from '@hapi/hapi'
 import Joi from 'joi'
 
-import { getCatalogueUseCase } from '../use-cases/get-catalogue.use-case.ts'
+import { config } from '../../common/config.ts'
+import { shellCatalogue } from '../use-cases/shell-catalogue.ts'
 import { getEventUseCase } from '../use-cases/get-event.use-case.ts'
-import { toBackBucket } from '../view-models/bucket-nav.ts'
 import { eventAddress, toEventKey } from '../view-models/event-address.ts'
+import { toEventHref } from '../view-models/event-formats.ts'
 import type { EventPageQuery } from '../view-models/event-page.view-model.ts'
 import {
   eventPageCache,
+  isProduction,
   purgeFormKey,
   redriveNoticeKey,
   toEventPage,
-  toSafeFrom
+  toEventStatusCode,
+  toHeldAsks
 } from '../view-models/event-page.view-model.ts'
-import { fromMax } from '../view-models/record-filters.ts'
+import { heldSavesKey, takeHeldSave } from '../view-models/held-saves.ts'
+import { shellQuery, timesOf } from '../view-models/times.ts'
+
+const spendHeldSave = (request: Request, eventHref: string) => {
+  const saves = request.yar.get(heldSavesKey)
+
+  if (!saves) {
+    return null
+  }
+
+  const { held, kept } = takeHeldSave(saves, eventHref, Date.now())
+
+  if (Object.keys(kept).length) {
+    request.yar.set(heldSavesKey, kept)
+  } else {
+    request.yar.clear(heldSavesKey)
+  }
+
+  return held
+}
 
 export const viewEventRoute: ServerRoute = {
   method: 'GET',
@@ -22,38 +44,36 @@ export const viewEventRoute: ServerRoute = {
     cache: eventPageCache,
     validate: {
       params: Joi.object(eventAddress),
-      // `back` is checked by the view model: a bad one falls back to the admin's root, not an error page.
+      // `back` is checked by the view model: a bad one falls back to the event's own list, not an error page.
       query: Joi.object({
-        // Bounded because it is echoed into every link on the page.
-        back: Joi.string().allow('').max(fromMax),
+        // Fitted by the view model before it is echoed into a link: one too long to go back to is dropped.
+        back: Joi.string().allow(''),
         confirm: Joi.string(),
-        edit: Joi.string()
+        edit: Joi.string(),
+        ...shellQuery
       })
     }
   },
   async handler(request: Request, h: ResponseToolkit) {
     const key = toEventKey(request.params)
-    const query = request.query as unknown as EventPageQuery
-    // Read and cleared before the event is, so a write's message and a
-    // rejected form are spent on this render whatever the read then says.
+    // Taken before the event is read, so a write's message, a rejected form
+    // and a held save are spent on this render whatever the read then says.
     const [notice] = request.yar.flash(redriveNoticeKey)
     const [form] = request.yar.flash(purgeFormKey)
+    const held = spendHeldSave(request, toEventHref(key))
     const result = await getEventUseCase(key)
-    const from = toSafeFrom(query.back)
-    const bucket = toBackBucket(await getCatalogueUseCase(), from)
-    const navActive = bucket?.id ?? null
-
-    if (result.outcome === 'not-found') {
-      return h.view('event-not-found', {
-        pageTitle: 'Event not found',
-        backHref: from,
-        navActive
-      })
-    }
-
-    return h.view('event', {
-      pageTitle: 'Event',
-      ...toEventPage(result, key, query, notice, form, undefined, bucket)
+    const page = toEventPage({
+      result,
+      key,
+      times: timesOf(request),
+      catalogue: shellCatalogue(request),
+      prod: isProduction(config.get('environmentLabel')),
+      query: request.query as EventPageQuery,
+      notice,
+      form,
+      ...toHeldAsks(held, result)
     })
+
+    return h.view('events/event', page).code(toEventStatusCode(page))
   }
 }

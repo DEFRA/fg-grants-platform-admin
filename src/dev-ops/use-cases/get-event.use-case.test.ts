@@ -45,7 +45,7 @@ const composed = (overrides: Partial<EventDetail> = {}): EventDetail => ({
 const responseError = (statusCode: number, body: object = {}) =>
   Object.assign(new Error(`Response Error: ${statusCode}`), {
     output: { statusCode },
-    data: { payload: body, res: {} }
+    data: { isResponseError: true, payload: body, res: {} }
   })
 
 describe('getEventUseCase', () => {
@@ -86,7 +86,8 @@ describe('getEventUseCase', () => {
 
     await expect(getEventUseCase(key)).resolves.toEqual({
       outcome: 'not-found',
-      event: null
+      event: null,
+      failure: null
     })
   })
 
@@ -95,7 +96,8 @@ describe('getEventUseCase', () => {
 
     await expect(getEventUseCase(key)).resolves.toEqual({
       outcome: 'timed-out',
-      event: null
+      event: null,
+      failure: { kind: 'timed-out' }
     })
   })
 
@@ -107,12 +109,13 @@ describe('getEventUseCase', () => {
     expect(findEvent).toHaveBeenCalledTimes(1)
   })
 
-  test('reports a backend that could not be reached as unavailable', async () => {
+  test('reports the service behind GAS failing as unavailable', async () => {
     vi.mocked(findEvent).mockRejectedValue(responseError(502))
 
     await expect(getEventUseCase(key)).resolves.toEqual({
       outcome: 'unavailable',
-      event: null
+      event: null,
+      failure: { kind: 'errored', upstream: true }
     })
   })
 

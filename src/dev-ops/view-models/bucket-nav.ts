@@ -1,7 +1,7 @@
 import type {
   BucketEntry,
   Catalogue
-} from '../use-cases/get-catalogue.use-case.ts'
+} from '../repositories/buckets.repository.ts'
 import {
   clientServices,
   serviceWords,
@@ -27,8 +27,8 @@ interface NavItem {
   /** Every list the link stands for: it is the current one on any of them. */
   ids: string[]
   label: string
-  /** Read before the label, so two links of one name still tell apart. */
-  srPrefix?: string
+  /** A page every service has (its events, its access tokens): read with its service, as the links are named alike. */
+  perService: boolean
   href: string
   icon: string
 }
@@ -44,10 +44,15 @@ const fallbackIcon = 'folder'
 const toKey = ({ id, page }: BucketEntry): string =>
   page === null ? `list:${id}` : `page:${page.id}`
 
+/** Event lists live under `events/`, whatever the catalogue calls their link. */
+export const isEventList = ({ path }: BucketEntry): boolean =>
+  path.startsWith('events/')
+
 const toNavItem = (bucket: BucketEntry): NavItem => ({
   id: bucket.id,
   ids: [],
   label: bucket.page?.shortLabel ?? bucket.shortLabel,
+  perService: isEventList(bucket),
   href: toBucketPath(bucket),
   icon: bucket.icon ?? fallbackIcon
 })
@@ -70,7 +75,7 @@ const toAccessTokensItem = (service: 'gas' | 'cw'): NavItem => ({
   id: toNavActive(service),
   ids: [toNavActive(service)],
   label: 'Access tokens',
-  srPrefix: serviceWords[service].short,
+  perService: true,
   href: toClientsPath(service),
   icon: 'key'
 })
@@ -89,6 +94,119 @@ const withItem = (
       )
     : [...sections, { title, items: [item] }]
 
+const cwListIds = {
+  outbox: 'cw.outbox',
+  inbox: 'cw.inbox',
+  cases: 'cw.cases',
+  workflows: 'cw.workflows'
+}
+
+/** A list of CW's, as the catalogue names it while GAS can reach CW. */
+export interface CaseworkingList {
+  id: string
+  path: string
+  /** The page it is drawn on: CW's events for a queue, else the list itself. */
+  pageLabel: string
+  shortLabel: string
+  noun: string
+}
+
+/** What stays in reach while GAS can't reach CW, when the catalogue names none of CW's lists. */
+const caseworkingLists: CaseworkingList[] = [
+  {
+    id: cwListIds.outbox,
+    path: 'events/cw/outbox',
+    pageLabel: 'CW events',
+    shortLabel: 'Events',
+    noun: 'events'
+  },
+  {
+    id: cwListIds.inbox,
+    path: 'events/cw/inbox',
+    pageLabel: 'CW events',
+    shortLabel: 'Events',
+    noun: 'events'
+  },
+  {
+    id: cwListIds.cases,
+    path: 'cases',
+    pageLabel: 'Cases',
+    shortLabel: 'Cases',
+    noun: 'cases'
+  },
+  {
+    id: cwListIds.workflows,
+    path: 'workflows',
+    pageLabel: 'Workflows',
+    shortLabel: 'Workflows',
+    noun: 'workflows'
+  }
+]
+
+/** The CW list at a path below the admin's root, whether or not the catalogue names it. */
+export const toCaseworkingListAt = (path: string): CaseworkingList | null =>
+  caseworkingLists.find((list) => list.path === path) ?? null
+
+/** GAS answered, but couldn't reach CW, so CW's lists are missing from the catalogue. */
+const isCaseworkingUnreachable = (catalogue: Catalogue | null): boolean =>
+  (catalogue?.sourceErrors ?? []).some(({ hop }) => hop === 'CW-BE')
+
+const cwNavItems: NavItem[] = [
+  {
+    id: cwListIds.outbox,
+    ids: [cwListIds.outbox, cwListIds.inbox],
+    label: 'Events',
+    perService: true,
+    href: `${devOpsPath}/events/cw/outbox`,
+    icon: 'activity'
+  },
+  {
+    id: cwListIds.cases,
+    ids: [cwListIds.cases],
+    label: 'Cases',
+    perService: false,
+    href: `${devOpsPath}/cases`,
+    icon: 'folder'
+  },
+  {
+    id: cwListIds.workflows,
+    ids: [cwListIds.workflows],
+    label: 'Workflows',
+    perService: false,
+    href: `${devOpsPath}/workflows`,
+    icon: 'workflow'
+  }
+]
+
+const hasCwLists = (sections: NavSection[]): boolean =>
+  sections.some(({ title }) => title === serviceWords.cw.short)
+
+/** CW's lists stay in reach, where each page says why it can't be listed. */
+const withUnreachable = (
+  catalogue: Catalogue | null,
+  sections: NavSection[]
+) =>
+  isCaseworkingUnreachable(catalogue) && !hasCwLists(sections)
+    ? [...sections, { title: serviceWords.cw.short, items: cwNavItems }]
+    : sections
+
+export const overviewNavId = 'overview'
+
+/** Not a list: the admin's front page, first and untitled, there whether or not the catalogue answers. */
+const overviewSection: NavSection = {
+  title: '',
+  items: [
+    {
+      id: overviewNavId,
+      ids: [overviewNavId],
+      label: 'Overview',
+      perService: false,
+      href: devOpsPath,
+      icon: 'layout-dashboard'
+    }
+  ]
+}
+
 /** One section per service, in the order the catalogue first names it, each ending with that service's access tokens. */
 export const toNavSections = (catalogue: Catalogue | null): NavSection[] => {
   const buckets = catalogue?.buckets ?? []
@@ -101,7 +219,7 @@ export const toNavSections = (catalogue: Catalogue | null): NavSection[] => {
   return clientServices.reduce(
     (drawn, service) =>
       withItem(drawn, serviceWords[service].short, toAccessTokensItem(service)),
-    sections
+    withUnreachable(catalogue, sections)
   )
 }
 
@@ -131,3 +249,22 @@ export const toBackBucket = (
 
   return listAt(buckets, back) ?? listAt(buckets, toInnerBack(back))
 }
+
+/** What the front door is called on a button: the first list's page, or the list itself. */
+export const toHomeLabel = (catalogue: Catalogue | null): string | null => {
+  const [first] = catalogue?.buckets ?? []
+
+  return first ? toPageLabel(first) : null
+}
+
+/** A list by the page it is drawn on: a queue by its service's events, the others by their own name. */
+export const toListLabel = ({ page, label }: BucketEntry): string =>
+  page?.label ?? label
+
+const toPageLabel = toListLabel
+
+/** The sidebar: the Overview, then each service's lists. */
+export const toShellNav = (catalogue: Catalogue | null): NavSection[] => [
+  overviewSection,
+  ...toNavSections(catalogue)
+]

@@ -6,8 +6,8 @@ import type {
   HelpBlock,
   TemplatePosition
 } from '../use-cases/get-grant-page.use-case.ts'
-import type { BadgeRole } from '../use-cases/get-event.use-case.ts'
 import { contextRootsOf, toMappingValue } from './mapping-table.ts'
+import type { Words } from './words.ts'
 
 /** A position, linked to it on Phases; one that stops at the phase or stage is every status under it. */
 export interface Chip {
@@ -25,22 +25,27 @@ interface Move {
 }
 
 type OnSubmit =
-  | { kind: 'cant-claim'; reason: 'materialised' | 'no-claimable-at' }
-  | { kind: 'waits-for-approval' }
-  | {
-      kind: 'requests-payment'
-      payment: PaymentFileState
-      move: Move | null
-    }
-  | { kind: 'no-payment-file'; move: Move | null }
+  | 'cant-claim'
+  | 'waits-for-approval'
+  | 'requests-payment'
+  | 'no-payment-file'
 
 type Warning =
-  | { kind: 'materialised-claim' | 'no-claimable-at'; claimCode: string }
-  | {
-      kind: 'claim-payment-reads-agreement'
-      claimCode: string
-      paymentHref: string
-    }
+  | { kind: 'materialised-claim' | 'no-claimable-at' }
+  | { kind: 'claim-payment-reads-agreement'; paymentHref: string }
+
+/** The template's badge for what a submitted claim does. */
+export interface SubmitBadge {
+  text: string
+  tone: 'neutral' | 'warning' | 'danger'
+}
+
+/** A problem with one template, as its alert says it. */
+export interface TemplateAlert {
+  tone: 'warning' | 'danger'
+  title: string
+  text: Words
+}
 
 /** GAS fetches a payment file it has not stored when it first needs it, and refuses one it has marked failed. */
 export type PaymentFileState = 'stored' | 'not-stored' | 'failed'
@@ -48,7 +53,6 @@ export type PaymentFileState = 'stored' | 'not-stored' | 'failed'
 type FieldSource = 'Entered' | 'Fixed' | 'From agreement'
 
 interface TemplateCard {
-  claimCode: string
   name: string
   description: string | null
   materialised: boolean
@@ -61,9 +65,10 @@ interface TemplateCard {
     approval: boolean
     evidence: boolean
   } | null
-  onSubmit: OnSubmit
-  onSubmitRole: BadgeRole
-  warnings: Warning[]
+  badge: SubmitBadge
+  /** Marks a template no claim can be made against. */
+  cantClaim: boolean
+  alerts: TemplateAlert[]
   fields: {
     name: string
     source: FieldSource
@@ -80,8 +85,6 @@ export interface EntitlementsTab {
   claims: {
     move: Move | null
     paymentHref: string | null
-    /** The payment file's state, said as the link to its tab. */
-    paymentLink: string | null
     roles: { allOf: string[]; anyOf: string[] } | null
   }
   templates: TemplateCard[]
@@ -92,15 +95,6 @@ interface EntitlementsSource {
   /** Null when the version names no payment file. */
   payment: PaymentFileState | null
 }
-
-const paymentLinkWords: Record<PaymentFileState, string> = {
-  stored: 'Stored',
-  'not-stored': 'Not stored yet',
-  failed: 'Failed'
-}
-
-const toPaymentLink = ({ payment }: EntitlementsSource): string | null =>
-  payment ? `${paymentLinkWords[payment]} · Payment tab ›` : null
 
 interface EntitlementsHrefs {
   /** The Phases tab, with that status selected. */
@@ -123,64 +117,82 @@ const isClaimable = (template: EntitlementTemplate) =>
 const paysOnSubmit = (template: EntitlementTemplate) =>
   isClaimable(template) && !template.claim?.requiresApproval
 
-const cantClaim = (template: EntitlementTemplate): OnSubmit => ({
-  kind: 'cant-claim',
-  reason: template.materialised ? 'materialised' : 'no-claimable-at'
-})
+const submitBadges: Record<OnSubmit, SubmitBadge> = {
+  'cant-claim': { text: 'Can’t be claimed', tone: 'danger' },
+  'waits-for-approval': {
+    text: 'On submit: Waits for approval',
+    tone: 'neutral'
+  },
+  'requests-payment': { text: 'On submit: Requests payment', tone: 'neutral' },
+  'no-payment-file': { text: 'On submit: No payment file', tone: 'warning' }
+}
+
+type AlertOf<K extends Warning['kind']> = (
+  warning: Extract<Warning, { kind: K }>,
+  name: string
+) => TemplateAlert
+
+const warningAlerts: { [K in Warning['kind']]: AlertOf<K> } = {
+  'no-claimable-at': (_warning, name) => ({
+    tone: 'danger',
+    title: `${name} can’t be claimed.`,
+    text: [
+      'Its claim rules list no “Claimable at” status, so GAS rejects every claim (',
+      { code: 'WRONG_POSITION' },
+      '). Publish a version that sets ',
+      { code: 'claim.claimableAt' },
+      '.'
+    ]
+  }),
+  'materialised-claim': (_warning, name) => ({
+    tone: 'warning',
+    title: `${name} can’t be claimed.`,
+    text: [
+      'It is materialised, which GAS doesn’t derive yet, so its claim rules never apply.'
+    ]
+  }),
+  'claim-payment-reads-agreement': ({ paymentHref }, name) => ({
+    tone: 'warning',
+    title: `Claim payments for ${name} fail.`,
+    text: [
+      'Claim payments can only read ',
+      { code: '$.claim' },
+      ' and ',
+      { code: '$.execution' },
+      ', but the ',
+      { link: 'payment definition', href: paymentHref },
+      ' reads ',
+      { code: '$.agreement' },
+      ', so those fields resolve empty and GAS refuses the payment.'
+    ]
+  })
+}
+
+const toAlert = (warning: Warning, name: string): TemplateAlert =>
+  (
+    warningAlerts[warning.kind] as (
+      warning: Warning,
+      name: string
+    ) => TemplateAlert
+  )(warning, name)
 
 /** GAS raises the payment when the version names a payment file, stored or not. */
-const toPaymentOutcome = (
-  { payment }: EntitlementsSource,
-  move: Move | null
-): OnSubmit =>
-  payment
-    ? { kind: 'requests-payment', payment, move }
-    : { kind: 'no-payment-file', move }
-
-const onSubmitRoles: Record<OnSubmit['kind'], BadgeRole> = {
-  'cant-claim': 'neutral',
-  'waits-for-approval': 'info',
-  'requests-payment': 'success',
-  'no-payment-file': 'warning'
-}
-
-const matches = (part: string | undefined, actual: string | undefined) =>
-  part === undefined || part === actual
-
-/** A claimable-at entry covers every position under it. */
-const covers = (entry: TemplatePosition, position: TemplatePosition) =>
-  entry.phase === position.phase &&
-  matches(entry.stage, position.stage) &&
-  matches(entry.status, position.status)
-
-/** GAS moves only on a claim submitted exactly at the move's current position (`claimApprovalTransitionFor`). */
-const toTemplateMove = (
-  template: EntitlementTemplate,
-  claims: NonNullable<Claims>,
-  move: Move | null
-): Move | null => {
-  const current = claims.onClaimApproval?.currentPosition
-
-  return current &&
-    claimableAtOf(template).some((entry) => covers(entry, current))
-    ? move
-    : null
-}
+const toPaymentOutcome = ({ payment }: EntitlementsSource): OnSubmit =>
+  payment ? 'requests-payment' : 'no-payment-file'
 
 const toOnSubmit = (
   template: EntitlementTemplate,
-  source: EntitlementsSource,
-  move: Move | null
+  source: EntitlementsSource
 ): OnSubmit => {
   if (!isClaimable(template)) {
-    return cantClaim(template)
+    return 'cant-claim'
   }
 
   if (template.claim?.requiresApproval) {
-    return { kind: 'waits-for-approval' }
+    return 'waits-for-approval'
   }
 
-  return toPaymentOutcome(source, move)
+  return toPaymentOutcome(source)
 }
 
 /** A stage prefix selects the stage's first status; a phase-only one has no stage to select, so it opens the phase's card. */
@@ -303,28 +315,27 @@ const toClaimRules = (
 
 interface WarningRule {
   applies: (template: EntitlementTemplate, readsAgreement: boolean) => boolean
-  warn: (claimCode: string, paymentHref: string) => Warning
+  warn: (paymentHref: string) => Warning
 }
 
 /** In this order within a template. */
 const warningRules: WarningRule[] = [
   {
     applies: ({ materialised, claim }) => materialised && claim !== undefined,
-    warn: (claimCode) => ({ kind: 'materialised-claim', claimCode })
+    warn: () => ({ kind: 'materialised-claim' })
   },
   {
     applies: (template) =>
       !template.materialised &&
       template.claim !== undefined &&
       claimableAtOf(template).length === 0,
-    warn: (claimCode) => ({ kind: 'no-claimable-at', claimCode })
+    warn: () => ({ kind: 'no-claimable-at' })
   },
   {
     applies: (template, readsAgreement) =>
       readsAgreement && paysOnSubmit(template),
-    warn: (claimCode, paymentHref) => ({
+    warn: (paymentHref) => ({
       kind: 'claim-payment-reads-agreement',
-      claimCode,
       paymentHref
     })
   }
@@ -348,25 +359,20 @@ export const toEntitlementsTab = (
   const paymentReadsAgreement = readsAgreement(payment)
 
   const toCard = (template: EntitlementTemplate): TemplateCard => {
-    const onSubmit = toOnSubmit(
-      template,
-      source,
-      toTemplateMove(template, claims, move)
-    )
+    const onSubmit = toOnSubmit(template, source)
 
     return {
-      claimCode: template.claimCode,
       name: template.name,
       description: template.description ?? null,
       materialised: template.materialised,
       maxEntitlements: template.maxEntitlements,
       availableAt: template.availableAt.map(chip),
       claim: toClaimRules(template, chip),
-      onSubmit,
-      onSubmitRole: onSubmitRoles[onSubmit.kind],
-      warnings: warningRules
+      badge: submitBadges[onSubmit],
+      cantClaim: onSubmit === 'cant-claim',
+      alerts: warningRules
         .filter(({ applies }) => applies(template, paymentReadsAgreement))
-        .map(({ warn }) => warn(template.claimCode, hrefs.payment)),
+        .map(({ warn }) => toAlert(warn(hrefs.payment), template.name)),
       fields: toFields(template.fields),
       help: template.help ?? null
     }
@@ -377,7 +383,6 @@ export const toEntitlementsTab = (
     claims: {
       move,
       paymentHref: source.payment ? hrefs.payment : null,
-      paymentLink: toPaymentLink(source),
       roles: toRoles(claims.requiredRoles)
     },
     templates: entitlementTemplates.map(toCard)

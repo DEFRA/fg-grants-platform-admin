@@ -3,80 +3,24 @@ import { logger } from '../../common/logger.ts'
 import type { EventKey } from '../use-cases/get-event.use-case.ts'
 import { toUrlService } from './event-address.ts'
 import {
-  displayZone,
   fromZonedInput,
   hoursPerDay,
   minutesPerHour,
-  msPerDay,
   msPerMinute,
   msPerSecond,
-  partsOf,
   secondsPerMinute,
-  toDayClock,
   toZonedInput
 } from './zoned-clock.ts'
-import type { ZonedEdge } from './zoned-clock.ts'
+import type { Zone, ZonedEdge } from './zoned-clock.ts'
 
 export {
   fromZonedInput,
   hoursPerDay,
   minutesPerHour,
   msPerMinute,
-  toDayClock,
   toZonedInput
 }
-export type { ZonedEdge }
-
-/** The wall clock alone: `10:16:05`. */
-const clockFormat = new Intl.DateTimeFormat('en-GB', {
-  timeZone: displayZone,
-  hour: '2-digit',
-  minute: '2-digit',
-  second: '2-digit',
-  hourCycle: 'h23'
-})
-
-const preciseFormat = new Intl.DateTimeFormat('en-US', {
-  timeZone: displayZone,
-  day: 'numeric',
-  month: 'short',
-  year: 'numeric',
-  hour: '2-digit',
-  minute: '2-digit',
-  second: '2-digit',
-  hourCycle: 'h23'
-})
-
-const toRelative = (from: Date, now: Date): string => {
-  const seconds = Math.max(
-    0,
-    Math.round((now.getTime() - from.getTime()) / msPerSecond)
-  )
-
-  if (seconds < secondsPerMinute) {
-    return `${seconds}s ago`
-  }
-
-  const minutes = Math.round(seconds / secondsPerMinute)
-
-  if (minutes < minutesPerHour) {
-    return `${minutes}m ago`
-  }
-
-  const hours = Math.floor(minutes / minutesPerHour)
-
-  return hours < hoursPerDay
-    ? `${hours}h ${minutes % minutesPerHour}m ago`
-    : `${Math.floor(hours / hoursPerDay)}d ago`
-}
-
-export interface Timestamp {
-  text: string
-  /** UTC, for a `datetime` attribute; never rendered. */
-  instant: string
-  /** UK time, so what is hovered or announced matches what is on screen. */
-  precise: string
-}
+export type { Zone, ZonedEdge }
 
 export const none = '—'
 
@@ -104,38 +48,6 @@ export const isIsoInstant = (value: string): boolean => {
   return date.getUTCMonth() === month - 1 && date.getUTCDate() === day
 }
 
-/** The instant a developer pastes into a log query: `2026-06-16T10:00:00Z`. */
-export const toAbsolute = (value: string): string | null =>
-  toValidDate(value)?.toISOString().replace('.000', '') ?? null
-
-/** Past a day the date replaces the seconds, so an old row cannot read as this morning. */
-export const toClock = (date: Date, now: Date): string =>
-  now.getTime() - date.getTime() <= msPerDay
-    ? clockFormat.format(date)
-    : toDayClock(date)
-
-/** Never shortened by age: the detail page is read against logs. */
-export const toPreciseInstant = (date: Date): string => {
-  const parts = partsOf(preciseFormat, date)
-  // Milliseconds do not move with the zone, so they come off the instant.
-  const ms = String(date.getUTCMilliseconds()).padStart(3, '0')
-
-  return `${parts.day} ${parts.month} ${parts.year} ${parts.hour}:${parts.minute}:${parts.second}.${ms}`
-}
-
-export const toAbsoluteInstant = (at: string | null): string | null =>
-  at === null ? null : toAbsolute(at)
-
-export const toPreciseOrNone = (value: string | null): string => {
-  if (value === null) {
-    return none
-  }
-
-  const date = toValidDate(value)
-
-  return date === null ? none : toPreciseInstant(date)
-}
-
 /** Compared as instants: two ISO spellings of one moment need not sort as strings. */
 export const isAfter = (later: string, earlier: string): boolean => {
   const a = toValidDate(later)
@@ -143,38 +55,6 @@ export const isAfter = (later: string, earlier: string): boolean => {
 
   return a !== null && b !== null && a.getTime() > b.getTime()
 }
-
-/** Relative on the page, the same instant spelled out beside it. */
-export const toTimestamp = (value: string | null, now: Date): Timestamp => {
-  const date = value === null ? null : toValidDate(value)
-
-  if (date === null) {
-    return { text: '-', instant: '', precise: '' }
-  }
-
-  return {
-    text: toRelative(date, now),
-    instant: date.toISOString().replace('.000', ''),
-    precise: toPreciseInstant(date)
-  }
-}
-
-/** A time as every list draws it: relative, with the clock under it. */
-export interface TimeCell extends Timestamp {
-  clock: string
-}
-
-/** Only an ISO instant is read as a time; anything else is shown as stored, so a malformed date is never read as another. */
-export const toTimeCell = (value: string, now: Date): TimeCell =>
-  isIsoInstant(value)
-    ? { ...toTimestamp(value, now), clock: toClock(new Date(value), now) }
-    : { text: value || '""', instant: '', precise: '', clock: '' }
-
-/** Null when nothing is stored, which a list draws as a dash. */
-export const toStoredTimeCell = (
-  value: string | null,
-  now: Date
-): TimeCell | null => (value === null ? null : toTimeCell(value, now))
 
 /** The shared CDP logs pattern, so one link shows the trace across every service. */
 const indexPattern = 'e55f3890-5d4a-11ee-8f40-670c9b0b8093'

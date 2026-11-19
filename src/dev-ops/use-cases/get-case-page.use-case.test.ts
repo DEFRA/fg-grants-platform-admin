@@ -10,7 +10,7 @@ const ref = { workflowCode: 'woodland', caseRef: 'f02-7d8-a61' }
 const responseError = (statusCode: number, body: object = {}) =>
   Object.assign(new Error(`Response Error: ${statusCode}`), {
     output: { statusCode },
-    data: { payload: body }
+    data: { isResponseError: true, payload: body }
   })
 
 describe('getCasePageUseCase', () => {
@@ -36,14 +36,25 @@ describe('getCasePageUseCase', () => {
   })
 
   test.each([
-    ['CW timing out', 504, 'timed-out'],
-    ['CW down', 502, 'unavailable']
-  ])('reads %s as an outage', async (_name, status, outcome) => {
+    ['CW timing out', 504, 'timed-out', { kind: 'timed-out' }],
+    ['CW down', 502, 'unavailable', { kind: 'errored', upstream: true }]
+  ])('reads %s as an outage', async (_name, status, outcome, failure) => {
     vi.mocked(findCasePage).mockRejectedValue(responseError(status))
 
-    await expect(getCasePageUseCase(ref, 'events')).resolves.toEqual({
+    await expect(getCasePageUseCase(ref, 'events')).resolves.toMatchObject({
       outcome,
-      page: null
+      page: null,
+      failure
+    })
+  })
+
+  test('carries how the read failed, so the page can name the service it is down to', async () => {
+    vi.mocked(findCasePage).mockRejectedValue(responseError(502))
+
+    await expect(getCasePageUseCase(ref, 'events')).resolves.toEqual({
+      outcome: 'unavailable',
+      page: null,
+      failure: { kind: 'errored', upstream: true }
     })
   })
 })

@@ -1,0 +1,2 @@
+{%- from "../../core/macros.njk" import attrs, cls -%}
+<gpa-accordion{% if p.single %} data-single{% endif %}{% if p.headingLevel %} data-heading-level="{{ p.headingLevel }}"{% endif %}><div class="{{ cls('gpa-accordion' ~ (' gpa-accordion-framed' if p.framed else '') ~ (' gpa-accordion-sm' if p.size == 'sm' else ''), p) }}"{{ attrs(p) }}>{{ caller() | replace('role="heading" aria-level="3"', 'role="heading" aria-level="' ~ (p.headingLevel or 3) ~ '"') | safe }}</div></gpa-accordion>

@@ -25,6 +25,10 @@ declare module '@hapi/hapi' {
     getTraceId(): string | null
   }
 
+  interface RequestApplicationState {
+    upstream?: import('../../dev-ops/upstream.ts').Upstream
+  }
+
   interface PluginProperties {
     'hapi-auth-oidc': {
       oidc: {

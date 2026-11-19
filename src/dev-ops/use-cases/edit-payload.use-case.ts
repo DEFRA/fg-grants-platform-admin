@@ -1,11 +1,21 @@
 import { logger } from '../../common/logger.ts'
 import { statusCodes } from '../../common/status-codes.ts'
 import type {
+  EventDetail,
   EventKey,
-  PayloadEdit
+  PayloadEdit,
+  SaveRedrive
 } from '../repositories/events.repository.ts'
 import { editPayload } from '../repositories/events.repository.ts'
-import { toGasErrorField, toGasStatusCode } from './gas-status.ts'
+import {
+  isUnanswered,
+  toGasErrorBody,
+  toGasErrorField,
+  toGasFailure,
+  toGasStatusCode
+} from './gas-status.ts'
+import type { GasFailure } from './gas-status.ts'
+import type { RedriveResult } from './redrive-event.use-case.ts'
 
 /**
  * `conflict`: the event can no longer be edited, so the page names the state it is in.
@@ -27,14 +37,20 @@ export interface EditResult {
   status: string | null
   /** Only a refusal reports one, and only when the backend named it. */
   reason: string | null
+  /** Only a save that went unanswered or failed reports one. */
+  failure: GasFailure | null
+  /** Save and redrive: the redrive that followed a save that landed. */
+  redrive: RedriveResult | null
+  /** Only a stale save reports one: the event as it is now, null when GAS couldn't read it again. */
+  current: EventDetail | null
 }
 
-/** A timeout leaves the save's outcome unknown: the owning service may still have applied it. */
+const unsaved = { redrive: null, current: null }
+
 const failureOutcomes: Record<number, EditOutcome> = {
   [statusCodes.notFound]: 'not-found',
   [statusCodes.preconditionFailed]: 'stale',
-  [statusCodes.unprocessableEntity]: 'refused',
-  [statusCodes.gatewayTimeout]: 'timed-out'
+  [statusCodes.unprocessableEntity]: 'refused'
 }
 
 const isClientError = (statusCode: number): boolean =>
@@ -56,20 +72,52 @@ const toFailureOutcome = (statusCode: number | null): EditOutcome => {
 const toStatus = (error: unknown): string | null =>
   toGasErrorField(error, 'statusLabel') ?? toGasErrorField(error, 'status')
 
-const toOutcome = (error: unknown): EditResult => {
+const toCurrent = (error: unknown): EventDetail | null => {
+  const { event } = toGasErrorBody(error)
+
+  return typeof event === 'object' && event !== null
+    ? (event as EventDetail)
+    : null
+}
+
+/** Any answer but a conflict: a refusal names its reason, a stale save the event as it is now. */
+const toUnsaved = (
+  error: unknown,
+  failure: GasFailure,
+  outcome: EditOutcome
+): EditResult => ({
+  outcome,
+  status: null,
+  reason: outcome === 'refused' ? toGasErrorField(error, 'reason') : null,
+  failure: outcome === 'unavailable' ? failure : null,
+  ...unsaved,
+  current: outcome === 'stale' ? toCurrent(error) : null
+})
+
+/** The service answered: a conflict names the state the event is in, a refusal its reason. */
+const toAnswered = (error: unknown, failure: GasFailure): EditResult => {
   const statusCode = toGasStatusCode(error)
 
   if (statusCode === statusCodes.conflict) {
-    return { outcome: 'conflict', status: toStatus(error), reason: null }
+    return {
+      outcome: 'conflict',
+      status: toStatus(error),
+      reason: null,
+      failure: null,
+      ...unsaved
+    }
   }
 
-  const outcome = toFailureOutcome(statusCode)
+  return toUnsaved(error, failure, toFailureOutcome(statusCode))
+}
 
-  return {
-    outcome,
-    status: null,
-    reason: outcome === 'refused' ? toGasErrorField(error, 'reason') : null
-  }
+/** A save nobody answered leaves its outcome unknown: the owning service may still have applied it. */
+const toOutcome = (error: unknown): EditResult => {
+  const failure = toGasFailure(error)
+
+  return isUnanswered(failure)
+    ? { outcome: 'timed-out', status: null, reason: null, failure, ...unsaved }
+    : toAnswered(error, failure)
 }
 
 /** The backend answered: the event moved on, went away, was edited first or the payload was refused. */
@@ -99,14 +147,57 @@ const logOutcome = (key: EventKey, { outcome }: EditResult) => {
   )
 }
 
-/** `actor` goes to the backend on `x-actor`, so `lastEdit` names a person. */
+const redriven: RedriveResult = {
+  outcome: 'redriven',
+  status: null,
+  failure: null
+}
+
+/** GAS saved, then couldn't redrive: a redrive that failed, the save standing. */
+const redriveFailed: RedriveResult = {
+  outcome: 'unavailable',
+  status: null,
+  failure: { kind: 'errored' }
+}
+
+const settledRedrives = { redriven, failed: redriveFailed }
+
+const toRedriveConflict = ({
+  status,
+  statusLabel
+}: Extract<SaveRedrive, { outcome: 'conflict' }>): RedriveResult => ({
+  outcome: 'conflict',
+  status: statusLabel ?? status,
+  failure: null
+})
+
+/** The redrive GAS made after the save, in the words a redrive of its own is reported in. */
+const toRedrive = (redrive: SaveRedrive | null): RedriveResult | null => {
+  if (redrive === null) {
+    return null
+  }
+
+  return redrive.outcome === 'conflict'
+    ? toRedriveConflict(redrive)
+    : settledRedrives[redrive.outcome]
+}
+
+/** `actor` goes to the backend on `x-actor`, so `lastEdit` names a person. Save and redrive is one call: GAS redrives a save that landed. */
 export const editPayloadUseCase = async (
   key: EventKey,
   edit: PayloadEdit,
-  actor: string
+  actor: string,
+  redrive: boolean
 ): Promise<EditResult> => {
-  const result = await editPayload(key, edit, actor).then(
-    (): EditResult => ({ outcome: 'saved', status: null, reason: null }),
+  const result = await editPayload(key, edit, actor, redrive).then(
+    (saved): EditResult => ({
+      outcome: 'saved',
+      status: null,
+      reason: null,
+      failure: null,
+      redrive: toRedrive(saved.redrive),
+      current: null
+    }),
     toOutcome
   )
 

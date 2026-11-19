@@ -1,9 +1,16 @@
-import type { EventRow } from './events.repository.ts'
+import type { EventRow, SourceError } from './events.repository.ts'
 
 // Shapes GAS uses alike for its lists and its application and case pages.
 
 export interface Position {
   phase: string | null
+  stage: string | null
+  status: string | null
+}
+
+/** The phases of the definition the record's version names, in order, and its own stage and status by name. */
+export interface PositionNames {
+  phases: { code: string; name: string | null }[]
   stage: string | null
   status: string | null
 }
@@ -29,6 +36,19 @@ export interface RecordEvents {
   more: boolean
 }
 
+/** A version's own events, which GAS reads beside its Overview within its own time limit. */
+export type VersionEvents<Read extends object = object> =
+  | ({
+      outcome: 'read'
+      events: RecordEvents
+      sourceErrors: SourceError[]
+    } & Read)
+  | { outcome: 'timed-out' }
+  | { outcome: 'failed' }
+
+/** A grant version's: GAS says whether it is past its deletion date, by its own retention. */
+export type GrantVersionEvents = VersionEvents<{ pastDeletion: boolean }>
+
 export interface RecordSectionError {
   section: string
   message: string
@@ -40,7 +60,3 @@ export type RecordTab = (typeof recordTabs)[number]
 
 /** Null while the other service could not say whether the counterpart exists. */
 export type Counterpart = { exists: boolean } | null
-
-/** Marks a Back or a refresh re-running a first page already shown, so GAS audits it as a repeat. */
-export const toRepeatOptions = (repeat: boolean) =>
-  repeat ? { headers: { 'x-search-repeat': '1' } } : {}

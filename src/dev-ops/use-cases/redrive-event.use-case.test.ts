@@ -1,3 +1,5 @@
+import Boom from '@hapi/boom'
+
 import { logger } from '../../common/logger.ts'
 import type { EventKey } from '../repositories/events.repository.ts'
 import { redriveEvent } from '../repositories/events.repository.ts'
@@ -15,7 +17,7 @@ const key: EventKey = {
 const responseError = (statusCode: number, body: object = {}) =>
   Object.assign(new Error(`Response Error: ${statusCode}`), {
     output: { statusCode },
-    data: { payload: body, res: {} }
+    data: { isResponseError: true, payload: body, res: {} }
   })
 
 describe('redriveEventUseCase', () => {
@@ -33,7 +35,8 @@ describe('redriveEventUseCase', () => {
   test('reports a redrive the backend accepted', async () => {
     await expect(redriveEventUseCase(key)).resolves.toEqual({
       outcome: 'redriven',
-      status: null
+      status: null,
+      failure: null
     })
   })
 
@@ -48,7 +51,8 @@ describe('redriveEventUseCase', () => {
 
     await expect(redriveEventUseCase(key)).resolves.toEqual({
       outcome: 'conflict',
-      status: 'Resubmitted'
+      status: 'Resubmitted',
+      failure: null
     })
   })
 
@@ -69,7 +73,8 @@ describe('redriveEventUseCase', () => {
 
     await expect(redriveEventUseCase(key)).resolves.toEqual({
       outcome: 'conflict',
-      status: null
+      status: null,
+      failure: null
     })
   })
 
@@ -88,7 +93,8 @@ describe('redriveEventUseCase', () => {
 
     await expect(redriveEventUseCase(key)).resolves.toEqual({
       outcome: 'not-found',
-      status: null
+      status: null,
+      failure: null
     })
   })
 
@@ -97,16 +103,39 @@ describe('redriveEventUseCase', () => {
 
     await expect(redriveEventUseCase(key)).resolves.toEqual({
       outcome: 'timed-out',
-      status: null
+      status: null,
+      failure: { kind: 'timed-out' }
     })
   })
 
-  test('reports a backend that could not be reached as unavailable', async () => {
+  test.each([
+    ['wreck’s own 408, its read timing out', Boom.clientTimeout()],
+    [
+      'a connection reset before GAS answered',
+      Object.assign(Boom.badGateway('Client request error'), {
+        code: 'ECONNRESET'
+      })
+    ]
+  ])(
+    'reports %s as unanswered: GAS may still have redriven it',
+    async (_name, error) => {
+      vi.mocked(redriveEvent).mockRejectedValue(error)
+
+      await expect(redriveEventUseCase(key)).resolves.toEqual({
+        outcome: 'timed-out',
+        status: null,
+        failure: { kind: 'no-answer' }
+      })
+    }
+  )
+
+  test('reports the service behind GAS failing as unavailable', async () => {
     vi.mocked(redriveEvent).mockRejectedValue(responseError(502))
 
     await expect(redriveEventUseCase(key)).resolves.toEqual({
       outcome: 'unavailable',
-      status: null
+      status: null,
+      failure: { kind: 'errored', upstream: true }
     })
   })
 

@@ -11,8 +11,16 @@ import {
   rotateToken
 } from '../repositories/clients.repository.ts'
 
-vi.mock(import('../use-cases/get-catalogue.use-case.ts'))
-vi.mock(import('../repositories/clients.repository.ts'))
+vi.mock(import('../use-cases/shell-catalogue.ts'))
+vi.mock(import('../repositories/clients.repository.ts'), async (original) => ({
+  ...(await original()),
+  changeTokenExpiry: vi.fn(),
+  deleteToken: vi.fn(),
+  issueToken: vi.fn(),
+  listTokens: vi.fn(),
+  revokeToken: vi.fn(),
+  rotateToken: vi.fn()
+}))
 // Every line the app logs, request logs from hapi-pino included, kept to read back.
 vi.mock(import('../../common/logger.ts'), async () => {
   const { pino } = await import('pino')
@@ -49,6 +57,7 @@ const token: ListedToken = {
   revokedAt: null,
   revokedBy: null,
   inUse: false,
+  expiringSoon: false,
   stored: { _id: { $oid: '6650c1f2a9e4b1d07c20bd91' }, id: 'a1b••••••f2c' }
 }
 
@@ -68,7 +77,7 @@ const secretsOf = (
   payload: string,
   sent: { tokenHash: string; tokenHint: string }
 ) => [
-  load(payload)('[data-testid="token-reveal-token"]').text(),
+  load(payload)('#token-issued-value').attr('value') ?? '',
   sent.tokenHash,
   sent.tokenHint
 ]
@@ -91,12 +100,13 @@ afterAll(async () => {
 describe('the access token writes, as logged', () => {
   test('log neither the token, its hash nor its hint on New token', async () => {
     vi.mocked(issueToken).mockImplementation(async (_s, _c, sent) => ({
-      ...token,
-      tokenHint: sent.tokenHint
+      token: { ...token, tokenHint: sent.tokenHint },
+      tokens: [token]
     }))
 
     const { payload } = await post('/dev-ops/clients/gas/tokens', {
       clientId: 'grants-ui',
+      confirmFor: 'grants-ui',
       expiry: '90',
       date: ''
     })
@@ -111,8 +121,8 @@ describe('the access token writes, as logged', () => {
 
   test('log neither the token, its hash nor its hint on Rotate', async () => {
     vi.mocked(rotateToken).mockImplementation(async (_k, sent) => ({
-      ...token,
-      tokenHint: sent.tokenHint
+      token: { ...token, tokenHint: sent.tokenHint },
+      tokens: [token]
     }))
 
     const { payload } = await post(
@@ -144,5 +154,73 @@ describe('the access token writes, as logged', () => {
     expect(lines.join('')).toContain('Could not rotate token')
     expect(lines.join('')).not.toContain(sent.tokenHash)
     expect(lines.join('')).not.toContain(sent.tokenHint)
+  })
+})
+
+/** As @hapi/wreck rejects for GAS's answer, its body as Hapi sends it. */
+const gasAnswer = (statusCode: number, error: string, message: string) =>
+  new Boom.Boom(`Response Error: ${statusCode}`, {
+    statusCode,
+    data: {
+      isResponseError: true,
+      payload: { statusCode, error, message }
+    }
+  })
+
+const get = (url: string) =>
+  server.inject({
+    method: 'GET',
+    url,
+    auth: { strategy: 'session', credentials }
+  })
+
+const alertOf = (payload: string) => {
+  const $ = load(payload)
+  const alert = $('[data-testid="tokens-alert"]')
+
+  return {
+    warning: alert.hasClass('gpa-alert-warning'),
+    title: alert.find('.gpa-alert-title').text().trim(),
+    text: alert.find('.gpa-alert-body > div').first().text().trim(),
+    retry: alert.find('.gpa-alert-actions a').length > 0
+  }
+}
+
+describe('the tokens list, from the answers GAS gives', () => {
+  test('a GAS with no token routes answers Hapi’s 404: a warning, logged as one', async () => {
+    vi.mocked(listTokens).mockRejectedValue(
+      gasAnswer(404, 'Not Found', 'Not Found')
+    )
+
+    const { statusCode, payload } = await get('/dev-ops/clients/gas')
+
+    expect(statusCode).toBe(200)
+    expect(alertOf(payload)).toEqual({
+      warning: true,
+      title: 'This GAS doesn’t offer access tokens.',
+      text: 'It’s an older version without the access tokens API. Tokens can be managed here once GAS is upgraded.',
+      retry: false
+    })
+    expect(
+      lines
+        .map((line) => JSON.parse(line) as { level: number; msg: string })
+        .find(({ msg }) => msg.includes('has no access token routes'))?.level
+    ).toBe(40)
+  })
+
+  test('GAS’s 502 for a CW with no client routes says GAS answered with an error', async () => {
+    vi.mocked(listTokens).mockRejectedValue(
+      gasAnswer(502, 'Bad Gateway', 'CW-BE has no client routes')
+    )
+
+    const { statusCode, payload } = await get('/dev-ops/clients/cw')
+
+    expect(statusCode).toBe(503)
+    expect(alertOf(payload)).toEqual({
+      warning: false,
+      title: 'The tokens list couldn’t be loaded.',
+      text: 'GAS answered with an error. Nothing has changed — try again in a moment; if it keeps failing, check GAS’s logs.',
+      retry: true
+    })
   })
 })

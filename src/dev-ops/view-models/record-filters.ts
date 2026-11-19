@@ -1,6 +1,7 @@
 import Joi from 'joi'
 import type { Schema } from 'joi'
 
+import { toVersionName } from './record-type.ts'
 import type { RecordType } from './record-type.ts'
 
 const refMax = 100
@@ -72,9 +73,19 @@ const dropInnermostBack = (back: string): string => {
   return `${url.pathname}${url.search}`
 }
 
-/** A `back` short enough to pass `backSchema`: its innermost `back` goes first, then the next. */
-export const toFittingBack = (back: string): string =>
-  back.length <= fromMax ? back : toFittingBack(dropInnermostBack(back))
+/**
+ * A `back` short enough to pass `backSchema`: its innermost `back` goes first,
+ * then the next. One whose own address is too long fits as none.
+ */
+export const toFittingBack = (back: string): string => {
+  if (back.length <= fromMax) {
+    return back
+  }
+
+  const shorter = dropInnermostBack(back)
+
+  return shorter === back ? '' : toFittingBack(shorter)
+}
 
 /** A part that is not valid percent-encoding is named as written, never an error page. */
 const decode = (part: string): string => {
@@ -91,11 +102,13 @@ const backPages: [RegExp, (parts: string[]) => string][] = [
   [/^\/dev-ops\/cases\/[^/]+\/[^/]+$/, () => 'case'],
   [
     /^\/dev-ops\/grants\/([^/]+)\/([^/]+)$/,
-    ([code, version]) => `grant ${decode(code)} ${decode(version)}`
+    ([code, version]) =>
+      `grant ${toVersionName({ code: decode(code), version: decode(version) })}`
   ],
   [
     /^\/dev-ops\/workflows\/([^/]+)\/([^/]+)$/,
-    ([code, version]) => `workflow ${decode(code)} ${decode(version)}`
+    ([code, version]) =>
+      `workflow ${toVersionName({ code: decode(code), version: decode(version) })}`
   ],
   [/^\/dev-ops\/events\/[^/]+\/[^/]+\/[^/]+$/, () => 'event']
 ]

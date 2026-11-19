@@ -1,18 +1,16 @@
 import type { Request, ResponseToolkit, ServerRoute } from '@hapi/hapi'
 import Joi from 'joi'
 
-import type { EventDetail, EventKey } from '../use-cases/get-event.use-case.ts'
-import { getEventUseCase } from '../use-cases/get-event.use-case.ts'
-import type { PurgeResult } from '../use-cases/purge-event.use-case.ts'
+import type { EventKey } from '../use-cases/get-event.use-case.ts'
 import { purgeEventUseCase } from '../use-cases/purge-event.use-case.ts'
 import { eventAddress, toEventKey } from '../view-models/event-address.ts'
 import { toEventHref } from '../view-models/event-formats.ts'
 import {
+  eventBannerId,
   purgeFormKey,
   redriveNoticeKey,
   toSafeFrom
 } from '../view-models/event-page.view-model.ts'
-import { isDeadLetterStatus } from '../view-models/event-state.ts'
 import { toPurgeFormError, toPurgeNote } from '../view-models/purge-form.ts'
 import { toActor } from '../../common/view-models/actor.ts'
 import { seeOther } from '../view-models/see-other.ts'
@@ -44,30 +42,11 @@ const toQuery = (from: string, reopen: boolean): string => {
   return params.size ? `?${params}` : ''
 }
 
-/** A rejected form reopens the panel on the payload card, so the alert it sends focus to is on screen. */
+const bannerHash = `#${eventBannerId}`
+
+/** A rejected form is handed back in the dialog, drawn open; a purge lands on the banner that says how it went. */
 const toRedirect = (key: EventKey, from: string, reopen: boolean): string =>
-  `${toEventHref(key)}${toQuery(from, reopen)}${reopen ? '#payload' : ''}`
-
-/** The same gate the page draws the button behind. */
-const isPurgeable = (event: EventDetail): boolean =>
-  isDeadLetterStatus(event.status) && (event.purgeDeletionDate ?? null) !== null
-
-/**
- * The gate again, for the tab that has been open since before the event moved
- * on. The fence is the backend's; this only keeps the answer honest, since a
- * purge of an event that is no longer dead-lettered comes back as a 404 the
- * operator would read as "the event is gone".
- *
- * A read that did not land says nothing about the event, so it purges: the
- * backend refuses it if it must.
- */
-const toStaleOutcome = async (key: EventKey): Promise<PurgeResult | null> => {
-  const { outcome, event } = await getEventUseCase(key)
-
-  return outcome === 'found' && event !== null && !isPurgeable(event)
-    ? { outcome: 'conflict', status: event.statusLabel }
-    : null
-}
+  `${toEventHref(key)}${toQuery(from, reopen)}${reopen ? '' : bannerHash}`
 
 /**
  * No CSRF token and no `options.auth`, for the reasons the redrive route
@@ -110,9 +89,7 @@ export const purgeEventRoute: ServerRoute = {
       return h.redirect(toRedirect(key, safeFrom, true)).code(seeOther)
     }
 
-    const result =
-      (await toStaleOutcome(key)) ??
-      (await purgeEventUseCase(key, submission, toActor(request)))
+    const result = await purgeEventUseCase(key, submission, toActor(request))
 
     request.yar.flash(redriveNoticeKey, { ...result, action: 'purge', page })
 

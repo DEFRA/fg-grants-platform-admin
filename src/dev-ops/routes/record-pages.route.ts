@@ -8,7 +8,7 @@ import { getApplicationPageUseCase } from '../use-cases/get-application-page.use
 import { getCasePageUseCase } from '../use-cases/get-case-page.use-case.ts'
 import { getGrantPageUseCase } from '../use-cases/get-grant-page.use-case.ts'
 import type {
-  GrantVersionPage,
+  GrantPage,
   GrantVersionRef
 } from '../use-cases/get-grant-page.use-case.ts'
 import type { GrantTabId } from '../use-cases/grant-tabs.ts'
@@ -18,8 +18,9 @@ import { getWorkflowVersionsUseCase } from '../use-cases/get-workflow-versions.u
 import type { HiddenTab, RecordResult } from '../use-cases/record-reads.ts'
 import { toApplicationPage } from '../view-models/application-page.view-model.ts'
 import { applicationType } from '../view-models/applications-page.view-model.ts'
-import { getCatalogueUseCase } from '../use-cases/get-catalogue.use-case.ts'
-import type { Catalogue } from '../use-cases/get-catalogue.use-case.ts'
+import { shellCatalogue } from '../use-cases/shell-catalogue.ts'
+import type { Catalogue } from '../use-cases/shell-catalogue.ts'
+import type { GasFailure } from '../use-cases/gas-status.ts'
 import { toBackBucket, toListAt } from '../view-models/bucket-nav.ts'
 import { toCasePage } from '../view-models/case-page.view-model.ts'
 import { caseType } from '../view-models/cases-page.view-model.ts'
@@ -27,7 +28,10 @@ import { toSafeFrom } from '../view-models/event-page.view-model.ts'
 import { definitionFetchNoticeKey } from '../view-models/definition-fetch.ts'
 import type { DefinitionFetchFlash } from '../view-models/definition-fetch.ts'
 import { toGrantPage } from '../view-models/grant-page.view-model.ts'
-import type { GrantPageQuery } from '../view-models/grant-page.view-model.ts'
+import type {
+  GrantPageModel,
+  GrantPageQuery
+} from '../view-models/grant-page.view-model.ts'
 import { grantType } from '../view-models/grants-page.view-model.ts'
 import { recordPageCache } from '../view-models/list-filters.ts'
 import {
@@ -41,14 +45,28 @@ import {
   workflowCodeSchema
 } from '../view-models/record-filters.ts'
 import { toTabHref } from '../view-models/record-page.view-model.ts'
-import type { RecordPageModel } from '../view-models/record-page.view-model.ts'
-import { roles as appRoles } from '../../common/roles.ts'
 import type { RecordType } from '../view-models/record-type.ts'
+import { toBackHref } from '../view-models/record-view.ts'
 import { toVersionPath } from '../view-models/record-type.ts'
 import { toWorkflowPage } from '../view-models/workflow-page.view-model.ts'
+import { shellQuery, timesOf, withoutShellKeys } from '../view-models/times.ts'
+import type { Times } from '../view-models/times.ts'
+import {
+  missingStatusCodes,
+  toRecordMissing
+} from '../view-models/record-missing.ts'
+import type { MissingState } from '../view-models/record-missing.ts'
+import type { Zone } from '../view-models/zoned-clock.ts'
 import { workflowType } from '../view-models/workflows-page.view-model.ts'
 
-interface RecordPageRoute<K, P, T extends string, N, Q> {
+interface RecordPageRoute<
+  K,
+  P,
+  T extends string,
+  N,
+  Q,
+  M extends { navActive: string | null }
+> {
   record: RecordType
   /** Each URL param after the record's path, in order, with its schema. */
   params: Record<keyof K & string, Schema>
@@ -63,13 +81,12 @@ interface RecordPageRoute<K, P, T extends string, N, Q> {
       notice?: N
       query: Q
       catalogue: Catalogue | null
-      roles: string[]
+      zone: Zone
+      times: Times
     }
-  ) => RecordPageModel
+  ) => M
   /** Where a write leaves its outcome for the one render after it. */
   noticeKey?: keyof YarFlashes
-  /** Its URL names a config version, so a version the service has not got keeps the page's shell. */
-  versioned?: boolean
 }
 
 type RecordPageQuery<T> = {
@@ -83,6 +100,16 @@ const toNavActive = (
   from: string
 ): string | null => toBackBucket(catalogue, from)?.id ?? null
 
+/** Opened from no list, a record sits under its own. */
+const toRecordNav = (
+  catalogue: Catalogue | null,
+  record: RecordType,
+  from: string
+): string | null => toNavActive(catalogue, toBackHref(record, from))
+
+const capitalised = (text: string): string =>
+  `${text.charAt(0).toUpperCase()}${text.slice(1)}`
+
 /** What the Back link says: where `back` leads, else the record's own list. */
 const labelAt = (catalogue: Catalogue | null, href: string): string | null =>
   toListAt(catalogue, href)?.label ?? null
@@ -94,7 +121,7 @@ const toRecordBackLabel = (
 ): string =>
   toBackLabel(from, {
     listLabel: labelAt(catalogue, from),
-    ownListLabel: labelAt(catalogue, record.path) ?? record.listId
+    ownListLabel: labelAt(catalogue, record.path) ?? capitalised(record.listId)
   })
 
 /** Without a list to go back to, a record sits under its own. */
@@ -103,8 +130,6 @@ const withNav = <M extends { navActive: string | null }>(
   navActive: string | null
 ): M => ({ ...model, navActive: navActive ?? model.navActive })
 
-const notFound = 404
-
 /** Taken before the read, so it is spent on this render whatever the read then says. */
 const takeNotice = <N>(
   request: Request,
@@ -112,27 +137,44 @@ const takeNotice = <N>(
 ): N | undefined =>
   key ? (request.yar.flash(key) as unknown as N[])[0] : undefined
 
-/** A record that could not be read keeps its shell; with no `back` it goes back to, and sits under, its own list. */
-const unavailableView = (
+/** The record's page with the reason in place of the record; with no `back` it goes back to, and sits under, its own list. */
+const missingView = (
+  request: Request,
   h: ResponseToolkit,
   record: RecordType,
-  ref: string,
   {
     from,
     catalogue,
-    outcome
-  }: { from: string; catalogue: Catalogue | null; outcome: string }
-) =>
-  h.view(record.view, {
-    pageTitle: record.title,
+    state,
+    failure
+  }: {
+    from: string
+    catalogue: Catalogue | null
+    state: MissingState
+    failure?: GasFailure
+  }
+) => {
+  const missing = toRecordMissing(
     record,
-    ref,
-    backHref: from || record.path,
-    backLabel: toRecordBackLabel(catalogue, record, from),
-    navActive: toNavActive(catalogue, from || record.path),
-    unavailable: true,
-    timedOut: outcome === 'timed-out'
-  })
+    request.params,
+    state,
+    request,
+    failure
+  )
+
+  return h
+    .view('record-missing', {
+      pageTitle: missing.pageTitle,
+      missing,
+      backHref: toBackHref(record, from),
+      backLabel: toRecordBackLabel(catalogue, record, from),
+      navActive: toNavActive(catalogue, toBackHref(record, from))
+    })
+    .code(missingStatusCodes[state])
+}
+
+const toMissingState = (outcome: string): MissingState =>
+  outcome === 'timed-out' ? 'timed-out' : 'unavailable'
 
 /** `tab` and `back` on every record page, then whatever else its tabs read. */
 const toQuerySchema = (
@@ -140,70 +182,46 @@ const toQuerySchema = (
   query: Record<string, Schema> = {}
 ) =>
   Joi.object({
-    tab: recordTabSchema(record).default('overview'),
+    tab: recordTabSchema(record)
+      .valid(...(record.retiredTabs ?? []))
+      .default('overview'),
     back: backSchema,
-    ...query
+    ...query,
+    ...shellQuery
   })
 
-/** Hapi types the credentials scope as either one role or many. */
-const rolesOf = (request: Request): string[] =>
-  [request.auth.credentials.scope ?? []].flat()
+/** An old link to a tab the page no longer has opens its Overview, keeping where it goes back to. */
+const toRetiredTabRedirect =
+  ({ retiredTabs = [] }: RecordType) =>
+  (request: Request, h: ResponseToolkit) => {
+    const { tab, back } = request.query as RecordPageQuery<string>
 
-/** A version the service has no record of keeps the record's shell, and says where a rejected one went. */
-const missingVersionView = async (
-  h: ResponseToolkit,
-  record: RecordType,
-  { code, version }: { code: string; version: string },
-  from: string
-) => {
-  const catalogue = await getCatalogueUseCase()
-
-  return h
-    .view(record.view, {
-      pageTitle: record.title,
-      record,
-      ref: code,
-      backHref: from || record.path,
-      backLabel: toRecordBackLabel(catalogue, record, from),
-      navActive: toNavActive(catalogue, from || record.path),
-      missingVersion: { source: record.source, code, version }
-    })
-    .code(notFound)
-}
-
-/** A version the service has not got keeps the shell; any other record is GPA's own 404. */
-const notFoundView = (
-  h: ResponseToolkit,
-  record: RecordType,
-  versioned: boolean,
-  request: Request,
-  from: string
-) => {
-  if (!versioned) {
-    throw Boom.notFound()
+    return retiredTabs.includes(tab)
+      ? h
+          .redirect(toTabHref(request.path, 'overview', toSafeFrom(back)))
+          .takeover()
+      : h.continue
   }
 
-  return missingVersionView(
-    h,
-    record,
-    request.params as { code: string; version: string },
-    from
-  )
-}
-
 /**
- * One tab of one record per render. A record GAS has not got is GPA's own 404
- * page; any other failure keeps the page, with the reason in place of the tab.
+ * One tab of one record per render. A record the service has not got, or
+ * could not read, is its page with the reason in place of the record.
  */
-const recordPageRoute = <K, P, T extends string, N = never, Q = object>({
+const recordPageRoute = <
+  K,
+  P,
+  T extends string,
+  N = never,
+  Q = object,
+  M extends { navActive: string | null } = { navActive: string | null }
+>({
   record,
   params,
   query,
   read,
   toPage,
-  noticeKey,
-  versioned = false
-}: RecordPageRoute<K, P, T, N, Q>): ServerRoute => ({
+  noticeKey
+}: RecordPageRoute<K, P, T, N, Q, M>): ServerRoute => ({
   method: 'GET',
   path: [record.path, ...Object.keys(params).map((name) => `{${name}}`)].join(
     '/'
@@ -213,43 +231,53 @@ const recordPageRoute = <K, P, T extends string, N = never, Q = object>({
     validate: {
       params: recordParamsSchema(params),
       query: toQuerySchema(record, query)
-    }
+    },
+    pre: [{ method: toRetiredTabRedirect(record) }]
   },
   async handler(request: Request, h: ResponseToolkit) {
     const key = request.params as unknown as K
-    const { tab, back, ...extra } = request.query as RecordPageQuery<T>
+    const { tab, back, ...extra } = withoutShellKeys(
+      request.query as RecordPageQuery<T>
+    )
     const from = toSafeFrom(back)
     const notice = takeNotice<N>(request, noticeKey)
-    const { outcome, page } = await read(key, tab)
+    const { outcome, page, failure } = await read(key, tab)
 
     if (outcome === 'not-found') {
-      return notFoundView(h, record, versioned, request, from)
+      return missingView(request, h, record, {
+        from,
+        catalogue: shellCatalogue(request),
+        state: 'not-found'
+      })
     }
 
     if (outcome === 'hidden') {
       return h.redirect(toTabHref(request.path, 'overview', from))
     }
 
-    const catalogue = await getCatalogueUseCase()
+    const catalogue = shellCatalogue(request)
 
     if (page === null) {
-      return unavailableView(h, record, request.params[record.titleParam], {
+      return missingView(request, h, record, {
         from,
         catalogue,
-        outcome
+        state: toMissingState(outcome),
+        failure
       })
     }
 
+    const times = timesOf(request)
     const model = toPage(page, tab, from, {
       notice,
       query: extra as Q,
       catalogue,
-      roles: rolesOf(request)
+      zone: times.zone,
+      times
     })
 
     return h.view(record.view, {
       pageTitle: record.title,
-      ...withNav(model, toNavActive(catalogue, from)),
+      ...withNav(model, toRecordNav(catalogue, record, from)),
       backLabel: toRecordBackLabel(catalogue, record, from)
     })
   }
@@ -278,24 +306,26 @@ const currentVersionRoute = ({
     validate: {
       params: recordParamsSchema({ code }),
       query: toQuerySchema(record, { status: statusSchema })
-    }
+    },
+    pre: [{ method: toRetiredTabRedirect(record) }]
   },
   async handler(request: Request, h: ResponseToolkit) {
     const { code: asked } = request.params
     const { tab, back, status } =
       request.query as unknown as RecordPageQuery<string>
     const from = toSafeFrom(back)
-    const { outcome, page } = await read(asked)
+    const { outcome, page, failure } = await read(asked)
 
     if (outcome === 'not-found') {
       throw Boom.notFound()
     }
 
     if (page === null) {
-      return unavailableView(h, record, asked, {
+      return missingView(request, h, record, {
         from,
-        catalogue: await getCatalogueUseCase(),
-        outcome
+        catalogue: shellCatalogue(request),
+        state: toMissingState(outcome),
+        failure
       })
     }
 
@@ -318,34 +348,32 @@ export const viewApplicationRoute = recordPageRoute({
   record: applicationType,
   params: { code: slugFilterSchema, clientRef: slugFilterSchema },
   read: getApplicationPageUseCase,
-  toPage: (page, tab, from) => toApplicationPage(page, tab, from)
+  toPage: (page, tab, from, { times, catalogue }) =>
+    toApplicationPage(page, tab, { from, times, catalogue })
 })
 
 export const viewCaseRoute = recordPageRoute({
   record: caseType,
   params: { workflowCode: slugFilterSchema, caseRef: slugFilterSchema },
   read: getCasePageUseCase,
-  toPage: (page, tab, from) => toCasePage(page, tab, from)
+  toPage: (page, tab, from, { times, catalogue }) =>
+    toCasePage(page, tab, { from, times, catalogue })
 })
 
 export const viewGrantRoute = recordPageRoute<
   GrantVersionRef,
-  GrantVersionPage,
+  GrantPage,
   GrantTabId,
   DefinitionFetchFlash,
-  GrantPageQuery
+  GrantPageQuery,
+  GrantPageModel
 >({
   record: grantType,
   params: { code: slugFilterSchema, version: versionSchema },
   query: { status: statusSchema },
   read: getGrantPageUseCase,
-  toPage: (page, tab, from, { roles, ...options }) =>
-    toGrantPage(page, tab, from, {
-      ...options,
-      canAdministerGrants: roles.includes(appRoles.grantApplicationsAdmin)
-    }),
-  noticeKey: definitionFetchNoticeKey,
-  versioned: true
+  toPage: toGrantPage,
+  noticeKey: definitionFetchNoticeKey
 })
 
 export const viewCurrentGrantRoute = currentVersionRoute({
@@ -360,8 +388,7 @@ export const viewWorkflowRoute = recordPageRoute({
   query: { status: statusSchema },
   read: getWorkflowPageUseCase,
   toPage: toWorkflowPage,
-  noticeKey: definitionFetchNoticeKey,
-  versioned: true
+  noticeKey: definitionFetchNoticeKey
 })
 
 export const viewCurrentWorkflowRoute = currentVersionRoute({

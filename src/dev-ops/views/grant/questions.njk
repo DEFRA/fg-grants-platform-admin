@@ -1,0 +1,96 @@
+{% from "version/words.njk" import words %}
+{%- if questions.kind == 'no-phases' -%}
+  {{ gpa.Alert({ tone: 'danger', title: 'The grant definition has no phases: every submission throws.', text: 'GAS checks submissions against the first phase’s questions, and there is none. Publish a version with at least one phase.', testId: 'questions-no-phases' }) }}
+{%- else -%}
+  {%- set notChecked -%}
+    {%- call gpa.Tooltip({ text: 'GAS validates submissions against the first phase only. Later phases are kept for reference.', focusable: true }) -%}
+      {{ gpa.Badge({ text: 'Not checked on submission', tone: 'warning', size: 'sm', testId: 'questions-not-checked' }) }}
+    {%- endcall -%}
+  {%- endset -%}
+  {%- set closedText = 'Properties not listed under it are removed on submission.' -%}
+  {%- call gpa.Stack({ gap: 'section' }) -%}
+    {%- for section in questions.sections -%}
+      {%- call gpa.Section({
+        title: section.title,
+        description: 'GAS checks every submission against these questions.' if section.checked,
+        actions: notChecked if not section.checked,
+        testId: 'questions-phase'
+      }) -%}{%- call gpa.Stack({ gap: 'lg' }) -%}
+        {%- if section.subtitle %}{{ gpa.Text({ text: section.subtitle, tone: 'subtle', as: 'p', testId: 'questions-subtitle' }) }}{% endif -%}
+        {%- if section.body.kind == 'schema' -%}
+          {%- call gpa.Stack({ gap: 'lg' }) -%}
+            {%- if section.body.rows | length -%}
+              {%- call gpa.DataTable({ styleNonce: styleNonce, label: section.title ~ ' questions', columns: [
+                { key: 'path', label: 'Property', width: 'minmax(240px, 1.6fr)', mono: true },
+                { key: 'type', label: 'Type', width: 'minmax(150px, 0.8fr)' },
+                { key: 'required', label: 'Required', width: '96px' },
+                { key: 'constraints', label: 'Constraints', width: 'minmax(160px, 1.4fr)' }
+              ] }) -%}
+                {%- for row in section.body.rows -%}
+                  {%- call gpa.TableRow({ testId: 'questions-row' }) -%}
+                    <td role="cell" class="gpa-cell-mono">
+                      {%- call gpa.Stack({ gap: 'xs' }) -%}
+                        {{ gpa.Text({ text: row.path, mono: true }) }}
+                        {%- if row.title %}{{ gpa.Text({ text: row.title, tone: 'subtle', variant: 'body-sm', testId: 'questions-title' }) }}{% endif -%}
+                        {%- if row.from -%}
+                          {%- set from %}from {{ gpa.Code({ text: row.from }) }}{% endset -%}
+                          {{ gpa.Text({ html: from, tone: 'subtle', variant: 'body-sm', testId: 'questions-from' }) }}
+                        {%- endif -%}
+                        {%- if row.description %}{{ gpa.Text({ text: row.description, title: row.description, tone: 'subtle', variant: 'body-sm', truncate: true, testId: 'questions-description' }) }}{% endif -%}
+                      {%- endcall -%}
+                    </td>
+                    <td role="cell">
+                      {%- call gpa.Inline({ gap: 'xs' }) -%}
+                        {{ gpa.Text({ text: row.type, mono: true }) }}
+                        {%- if row.closed -%}
+                          {%- call gpa.Tooltip({ text: closedText, focusable: true }) -%}{{ gpa.Badge({ text: 'closed', size: 'sm', variant: 'outline', testId: 'questions-closed' }) }}{%- endcall -%}
+                        {%- endif -%}
+                      {%- endcall -%}
+                    </td>
+                    <td role="cell">{% if row.required %}{{ gpa.Text({ text: 'Yes' }) }}{% else %}{{ gpa.Text({ text: 'No', tone: 'subtle' }) }}{% endif %}</td>
+                    <td role="cell">
+                      {%- if row.constraints | length or row.defaultValue !== null -%}
+                        {%- call gpa.Inline({ gap: 'xs' }) -%}
+                          {%- if row.constraints | length %}{{ gpa.Text({ text: row.constraints | join(', '), mono: true }) }}{% endif -%}
+                          {%- if row.defaultValue !== null -%}
+                            {%- call gpa.Tooltip({ text: ('Filled' if section.checked else 'Would be filled') ~ ' in when missing', focusable: true }) -%}{{ gpa.Badge({ text: 'default ' ~ row.defaultValue, size: 'sm', variant: 'outline', testId: 'questions-default' }) }}{%- endcall -%}
+                          {%- endif -%}
+                        {%- endcall -%}
+                      {%- else %}{{ gpa.NoValue() }}{% endif -%}
+                    </td>
+                  {%- endcall -%}
+                {%- endfor -%}
+              {%- endcall -%}
+            {%- endif -%}
+            {%- if section.body.rules | length -%}
+              {%- call gpa.Section({ title: 'Rules', headingLevel: 3, testId: 'questions-rules' }) -%}
+                {%- call gpa.DataTable({ styleNonce: styleNonce, label: section.title ~ ' rules', columns: [
+                  { key: 'appliesTo', label: 'Applies to', width: 'minmax(160px, 1fr)' },
+                  { key: 'rule', label: 'Rule', width: 'minmax(240px, 3fr)' }
+                ] }) -%}
+                  {%- for rule in section.body.rules -%}
+                    {%- call gpa.TableRow({ testId: 'questions-rule' }) -%}
+                      <td role="cell">{{ gpa.Text({ html: words(rule.appliesTo) }) }}</td>
+                      <td role="cell">
+                        {%- call gpa.Stack({ gap: 'xs' }) -%}
+                          {{ gpa.Text({ html: words(rule.text) }) }}
+                          {%- for item in rule.items %}{{ gpa.Text({ html: words(item) }) }}{% endfor -%}
+                        {%- endcall -%}
+                      </td>
+                    {%- endcall -%}
+                  {%- endfor -%}
+                {%- endcall -%}
+              {%- endcall -%}
+            {%- endif -%}
+          {%- endcall -%}
+        {%- elif section.body.kind == 'problem' -%}
+          {{ gpa.Alert({ tone: 'danger', title: section.body.text, testId: 'questions-problem' }) }}
+        {%- else -%}
+          {%- call gpa.Card() -%}
+            {{ gpa.EmptyState({ compact: true, icon: 'list', title: 'Any answers are accepted.' if section.body.kind == 'any' else 'No questions in this phase.', testId: 'questions-empty' }) }}
+          {%- endcall -%}
+        {%- endif -%}
+      {%- endcall -%}{%- endcall -%}
+    {%- endfor -%}
+  {%- endcall -%}
+{%- endif -%}

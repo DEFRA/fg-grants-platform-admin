@@ -206,12 +206,13 @@ describe('editPayload', () => {
     vi.mocked(postToGas).mockResolvedValue({
       payloadRevision: 3,
       changedPaths: ['/sheetId'],
-      changedPathsTruncated: false
+      changedPathsTruncated: false,
+      redrive: null
     })
   })
 
-  test('posts the payload, the note and the revision it was made against, naming the operator', async () => {
-    await editPayload(key, edit, 'Ada Lovelace')
+  test('posts the payload, the note, the revision it was made against and whether to redrive, naming the operator', async () => {
+    await editPayload(key, edit, 'Ada Lovelace', true)
 
     expect(postToGas).toHaveBeenCalledTimes(1)
     expect(postToGas).toHaveBeenCalledWith(
@@ -220,24 +221,26 @@ describe('editPayload', () => {
         payload: {
           payload: { sheetId: '12345' },
           note: 'sheetId arrives as a number',
-          revision: 2
+          revision: 2,
+          redrive: true
         },
         actor: 'Ada Lovelace'
       }
     )
   })
 
-  test('resolves with nothing, reading nothing out of the answer', async () => {
+  test('resolves with GAS’s answer, the redrive among it', async () => {
     await expect(
-      editPayload(key, edit, 'Ada Lovelace')
-    ).resolves.toBeUndefined()
+      editPayload(key, edit, 'Ada Lovelace', false)
+    ).resolves.toMatchObject({ payloadRevision: 3, redrive: null })
   })
 
   test('escapes every segment of the path', async () => {
     await editPayload(
       { service: 'a/b', box: 'c d', id: 'e?f' } as unknown as EventKey,
       edit,
-      'Ada Lovelace'
+      'Ada Lovelace',
+      false
     )
 
     expect(postToGas).toHaveBeenCalledWith(

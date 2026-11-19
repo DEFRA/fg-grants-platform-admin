@@ -1,3 +1,6 @@
+/** Hapi's message when a user lacks the role a route declares. */
+export const insufficientScope = 'Insufficient scope'
+
 export const statusCodes = {
   ok: 200,
   noContent: 204,
@@ -9,11 +12,13 @@ export const statusCodes = {
   unauthorized: 401,
   forbidden: 403,
   notFound: 404,
+  requestTimeout: 408,
   conflict: 409,
   preconditionFailed: 412,
   imATeapot: 418,
   unprocessableEntity: 422,
   internalServerError: 500,
+  badGateway: 502,
   serviceUnavailable: 503,
   gatewayTimeout: 504
 }

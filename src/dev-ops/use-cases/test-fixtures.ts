@@ -1,18 +1,22 @@
 import type {
   BucketEntry,
   BucketFact,
-  BucketSummary,
   Catalogue
-} from './get-catalogue.use-case.ts'
-import type { AgreementDefinition } from './get-grant-page.use-case.ts'
+} from '../repositories/buckets.repository.ts'
+import type {
+  AgreementDefinition,
+  GrantVersionPage
+} from './get-grant-page.use-case.ts'
 import type {
   StoredAction,
   StoredTransition,
   StoredValueOption,
   StoredWorkflowPhase,
   StoredWorkflowStatus,
-  WorkflowDefinition
+  WorkflowDefinition,
+  WorkflowVersionPage
 } from './get-workflow-page.use-case.ts'
+import type { EventRow } from '../repositories/events.repository.ts'
 
 /** A bucket of events and a bucket of records, shaped as GAS's catalogue describes them. */
 export const outboxBucket: BucketEntry = {
@@ -34,7 +38,6 @@ export const outboxBucket: BucketEntry = {
         { value: 'PUBLISHED', label: 'Queued', tone: 'neutral' },
         { value: 'DEAD_LETTER', label: 'Dead letter', tone: 'error' }
       ],
-      toggle: null,
       within: null
     },
     {
@@ -45,7 +48,6 @@ export const outboxBucket: BucketEntry = {
         { value: 'UpdateCaseStatus', label: 'UpdateCaseStatus' },
         { value: 'Unrecognised', label: 'Unrecognised' }
       ],
-      toggle: null,
       within: null
     },
     {
@@ -53,7 +55,6 @@ export const outboxBucket: BucketEntry = {
       param: 'grant',
       label: 'Grant',
       values: null,
-      toggle: null,
       within: null
     },
     {
@@ -61,7 +62,6 @@ export const outboxBucket: BucketEntry = {
       param: 'error',
       label: 'Error name',
       values: null,
-      toggle: null,
       within: null
     }
   ],
@@ -83,43 +83,24 @@ export const outboxBucket: BucketEntry = {
   tab: null
 }
 
-/** The same list with an event type its toggle hides until the operator switches it on. */
-export const toggledBucket: BucketEntry = {
+/** The same list with audit events among its event types. */
+export const auditedOutbox: BucketEntry = {
   ...outboxBucket,
   facts: outboxBucket.facts.map((fact) =>
     fact.name === 'eventType'
       ? {
           ...fact,
-          values: [
-            { value: 'Audit', label: 'Audit', hidden: true },
-            ...(fact.values ?? [])
-          ],
-          toggle: { label: 'Show audit events', param: 'audit' }
+          values: [{ value: 'Audit', label: 'Audit' }, ...(fact.values ?? [])]
         }
       : fact
   )
-}
-
-export const errorsSummary: BucketSummary = {
-  id: 'errors',
-  label: 'Top errors',
-  by: ['lastError.name', 'eventType'],
-  among: { status: 'DEAD_LETTER' },
-  top: 20,
-  none: 'No error recorded'
-}
-
-/** The outbox with a hidden type and the Top errors summary, as an event list declares them. */
-export const summarisedBucket: BucketEntry = {
-  ...toggledBucket,
-  summaries: [errorsSummary]
 }
 
 const eventsPage = { id: 'events', label: 'GAS events', shortLabel: 'Events' }
 
 /** The outbox and the inbox as the two tabs of one page; the inbox searches by fewer kinds and hides nothing. */
 export const pagedOutbox: BucketEntry = {
-  ...toggledBucket,
+  ...auditedOutbox,
   page: eventsPage,
   tab: 'Outbox'
 }
@@ -135,6 +116,119 @@ export const pagedInbox: BucketEntry = {
   page: eventsPage,
   tab: 'Inbox'
 }
+
+/** Every status GAS and CW give an event, as both declare them. */
+const eventStatusFact: BucketFact = {
+  name: 'status',
+  param: 'status',
+  label: 'Status',
+  values: [
+    { value: 'PUBLISHED', label: 'Queued', tone: 'neutral' },
+    { value: 'PROCESSING', label: 'Processing', tone: 'info' },
+    { value: 'FAILED', label: 'Failed', tone: 'warning' },
+    { value: 'RESUBMITTED', label: 'Resubmitted', tone: 'warning' },
+    { value: 'COMPLETED', label: 'Completed', tone: 'success' },
+    { value: 'DEAD_LETTER', label: 'Dead letter', tone: 'error' },
+    { value: 'PURGED', label: 'Purged', tone: 'neutral' }
+  ],
+  within: null
+}
+
+const errorFacts: BucketFact[] = [
+  {
+    name: 'lastError.name',
+    param: 'errorname',
+    label: 'Error name',
+    values: null,
+    within: null
+  },
+  {
+    name: 'errorKey',
+    param: 'error',
+    label: 'Error',
+    values: null,
+    within: null
+  }
+]
+
+const queueFacts: Record<'outbox' | 'inbox', Partial<BucketEntry>> = {
+  outbox: { shortLabel: 'Outbox', time: { label: 'Created' }, tab: 'Outbox' },
+  inbox: { shortLabel: 'Inbox', time: { label: 'Received' }, tab: 'Inbox' }
+}
+
+const eventTypes: Record<'outbox' | 'inbox', BucketFact> = {
+  outbox: {
+    name: 'eventType',
+    param: 'event',
+    label: 'Event',
+    values: [
+      { value: 'Audit', label: 'Audit' },
+      { value: 'CreateCase', label: 'CreateCase' },
+      { value: 'UpdateCaseStatus', label: 'UpdateCaseStatus' }
+    ],
+    within: null
+  },
+  inbox: {
+    name: 'eventType',
+    param: 'event',
+    label: 'Event',
+    values: [
+      { value: 'AgreementStatusUpdated', label: 'AgreementStatusUpdated' },
+      { value: 'CaseStatusUpdated', label: 'CaseStatusUpdated' }
+    ],
+    within: null
+  }
+}
+
+const queueOrder: Record<string, number> = {
+  'GAS outbox': 10,
+  'GAS inbox': 20,
+  'CW outbox': 30,
+  'CW inbox': 40
+}
+
+/** An event queue as GAS and CW declare theirs on main: the outbox hides audit events behind a switch. */
+const eventQueue = (
+  service: 'GAS' | 'CW',
+  box: 'outbox' | 'inbox'
+): BucketEntry => {
+  const svc = service.toLowerCase()
+
+  return {
+    id: `${svc}.${box}`,
+    path: `events/${svc}/${box}`,
+    label: `${service} ${box}`,
+    service,
+    shortLabel: '',
+    icon: 'activity',
+    order: queueOrder[`${service} ${box}`],
+    noun: { one: 'event', many: 'events' },
+    time: { label: '' },
+    facts: [eventStatusFact, eventTypes[box], ...errorFacts],
+    refs: [
+      { kind: 'ref', label: 'Reference' },
+      { kind: 'trace', label: 'Trace ID' },
+      { kind: 'id', label: 'Event ID' }
+    ],
+    indexes: [['status'], ['status', 'lastError.name'], ['status', 'errorKey']],
+    groupings: ['status'],
+    title: { label: 'Event', format: 'eventType' },
+    columns: [
+      { key: 'status', label: 'Status', format: 'badge', fact: 'status' }
+    ],
+    audited: false,
+    timeline: true,
+    summaries: [],
+    page: { id: 'events', label: `${service} events`, shortLabel: 'Events' },
+    tab: null,
+    ...queueFacts[box]
+  }
+}
+
+export const gasOutbox = eventQueue('GAS', 'outbox')
+export const gasInbox = eventQueue('GAS', 'inbox')
+export const cwOutbox = eventQueue('CW', 'outbox')
+export const cwInbox = eventQueue('CW', 'inbox')
 
 export const applicationsBucket: BucketEntry = {
   id: 'gas.applications',
@@ -152,7 +246,6 @@ export const applicationsBucket: BucketEntry = {
       param: 'grant',
       label: 'Grant',
       values: [{ value: 'example-grant', label: 'example-grant' }],
-      toggle: null,
       within: null
     },
     {
@@ -160,7 +253,6 @@ export const applicationsBucket: BucketEntry = {
       param: 'version',
       label: 'Version',
       values: null,
-      toggle: null,
       within: 'code'
     },
     {
@@ -171,7 +263,6 @@ export const applicationsBucket: BucketEntry = {
         { value: 'true', label: 'Archived' },
         { value: 'false', label: 'Current' }
       ],
-      toggle: null,
       within: null
     }
   ],
@@ -208,7 +299,6 @@ const versionStatusFact: BucketFact = {
       hint: 'Not yet published as active.'
     }
   ],
-  toggle: null,
   within: null
 }
 
@@ -260,7 +350,6 @@ export const grantsBucket: BucketEntry = {
         { value: 'hedgerow-restoration', label: 'hedgerow-restoration' },
         { value: 'woodland-creation', label: 'woodland-creation' }
       ],
-      toggle: null,
       within: null
     },
     versionStatusFact,
@@ -269,7 +358,6 @@ export const grantsBucket: BucketEntry = {
       param: 'definition',
       label: 'Definition',
       values: fetchStatusValues,
-      toggle: null,
       within: null
     }
   ],
@@ -314,7 +402,6 @@ export const casesBucket: BucketEntry = {
       param: 'workflow',
       label: 'Workflow',
       values: [{ value: 'example-grant', label: 'example-grant' }],
-      toggle: null,
       within: null
     },
     {
@@ -322,7 +409,6 @@ export const casesBucket: BucketEntry = {
       param: 'version',
       label: 'Version',
       values: null,
-      toggle: null,
       within: 'workflowCode'
     }
   ],
@@ -378,7 +464,6 @@ export const workflowsBucket: BucketEntry = {
       param: 'workflow',
       label: 'Workflow',
       values: [{ value: 'woodland-creation', label: 'woodland-creation' }],
-      toggle: null,
       within: null
     },
     versionStatusFact,
@@ -387,7 +472,6 @@ export const workflowsBucket: BucketEntry = {
       param: 'definition',
       label: 'Definition',
       values: workflowFetchStatusValues,
-      toggle: null,
       within: null
     }
   ],
@@ -790,3 +874,110 @@ export const agreementDefinition: AgreementDefinition = {
   },
   templates: { terms: { standard: {}, welsh: {} } }
 }
+
+/** Every list both services declare, in their catalogue order. */
+export const fullCatalogue: Catalogue = {
+  buckets: [
+    gasOutbox,
+    gasInbox,
+    { ...applicationsBucket, facts: applicationsBucket.facts.slice(0, 2) },
+    grantsBucket,
+    cwOutbox,
+    cwInbox,
+    casesBucket,
+    workflowsBucket
+  ],
+  sourceErrors: []
+}
+
+/** A grant version and a workflow version, every file stored and loaded, for their pages' tests. */
+export const fetchedFile = { stored: true, fetchStatus: 'fetched' } as const
+export const pendingFile = { stored: false, fetchStatus: 'pending' } as const
+
+export const grantVersionHeader: GrantVersionPage['header'] = {
+  code: 'woodland-creation',
+  version: '1.2.0',
+  status: 'active',
+  receivedAt: '2026-09-10T15:25:00.000Z',
+  s3Bucket: 'grants-config-dev',
+  files: {
+    grant: { ...fetchedFile, s3Key: 'woodland-creation/1.2.0/grant.json' },
+    agreement: {
+      ...fetchedFile,
+      s3Key: 'woodland-creation/1.2.0/agreement.json'
+    },
+    payment: { ...fetchedFile, s3Key: 'woodland-creation/1.2.0/payment.json' }
+  },
+  versions: [
+    {
+      version: '2.0.0',
+      status: 'draft',
+      receivedAt: '2026-09-15T09:04:00.000Z'
+    },
+    {
+      version: '1.2.0',
+      status: 'active',
+      receivedAt: '2026-09-10T15:25:00.000Z'
+    }
+  ],
+  counterpart: { exists: true }
+}
+
+export const grantVersionOverview: NonNullable<GrantVersionPage['overview']> = {
+  description: 'Funding to plant new woodland on agricultural land.',
+  startDate: '2026-04-01T00:00:00.000Z',
+  adminRole: 'FCP.GrantApplicationsAdmin',
+  storedBytes: 10035
+}
+
+export const workflowVersionHeader: WorkflowVersionPage['header'] = {
+  code: 'woodland-creation',
+  version: '1.2.0',
+  status: 'active',
+  receivedAt: '2026-10-10T16:25:00.000Z',
+  s3Bucket: 'cw-config-dev',
+  files: {
+    workflow: { ...fetchedFile, s3Key: 'woodland-creation/1.2.0/workflow.json' }
+  },
+  versions: [
+    {
+      version: '2.0.0',
+      status: 'draft',
+      receivedAt: '2026-10-15T10:04:00.000Z'
+    },
+    {
+      version: '1.2.0',
+      status: 'active',
+      receivedAt: '2026-10-10T16:25:00.000Z'
+    }
+  ],
+  counterpart: { exists: true }
+}
+
+export const workflowVersionOverview: NonNullable<
+  WorkflowVersionPage['overview']
+> = {
+  schemeName: 'Woodland Creation Offer',
+  requiredRoles: { allOf: ['ROLE_SFI_REFORM'], anyOf: [] },
+  storedBytes: 14540
+}
+
+/** The ConfigVersionUpdated event a version arrived as, as its inbox lists it. */
+export const configEvent = (
+  service: 'gas' | 'caseworking',
+  overrides: Partial<EventRow> = {}
+): EventRow => ({
+  service,
+  box: 'inbox',
+  id: '6716a9c2e4b0a1f2c3d4e5f6',
+  eventId: '5208709c-e2d5-4870-b6ae-ff168bf65726',
+  type: 'ConfigVersionUpdated',
+  status: 'COMPLETED',
+  statusLabel: 'Completed',
+  statusRole: 'success',
+  statusRetrying: false,
+  createdAt: '2026-09-10T15:24:58.000Z',
+  latency: 'took 371ms',
+  latencyTitle: 'Received to completed',
+  ...overrides
+})

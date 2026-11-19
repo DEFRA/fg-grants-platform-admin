@@ -3,6 +3,7 @@ import type { SourceError } from './events.repository.ts'
 import type {
   Counterpart,
   Position,
+  PositionNames,
   RecordEvents,
   RecordSectionError,
   RecordSeries,
@@ -21,6 +22,7 @@ export interface ApplicationHeader {
   clientRef: string
   code: string
   position: Position
+  names: PositionNames | null
   counterpart: Counterpart
   fetchedAt: string
 }

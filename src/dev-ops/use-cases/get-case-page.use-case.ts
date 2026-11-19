@@ -7,7 +7,8 @@ import { readRecord } from './record-reads.ts'
 export type {
   CaseOverview,
   CasePage,
-  CaseRef
+  CaseRef,
+  CaseSeriesMember
 } from '../repositories/cases.repository.ts'
 
 export type CaseResult = RecordResult<CasePage>
