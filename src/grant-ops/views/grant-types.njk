@@ -1,0 +1,36 @@
+{% extends 'layouts/page.njk' %}
+
+{% from "govuk/components/tag/macro.njk" import govukTag %}
+
+{% block content %}
+  <div class="govuk-grid-row">
+    <div class="govuk-grid-column-full">
+      <h1 class="govuk-heading-l">{{ heading }}</h1>
+
+      {% if rows | length %}
+        <table class="govuk-table" data-testid="grant-types">
+          <thead class="govuk-table__head">
+            <tr class="govuk-table__row">
+              <th scope="col" class="govuk-table__header">Grant Code</th>
+              <th scope="col" class="govuk-table__header">Grant Name</th>
+              <th scope="col" class="govuk-table__header">Status</th>
+            </tr>
+          </thead>
+          <tbody class="govuk-table__body">
+            {% for row in rows %}
+              <tr class="govuk-table__row">
+                <td class="govuk-table__cell">
+                  <a class="govuk-link" href="{{ row.href }}">{{ row.code }}</a>
+                </td>
+                <td class="govuk-table__cell">{{ row.name }}</td>
+                <td class="govuk-table__cell">{{ govukTag({ text: row.status }) }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      {% else %}
+        <p class="govuk-body" data-testid="no-grant-types">There are no grant types available.</p>
+      {% endif %}
+    </div>
+  </div>
+{% endblock %}

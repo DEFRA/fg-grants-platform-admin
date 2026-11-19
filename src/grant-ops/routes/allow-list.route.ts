@@ -21,6 +21,10 @@ import {
   toAllowListPage,
   toAllowListRefusalPage
 } from '../view-models/allow-list-page.view-model.ts'
+import {
+  rolesUnavailablePage,
+  rolesUnavailableStatusCode
+} from '../view-models/roles-unavailable-page.view-model.ts'
 
 interface AllowListParams {
   code: string
@@ -34,16 +38,11 @@ const payload = Joi.object({
 }).unknown(false)
 
 const forbidden = 403
-const serviceUnavailable = 503
 
 const viewRolesUnavailable = (h: ResponseToolkit) =>
   h
-    .view('roles-unavailable', {
-      pageTitle: 'Caseworking roles could not be determined',
-      heading: serviceUnavailable,
-      message: 'Caseworking roles could not be determined — try again later'
-    })
-    .code(serviceUnavailable)
+    .view('roles-unavailable', rolesUnavailablePage)
+    .code(rolesUnavailableStatusCode)
 
 const refuseAdministration = () => {
   throw Boom.forbidden(

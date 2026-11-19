@@ -20,6 +20,7 @@ import {
 import { saveGrantSettingsRoute } from './routes/grant-settings.route.ts'
 import { viewClaimsRoute } from './routes/view-claims.route.ts'
 import { viewGrantOpsRoute } from './routes/view-grant-ops.route.ts'
+import { viewGrantTypesRoute } from './routes/view-grant-types.route.ts'
 
 export const grantOps = {
   plugin: {
@@ -36,6 +37,7 @@ export const grantOps = {
           roles.grantApplicationsAdmin,
           asOperator([
             viewGrantOpsRoute,
+            viewGrantTypesRoute,
             viewAllowListRoute,
             resetAllowListRoute,
             replaceAllowListRoute,

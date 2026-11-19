@@ -13,6 +13,10 @@ import {
   toAdminHref,
   toAllowListPage
 } from '../view-models/allow-list-page.view-model.ts'
+import {
+  rolesUnavailablePage,
+  rolesUnavailableStatusCode
+} from '../view-models/roles-unavailable-page.view-model.ts'
 
 const renderSetupError = async (
   h: ResponseToolkit,
@@ -54,12 +58,8 @@ const respondToSaveFailure = (
   }
   if (isCaseworkingRolesUnavailable(error)) {
     return h
-      .view('roles-unavailable', {
-        pageTitle: 'Caseworking roles could not be determined',
-        heading: 503,
-        message: 'Caseworking roles could not be determined — try again later'
-      })
-      .code(503)
+      .view('roles-unavailable', rolesUnavailablePage)
+      .code(rolesUnavailableStatusCode)
   }
   throw error
 }
