@@ -18,6 +18,7 @@ import { caseType, toCaseHref } from './cases-page.view-model.ts'
 import { toTabHref } from './record-page.view-model.ts'
 import { toEventsTab, toSectionError } from './record-events-tab.ts'
 import type { EventsCopy, TabNotice } from './record-events-tab.ts'
+import { toFindOthers } from './explore-queries.view-model.ts'
 import { toRawTab } from './record-raw-tab.ts'
 import { toReplacedAlert, toSeries } from './record-series.ts'
 import type { SeriesMember, SeriesModel } from './record-series.ts'
@@ -327,6 +328,7 @@ export const toCasePage = (
     backHref: toBackHref(caseType, options.from),
     status: toStatusName(header.position, header.names),
     tab,
+    findOthers: toFindOthers(href),
     tabs: toRecordTabs(caseType, href, tab, options.from),
     ...noTabBodies,
     ...tabBodies[tab](page, options, toTabHref(href, tab, options.from))

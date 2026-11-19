@@ -110,7 +110,8 @@ const backPages: [RegExp, (parts: string[]) => string][] = [
     ([code, version]) =>
       `workflow ${toVersionName({ code: decode(code), version: decode(version) })}`
   ],
-  [/^\/dev-ops\/events\/[^/]+\/[^/]+\/[^/]+$/, () => 'event']
+  [/^\/dev-ops\/events\/[^/]+\/[^/]+\/[^/]+$/, () => 'event'],
+  [/^\/dev-ops\/explore$/, () => 'Explore']
 ]
 
 /**

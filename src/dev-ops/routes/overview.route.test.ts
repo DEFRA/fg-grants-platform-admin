@@ -128,7 +128,12 @@ describe('the Overview', () => {
         .find('a')
         .toArray()
         .map((link) => $(link).attr('href'))
-    ).toEqual(['/dev-ops', '/dev-ops/clients/gas', '/dev-ops/clients/cw'])
+    ).toEqual([
+      '/dev-ops',
+      '/dev-ops/explore',
+      '/dev-ops/clients/gas',
+      '/dev-ops/clients/cw'
+    ])
   })
 
   test('takes the shell’s Times opener and refuses any other address', async () => {

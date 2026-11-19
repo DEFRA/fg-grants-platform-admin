@@ -48,9 +48,8 @@ import {
   isReadableWindow,
   pinQuickRange,
   timeRangeFilters,
-  toRangeInstants
+  toListWindow
 } from '../view-models/time-range.view-model.ts'
-import type { TimeRangeQuery } from '../view-models/time-range.view-model.ts'
 import { shellQuery, timesOf, withoutShellKeys } from '../view-models/times.ts'
 import type { Times } from '../view-models/times.ts'
 import {
@@ -215,22 +214,14 @@ const toFilters = (bucket: BucketEntry, address: Address): BucketFilters =>
     )
   )
 
-/**
- * A later page, and every page an address restores, reads its first page's
- * pinned start as it is, never back from now. Null for a range that isn't
- * instants, or ends before it starts: GPA's to refuse.
- */
+/** Null for a range that isn't instants, or ends before it starts: GPA's to refuse. */
 const toWindow = (
-  { from, to, range }: Address,
+  address: Address,
   zone: Zone,
   place: ListPlace,
   now: Date
 ): ListAsk['window'] => {
-  const window = toRangeInstants(
-    { from, to, ...(isLater(place) ? {} : { range }) } as TimeRangeQuery,
-    zone,
-    now
-  )
+  const window = toListWindow(address, zone, now, isLater(place))
 
   return isReadableWindow(window) ? window : null
 }

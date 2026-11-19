@@ -45,6 +45,10 @@
   {%- set __html %}{% include "./atoms/avatar/template.njk" %}{% endset -%}
   {{- __html | trim | safe -}}
 {%- endmacro %}
+{% macro Kbd(p) -%}
+  {%- set __html %}{% include "./atoms/kbd/template.njk" %}{% endset -%}
+  {{- __html | trim | safe -}}
+{%- endmacro %}
 {% macro Divider(p) -%}
   {%- set __html %}{% include "./atoms/divider/template.njk" %}{% endset -%}
   {{- __html | trim | safe -}}
@@ -291,6 +295,10 @@
 {%- endmacro %}
 {% macro RadioGroup(p) -%}
   {%- set __html %}{% include "./molecules/radio-group/template.njk" %}{% endset -%}
+  {{- __html | trim | safe -}}
+{%- endmacro %}
+{% macro QueryEditor(p) -%}
+  {%- set __html %}{% include "./molecules/query-editor/template.njk" %}{% endset -%}
   {{- __html | trim | safe -}}
 {%- endmacro %}
 {% macro Calendar(p) -%}

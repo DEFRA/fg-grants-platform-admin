@@ -1084,3 +1084,40 @@ describe('an application GAS could not show', () => {
     expect(statusCode).toBe(statusCodes.badRequest)
   })
 })
+
+describe('Find others', () => {
+  test('is in the header, three Explore items, each a post naming this application by its page', async () => {
+    const { $ } = await viewPage(`${path}?tab=raw`)
+    const items = part($, 'find-others-item')
+    const form = $(`#${items.first().attr('form')}`)
+
+    expect(flatten(part($, 'find-others').text())).toBe('Find others')
+    expect($('.gpa-pageheader').find(part($, 'find-others'))).toHaveLength(1)
+    expect(
+      items.toArray().map((item) => ({
+        text: flatten($(item).find('.gpa-menuitem-label').text()),
+        meta: flatten($(item).find('.gpa-menuitem-meta').text()),
+        icon: $(item).find('svg').attr('data-icon'),
+        type: $(item).attr('type'),
+        name: $(item).attr('name'),
+        value: $(item).attr('value')
+      }))
+    ).toEqual(
+      [
+        ['Applications under this business name', 'applications-by-business'],
+        ['Cases for this business, by stage', 'cases-by-sbi'],
+        ['Payments to this business', 'payments-by-sbi']
+      ].map(([text, value]) => ({
+        text,
+        meta: 'Explore',
+        icon: 'telescope',
+        type: 'submit',
+        name: 'find',
+        value
+      }))
+    )
+    expect(form.attr('method')).toBe('post')
+    expect(form.attr('action')).toBe('/dev-ops/explore')
+    expect(form.find('input[name="record"]').val()).toBe(path)
+  })
+})

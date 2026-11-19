@@ -1,5 +1,6 @@
 import type { RecordTab } from '../use-cases/record-reads.ts'
 import { backKey } from './bucket-links.ts'
+import type { FindOthersForm } from './explore-queries.view-model.ts'
 import type { EventsTab, TabNotice } from './record-events-tab.ts'
 import { toFittingBack } from './record-filters.ts'
 import { toTabHref, toTabs } from './record-page.view-model.ts'
@@ -58,6 +59,7 @@ export interface RecordView<O> {
   overview: O | TabNotice | null
   events: EventsTab | null
   raw: RawTab | null
+  findOthers: FindOthersForm
 }
 
 export interface PageOptions {

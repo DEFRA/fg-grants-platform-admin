@@ -1,6 +1,6 @@
 {% extends 'layouts/page.njk' %}
 {% import "components/macros.njk" as gpa %}
-{% from "partials/record-tabs.njk" import recordAlert, recordTime, tabNotice, whereCard, counterpartCard, seriesSection, versionFact, eventsTab, rawTab with context %}
+{% from "partials/record-tabs.njk" import recordActions, findOthersForm, recordAlert, recordTime, tabNotice, whereCard, counterpartCard, seriesSection, versionFact, eventsTab, rawTab with context %}
 
 
 {% block pageTitle %}{{ record.title }} {{ ref }} – {{ productName }}{% endblock %}
@@ -27,7 +27,7 @@
     titleTestId: 'record-title',
     back: { href: backHref, text: backLabel, testId: 'record-back' },
     meta: [gpa.StatusDot({ text: status, tone: 'neutral' })] if status else [],
-    actions: gpa.CopyButton({ value: ref, text: 'Copy reference' }),
+    actions: recordActions(ref, findOthers),
     alert: recordAlert(alert) if alert,
     tabs: { label: 'Application', items: tabs },
     aside: aside if shown
@@ -46,4 +46,5 @@
       {{ rawTab(raw) }}
     {%- endif -%}
   {%- endcall -%}
+  {{ findOthersForm(findOthers) }}
 {% endblock %}

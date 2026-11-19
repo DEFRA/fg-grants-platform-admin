@@ -217,6 +217,32 @@ describe('auth', () => {
     expect(afterLogout.headers.location).toBe('/auth/login')
   })
 
+  test('starts a new session on sign-in, so nothing the browser held before carries over', async () => {
+    const first = await server.inject({ method: 'POST', url: '/auth/callback' })
+    const firstCookie = getCookie(first.headers, 'session') as string
+
+    const again = await server.inject({
+      method: 'POST',
+      url: '/auth/callback',
+      headers: { cookie: firstCookie }
+    })
+    const secondCookie = getCookie(again.headers, 'session') as string
+
+    const withFirst = await server.inject({
+      method: 'GET',
+      url: '/protected',
+      headers: { cookie: firstCookie }
+    })
+    const withSecond = await server.inject({
+      method: 'GET',
+      url: '/protected',
+      headers: { cookie: secondCookie }
+    })
+
+    expect(withFirst.headers.location).toBe('/auth/login')
+    expect(withSecond.statusCode).toBe(statusCodes.ok)
+  })
+
   test.each([
     [
       'an area asks for its own signed out page',

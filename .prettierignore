@@ -3,3 +3,4 @@ package-lock.json
 node_modules
 coverage
 src/dev-ops/views/components
+src/dev-ops/view-models/explore-corpus.json

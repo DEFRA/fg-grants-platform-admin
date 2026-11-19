@@ -255,18 +255,26 @@ describe('toShellNav', () => {
         perService: false,
         href: '/dev-ops',
         icon: 'layout-dashboard'
+      },
+      {
+        id: 'explore',
+        ids: ['explore'],
+        label: 'Explore',
+        perService: false,
+        href: '/dev-ops/explore',
+        icon: 'telescope'
       }
     ]
   }
 
-  test('opens with the Overview, untitled, then each service’s lists', () => {
+  test('opens with the Overview and Explore, untitled, then each service’s lists', () => {
     expect(toShellNav(catalogue)).toEqual([
       overview,
       ...toNavSections(catalogue)
     ])
   })
 
-  test('keeps the Overview without the catalogue', () => {
+  test('keeps the Overview and Explore without the catalogue', () => {
     expect(toShellNav(null)[0]).toEqual(overview)
   })
 })

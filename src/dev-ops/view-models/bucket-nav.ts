@@ -192,7 +192,11 @@ const withUnreachable = (
 
 export const overviewNavId = 'overview'
 
-/** Not a list: the admin's front page, first and untitled, there whether or not the catalogue answers. */
+export const exploreNavId = 'explore'
+
+export const explorePath = `${devOpsPath}/explore`
+
+/** Not lists: the admin's front page and Explore, first and untitled, there whether or not the catalogue answers. */
 const overviewSection: NavSection = {
   title: '',
   items: [
@@ -203,6 +207,14 @@ const overviewSection: NavSection = {
       perService: false,
       href: devOpsPath,
       icon: 'layout-dashboard'
+    },
+    {
+      id: exploreNavId,
+      ids: [exploreNavId],
+      label: 'Explore',
+      perService: false,
+      href: explorePath,
+      icon: 'telescope'
     }
   ]
 }

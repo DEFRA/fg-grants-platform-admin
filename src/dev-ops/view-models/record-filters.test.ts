@@ -14,7 +14,11 @@ describe('toBackLabel', () => {
       '/dev-ops/workflows/qa-complex/1.1.0',
       'Back to workflow qa-complex@1.1.0'
     ],
-    ['/dev-ops/events/gas/inbox/6ad9086d1650ab8312898a92', 'Back to event']
+    ['/dev-ops/events/gas/inbox/6ad9086d1650ab8312898a92', 'Back to event'],
+    [
+      '/dev-ops/explore?run=0b6f3e2a-5c1d-4e8f-9a7b-2c3d4e5f6a7b&page=2',
+      'Back to Explore'
+    ]
   ])('names the page %s leads to', (back, label) => {
     expect(toBackLabel(back, lists)).toBe(label)
   })

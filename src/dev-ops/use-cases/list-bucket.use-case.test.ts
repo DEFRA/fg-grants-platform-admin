@@ -3,7 +3,7 @@ import Boom from '@hapi/boom'
 import type { BucketResult } from '../repositories/buckets.repository.ts'
 import type { ListPages } from '../repositories/lists.repository.ts'
 import { queryList } from '../repositories/lists.repository.ts'
-import { listBucketUseCase } from './list-bucket.use-case.ts'
+import { listBucketUseCase, toListAddress } from './list-bucket.use-case.ts'
 import type { ListAsk } from './list-bucket.use-case.ts'
 import { toShell } from '../test-utils.ts'
 
@@ -253,5 +253,22 @@ describe('what listBucketUseCase asks GAS', () => {
 
     expect(asked()).toMatchObject({ pages: 3, count: true, repeat: true })
     expect(asked()).not.toHaveProperty('cursor')
+  })
+})
+
+describe('toListAddress', () => {
+  test('is the path, and the address’s facts without its range, its place or a retired switch', () => {
+    expect(
+      toListAddress('events/gas/outbox', {
+        status: ['DEAD_LETTER'],
+        range: '24h',
+        cursor: 'c2',
+        through: '3',
+        audit: '1'
+      })
+    ).toEqual({
+      path: 'events/gas/outbox',
+      params: { status: ['DEAD_LETTER'] }
+    })
   })
 })

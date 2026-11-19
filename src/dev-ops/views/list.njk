@@ -35,7 +35,11 @@
     {%- endif -%}
   {%- endset -%}
 
-  {%- call gpa.ListPage({ title: title, meta: meta, alert: alertHtml, filters: filtersHtml, titleTestId: 'list-title' }) -%}
+  {%- set actionsHtml -%}
+    {%- if exploreForm %}{{ gpa.Button({ text: 'Open in Explore', size: 'sm', iconStart: 'telescope', type: 'submit', form: exploreForm.id, testId: 'list-explore' }) }}{% endif -%}
+  {%- endset -%}
+
+  {%- call gpa.ListPage({ title: title, meta: meta, actions: actionsHtml, alert: alertHtml, filters: filtersHtml, titleTestId: 'list-title' }) -%}
     {%- if table -%}
       {%- set footer -%}
         {%- if table.footer -%}
@@ -79,5 +83,9 @@
   {%- if clearSearchForm -%}
     {#- The search tag's remove button sends this form: the search lives in the session, so clearing it is a post, as setting it was. -#}
     {{ gpa.Form({ id: clearSearchForm.id, action: clearSearchForm.action, method: 'post', label: 'Clear the search', hidden: clearSearchForm.hidden, attributes: { hidden: true } }) }}
+  {%- endif -%}
+  {%- if exploreForm -%}
+    {#- Open in Explore sends this form: the list's filters go in its body, never in Explore's address. -#}
+    {{ gpa.Form({ id: exploreForm.id, action: exploreForm.action, method: 'post', label: 'Open in Explore', hidden: exploreForm.hidden, attributes: { hidden: true } }) }}
   {%- endif -%}
 {% endblock %}

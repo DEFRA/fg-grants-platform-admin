@@ -1,0 +1,20 @@
+{%- from "../../core/macros.njk" import attrs, cls, iconTemplate -%}
+{%- from "../../atoms/button/macro.njk" import Button -%}
+{%- from "../../atoms/field-message/macro.njk" import FieldMessage -%}
+{%- set id = p.id or gpaId('qe') -%}
+  {%- set text = p.value or '' -%}
+  {%- set lines = text.split('\n') | length -%}
+  {%- set rows = [p.rows or 5, lines + 1] | sort | last -%}
+  <gpa-query-editor data-vocabulary="{{ (p.vocabulary or { sources: [] }) | dump }}"{% if p.valuesAction %} data-values-action="{{ p.valuesAction }}"{% elif p.valuesUrl %} data-values-url="{{ p.valuesUrl }}"{% endif %}{% if p.check === false %} data-check="false"{% endif %}{% if p.error %} data-error="{{ p.error | dump }}"{% endif %}><div class="{{ cls('gpa-qe' ~ (' is-invalid' if p.error else ''), p) }}"{{ attrs(p) }}>
+    <div class="gpa-qe-box"><textarea id="{{ id }}"{% if p.name %} name="{{ p.name }}"{% endif %} class="gpa-qe-ta" rows="{{ rows }}" spellcheck="false" autocomplete="off" autocapitalize="off"{% if p.label %} aria-label="{{ p.label }}"{% endif %}{% if p.labelledBy %} aria-labelledby="{{ p.labelledBy }}"{% endif %}{% if p.runHint %} aria-keyshortcuts="Control+Enter Meta+Enter"{% endif %}{% if p.error %} aria-invalid="true"{% endif %}{% set desc = ([p.describedBy, id ~ '-msg' if p.error] | select | join(' ')) %}{% if desc %} aria-describedby="{{ desc }}"{% endif %}>
+{{ text }}</textarea></div>
+    {%- if p.error %}{{ FieldMessage({ id: id ~ '-msg', tone: 'error', text: p.error.message }) }}{% endif -%}
+    {%- if p.copy or p.clear or p.runHint %}<div class="gpa-qe-foot">
+      {%- if p.runHint %}<p class="gpa-qe-hint"><span class="gpa-qe-mac"><kbd class="gpa-kbd gpa-kbd-sm">⌘</kbd><kbd class="gpa-kbd gpa-kbd-sm">Enter</kbd></span><span class="gpa-qe-either">or</span><span class="gpa-qe-pc"><kbd class="gpa-kbd gpa-kbd-sm">Ctrl</kbd><kbd class="gpa-kbd gpa-kbd-sm">Enter</kbd></span> to run</p>{% endif -%}
+      {%- if p.copy or p.clear %}<div class="gpa-qe-actions">
+        {%- if p.copy %}{{ Button({ text: p.copy if p.copy is string else 'Copy', variant: 'tertiary', size: 'sm', iconStart: 'copy', attributes: { 'data-gpa-qe': 'copy' } }) }}{% endif -%}
+        {%- if p.clear %}{{ Button({ text: p.clear if p.clear is string else 'Clear', variant: 'tertiary', size: 'sm', iconStart: 'eraser', attributes: { 'data-gpa-qe': 'clear' } }) }}{% endif -%}
+      </div>{% endif -%}
+    </div>{% endif -%}
+    {{ iconTemplate({ names: ['columns-3', 'sigma', 'equal', 'quote', 'corner-down-left', 'database', 'square-function', 'list-filter', 'circle', 'circle-alert', 'triangle-alert', 'check'] }) }}
+  </div></gpa-query-editor>
