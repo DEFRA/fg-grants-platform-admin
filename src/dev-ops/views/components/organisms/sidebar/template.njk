@@ -18,7 +18,7 @@
     <nav class="gpa-sidebar-nav" aria-label="{{ p.label or p.navLabel or 'Main' }}"{% if p.navTestId %} data-testid="{{ p.navTestId }}"{% endif %}>
       {%- for s in p.sections -%}
         {%- set t = (s.short or s.title) if rail else s.title -%}
-        <div class="gpa-sidebar-section"{% if s.title %} role="group" aria-label="{{ s.title }}"{% endif %}>{% if t %}<div class="gpa-sidebar-title caption"{% if rail and s.short %} aria-hidden="true"{% endif %}>{{ t }}</div>{% endif %}<ul>
+        <div class="gpa-sidebar-section"{% if s.title %} role="group" aria-label="{{ s.title }}"{% endif %}>{% if t %}<div class="gpa-sidebar-title caption"{% if rail and s.short %} aria-hidden="true"{% endif %}>{{ t }}</div>{% endif %}{% if s.short and not rail %}<span class="gpa-sidebar-short caption" aria-hidden="true">{{ s.short }}</span>{% endif %}<ul>
           {%- for it in s.items %}<li>{{ NavItem({ text: (it.short or it.text) if rail else it.text, href: it.href, icon: it.icon, meta: null if rail else it.meta, badge: it.badge, title: it.text if rail, current: it.current or (it.id and it.id == p.active), srPrefix: it.srPrefix, testId: it.testId, attributes: it.attributes }) }}</li>{% endfor -%}
         </ul></div>
       {%- endfor -%}

@@ -7,7 +7,7 @@ import type { ExploreAsker, ExplorePageOutcome } from './explore-page.ts'
 import {
   defaultQuery,
   findOthersItem,
-  findStartingPoint,
+  findExample,
   toFoundRecord,
   toListQuery,
   toLookup,
@@ -34,7 +34,7 @@ import type {
 /**
  * Every way into a run:
  * - `typed`: the editor's Run;
- * - `pick`: the Queries menu, a starting point by its slug or a Recent query by its id;
+ * - `pick`: the Queries menu, an example by its slug or a Recent query by its id;
  * - `window`: Keep looking, the run's next window, `inPlace` when the footer's loader appends it;
  * - `list`: a list's Open in Explore, by its path and params; its entry, filters and search are read once GAS names its list;
  * - `find`: a record's Find others, by the record's page.
@@ -98,8 +98,7 @@ const runTyped: WayIn<'typed'> = async (asker, wayIn) => {
 
 const runPicked: WayIn<'pick'> = async (asker, { pick }) => {
   const q =
-    findStartingPoint(pick, new Date())?.q ??
-    (await findRecent(asker.owner, pick))
+    findExample(pick, new Date())?.q ?? (await findRecent(asker.owner, pick))
 
   return q === null ? readPage(asker, expired) : toHeld(asker, q)
 }

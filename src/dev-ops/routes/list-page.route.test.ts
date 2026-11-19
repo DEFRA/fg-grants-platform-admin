@@ -300,8 +300,44 @@ const chipItems = ($: CheerioAPI, fact: string) =>
     .toArray()
     .map((item) => ({
       text: flat($(item).find('.gpa-menuitem-label').text()),
-      href: $(item).attr('href')
+      value: $(item).find('input[type="checkbox"]').attr('value'),
+      checked: $(item).find('input[type="checkbox"]').is('[checked]')
     }))
+
+const chipForm = ($: CheerioAPI, fact: string) =>
+  by($, `list-chip-${fact}`).find('form')
+
+const keptBy = ($: CheerioAPI, fact: string) =>
+  chipForm($, fact)
+    .find('input[type="hidden"]')
+    .toArray()
+    .map((input) => `${$(input).attr('name')}=${$(input).attr('value')}`)
+
+const clearOf = ($: CheerioAPI, fact: string) =>
+  by($, `list-chip-${fact}`).find('.gpa-menu-actions a').attr('href')
+
+/** What a browser sends for a chip's form with no script: its hidden fields, then the boxes ticked. */
+const applied = (
+  $: CheerioAPI,
+  fact: string,
+  ticks: (value: string) => boolean
+): string => {
+  const form = chipForm($, fact)
+  const params = new URLSearchParams()
+
+  form.find('input').each((_i, input) => {
+    const field = $(input)
+    const isBox = field.attr('type') === 'checkbox'
+
+    if (!isBox || ticks(String(field.attr('value')))) {
+      params.append(String(field.attr('name')), String(field.attr('value')))
+    }
+  })
+
+  return `${form.attr('action')}?${params}`
+}
+
+const totalOf = ($: CheerioAPI) => $('.gpa-filterbar-row .gpa-filterbar-total')
 
 const tags = ($: CheerioAPI) =>
   by($, 'list-applied')
@@ -449,7 +485,6 @@ describe('Loaded', () => {
     expect(headers($).at(-1)).toBe('Created')
     expect(by($, 'list-range').find('.gpa-chip-label').text()).toBe('Created:')
     expect(chipItems($, 'eventType').map(({ text }) => text)).toEqual([
-      'All',
       'AgreementStatusUpdated',
       'CaseStatusUpdated'
     ])
@@ -499,31 +534,58 @@ describe('Loaded', () => {
 })
 
 describe('filters', () => {
-  test('Status: every value, with no counts beside them or total', async () => {
+  test('Status: every value a box to tick, with no counts beside them or total', async () => {
     const { $ } = await view()
+    const box = (text: string, value: string) => ({
+      text,
+      value,
+      checked: false
+    })
 
     expect(chipItems($, 'status')).toEqual([
-      { text: 'All', href: outboxPath },
-      { text: 'Queued', href: `${outboxPath}?status=PUBLISHED` },
-      { text: 'Processing', href: `${outboxPath}?status=PROCESSING` },
-      { text: 'Failed', href: `${outboxPath}?status=FAILED` },
-      { text: 'Resubmitted', href: `${outboxPath}?status=RESUBMITTED` },
-      { text: 'Completed', href: `${outboxPath}?status=COMPLETED` },
-      { text: 'Dead letter', href: `${outboxPath}?status=DEAD_LETTER` },
-      { text: 'Purged', href: `${outboxPath}?status=PURGED` }
+      box('Queued', 'PUBLISHED'),
+      box('Processing', 'PROCESSING'),
+      box('Failed', 'FAILED'),
+      box('Resubmitted', 'RESUBMITTED'),
+      box('Completed', 'COMPLETED'),
+      box('Dead letter', 'DEAD_LETTER'),
+      box('Purged', 'PURGED')
     ])
+    expect(
+      by($, 'list-chip-status').find('input[type="checkbox"][name="status"]')
+    ).toHaveLength(7)
     expect(by($, 'list-chip-status').find('.gpa-menuitem-meta')).toHaveLength(0)
   })
 
-  test('a chosen value: the chip names it, every link keeps it, and its tag removes it', async () => {
+  test('no value set: the chip reads All, Apply sends the list’s other filters only, and Clear is off', async () => {
+    const { $ } = await view()
+
+    expect(by($, 'list-chip-status').find('.gpa-chip-value').text()).toBe('All')
+    expect(chipForm($, 'status').attr('method')).toBe('get')
+    expect(chipForm($, 'status').attr('action')).toBe(outboxPath)
+    expect(keptBy($, 'status')).toEqual([])
+    expect(clearOf($, 'status')).toBeUndefined()
+    expect(
+      by($, 'list-chip-status')
+        .find('.gpa-menu-actions a')
+        .attr('aria-disabled')
+    ).toBe('true')
+  })
+
+  test('a chosen value: the chip names it and ticks it, the other chip’s Apply keeps it, and its tag removes it', async () => {
     const { $ } = await view(`${outboxPath}?status=DEAD_LETTER`)
 
     expect(by($, 'list-chip-status').find('.gpa-chip-value').text()).toBe(
       'Dead letter'
     )
-    expect(chipItems($, 'eventType')[2].href).toBe(
-      `${outboxPath}?status=DEAD_LETTER&event=UpdateCaseStatus`
-    )
+    expect(
+      chipItems($, 'status')
+        .filter(({ checked }) => checked)
+        .map(({ value }) => value)
+    ).toEqual(['DEAD_LETTER'])
+    expect(keptBy($, 'status')).toEqual([])
+    expect(keptBy($, 'eventType')).toEqual(['status=DEAD_LETTER'])
+    expect(clearOf($, 'status')).toBe(outboxPath)
     expect(tags($)).toEqual(['Status is Dead letter'])
     expect(by($, 'list-applied').find('.gpa-tag a').attr('href')).toBe(
       outboxPath
@@ -543,78 +605,17 @@ describe('filters', () => {
     expect(asked()?.params).toEqual({ status: 'DEAD_LETTER' })
   })
 
-  test('a chip’s menu keeps its id from page to page, so a tick takes the next page’s menu and value in place of its own', async () => {
-    const first = await view(outboxPath)
-    const panel = by(first.$, 'list-chip-status').find('[popover]')
-    const tick = String(
-      panel.find('[role="menuitemcheckbox"]').eq(1).attr('href')
-    )
-
-    expect(panel.attr('id')).toBe('list-chip-status-menu')
-    expect(
-      by(first.$, 'list-chip-status')
-        .find('[popovertarget]')
-        .attr('popovertarget')
-    ).toBe('list-chip-status-menu')
-
-    const ticked = await view(tick, first.cookie)
-    const theirs = ticked.$('[id="list-chip-status-menu"]')
-
-    expect(ticked.statusCode).toBe(statusCodes.ok)
-    expect(theirs).toHaveLength(1)
-    expect(
-      theirs
-        .find('[aria-checked="true"]')
-        .toArray()
-        .map((item) => flat(ticked.$(item).text()))
-    ).toEqual([flat(panel.find('[role="menuitemcheckbox"]').eq(1).text())])
-    expect(
-      ticked.$('[popovertarget="list-chip-status-menu"] .gpa-chip-value').text()
-    ).not.toBe('All')
-    expect(
-      by(ticked.$, 'list-chip-eventType').find('[popover]').attr('id')
-    ).toBe('list-chip-eventType-menu')
-  })
-
-  test('two statuses: the chip says 2 selected, each value is ticked and toggles itself, and each has its own tag', async () => {
+  test('two statuses: the chip says 2 selected, each is ticked, and each has its own tag', async () => {
     const { $ } = await view(`${outboxPath}?status=DEAD_LETTER&status=FAILED`)
-    const items = by($, 'list-chip-status').find('.gpa-menuitem')
 
     expect(by($, 'list-chip-status').find('.gpa-chip-value').text()).toBe(
       '2 selected'
     )
-    expect(items.first().attr('role')).toBe('menuitemcheckbox')
     expect(
-      items
-        .toArray()
-        .filter((item) => $(item).attr('aria-checked') === 'true')
-        .map((item) => flat($(item).text()))
+      chipItems($, 'status')
+        .filter(({ checked }) => checked)
+        .map(({ text }) => text)
     ).toEqual(['Failed', 'Dead letter'])
-    expect(chipItems($, 'status')).toEqual([
-      { text: 'All', href: outboxPath },
-      {
-        text: 'Queued',
-        href: `${outboxPath}?status=PUBLISHED&status=FAILED&status=DEAD_LETTER`
-      },
-      {
-        text: 'Processing',
-        href: `${outboxPath}?status=PROCESSING&status=FAILED&status=DEAD_LETTER`
-      },
-      { text: 'Failed', href: `${outboxPath}?status=DEAD_LETTER` },
-      {
-        text: 'Resubmitted',
-        href: `${outboxPath}?status=FAILED&status=RESUBMITTED&status=DEAD_LETTER`
-      },
-      {
-        text: 'Completed',
-        href: `${outboxPath}?status=FAILED&status=COMPLETED&status=DEAD_LETTER`
-      },
-      { text: 'Dead letter', href: `${outboxPath}?status=FAILED` },
-      {
-        text: 'Purged',
-        href: `${outboxPath}?status=FAILED&status=DEAD_LETTER&status=PURGED`
-      }
-    ])
     expect(tags($)).toEqual(['Status is Failed', 'Status is Dead letter'])
     expect(
       by($, 'list-applied')
@@ -625,11 +626,12 @@ describe('filters', () => {
       `${outboxPath}?status=DEAD_LETTER`,
       `${outboxPath}?status=FAILED`
     ])
+    expect(clearOf($, 'status')).toBe(outboxPath)
     expect(by($, 'list-clear-all').attr('href')).toBe(outboxPath)
     expect(asked()?.params).toEqual({ status: ['DEAD_LETTER', 'FAILED'] })
   })
 
-  test('two statuses travel with every other link and form: the next filter, the time range and the search', async () => {
+  test('two statuses travel with every other form: the next chip’s Apply, the time range and the search', async () => {
     const { $ } = await view(`${outboxPath}?status=DEAD_LETTER&status=FAILED`)
     const fieldsOf = (form: ReturnType<CheerioAPI>) =>
       form
@@ -637,9 +639,10 @@ describe('filters', () => {
         .toArray()
         .map((input) => $(input).attr('value'))
 
-    expect(chipItems($, 'eventType')[1].href).toBe(
-      `${outboxPath}?status=DEAD_LETTER&status=FAILED&event=CreateCase`
-    )
+    expect(fieldsOf(chipForm($, 'eventType'))).toEqual([
+      'DEAD_LETTER',
+      'FAILED'
+    ])
     expect(fieldsOf(by($, 'list-range').find('form'))).toEqual([
       'DEAD_LETTER',
       'FAILED'
@@ -650,16 +653,45 @@ describe('filters', () => {
     ])
   })
 
+  test('Clear drops only its own chip’s values, keeping the other filters and the time range', async () => {
+    const { $ } = await view(
+      `${outboxPath}?status=DEAD_LETTER&status=FAILED&event=CreateCase&from=2026-11-03&to=2026-11-09`
+    )
+
+    expect(clearOf($, 'status')).toBe(
+      `${outboxPath}?event=CreateCase&from=2026-11-03&to=2026-11-09`
+    )
+    expect(clearOf($, 'eventType')).toBe(
+      `${outboxPath}?status=DEAD_LETTER&status=FAILED&from=2026-11-03&to=2026-11-09`
+    )
+  })
+
   test('two filters: a tag for each value, and Clear all goes to the bare list', async () => {
     const { $ } = await view(
       `${outboxPath}?status=DEAD_LETTER&event=UpdateCaseStatus`
     )
 
     expect(tags($)).toEqual([
-      'Status is Dead letter',
-      'Event is UpdateCaseStatus'
+      'Event is UpdateCaseStatus',
+      'Status is Dead letter'
     ])
     expect(by($, 'list-clear-all').attr('href')).toBe(outboxPath)
+  })
+
+  test('the row goes Created, Event, Status, then the search', async () => {
+    const { $ } = await view()
+
+    expect(
+      $('.gpa-filterbar-row')
+        .children()
+        .toArray()
+        .map((child) =>
+          $(child).is('[data-testid="list-search"]')
+            ? 'search'
+            : flat($(child).find('.gpa-chip-label').first().text())
+        )
+        .filter(Boolean)
+    ).toEqual(['Created:', 'Event:', 'Status:', 'search'])
   })
 
   test('no filter set: no tag and no Clear all', async () => {
@@ -669,11 +701,10 @@ describe('filters', () => {
     expect(by($, 'list-clear-all')).toHaveLength(0)
   })
 
-  test('Audit is one more Event type, listed last, and All filters by no type', async () => {
+  test('Audit is one more Event type, listed last, and none ticked filters by no type', async () => {
     const { $ } = await view()
 
     expect(chipItems($, 'eventType').map(({ text }) => text)).toEqual([
-      'All',
       'CreateCase',
       'UpdateCaseStatus',
       'Audit'
@@ -878,19 +909,100 @@ describe('filters', () => {
   })
 })
 
+describe('a chip’s Apply, with no script', () => {
+  test('the boxes are real checkboxes in a GET form, Apply its submit, ready without a script', async () => {
+    const { $ } = await view()
+    const chip = by($, 'list-chip-status')
+    const apply = chipForm($, 'status').find('button[type="submit"]')
+
+    expect(flat(apply.text())).toBe('Apply')
+    expect(apply.is('[disabled]')).toBe(false)
+    expect(apply.attr('form')).toBeUndefined()
+    expect(chip.find('[popovertarget]').attr('aria-haspopup')).toBe('dialog')
+    expect(chipForm($, 'status').attr('role')).toBe('dialog')
+    expect(chipForm($, 'status').attr('aria-label')).toBe('Status')
+    expect(
+      chipForm($, 'status').find('[role="group"]').attr('aria-label')
+    ).toBeUndefined()
+    expect(chip.find('[role="menuitemcheckbox"]')).toHaveLength(0)
+    expect(chip.find('a[href*="status="]')).toHaveLength(0)
+  })
+
+  test.each([
+    ['none', [] as string[], {}, 'All'],
+    ['one', ['FAILED'], { status: 'FAILED' }, 'Failed'],
+    [
+      'several',
+      ['FAILED', 'DEAD_LETTER'],
+      { status: ['FAILED', 'DEAD_LETTER'] },
+      '2 selected'
+    ]
+  ])(
+    '%s ticked: one request, the field repeated per value, read as a list',
+    async (_name, ticks, params, chipText) => {
+      const first = await view(`${outboxPath}?event=CreateCase`)
+      vi.mocked(queryList).mockClear()
+
+      const { $, statusCode } = await view(
+        applied(first.$, 'status', (value) => ticks.includes(value)),
+        first.cookie
+      )
+
+      expect(statusCode).toBe(statusCodes.ok)
+      expect(queryList).toHaveBeenCalledTimes(1)
+      expect(asked()?.params).toEqual({ ...params, event: 'CreateCase' })
+      expect(by($, 'list-chip-status').find('.gpa-chip-value').text()).toBe(
+        chipText
+      )
+      expect(
+        chipItems($, 'status')
+          .filter(({ checked }) => checked)
+          .map(({ value }) => value)
+      ).toEqual(ticks)
+    }
+  )
+
+  test('unticking every value but one of several applies the one left', async () => {
+    const first = await view(`${outboxPath}?status=FAILED&status=DEAD_LETTER`)
+
+    await view(
+      applied(first.$, 'status', (value) => value === 'DEAD_LETTER'),
+      first.cookie
+    )
+
+    expect(asked()?.params).toEqual({ status: 'DEAD_LETTER' })
+  })
+
+  test('Clear reads the list without the chip’s values, the other filters kept', async () => {
+    const first = await view(
+      `${outboxPath}?status=FAILED&status=DEAD_LETTER&event=CreateCase`
+    )
+
+    const { $ } = await view(String(clearOf(first.$, 'status')), first.cookie)
+
+    expect(asked()?.params).toEqual({ event: 'CreateCase' })
+    expect(by($, 'list-chip-status').find('.gpa-chip-value').text()).toBe('All')
+  })
+})
+
 describe('the time range in links', () => {
-  test('every chip, menu and tag link carries the range as days, as the range chip does', async () => {
+  test('every chip’s Apply, a set chip’s Clear and every tag link carry the range as days, as the range chip does', async () => {
     const { $ } = await view(
       `${outboxPath}?status=DEAD_LETTER&from=2026-10-01&to=2026-10-31`
     )
     const range = 'from=2026-10-01&to=2026-10-31'
     const links = [
-      ...chipItems($, 'status').map(({ href }) => href),
-      ...chipItems($, 'eventType').map(({ href }) => href),
-      by($, 'list-applied').find('.gpa-tag a').first().attr('href')
+      clearOf($, 'status'),
+      by($, 'list-applied').find('.gpa-tag a').eq(1).attr('href')
     ]
 
     expect(links.every((href) => href?.includes(range))).toBe(true)
+    expect(keptBy($, 'status')).toEqual(['from=2026-10-01', 'to=2026-10-31'])
+    expect(keptBy($, 'eventType')).toEqual([
+      'status=DEAD_LETTER',
+      'from=2026-10-01',
+      'to=2026-10-31'
+    ])
     expect(asked()).toEqual(
       expect.objectContaining({
         from: '2026-10-01T00:00:00.000Z',
@@ -1037,25 +1149,22 @@ describe('a key that takes one value, given twice', () => {
 })
 
 describe('the total', () => {
-  const totalOf = ($: CheerioAPI) =>
-    by($, 'list-applied').find('.gpa-filterbar-total')
-
   test.each([
     [{ count: 12456, capped: false }, '12,456 events'],
     [{ count: 10000, capped: true }, '10,000+ events'],
     [{ count: 1, capped: false }, '1 event'],
     [{ count: 0, capped: false }, '0 events']
-  ])('%j: "%s" at the end of the applied row', async (total, text) => {
+  ])('%j: "%s" at the end of the filter row', async (total, text) => {
     given(answered(exact({ total })))
 
     const { $ } = await view(`${outboxPath}?status=DEAD_LETTER`)
 
     expect(flat(totalOf($).text())).toBe(text)
     expect(totalOf($).attr('role')).toBe('status')
-    expect(by($, 'list-applied').children().last().is(totalOf($))).toBe(true)
+    expect($('.gpa-filterbar-row').children().last().is(totalOf($))).toBe(true)
   })
 
-  test('a search is counted too: its total beside its tag', async () => {
+  test('a search is counted too', async () => {
     given(answered(exact({ total: { count: 1, capped: false } })))
 
     const { $ } = await searched('id', 'abc-123')
@@ -1064,13 +1173,13 @@ describe('the total', () => {
     expect(flat(totalOf($).text())).toBe('1 event')
   })
 
-  test('drawn with no filter applied', async () => {
+  test('drawn with no filter applied, when there is no applied row', async () => {
     given(answered(exact({ total: { count: 3, capped: false } })))
 
     const { $ } = await view()
 
     expect(flat(totalOf($).text())).toBe('3 events')
-    expect(by($, 'list-applied').find('.gpa-tag')).toHaveLength(0)
+    expect(by($, 'list-applied')).toHaveLength(0)
   })
 
   test('the list’s own noun: "4 applications"', async () => {
@@ -1762,7 +1871,7 @@ describe('restoring every row shown', () => {
       'row-2-2',
       'row-3-1'
     ])
-    expect(textOf($, 'list-applied')).toContain('5 events')
+    expect(flat(totalOf($).text())).toBe('5 events')
     expect(by($, 'list-footer').find('a').attr('href')).toBe(
       `${outboxPath}?cursor=c4&page=4&status=DEAD_LETTER`
     )

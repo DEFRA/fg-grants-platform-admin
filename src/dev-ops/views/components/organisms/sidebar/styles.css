@@ -27,6 +27,9 @@
   padding: var(--inset-tag-xs) var(--inset-menuitem-x) var(--inset-menuitem-y);
   color: var(--fg-subtle);
 }
+.gpa-sidebar-short {
+  display: none;
+}
 .gpa-sidebar-section ul {
   display: flex;
   flex-direction: column;

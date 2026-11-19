@@ -93,6 +93,10 @@
   {%- set __html %}{% include "./molecules/menu-heading/template.njk" %}{% endset -%}
   {{- __html | trim | safe -}}
 {%- endmacro %}
+{% macro MenuGroup(p) -%}
+  {%- set __html %}{% include "./molecules/menu-group/template.njk" %}{% endset -%}
+  {{- __html | trim | safe -}}
+{%- endmacro %}
 {% macro MenuDivider(p) -%}
   {%- set __html %}{% include "./molecules/menu-divider/template.njk" %}{% endset -%}
   {{- __html | trim | safe -}}

@@ -80,6 +80,20 @@
   .gpa-shell .gpa-sidebar-title {
     display: none;
   }
+  .gpa-shell .gpa-sidebar:not(.is-rail) .gpa-sidebar-short {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    padding-inline-start: var(--gap-inline-sm);
+    border-inline-start: var(--border-width-hairline) solid
+      var(--border-default);
+    color: var(--fg-subtle);
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  .gpa-shell .gpa-sidebar-nav [aria-current="page"] {
+    scroll-initial-target: nearest;
+  }
   .gpa-shell .gpa-sidebar-section ul {
     flex-direction: row;
     gap: var(--gap-inline-sm);

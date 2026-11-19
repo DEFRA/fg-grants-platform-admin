@@ -211,7 +211,7 @@ describe('runExploreUseCase', () => {
     })
   })
 
-  test('runs a starting point without checking it, its dates as of today in UTC', async () => {
+  test('runs an example without checking it, its dates as of today in UTC', async () => {
     vi.useFakeTimers({
       now: new Date('2026-11-14T23:30:00Z'),
       toFake: ['Date']
@@ -240,7 +240,7 @@ describe('runExploreUseCase', () => {
     expect(await heldText({ kind: 'pick', pick: id })).toBe(typed)
   })
 
-  test('says a pick that is neither a starting point nor a Recent query has expired', async () => {
+  test('says a pick that is neither an example nor a Recent query has expired', async () => {
     expect(await run({ kind: 'pick', pick: 'everything' })).toMatchObject({
       kind: 'page',
       page: { q: '', notice: { kind: 'expired' } }

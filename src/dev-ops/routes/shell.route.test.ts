@@ -600,6 +600,7 @@ describe("Dev Ops' status pages", () => {
     expect(flatten(page.find('.gpa-statuspage-body').text())).toBe(
       'Part of the address isn’t something Dev Ops understands, so it showed nothing. Nothing was changed.'
     )
+    expect(part($, 'shell-nav').find('[aria-current="page"]')).toHaveLength(0)
   })
 
   test('tells someone without the role what to ask for, with nothing in the sidebar to use', async () => {

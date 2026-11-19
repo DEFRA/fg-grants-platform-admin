@@ -19,10 +19,19 @@
   {%- set queriesTrigger %}{{ gpa.Icon({ name: 'book-open', size: 'sm' }) }}<span>Queries</span>{{ gpa.Icon({ name: 'chevron-down', size: 'sm', classes: 'gpa-chevron' }) }}{% endset -%}
   {%- set queriesMenu -%}
     {%- call gpa.Dropdown({ trigger: queriesTrigger, triggerClasses: 'gpa-btn gpa-btn-default gpa-btn-sm', triggerTestId: 'explore-queries', align: 'end', menuLabel: 'Queries', panelTestId: 'explore-queries-menu' }) -%}
-      {{ gpa.MenuHeading({ text: queries.heading }) }}
-      {%- for item in queries.items -%}
-        {{ gpa.MenuItem({ text: item.text, icon: 'clock' if item.recent else 'book-open', mono: item.recent, type: 'submit', name: 'pick', value: item.value, form: 'explore-form', testId: 'explore-recent' if item.recent else 'explore-start' }) }}
-      {%- endfor -%}
+      {%- if queries.recent | length -%}
+        {%- call gpa.MenuGroup({ heading: 'Your recent queries' }) -%}
+          {%- for item in queries.recent -%}
+            {{ gpa.MenuItem({ text: item.text, mono: true, type: 'submit', name: 'pick', value: item.value, form: 'explore-form', testId: 'explore-recent' }) }}
+          {%- endfor -%}
+        {%- endcall -%}
+        {{ gpa.MenuDivider() }}
+      {%- endif -%}
+      {%- call gpa.MenuGroup({ heading: 'Examples' }) -%}
+        {%- for item in queries.examples -%}
+          {{ gpa.MenuItem({ text: item.text, type: 'submit', name: 'pick', value: item.value, form: 'explore-form', testId: 'explore-example' }) }}
+        {%- endfor -%}
+      {%- endcall -%}
     {%- endcall -%}
   {%- endset -%}
 
@@ -39,7 +48,7 @@
     {%- call gpa.Card({ padded: true, testId: 'explore-editor' }) -%}
       {%- call gpa.Form({ id: 'explore-form', action: action, label: 'Query', wide: true, testId: 'explore-form' }) -%}
         {%- call gpa.Stack({ gap: 'md' }) -%}
-          {{ gpa.QueryEditor({ id: 'q', name: 'q', label: 'Query', value: editor.value, vocabulary: editor.vocabulary, error: editor.error, copy: 'Copy query', clear: true, runHint: true, testId: 'explore-editor-field' }) }}
+          {{ gpa.QueryEditor({ id: 'q', name: 'q', label: 'Query', value: editor.value, vocabulary: editor.vocabulary, error: editor.error, clear: true, runHint: true, testId: 'explore-editor-field' }) }}
           {%- call gpa.Inline({ gap: 'sm', align: 'center' }) -%}
             {{ gpa.Button({ text: 'Run', variant: 'primary', iconStart: 'play', type: 'submit', loadingOnSubmit: true, testId: 'explore-run' }) }}
           {%- endcall -%}

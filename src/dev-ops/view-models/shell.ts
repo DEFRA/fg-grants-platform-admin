@@ -59,6 +59,8 @@ export interface SidebarItem {
 
 export interface SidebarSection {
   title: string
+  /** The service's short name, which the phone strip shows before its pages. */
+  short?: string
   items: SidebarItem[]
 }
 
@@ -69,6 +71,7 @@ export const toSidebarSections = (
 ): SidebarSection[] =>
   (sections ?? []).map(({ title, items }) => ({
     title: toServiceName(title),
+    ...(title && { short: title }),
     items: items.map((item) => ({
       id: item.id,
       text: item.label,

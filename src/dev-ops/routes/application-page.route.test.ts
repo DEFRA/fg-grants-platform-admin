@@ -318,6 +318,16 @@ describe('the application page, loaded (A1)', () => {
     ).toBe('/dev-ops/applications')
   })
 
+  test('sits under Applications when opened from Explore, and goes back to the run', async () => {
+    const back = '/dev-ops/explore?run=run-1&through=2'
+    const { $ } = await viewPage(`${path}?back=${encodeURIComponent(back)}`)
+
+    expect(part($, 'record-back').attr('href')).toBe(back)
+    expect(
+      part($, 'shell-nav').find('[aria-current="page"]').attr('href')
+    ).toBe('/dev-ops/applications')
+  })
+
   test('shows where the application is: the phases as steps, at its own, then the stage', async () => {
     const { $ } = await viewPage()
     const where = part($, 'record-where')
@@ -1076,6 +1086,21 @@ describe('an application GAS could not show', () => {
     expect(notFound.find('a.gpa-btn').attr('href')).toBe(
       '/dev-ops/applications'
     )
+  })
+
+  test('a missing one opened from Explore sits under Applications too', async () => {
+    vi.mocked(getApplicationPageUseCase).mockResolvedValue({
+      outcome: 'not-found',
+      page: null
+    })
+
+    const { $ } = await viewPage(
+      `${path}?back=${encodeURIComponent('/dev-ops/explore?run=run-1')}`
+    )
+
+    expect(
+      part($, 'shell-nav').find('[aria-current="page"]').attr('href')
+    ).toBe('/dev-ops/applications')
   })
 
   test('refuses a tab the application page has not got', async () => {

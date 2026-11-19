@@ -100,12 +100,14 @@ const toNavActive = (
   from: string
 ): string | null => toBackBucket(catalogue, from)?.id ?? null
 
-/** Opened from no list, a record sits under its own. */
+/** Opened from no list, as from Explore, a record sits under its own. */
 const toRecordNav = (
   catalogue: Catalogue | null,
   record: RecordType,
   from: string
-): string | null => toNavActive(catalogue, toBackHref(record, from))
+): string | null =>
+  toNavActive(catalogue, toBackHref(record, from)) ??
+  toNavActive(catalogue, record.path)
 
 const capitalised = (text: string): string =>
   `${text.charAt(0).toUpperCase()}${text.slice(1)}`
@@ -168,7 +170,7 @@ const missingView = (
       missing,
       backHref: toBackHref(record, from),
       backLabel: toRecordBackLabel(catalogue, record, from),
-      navActive: toNavActive(catalogue, toBackHref(record, from))
+      navActive: toRecordNav(catalogue, record, from)
     })
     .code(missingStatusCodes[state])
 }

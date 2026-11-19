@@ -64,6 +64,7 @@ const eventsList = (box: 'outbox' | 'inbox'): ListPresentation => ({
   subtitle: { label: 'Event ID', mono: true, width: '336px' },
   columns: { status: { width: '128px' } },
   tones: { status: eventStatusTones },
+  chipOrder: ['eventType', 'status'],
   time: { label: 'Created', width: dateWidth },
   noMatchText: 'Nothing created in this time range has this status and event.',
   emptyText: (service) =>

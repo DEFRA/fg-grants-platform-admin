@@ -23,10 +23,10 @@
       {%- call gpa.Stack({ gap: 'lg' }) -%}
         {%- if tabs %}{{ gpa.Tabs({ label: tabs.label, items: tabs.items, testId: 'list-tabs' }) }}{% endif -%}
         {%- call gpa.FilterBar({ label: filterLabel, total: total, applied: applied, filtered: filtered, clearAllHref: clearAllHref, appliedTestId: 'list-applied', clearAllTestId: 'list-clear-all' }) -%}
-          {%- for chip in chips -%}
-            {{ gpa.FilterChip({ label: chip.label, value: chip.value, multiple: true, items: chip.items, panelId: 'list-chip-' ~ chip.fact ~ '-menu', testId: 'list-chip-' ~ chip.fact }) }}
-          {%- endfor -%}
           {{ gpa.DateRangeChip({ label: range.label, value: range.text if range.isSet else null, start: range.start, end: range.end, presets: range.presets, startName: 'from', endName: 'to', action: range.action, hidden: range.hidden, max: range.max, testId: 'list-range' }) }}
+          {%- for chip in chips -%}
+            {{ gpa.FilterChip({ label: chip.label, value: chip.value, multiple: true, name: chip.name, items: chip.items, action: chip.action, keep: chip.keep, clearHref: chip.clearHref, testId: 'list-chip-' ~ chip.fact }) }}
+          {%- endfor -%}
           {%- if searchField -%}
             {{ gpa.SearchField({ id: 'list-search', action: searchField.action, method: 'post', name: 'ref-value', value: searchField.value, noun: searchField.noun, error: searchField.error, hidden: searchField.hidden, kinds: { name: 'ref-kind', items: searchField.kinds }, testId: 'list-search', inputTestId: 'list-search-input', errorTestId: 'list-search-error' }) }}
           {%- endif -%}
