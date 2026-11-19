@@ -58,7 +58,8 @@ describe('listBucketUseCase', () => {
         read: { kind: 'read', page },
         refusedSearch: null,
         pageRows: [0, 0],
-        stopped: null
+        stopped: null,
+        failedQueue: null
       }
     })
     expect(queryList).toHaveBeenCalledExactlyOnceWith({
@@ -115,6 +116,26 @@ describe('listBucketUseCase', () => {
     })
   })
 
+  test.each([
+    [{ queue: 'inbox' }, 'inbox'],
+    [{}, null]
+  ])(
+    'a later page that stopped with %j names %j as its queue',
+    async (named, queue) => {
+      vi.mocked(queryList).mockResolvedValue({
+        shell,
+        bucket: 'gas.outbox',
+        list: pages({
+          stopped: { cursor: 'c2', statusCode: 503, code: null, ...named }
+        })
+      })
+
+      await expect(listBucketUseCase(ask)).resolves.toMatchObject({
+        listing: { stopped: { cursor: 'c2', queue } }
+      })
+    }
+  )
+
   test('a range that can’t be read: the address checked and nothing read', async () => {
     vi.mocked(queryList).mockResolvedValue({
       shell,
@@ -152,6 +173,33 @@ describe('listBucketUseCase', () => {
     await expect(listBucketUseCase(ask)).resolves.toEqual({ kind })
   })
 
+  test.each([[{}], [{ cursor: 'c2' }]])(
+    'a 503 CW_UNREACHABLE at %j is CW unreachable, not one queue failing',
+    async (place) => {
+      vi.mocked(queryList).mockRejectedValue(
+        gasAnswer(503, { code: 'CW_UNREACHABLE' })
+      )
+
+      await expect(listBucketUseCase({ ...ask, place })).resolves.toEqual({
+        kind: 'cw-unreachable'
+      })
+    }
+  )
+
+  test('a 503 naming the queue that couldn’t reach CW, at a cursor, is that queue failing the page, not CW unreachable', async () => {
+    vi.mocked(queryList).mockRejectedValue(
+      gasAnswer(503, { errorCode: 'CW_UNREACHABLE', queue: 'inbox' })
+    )
+
+    await expect(
+      listBucketUseCase({ ...ask, place: { cursor: 'c2' } })
+    ).resolves.toMatchObject({
+      kind: 'listed',
+      bucket: null,
+      listing: { read: { kind: 'failed' }, failedQueue: 'inbox' }
+    })
+  })
+
   test('any other 400 is GAS refusing what was asked, with its reason', async () => {
     vi.mocked(queryList).mockRejectedValue(
       gasAnswer(400, { message: '"ref" is not allowed' })
@@ -164,7 +212,8 @@ describe('listBucketUseCase', () => {
         read: { kind: 'refused', refusal: '"ref" is not allowed' },
         refusedSearch: null,
         pageRows: [],
-        stopped: null
+        stopped: null,
+        failedQueue: null
       }
     })
   })
@@ -180,6 +229,36 @@ describe('listBucketUseCase', () => {
       kind: 'listed',
       bucket: null,
       listing: { read: { kind: 'failed', failure } }
+    })
+  })
+
+  test('a read of a list over several queues that one queue failed names it', async () => {
+    vi.mocked(queryList).mockRejectedValue(
+      gasAnswer(504, { reason: 'TIMED_OUT', queue: 'outbox' })
+    )
+
+    await expect(listBucketUseCase(ask)).resolves.toMatchObject({
+      listing: {
+        read: { kind: 'failed', failure: { kind: 'timed-out' } },
+        failedQueue: 'outbox'
+      }
+    })
+  })
+
+  test('a cursor GAS can’t read is the list changing under a later page; on a first page it is a refusal like any other', async () => {
+    vi.mocked(queryList).mockRejectedValue(
+      gasAnswer(400, {
+        reason: 'INVALID_CURSOR',
+        message: 'The cursor cannot be read'
+      })
+    )
+
+    await expect(
+      listBucketUseCase({ ...ask, place: { cursor: 'c2' } })
+    ).resolves.toEqual({ kind: 'changed' })
+    await expect(listBucketUseCase(ask)).resolves.toMatchObject({
+      kind: 'listed',
+      listing: { read: { kind: 'refused' } }
     })
   })
 })

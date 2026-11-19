@@ -35,7 +35,7 @@ const applicationPath = '/dev-ops/applications/frps-private-beta/a7c-2f1-9e4'
 
 const tokensPath = '/dev-ops/clients/gas'
 
-const outboxPath = '/dev-ops/events/gas/outbox'
+const outboxPath = '/dev-ops/events/gas'
 
 /** GAS couldn't build its catalogue, so no list can be found. */
 const catalogueDown = () =>
@@ -154,7 +154,7 @@ describe('the shell', () => {
     ).toEqual([
       ['Overview', 'layout-dashboard'],
       ['Explore', 'telescope'],
-      ['Grant Application Service Outbox', 'radio-tower'],
+      ['Grant Application Service Events', 'radio-tower'],
       ['Applications', 'file-text'],
       ['Grants', 'landmark'],
       ['Grant Application Service Access tokens', 'key-round'],
@@ -308,7 +308,7 @@ describe('the shell', () => {
       tokensPath,
       `${tokensPath}?times=open`,
       '/dev-ops/events',
-      '/dev-ops/events/gas/outbox',
+      '/dev-ops/events/gas',
       applicationPath,
       '/dev-ops/no-such-page',
       '/dev-ops/signed-out'
@@ -441,7 +441,7 @@ describe('saving Times', () => {
     }
   )
 
-  const list = '/dev-ops/events/gas/outbox?status=failed'
+  const list = '/dev-ops/events/gas?status=failed'
   const saveFrom = (back: string, cookie: string) =>
     save('times=utc', `/dev-ops/times?back=${encodeURIComponent(back)}`, {
       ...sameOrigin(),
@@ -455,7 +455,7 @@ describe('saving Times', () => {
     )
 
     expect(headers.location).toBe(
-      `/dev-ops/events/gas/outbox?status=failed&from=${encodeURIComponent('2026-06-16T08:00:00.000Z')}&to=${encodeURIComponent('2026-06-16T16:30:15.000Z')}`
+      `/dev-ops/events/gas?status=failed&from=${encodeURIComponent('2026-06-16T08:00:00.000Z')}&to=${encodeURIComponent('2026-06-16T16:30:15.000Z')}`
     )
   })
 
@@ -471,7 +471,7 @@ describe('saving Times', () => {
     ).searchParams.get('back')
 
     expect(back).toBe(
-      `/dev-ops/events/gas/outbox?status=failed&from=${encodeURIComponent('2026-06-16T08:00:00.000Z')}`
+      `/dev-ops/events/gas?status=failed&from=${encodeURIComponent('2026-06-16T08:00:00.000Z')}`
     )
   })
 
@@ -482,7 +482,7 @@ describe('saving Times', () => {
     )
 
     expect(headers.location).toBe(
-      `/dev-ops/events/gas/outbox?status=failed&from=${encodeURIComponent('2026-06-15T23:00:00.000Z')}&to=${encodeURIComponent('2026-06-16T22:59:59.999Z')}`
+      `/dev-ops/events/gas?status=failed&from=${encodeURIComponent('2026-06-15T23:00:00.000Z')}&to=${encodeURIComponent('2026-06-16T22:59:59.999Z')}`
     )
   })
 
@@ -568,7 +568,7 @@ describe("Dev Ops' status pages", () => {
     expect(flatten(page.find('.gpa-statuspage-body').text())).toBe(
       'Check the address. A link to an event, application or case may have the wrong ID or service in it; search for it from its list instead.'
     )
-    expect(flatten(part($, 'status-home').text())).toBe('Go to GAS outbox')
+    expect(flatten(part($, 'status-home').text())).toBe('Go to GAS events')
     expect(part($, 'status-home').attr('class')).toContain('gpa-btn-primary')
     expect(part($, 'status-back').attr('href')).toBe(tokensPath)
     expect(part($, 'shell-nav').find('a')).toHaveLength(9)
@@ -642,7 +642,7 @@ describe("Dev Ops' status pages", () => {
       'Reference: 4bf92f3577b34da6a3ce929d0e0e4736'
     )
     expect(part($, 'status-retry').attr('href')).toBe(applicationPath)
-    expect(flatten(part($, 'status-home').text())).toBe('Go to GAS outbox')
+    expect(flatten(part($, 'status-home').text())).toBe('Go to GAS events')
   })
 
   test('asks for no reference when the request carried none', async () => {

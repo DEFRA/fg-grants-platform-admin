@@ -1,5 +1,10 @@
 import Boom from '@hapi/boom'
-import type { Request, ResponseToolkit, ServerRoute } from '@hapi/hapi'
+import type {
+  Lifecycle,
+  Request,
+  ResponseToolkit,
+  ServerRoute
+} from '@hapi/hapi'
 import Joi from 'joi'
 
 import type { BucketEntry } from '../use-cases/shell-catalogue.ts'
@@ -10,15 +15,33 @@ import type {
   ListAsk,
   ListOutcome
 } from '../use-cases/list-bucket.use-case.ts'
-import { listBucketUseCase } from '../use-cases/list-bucket.use-case.ts'
+import {
+  isQueueAddress,
+  listBucketUseCase
+} from '../use-cases/list-bucket.use-case.ts'
 import type { BucketFilters } from '../view-models/bucket-links.ts'
 import { devOpsPath, toCaseworkingListAt } from '../view-models/bucket-nav.ts'
 import type { CaseworkingList } from '../view-models/bucket-nav.ts'
 import { fromUrlQuery, withOfferedValues } from '../view-models/bucket-urls.ts'
-import { listPageCache, toFilterHref } from '../view-models/list-filters.ts'
+import {
+  errorKeyMax,
+  errorParamOf,
+  errorParamOfKind,
+  toErrorSearchError,
+  errorAtField,
+  shownErrorField,
+  toErrorKey,
+  toErrorKind
+} from '../view-models/error-search.ts'
+import {
+  filterValueMax,
+  listPageCache,
+  toFilterHref
+} from '../view-models/list-filters.ts'
 import {
   badRequest,
   caseworkingUnreachableCode,
+  changedParam,
   clearParam,
   expiredParam,
   restoreMax,
@@ -36,6 +59,8 @@ import { seeOther } from '../view-models/see-other.ts'
 import {
   clearSearch,
   forgetRefused,
+  isSetAside,
+  noteErrorParam,
   peekSearch,
   storeSearch,
   searchError,
@@ -63,12 +88,13 @@ const cursorMax = 512
 /** Bounds a later page's number; real ones are far smaller. */
 const pageMax = 10_000
 
-const valueMax = 200
-
 /** Any key that could be a filter: GAS knows which are, and refuses the rest. */
 const urlKey = /^[A-Za-z][A-Za-z0-9.]*$/
 
-const urlValue = Joi.string().allow('').max(valueMax)
+/** The longest a value in the address can be, in UTF-16 units: a filter's, or an error key's, whose characters GAS counts and may each take two. */
+const urlValueMax = Math.max(filterValueMax, 2 * errorKeyMax)
+
+const urlValue = Joi.string().allow('').max(urlValueMax)
 
 /** The most values one filter takes, as GAS does. */
 const valuesMax = 20
@@ -88,6 +114,7 @@ interface ListUrlQuery extends Address {
   through?: string
   [clearParam]?: string
   [expiredParam]?: string
+  [changedParam]?: string
 }
 
 /** Where the address starts in the list: a later page by its cursor, or every page through one. */
@@ -127,6 +154,8 @@ const valueField = 'ref-value'
 interface SearchPayload extends Address {
   [kindField]: string
   [valueField]: string
+  [shownErrorField]: string
+  [errorAtField]: string
 }
 
 /** A list's path as the catalogue spells one, and as GAS is asked for it. */
@@ -148,14 +177,15 @@ const withoutTrailingSlashes = (path: string): string => {
 const ownedElsewhere = [
   /^(?:explore|clients|times)(?:\/|$)/,
   /^(?:applications|cases|grants|workflows)\//,
-  /^events(?:\/[\w-]+)?$/,
+  /^events$/,
   /^events(?:\/[\w-]+){3,}$/
 ]
 
 const isListPath = (path: string): boolean =>
   path.length <= listPathMax &&
   listPathPattern.test(path) &&
-  !ownedElsewhere.some((owned) => owned.test(path))
+  !ownedElsewhere.some((owned) => owned.test(path)) &&
+  !isQueueAddress(path)
 
 /** The path below the admin's root, without a trailing slash; null for one no list could have. */
 const toListPath = (request: Request): string | null => {
@@ -176,7 +206,8 @@ const uncarriedKeys = new Set([
   'search',
   'ref',
   'kind',
-  expiredParam
+  expiredParam,
+  changedParam
 ])
 
 const isCarried = (key: string): boolean =>
@@ -230,18 +261,24 @@ const browse: SearchToRun = { q: '', repeat: false, id: '' }
 
 /**
  * A cursor is only a position, so a later page of a search runs the search its
- * first page ran, or none: null when that search is no longer held.
+ * first page ran, or none: null when that search is no longer held. The field
+ * holds one search, so an error in the address is it, and any search held
+ * waits, untouched, for the list's address without one.
  */
 const searchFor = (
   request: Request,
   path: string,
   { cursor, searched, through }: ListPlace,
-  listHref: string
+  address: Address
 ): SearchToRun | null => {
   const key = toSearchKey(path)
 
+  if (isSetAside(request, key, address)) {
+    return browse
+  }
+
   if (!isLater({ cursor, through })) {
-    return takeSearch(request, key, listHref)
+    return takeSearch(request, key, toListHref(path, address))
   }
 
   return searched ? peekSearch(request, key, searched) : browse
@@ -257,20 +294,10 @@ const viewCatalogueUnavailable = (request: Request, h: ResponseToolkit) =>
     .code(catalogueUnavailableCode)
 
 /** A search box that was refused is a 400 whatever the list then read. */
-const draw = (
-  request: Request,
-  h: ResponseToolkit,
-  input: Omit<ListPageInput, 'buckets'>
-) => {
-  const full = {
-    ...input,
-    buckets: shellCatalogue(request)?.buckets ?? [input.bucket]
-  }
-
-  return h
-    .view('list', toListPage(full))
-    .code(input.attempt ? badRequest : toListStatusCode(full))
-}
+const draw = (h: ResponseToolkit, input: ListPageInput) =>
+  h
+    .view('list', toListPage(input))
+    .code(input.attempt ? badRequest : toListStatusCode(input))
 
 /** The list footer's loader appends the rows of a page it is answered with, so a page it can't append names where to go instead. */
 const isLoadedInPlace = (request: Request): boolean =>
@@ -282,6 +309,27 @@ const toFirstPage = (request: Request, h: ResponseToolkit, href: string) =>
     ? h.response().code(staleSearchCode).header('location', href)
     : h.redirect(href)
 
+/** The key each notice is carried by into the page that says it, the first set winning. */
+const noticeParams: Record<ListNotice, string> = {
+  expired: expiredParam,
+  changed: changedParam
+}
+
+const notices = Object.keys(noticeParams) as ListNotice[]
+
+const toNoticeParams = (notice: ListNotice): URLSearchParams =>
+  new URLSearchParams({ [noticeParams[notice]]: '1' })
+
+const toNotice = (query: ListUrlQuery): ListNotice | undefined =>
+  notices.find((notice) => query[noticeParams[notice]])
+
+const noticeKeys = new Set(Object.values(noticeParams))
+
+const withoutNotices = (address: Address): Address =>
+  Object.fromEntries(
+    Object.entries(address).filter(([key]) => !noticeKeys.has(key))
+  )
+
 /** The first page, saying the search has expired. */
 const viewExpired = (
   request: Request,
@@ -289,11 +337,7 @@ const viewExpired = (
   path: string,
   address: Address
 ) =>
-  toFirstPage(
-    request,
-    h,
-    toListHref(path, address, new URLSearchParams({ [expiredParam]: '1' }))
-  )
+  toFirstPage(request, h, toListHref(path, address, toNoticeParams('expired')))
 
 /** What one list request asks, and how its page is drawn. */
 interface PageAsk {
@@ -353,10 +397,11 @@ const viewListing = (
   }
 
   forgetRefused(request, toSearchKey(path), search, isRefused(listing))
+  noteErrorParam(request, toSearchKey(path), errorParamOf(bucket))
 
   const filters = toFilters(bucket, address)
 
-  return draw(request, h, {
+  return draw(h, {
     bucket,
     filters: isLater(place) ? filters : pinQuickRange(filters, now),
     times,
@@ -366,17 +411,17 @@ const viewListing = (
     attempt: drawing.attempt,
     pageRows: listing.pageRows,
     stopped: listing.stopped,
+    failedQueue: listing.failedQueue,
     ...toShown(listing, search, place.cursor)
   })
 }
 
 /** A refused address shows only what the list could have read: no value its fact doesn't offer. */
 const viewRefusedAddress = (
-  request: Request,
   h: ResponseToolkit,
   { bucket, address, times, attempt }: Drawing
 ) =>
-  draw(request, h, {
+  draw(h, {
     bucket,
     read: null,
     filters: toFilters(bucket, withOfferedValues(bucket, address)),
@@ -395,11 +440,10 @@ const withoutRange = (filters: BucketFilters): BucketFilters =>
 
 /** An unreadable range isn't shown as chosen. */
 const viewRefusedRange = (
-  request: Request,
   h: ResponseToolkit,
   { bucket, address, times, attempt }: Drawing
 ) =>
-  draw(request, h, {
+  draw(h, {
     bucket,
     read: null,
     filters: withoutRange(toFilters(bucket, address)),
@@ -461,7 +505,7 @@ const viewCwUnreachable = (
 
 type Answered = Exclude<
   ListOutcome,
-  { kind: 'not-found' } | { kind: 'cw-unreachable' }
+  { kind: 'not-found' } | { kind: 'cw-unreachable' } | { kind: 'changed' }
 >
 
 const viewAnswered = (
@@ -475,13 +519,41 @@ const viewAnswered = (
   }
 
   if (outcome.kind === 'checked') {
-    return viewRefusedRange(request, h, drawing)
+    return viewRefusedRange(h, drawing)
   }
 
-  return refusedViews[outcome.refusal](request, h, drawing)
+  return refusedViews[outcome.refusal](h, drawing)
 }
 
-/** No list at the path is a 404, and a page drawn from an answer that carried no lists says they couldn't be read. */
+/** A cursor GAS can't read is a place in a list that changed: its first page, saying so. */
+const viewChanged = (request: Request, h: ResponseToolkit, ask: PageAsk) =>
+  toFirstPage(
+    request,
+    h,
+    toListHref(ask.path, ask.address, toNoticeParams('changed'))
+  )
+
+/** No list at the path: a 404. */
+const viewNotFound = (): never => {
+  throw Boom.notFound()
+}
+
+type Unlisted = Exclude<ListOutcome, Answered>['kind']
+
+const unlistedViews: Record<
+  Unlisted,
+  (request: Request, h: ResponseToolkit, ask: PageAsk) => unknown
+> = {
+  'not-found': viewNotFound,
+  'cw-unreachable': (request, h, ask) =>
+    viewCwUnreachable(request, h, ask.path),
+  changed: viewChanged
+}
+
+const isAnswered = (outcome: ListOutcome): outcome is Answered =>
+  !Object.hasOwn(unlistedViews, outcome.kind)
+
+/** A page drawn from an answer that carried no lists says they couldn't be read. */
 const viewOutcome = (
   request: Request,
   h: ResponseToolkit,
@@ -489,12 +561,8 @@ const viewOutcome = (
   outcome: ListOutcome,
   now: Date
 ) => {
-  if (outcome.kind === 'not-found') {
-    throw Boom.notFound()
-  }
-
-  if (outcome.kind === 'cw-unreachable') {
-    return viewCwUnreachable(request, h, ask.path)
+  if (!isAnswered(outcome)) {
+    return unlistedViews[outcome.kind](request, h, ask)
   }
 
   const bucket = entryOf(request, outcome.bucket, ask.path)
@@ -525,23 +593,21 @@ const viewList = async (request: Request, h: ResponseToolkit, ask: PageAsk) => {
   return viewOutcome(request, h, ask, outcome, now)
 }
 
-const toNotice = (expired: string | undefined): ListNotice | undefined =>
-  expired ? 'expired' : undefined
-
 /**
  * Clear all, an old link's retired switch and a later page of a search no
  * longer held are each answered from the address alone, asking GAS nothing.
  */
 const viewAddress = (request: Request, h: ResponseToolkit, path: string) => {
+  const query = withoutShellKeys(request.query as ListUrlQuery)
   const {
     cursor,
     searched,
     page,
     through,
     [clearParam]: clear,
-    [expiredParam]: expired,
-    ...address
-  } = withoutShellKeys(request.query as ListUrlQuery)
+    ...rest
+  } = query
+  const address = withoutNotices(rest)
   const listHref = toListHref(path, address)
 
   if (clear) {
@@ -555,7 +621,7 @@ const viewAddress = (request: Request, h: ResponseToolkit, path: string) => {
   }
 
   const place = toPlace({ cursor, searched, page, through })
-  const search = searchFor(request, path, place, listHref)
+  const search = searchFor(request, path, place, address)
 
   if (search === null) {
     return viewExpired(request, h, path, address)
@@ -566,7 +632,7 @@ const viewAddress = (request: Request, h: ResponseToolkit, path: string) => {
     address,
     place,
     search,
-    notice: toNotice(expired)
+    notice: toNotice(query)
   })
 }
 
@@ -583,30 +649,80 @@ const pathOrNotFound = (request: Request): string => {
   return path
 }
 
+/** A path no list has is a 404 whatever its query. */
+const notFoundFirst: Lifecycle.Method = (request, _h, error) => {
+  pathOrNotFound(request)
+
+  throw error
+}
+
+const listQuery = Joi.object({
+  cursor: Joi.string().max(cursorMax),
+  searched: Joi.string().guid(),
+  page: Joi.number().integer().min(2).max(pageMax),
+  through: Joi.number().integer().min(1).max(restoreMax),
+  [clearParam]: Joi.string().valid('all'),
+  [expiredParam]: Joi.string().valid('1'),
+  [changedParam]: Joi.string().valid('1'),
+  ...timeRangeFilters,
+  ...shellQuery
+})
+  .pattern(urlKey, urlValues)
+  .oxor('cursor', 'through')
+  .with('page', 'cursor')
+
 export const viewBucketRoute: ServerRoute = {
   method: 'GET',
   path: listPath,
   options: {
     cache: listPageCache,
-    validate: {
-      query: Joi.object({
-        cursor: Joi.string().max(cursorMax),
-        searched: Joi.string().guid(),
-        page: Joi.number().integer().min(2).max(pageMax),
-        through: Joi.number().integer().min(1).max(restoreMax),
-        [clearParam]: Joi.string().valid('all'),
-        [expiredParam]: Joi.string().valid('1'),
-        ...timeRangeFilters,
-        ...shellQuery
-      })
-        .pattern(urlKey, urlValues)
-        .oxor('cursor', 'through')
-        .with('page', 'cursor')
-    }
+    validate: { query: listQuery, failAction: notFoundFirst }
   },
   handler: (request: Request, h: ResponseToolkit) =>
     viewAddress(request, h, pathOrNotFound(request))
 }
+
+interface ErrorSearch {
+  path: string
+  address: Address
+  param: string
+  typed: string
+  shown: string
+}
+
+/**
+ * The error is a filter in the address, so Load more, Back and links keep it:
+ * set as the key the typed text stands for, or dropped by an empty box. Any
+ * search held goes, as the box holds one search.
+ */
+const toErrorSearch = (
+  request: Request,
+  h: ResponseToolkit,
+  { path, address, param, typed, shown }: ErrorSearch
+) => {
+  const text = typed.trim()
+  const refusal = toErrorSearchError(text, shown)
+
+  clearSearch(request, toSearchKey(path))
+
+  if (refusal !== null) {
+    return viewList(request, h, {
+      path,
+      address,
+      place: { page: 1 },
+      search: browse,
+      attempt: { kind: toErrorKind(param), value: typed, error: refusal }
+    })
+  }
+
+  const error = text === '' ? {} : { [param]: toErrorKey(text, shown) }
+
+  return h.redirect(toListHref(path, { ...address, ...error })).code(seeOther)
+}
+
+/** The key the form says its list takes the error under, as a filter's key; null for none. */
+const toErrorAt = (posted: string): string | null =>
+  isCarried(posted) ? posted : null
 
 /** What an empty box clears, or the search a typed value is; null for one that cannot be. */
 const toStoredQuery = (kind: string, typed: string): string | null => {
@@ -618,9 +734,9 @@ const toStoredQuery = (kind: string, typed: string): string | null => {
 /**
  * The search runs nothing: it keeps the identifier out of the URL, and the
  * list it redirects to reads it back, GAS checking its kind and the address
- * there. A value GAS could never take is not stored: any search held is
- * cleared, and the list's first page is drawn without one, with the reason
- * beside the box.
+ * there, a key the list takes no error under included. A value GAS could
+ * never take is not stored: any search held is cleared, and the list's first
+ * page is drawn without one, with the reason beside the box.
  */
 export const searchBucketRoute: ServerRoute = {
   method: 'POST',
@@ -628,13 +744,20 @@ export const searchBucketRoute: ServerRoute = {
   options: {
     validate: {
       payload: Joi.object({
-        [kindField]: Joi.string().allow('').max(valueMax).default(''),
+        [kindField]: Joi.string().allow('').max(filterValueMax).default(''),
         [valueField]: Joi.string().allow('').default(''),
+        [shownErrorField]: Joi.string().allow('').max(urlValueMax).default(''),
+        [errorAtField]: Joi.string().allow('').max(filterValueMax).default(''),
         ...timeRangeFilters
       })
         .pattern(urlKey, urlValues)
         .empty(null)
-        .default({ [kindField]: '', [valueField]: '' })
+        .default({
+          [kindField]: '',
+          [valueField]: '',
+          [shownErrorField]: '',
+          [errorAtField]: ''
+        })
     }
   },
   async handler(request: Request, h: ResponseToolkit) {
@@ -642,9 +765,17 @@ export const searchBucketRoute: ServerRoute = {
     const {
       [kindField]: kind,
       [valueField]: typed,
+      [shownErrorField]: shown,
+      [errorAtField]: errorAt,
       ...posted
     } = request.payload as SearchPayload
     const address = toPostedAddress(posted)
+    const param = errorParamOfKind(kind)
+
+    if (param !== null && isCarried(param)) {
+      return toErrorSearch(request, h, { path, address, param, typed, shown })
+    }
+
     const key = toSearchKey(path)
     const href = toListHref(path, address)
     const q = toStoredQuery(kind, typed)
@@ -661,7 +792,7 @@ export const searchBucketRoute: ServerRoute = {
       })
     }
 
-    storeSearch(request, key, q, href)
+    storeSearch(request, key, q, href, toErrorAt(errorAt))
 
     return h.redirect(href).code(seeOther)
   }

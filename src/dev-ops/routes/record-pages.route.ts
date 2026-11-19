@@ -160,7 +160,7 @@ const missingView = (
     record,
     request.params,
     state,
-    request,
+    { request, catalogue },
     failure
   )
 

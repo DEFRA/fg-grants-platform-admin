@@ -3,6 +3,7 @@ import { caseType } from './cases-page.view-model.ts'
 import { grantType } from './grants-page.view-model.ts'
 import { toRecordMissing } from './record-missing.ts'
 import { workflowType } from './workflows-page.view-model.ts'
+import { cwEvents, gasEvents } from '../use-cases/test-fixtures.ts'
 
 const application = { code: 'frps-private-beta', clientRef: 'a7c-2f1-9e4' }
 const aCase = { workflowCode: 'woodland', caseRef: 'f02-7d8-a61' }
@@ -11,6 +12,8 @@ const request = {
   method: 'get',
   url: new URL('https://gpa.example/dev-ops/grants/woodland/1.43.2?tab=phases')
 }
+const grouped = { buckets: [gasEvents, cwEvents], sourceErrors: [] }
+const asked = { request, catalogue: grouped }
 
 describe('toRecordMissing', () => {
   test.each([
@@ -45,7 +48,7 @@ describe('toRecordMissing', () => {
   ])(
     'says the service has no such $title',
     (record, key, title, messageTitle, text) => {
-      const missing = toRecordMissing(record, key, 'not-found', request)
+      const missing = toRecordMissing(record, key, 'not-found', asked)
 
       expect(missing.title).toBe(title)
       expect(missing.message).toEqual({ title: messageTitle, text })
@@ -53,34 +56,58 @@ describe('toRecordMissing', () => {
   )
 
   test.each([
-    [grantType, '/dev-ops/events/gas/inbox', 'Search GAS’s inbox'],
-    [workflowType, '/dev-ops/events/cw/inbox', 'Search CW’s inbox for woodland']
+    [grantType, '/dev-ops/events/gas', 'Search GAS’s inbox'],
+    [workflowType, '/dev-ops/events/cw', 'Search CW’s inbox for woodland']
   ])(
-    'offers a search of the inbox a refused $title version would be in',
+    'offers a search of the inbox a refused $title version would be in, on the Events page with Inbox picked',
     (record, action, text) => {
       expect(
-        toRecordMissing(record, version, 'not-found', request).inboxSearch
+        toRecordMissing(record, version, 'not-found', asked).inboxSearch
       ).toEqual({
         action,
-        code: 'woodland',
+        hidden: [
+          { name: 'ref-kind', value: 'ref' },
+          { name: 'ref-value', value: 'woodland' },
+          { name: 'queue', value: 'inbox' }
+        ],
         text
       })
     }
   )
 
+  test('offers no search for a source with no Events page', () => {
+    expect(
+      toRecordMissing(
+        { ...grantType, source: 'Other' },
+        version,
+        'not-found',
+        asked
+      ).inboxSearch
+    ).toBeNull()
+  })
+
+  test('offers no search when no list holds the inbox', () => {
+    expect(
+      toRecordMissing(grantType, version, 'not-found', {
+        request,
+        catalogue: null
+      }).inboxSearch
+    ).toBeNull()
+  })
+
   test('tries the record’s own address again, keeping its query', () => {
     expect(
-      toRecordMissing(grantType, version, 'unavailable', request).retryHref
+      toRecordMissing(grantType, version, 'unavailable', asked).retryHref
     ).toBe('/dev-ops/grants/woodland/1.43.2?tab=phases')
   })
 
   test('offers no search where there is no version to have been refused, or the record was only unreadable', () => {
     expect(
-      toRecordMissing(applicationType, application, 'not-found', request)
+      toRecordMissing(applicationType, application, 'not-found', asked)
         .inboxSearch
     ).toBeNull()
     expect(
-      toRecordMissing(grantType, version, 'unavailable', request).inboxSearch
+      toRecordMissing(grantType, version, 'unavailable', asked).inboxSearch
     ).toBeNull()
   })
 
@@ -120,7 +147,7 @@ describe('toRecordMissing', () => {
   ] as const)(
     'says a $title is %s with no more known, as the event page does',
     (record, key, state, noun, reason) => {
-      expect(toRecordMissing(record, key, state, request).message).toEqual({
+      expect(toRecordMissing(record, key, state, asked).message).toEqual({
         title: `This ${noun} couldn’t be loaded.`,
         text: `${reason} Nothing has changed — try again in a moment.`
       })
@@ -161,8 +188,7 @@ describe('toRecordMissing', () => {
     'names the service a $title’s failed read is down to: %o',
     (record, key, failure, reason) => {
       expect(
-        toRecordMissing(record, key, 'unavailable', request, failure).message
-          .text
+        toRecordMissing(record, key, 'unavailable', asked, failure).message.text
       ).toBe(`${reason} Nothing has changed — try again in a moment.`)
     }
   )
@@ -180,7 +206,7 @@ describe('toRecordMissing', () => {
   ] as const)(
     'titles the tab for a $title',
     (record, key, state, pageTitle) => {
-      expect(toRecordMissing(record, key, state, request).pageTitle).toBe(
+      expect(toRecordMissing(record, key, state, asked).pageTitle).toBe(
         pageTitle
       )
     }

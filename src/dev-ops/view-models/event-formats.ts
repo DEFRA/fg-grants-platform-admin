@@ -165,3 +165,12 @@ export const toGap = (from: string, to: string): string | null => {
 
 export const toEventHref = (key: EventKey): string =>
   `/dev-ops/events/${toUrlService(key.service)}/${encodeURIComponent(key.box)}/${encodeURIComponent(key.id)}`
+
+const shortIdHead = 8
+const shortIdTail = 4
+
+/** The first 8 and the last 4 of the id, as the dialogs and the Events list name the event. */
+export const shortId = (id: string): string =>
+  id.length > shortIdHead + shortIdTail
+    ? `${id.slice(0, shortIdHead)}…${id.slice(-shortIdTail)}`
+    : id

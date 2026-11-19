@@ -265,6 +265,17 @@
     margin-block-start: calc((1lh - var(--size-dot)) / 2);
   }
 }
+.gpa-table-scroll .gpa-narrow-only {
+  display: none;
+}
+@container (max-width: 719px) {
+  .gpa-table-scroll.is-wrapping .gpa-narrow-only {
+    display: block;
+  }
+  .gpa-table-scroll.is-wrapping:has(.gpa-narrow-only) .gpa-wide-only {
+    display: none;
+  }
+}
 .gpa-sticky-col {
   position: sticky;
   inset-inline-start: 0;
@@ -295,8 +306,12 @@
 }
 .gpa-table-scroll.is-scrolling:has(.gpa-sticky-col)
   .gpa-sticky-col:not(.gpa-cell-check) {
-  box-shadow: inset calc(var(--border-width-hairline) * -1) 0 0
-    var(--table-divider);
+  background:
+    linear-gradient(var(--table-divider), var(--table-divider)) right
+      calc(var(--gap-columns) / 2) top 0 / var(--border-width-hairline) 100%
+      no-repeat,
+    linear-gradient(var(--gpa-row-tint), var(--gpa-row-tint)),
+    var(--bg-surface);
 }
 .gpa-tr.is-link:has(.gpa-sticky-col) {
   cursor: pointer;
@@ -331,7 +346,10 @@
 [dir="rtl"]
   .gpa-table-scroll.is-scrolling:has(.gpa-sticky-col)
   .gpa-sticky-col:not(.gpa-cell-check) {
-  box-shadow: inset var(--border-width-hairline) 0 0 var(--table-divider);
+  background-position:
+    left calc(var(--gap-columns) / 2) top 0,
+    0 0,
+    0 0;
 }
 @container (min-width: 720px) {
   .gpa-table-scroll.is-subgrid.is-scrolling {
@@ -407,4 +425,39 @@
 .gpa-table-toolbar > :only-child {
   flex: 1 1 auto;
   min-width: 0;
+}
+
+.gpa-pathhead {
+  display: flex;
+  width: max-content;
+  max-width: 28ch;
+  min-width: 100%;
+  white-space: nowrap;
+}
+.gpa-pathhead-up {
+  flex: 0 1 auto;
+  min-width: 1ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  direction: rtl;
+  color: var(--fg-faint);
+  font-weight: 400;
+}
+.gpa-pathhead-up bdi {
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+.gpa-pathhead-key {
+  flex: 0 0 auto;
+  max-width: calc(100% - 1ch);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.gpa-right > .gpa-pathhead,
+.gpa-right .gpa-sort > .gpa-pathhead {
+  justify-content: flex-end;
+}
+.gpa-rowlink.is-plain,
+.gpa-htable a.gpa-rowlink.is-plain {
+  font-weight: inherit;
 }

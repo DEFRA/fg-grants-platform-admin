@@ -11,6 +11,7 @@ import { toTone } from './catalogue-presentation.ts'
 import type { Tone } from './catalogue-presentation.ts'
 import { toUrlService } from './event-address.ts'
 import { toEventHref } from './event-formats.ts'
+import { eventsPresentationId } from './events-list.ts'
 import { toFittingBack } from './record-filters.ts'
 import { toRecordTime } from './record-times.ts'
 import type { RecordTime } from './record-times.ts'
@@ -71,7 +72,7 @@ const toRow =
     status: {
       text: event.statusLabel,
       tone: toTone(
-        { id: `${toUrlService(event.service)}.${event.box}` },
+        { id: eventsPresentationId(toUrlService(event.service)) },
         'status',
         event.status,
         event.statusRole

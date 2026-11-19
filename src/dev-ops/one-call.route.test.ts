@@ -28,7 +28,7 @@ const applicationsAdmin = { ...operator, scope: ['FCP.GrantApplicationsAdmin'] }
 
 const marker = 'from-the-answer'
 const shell = toShell(marker)
-const markerHref = `/dev-ops/events/gas/${marker}`
+const markerHref = `/dev-ops/marked/${marker}`
 
 const withShell = (body: object = {}): GasAnswer => ({
   body: { ...body, shell }
@@ -92,7 +92,7 @@ const event = {
 }
 
 const listPage = {
-  bucket: 'gas.outbox',
+  bucket: 'gas.events',
   plan: {
     kind: 'index',
     index: [],
@@ -107,7 +107,7 @@ const listPage = {
 }
 
 const listAnswer = (list: object = {}) => ({
-  bucket: 'gas.outbox',
+  bucket: 'gas.events',
   list: {
     ...listPage,
     pageRows: [0],
@@ -213,7 +213,7 @@ const check = async (row: Row) => {
 const lists: Row[] = [
   {
     name: 'a list',
-    url: '/dev-ops/events/gas/outbox',
+    url: '/dev-ops/events/gas',
     gas: { [listCall]: withShell(listAnswer()) },
     calls: [listCall],
     status: statusCodes.ok,
@@ -221,7 +221,7 @@ const lists: Row[] = [
   },
   {
     name: 'a later page of a list',
-    url: '/dev-ops/events/gas/outbox?cursor=c2&page=2',
+    url: '/dev-ops/events/gas?cursor=c2&page=2',
     gas: { [listCall]: withShell(listAnswer()) },
     calls: [listCall],
     status: statusCodes.ok,
@@ -229,7 +229,7 @@ const lists: Row[] = [
   },
   {
     name: 'every page of a list through one, read by GAS in turn',
-    url: '/dev-ops/events/gas/outbox?through=3',
+    url: '/dev-ops/events/gas?through=3',
     gas: { [listCall]: withShell(listAnswer({ pageRows: [0, 0, 0] })) },
     calls: [listCall],
     status: statusCodes.ok,
@@ -237,7 +237,7 @@ const lists: Row[] = [
   },
   {
     name: 'a list GAS read without the search it refused',
-    url: '/dev-ops/events/gas/outbox',
+    url: '/dev-ops/events/gas',
     gas: {
       [listCall]: withShell(listAnswer({ refusedSearch: { refusal: null } }))
     },
@@ -247,7 +247,7 @@ const lists: Row[] = [
   },
   {
     name: 'an address GAS refuses',
-    url: '/dev-ops/events/gas/outbox?nope=1',
+    url: '/dev-ops/events/gas?nope=1',
     gas: {
       [listCall]: refusal(statusCodes.badRequest, {
         code: 'ADDRESS_REFUSED',
@@ -256,7 +256,7 @@ const lists: Row[] = [
           repeatedKeys: [],
           unknownValues: []
         },
-        bucket: 'gas.outbox'
+        bucket: 'gas.events'
       })
     },
     calls: [listCall],
@@ -265,29 +265,29 @@ const lists: Row[] = [
   },
   {
     name: 'a time range GPA can’t read, the address checked only',
-    url: '/dev-ops/events/gas/outbox?from=yesterday',
-    gas: { [listCall]: withShell({ bucket: 'gas.outbox', list: null }) },
+    url: '/dev-ops/events/gas?from=yesterday',
+    gas: { [listCall]: withShell({ bucket: 'gas.events', list: null }) },
     calls: [listCall],
     status: statusCodes.badRequest,
     drawn: 'shell'
   },
   {
     name: 'Clear all',
-    url: '/dev-ops/events/gas/outbox?clear=all',
+    url: '/dev-ops/events/gas?clear=all',
     calls: [],
     status: statusCodes.found,
     drawn: 'redirect'
   },
   {
     name: 'an old link with the retired audit switch',
-    url: '/dev-ops/events/gas/outbox?audit=on',
+    url: '/dev-ops/events/gas?audit=on',
     calls: [],
     status: statusCodes.found,
     drawn: 'redirect'
   },
   {
     name: 'a later page of a search no longer held',
-    url: '/dev-ops/events/gas/outbox?cursor=c2&searched=0b7c1d1e-0000-4000-8000-000000000001',
+    url: '/dev-ops/events/gas?cursor=c2&searched=0b7c1d1e-0000-4000-8000-000000000001',
     calls: [],
     status: statusCodes.found,
     drawn: 'redirect'
@@ -304,7 +304,7 @@ const lists: Row[] = [
   },
   {
     name: 'a CW list while GAS can’t reach CW',
-    url: '/dev-ops/events/cw/outbox',
+    url: '/dev-ops/events/cw',
     gas: {
       [listCall]: refusal(statusCodes.serviceUnavailable, {
         code: 'CW_UNREACHABLE'
@@ -316,7 +316,7 @@ const lists: Row[] = [
   },
   {
     name: 'a list while GAS can’t build its catalogue',
-    url: '/dev-ops/events/gas/outbox',
+    url: '/dev-ops/events/gas',
     gas: {
       [listCall]: {
         status: statusCodes.serviceUnavailable,
@@ -329,16 +329,42 @@ const lists: Row[] = [
   },
   {
     name: 'a list, when GAS does not answer',
-    url: '/dev-ops/events/gas/outbox',
+    url: '/dev-ops/events/gas',
     gas: { [listCall]: timeout },
     calls: [listCall],
     status: statusCodes.serviceUnavailable,
     drawn: 'no-lists'
   },
   {
+    name: 'a queue’s own address, its 404 drawn with the shell alone',
+    url: '/dev-ops/events/gas/outbox?status=DEAD_LETTER',
+    gas: { [shellCall]: withShell() },
+    calls: [shellCall],
+    status: statusCodes.notFound,
+    drawn: 'shell'
+  },
+  {
+    name: 'an address of a queue no service has, its 404 drawn with the shell alone',
+    url: '/dev-ops/events/gas/elsewhere',
+    gas: { [shellCall]: withShell() },
+    calls: [shellCall],
+    status: statusCodes.notFound,
+    drawn: 'shell'
+  },
+  {
+    name: 'a later page whose cursor GAS can no longer read',
+    url: '/dev-ops/events/gas?cursor=c2&page=2',
+    gas: {
+      [listCall]: refusal(statusCodes.badRequest, { reason: 'INVALID_CURSOR' })
+    },
+    calls: [listCall],
+    status: statusCodes.found,
+    drawn: 'redirect'
+  },
+  {
     name: 'a search, stored and redirected to',
     method: 'POST',
-    url: '/dev-ops/events/gas/outbox',
+    url: '/dev-ops/events/gas',
     payload: { 'ref-kind': 'ref', 'ref-value': event.eventId },
     calls: [],
     status: statusCodes.seeOther,
@@ -347,8 +373,27 @@ const lists: Row[] = [
   {
     name: 'a search that cannot be one, drawn again over the list',
     method: 'POST',
-    url: '/dev-ops/events/gas/outbox',
+    url: '/dev-ops/events/gas',
     payload: { 'ref-kind': 'ref', 'ref-value': 'x y' },
+    gas: { [listCall]: withShell(listAnswer()) },
+    calls: [listCall],
+    status: statusCodes.badRequest,
+    drawn: 'shell'
+  },
+  {
+    name: 'an Error search, set in the address and redirected to',
+    method: 'POST',
+    url: '/dev-ops/events/gas',
+    payload: { 'ref-kind': 'error:error', 'ref-value': 'Boom' },
+    calls: [],
+    status: statusCodes.seeOther,
+    drawn: 'redirect'
+  },
+  {
+    name: 'an Error search too long to be one, drawn again over the list',
+    method: 'POST',
+    url: '/dev-ops/events/gas',
+    payload: { 'ref-kind': 'error:error', 'ref-value': 'x'.repeat(114) },
     gas: { [listCall]: withShell(listAnswer()) },
     calls: [listCall],
     status: statusCodes.badRequest,
@@ -1554,8 +1599,8 @@ const explore: Row[] = [
     name: 'a list opened in Explore',
     method: 'POST',
     url: exploreUrl,
-    payload: { from: 'events/gas/outbox', list: 'type=CreateCase' },
-    gas: { [listsCall]: withShell({ bucket: 'gas.outbox', list: null }) },
+    payload: { from: 'events/gas', list: 'type=CreateCase' },
+    gas: { [listsCall]: withShell({ bucket: 'gas.events', list: null }) },
     calls: [listsCall],
     status: statusCodes.seeOther,
     drawn: 'redirect'
@@ -1576,7 +1621,7 @@ const explore: Row[] = [
     name: 'a list opened in Explore, when GAS does not answer',
     method: 'POST',
     url: exploreUrl,
-    payload: { from: 'events/gas/outbox', list: '' },
+    payload: { from: 'events/gas', list: '' },
     gas: { [listsCall]: timeout },
     calls: [listsCall],
     status: statusCodes.serviceUnavailable,
@@ -2005,8 +2050,8 @@ describe('one call per request: every route', () => {
     )
 
     expect(hrefs).toEqual([
-      ['/dev-ops/events/gas/first'],
-      ['/dev-ops/events/gas/second']
+      ['/dev-ops/marked/first'],
+      ['/dev-ops/marked/second']
     ])
     expect([first.calls, second.calls]).toEqual([
       toCalls([eventCall]),

@@ -1,8 +1,7 @@
 import { toSidebarSections, toTitleCase } from './shell.ts'
 
-const item = (id: string, icon: string, ids = [id], perService = false) => ({
+const item = (id: string, icon: string, perService = false) => ({
   id,
-  ids,
   label: id,
   perService,
   href: `/dev-ops/${id}`,
@@ -16,11 +15,11 @@ describe('toSidebarSections', () => {
         [
           {
             title: 'GAS',
-            items: [item('gas.outbox', 'activity', ['gas.outbox', 'gas.inbox'])]
+            items: [item('gas.events', 'activity')]
           },
           { title: 'CW', items: [item('cw.cases', 'folder')] }
         ],
-        'gas.inbox'
+        'gas.events'
       )
     ).toEqual([
       {
@@ -28,12 +27,12 @@ describe('toSidebarSections', () => {
         short: 'GAS',
         items: [
           {
-            id: 'gas.outbox',
-            text: 'gas.outbox',
-            href: '/dev-ops/gas.outbox',
+            id: 'gas.events',
+            text: 'gas.events',
+            href: '/dev-ops/gas.events',
             icon: 'radio-tower',
             current: true,
-            testId: 'shell-nav-gas.outbox'
+            testId: 'shell-nav-gas.events'
           }
         ]
       },
@@ -100,10 +99,10 @@ describe('toSidebarSections srPrefix', () => {
     {
       title: 'GAS',
       items: [
-        { ...item('gas.outbox', 'activity', undefined, true), label: 'Events' },
+        { ...item('gas.events', 'activity', true), label: 'Events' },
         { ...item('gas.applications', 'file-text'), label: 'Applications' },
         {
-          ...item('clients-gas', 'key', undefined, true),
+          ...item('clients-gas', 'key', true),
           label: 'Access tokens'
         }
       ]
@@ -111,10 +110,10 @@ describe('toSidebarSections srPrefix', () => {
     {
       title: 'CW',
       items: [
-        { ...item('cw.outbox', 'activity', undefined, true), label: 'Outbox' },
+        { ...item('cw.outbox', 'activity', true), label: 'Outbox' },
         { ...item('cw.cases', 'folder'), label: 'Cases' },
         {
-          ...item('clients-cw', 'key', undefined, true),
+          ...item('clients-cw', 'key', true),
           label: 'Access tokens'
         }
       ]
@@ -127,7 +126,7 @@ describe('toSidebarSections srPrefix', () => {
 
   test('gives each service’s events and access tokens their service, whatever their link says, as the prototype does', () => {
     expect(prefixes(toSidebarSections(sections, null))).toEqual([
-      ['gas.outbox', 'Grant Application Service'],
+      ['gas.events', 'Grant Application Service'],
       ['gas.applications', undefined],
       ['clients-gas', 'Grant Application Service'],
       ['cw.outbox', 'Caseworking'],
@@ -138,7 +137,7 @@ describe('toSidebarSections srPrefix', () => {
 
   test('still gives Events its service while Caseworking lists none', () => {
     expect(prefixes(toSidebarSections([sections[0]], null))).toEqual([
-      ['gas.outbox', 'Grant Application Service'],
+      ['gas.events', 'Grant Application Service'],
       ['gas.applications', undefined],
       ['clients-gas', 'Grant Application Service']
     ])

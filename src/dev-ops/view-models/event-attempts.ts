@@ -1,10 +1,11 @@
 import type { BucketEntry } from '../repositories/buckets.repository.ts'
+import { errorKeyFact, noErrorKey } from './error-search.ts'
 import type {
   EventAttempt,
   EventDetail
 } from '../use-cases/get-event.use-case.ts'
 import type { AttemptCount } from './attempt-count.ts'
-import { toBucketHref } from './bucket-links.ts'
+import { toUrlService } from './event-address.ts'
 import {
   allSame,
   errorLine,
@@ -16,6 +17,7 @@ import {
 } from './event-context.ts'
 import type { EventContext } from './event-context.ts'
 import { isAfter, toGap } from './event-formats.ts'
+import { deadLetterStatus, toEventsHref } from './events-list.ts'
 import { hasNoAttemptsSinceEdit } from './payload-edit.ts'
 import { toClockTime, toSecondsTime } from './times.ts'
 import type { TimeText } from './times.ts'
@@ -39,9 +41,14 @@ export interface RedrivenSince {
   error: string | null
 }
 
+interface ErrorsLink {
+  text: string
+  href: string
+}
+
 export interface AttemptsModel {
   count: string | null
-  errorsHref: string | null
+  errors: ErrorsLink | null
   /** Redriven since the attempts, with none since. */
   redriven: RedrivenSince | null
   lead: string | null
@@ -168,26 +175,42 @@ const toItems = (context: EventContext): AttemptItem[] => {
   return history.map(toItem({ context, last, mixed }))
 }
 
-const deadLetter = 'DEAD_LETTER'
-
-const errorNameFact = 'lastError.name'
-
 const offersDeadLetter = ({ name, values }: BucketEntry['facts'][number]) =>
-  name === 'status' && (values ?? []).some(({ value }) => value === deadLetter)
+  name === 'status' &&
+  (values ?? []).some(({ value }) => value === deadLetterStatus)
 
-/** A list can show every event with one error only if it filters by both the status and the error's name. */
-const filtersByError = ({ facts }: BucketEntry): boolean =>
-  facts.some(({ name }) => name === errorNameFact) &&
-  facts.some(offersDeadLetter)
+/** A list can show every event with one error only if it filters by both the status and the error's key. */
+const filtersByError = (list: BucketEntry | null): boolean =>
+  Boolean(
+    list?.facts.some(({ name }) => name === errorKeyFact) &&
+    list.facts.some(offersDeadLetter)
+  )
 
-/** Its own queue, narrowed to dead letters with this error's name: the event detail has no error key to match exactly. */
-const toErrorsHref = ({ event, ownList }: EventContext): string | null =>
-  event.lastError && ownList && filtersByError(ownList)
-    ? toBucketHref(ownList, {
-        status: deadLetter,
-        [errorNameFact]: event.lastError.name
-      })
-    : null
+const errorsText = (errorKey: string): string =>
+  errorKey === noErrorKey
+    ? 'Dead letters with no recorded error'
+    : 'Events with this error'
+
+/** Its own queue's dead letters with this error's key, as Top errors counts them. */
+const toErrors = ({
+  event: { errorKey },
+  key,
+  catalogue,
+  ownList
+}: EventContext): ErrorsLink | null => {
+  if (!errorKey || !filtersByError(ownList)) {
+    return null
+  }
+
+  const href = toEventsHref(catalogue, {
+    service: toUrlService(key.service),
+    box: key.box,
+    filters: { status: deadLetterStatus, [errorKeyFact]: errorKey },
+    clear: true
+  })
+
+  return href === null ? null : { text: errorsText(errorKey), href }
+}
 
 /** More attempts than allowed can't read as a share of them: the count alone, then. */
 const countText = (made: number, count: AttemptCount | null) => {
@@ -199,7 +222,7 @@ const countText = (made: number, count: AttemptCount | null) => {
 }
 
 const attemptStatuses = new Set([
-  'DEAD_LETTER',
+  deadLetterStatus,
   'FAILED',
   'RESUBMITTED',
   'PURGED'
@@ -214,7 +237,7 @@ const toRedriven = (context: EventContext): AttemptsModel => {
 
   return {
     count: countText(0, count),
-    errorsHref: null,
+    errors: null,
     redriven: {
       at: timeOf(redrive.at, times),
       by: redrive.by,
@@ -262,7 +285,7 @@ const toFailing = (context: EventContext): AttemptsModel => {
 
   return {
     count: countText(madeOf(context), count),
-    errorsHref: toErrorsHref(context),
+    errors: toErrors(context),
     redriven: null,
     lead: toLead(event),
     lastAt: timeOf(lastAtOf(event), times, toSecondsTime),

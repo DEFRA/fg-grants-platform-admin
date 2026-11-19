@@ -3,6 +3,7 @@ import type {
   BucketEntry,
   BucketFact
 } from '../repositories/buckets.repository.ts'
+import { queueFact } from '../use-cases/list-bucket.use-case.ts'
 import type { BadgeRole } from '../use-cases/get-event.use-case.ts'
 
 /** The tones a status dot is drawn in. */
@@ -29,8 +30,8 @@ interface ColumnPresentation {
  */
 export interface ListPresentation {
   title?: TitlePresentation
-  /** The row's subtitle as a column of its own. */
-  subtitle?: { label: string; mono?: boolean; width?: string }
+  /** The row's subtitle as a column of its own; `short` draws a long id by its ends, the whole in its title. */
+  subtitle?: { label: string; mono?: boolean; width?: string; short?: boolean }
   columns?: Record<string, ColumnPresentation>
   /** Fact names in the order their chips go; any other follows, as the catalogue has it. */
   chipOrder?: string[]
@@ -43,10 +44,22 @@ export interface ListPresentation {
   noMatchText?: string
   /** What a list with nothing in it at all says, given the service that keeps it. */
   emptyText?: (service: string) => string
-  /** The name of the tabs of the lists that share a page. */
-  tabsLabel?: string
   /** By fact name: values the menu lists last, after the catalogue's order. */
   lastValues?: Record<string, string[]>
+  /** On a phone, these replace the columns, so the table wraps instead of scrolling sideways. */
+  narrowColumns?: NarrowColumn[]
+  /** One width for every column, whatever the others say: equal shares that no row's cells move. */
+  columnWidth?: string
+}
+
+/** A phone column: one column's cell, with others' under it on a second line. */
+export interface NarrowColumn {
+  label: string
+  width: string
+  align: 'start' | 'right'
+  /** Column keys, as `toListColumns` gives them. */
+  main: string
+  under: string[]
 }
 
 /** Queued reads as info and Failed as danger, which the catalogue gives as neutral and warning. */
@@ -59,19 +72,33 @@ const eventStatusTones: Record<string, Tone> = {
 const dateWidth = 'var(--size-column-date)'
 const nameWidth = 'minmax(220px, 1fr)'
 
-const eventsList = (box: 'outbox' | 'inbox'): ListPresentation => ({
-  title: { width: nameWidth },
-  subtitle: { label: 'Event ID', mono: true, width: '336px' },
-  columns: { status: { width: '128px' } },
+/** Every column an equal share, so the columns stay still as Keep looking adds rows; narrower than five of them, the table scrolls sideways. */
+const eventsList: ListPresentation = {
+  columnWidth: 'minmax(160px, 1fr)',
+  subtitle: { label: 'Event ID', mono: true, short: true },
   tones: { status: eventStatusTones },
-  chipOrder: ['eventType', 'status'],
-  time: { label: 'Created', width: dateWidth },
-  noMatchText: 'Nothing created in this time range has this status and event.',
-  emptyText: (service) =>
-    `Events ${service} ${box === 'outbox' ? 'sends' : 'receives'} appear here.`,
-  tabsLabel: 'Queue',
-  lastValues: { eventType: ['Audit'] }
-})
+  chipOrder: [queueFact, 'eventType', 'status'],
+  time: { label: 'Created' },
+  noMatchText: 'Nothing created in this time range matches these filters.',
+  emptyText: (service) => `Events ${service} sends and receives appear here.`,
+  lastValues: { eventType: ['Audit'] },
+  narrowColumns: [
+    {
+      label: 'Event',
+      width: 'minmax(0, 1fr)',
+      align: 'start',
+      main: 'title',
+      under: ['subtitle', 'box']
+    },
+    {
+      label: 'Status',
+      width: 'max-content',
+      align: 'right',
+      main: 'status',
+      under: ['time']
+    }
+  ]
+}
 
 const recordList = (
   time?: string
@@ -102,10 +129,10 @@ const configList = (title: string, column: string): ListPresentation => ({
 })
 
 /**
- * Keyed by catalogue list id. Widths, copy, tab names and menu order are
- * GPA's own; the service change that retires the rest:
- * - events: GAS and CW give PUBLISHED the tone info and FAILED danger, label
- *   the inbox's time "Created" and declare the subtitle as the Event ID column.
+ * Keyed by catalogue list id. Widths, copy and menu order are GPA's own; the
+ * service change that retires the rest:
+ * - events: GAS and CW give PUBLISHED the tone info and FAILED danger, and
+ *   declare the subtitle as the Event ID column.
  * - gas.applications, cw.cases: the code column becomes "Grant", the
  *   position column goes, and GAS labels its time "Received".
  * - gas.grants, cw.workflows: the title and version become one "Grant"
@@ -113,10 +140,8 @@ const configList = (title: string, column: string): ListPresentation => ({
  *   Stored chip comes before Status.
  */
 export const cataloguePresentation: Record<string, ListPresentation> = {
-  'gas.outbox': eventsList('outbox'),
-  'gas.inbox': eventsList('inbox'),
-  'cw.outbox': eventsList('outbox'),
-  'cw.inbox': eventsList('inbox'),
+  'gas.events': eventsList,
+  'cw.events': eventsList,
   'gas.applications': {
     ...recordList('Received'),
     columns: {
@@ -232,6 +257,17 @@ const titleColumn = (bucket: BucketEntry): ListColumn => {
   }
 }
 
+const subtitleFormat = ({
+  short,
+  mono
+}: NonNullable<ListPresentation['subtitle']>): string => {
+  if (short) {
+    return 'short'
+  }
+
+  return mono ? 'mono' : 'text'
+}
+
 const subtitleColumns = (bucket: BucketEntry): ListColumn[] => {
   const declared = presentationOf(bucket).subtitle
 
@@ -246,7 +282,7 @@ const subtitleColumns = (bucket: BucketEntry): ListColumn[] => {
       key: 'subtitle',
       label: subtitle.label,
       kind: 'subtitle',
-      format: subtitle.mono ? 'mono' : 'text',
+      format: subtitleFormat(subtitle),
       fact: null,
       mono: subtitle.mono,
       width: subtitle.width,
@@ -297,8 +333,7 @@ const timeColumn = (bucket: BucketEntry): ListColumn => ({
   tooltip: false
 })
 
-/** Title first, then the subtitle, the catalogue's columns and the time. */
-export const toListColumns = (bucket: BucketEntry): ListColumn[] => [
+const columnsOf = (bucket: BucketEntry): ListColumn[] => [
   titleColumn(bucket),
   ...subtitleColumns(bucket),
   ...bucket.columns
@@ -306,6 +341,15 @@ export const toListColumns = (bucket: BucketEntry): ListColumn[] => [
     .map(toCellColumn(bucket)),
   timeColumn(bucket)
 ]
+
+/** Title first, then the subtitle, the catalogue's columns and the time. */
+export const toListColumns = (bucket: BucketEntry): ListColumn[] => {
+  const width = presentationOf(bucket).columnWidth
+
+  return width
+    ? columnsOf(bucket).map((column) => ({ ...column, width }))
+    : columnsOf(bucket)
+}
 
 /** The column a list's title is joined with, as `code@version`; null for a title that stands alone. */
 export const toVersionColumn = (bucket: BucketEntry): string | null =>

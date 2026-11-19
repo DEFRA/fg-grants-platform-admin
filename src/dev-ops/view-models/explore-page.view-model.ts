@@ -99,8 +99,8 @@ export type ExploreCellModel =
 export interface ExploreRowModel {
   /** Its window and place in it, which Back from its record lands on. */
   id: string
-  /** The address that draws the row's window, which Back from its record goes to. */
-  restoreHref: string
+  /** Past the most a restore draws, the address that draws the row's window; else the loader's address through every window shown. */
+  restoreHref: string | null
   href: string | null
   cells: ExploreCellModel[]
 }
@@ -728,8 +728,9 @@ interface RowPlace {
 
 const toRowId = ({ page, index }: RowPlace): string => `row-${page}-${index}`
 
-const toRowRestore = (run: Run, { page }: RowPlace): string =>
-  toWindowRestore(run, page)
+/** Past the most a restore draws, the row's own window; null within it, so the address keeps every window loaded. */
+const toRowRestore = (run: Run, { page }: RowPlace): string | null =>
+  page > restorableOf(run) ? toRunHref(run.id, page) : null
 
 /** Each row's window and place in it: a restore's windows from the first, else every row in the window shown. */
 const toPlaces = ({ page, windowRows }: Run, count: number): RowPlace[] => {
@@ -759,14 +760,16 @@ const toResults = (
     unseen: toUnseen(answer.unseen),
     rows: answer.rows.map((row, n) => {
       const id = toRowId(places[n])
-      const restoreHref = toRowRestore(run, places[n])
 
       return {
         id,
-        restoreHref,
+        restoreHref: toRowRestore(run, places[n]),
         href:
           answer.mode === 'rows'
-            ? toRowsHref(row.open, `${restoreHref}#${id}`)
+            ? toRowsHref(
+                row.open,
+                `${toWindowRestore(run, places[n].page)}#${id}`
+              )
             : null,
         cells: answer.columns.map((column) =>
           toCell(row.cells[column.key], column, times)

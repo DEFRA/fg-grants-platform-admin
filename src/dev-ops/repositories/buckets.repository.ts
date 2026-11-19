@@ -47,18 +47,10 @@ export interface BucketSummary {
   none: string
 }
 
-/** A page several lists of one service share, each as a tab of it. */
-export interface BucketPage {
-  id: string
-  label: string
-  /** The label less the service, for where the service is already said. */
-  shortLabel: string
-}
-
 /** One list, as the service that owns it declares it. */
 export interface BucketEntry {
   id: string
-  /** Where its list is drawn, below this admin's root, as `events/gas/outbox`. */
+  /** Where its list is drawn, below this admin's root, as `events/gas`. */
   path: string
   label: string
   /** The owning service, by the name the navigation heads its lists with. */
@@ -79,9 +71,6 @@ export interface BucketEntry {
   audited: boolean
   timeline: boolean
   summaries: BucketSummary[]
-  /** The page it is a tab of, and its label there; null for a list with a page of its own. */
-  page: BucketPage | null
-  tab: string | null
 }
 
 export interface Catalogue {
@@ -129,4 +118,6 @@ export interface BucketResult {
   page: BucketPaging
   /** The list counted with every filter; null when not counted, absent from a service that doesn't count yet. */
   total?: ListTotal | null
+  /** A list over several queues: those whose search window ended the page, and those with older rows waiting behind it. */
+  queues?: { limited: string[]; waiting: string[] }
 }

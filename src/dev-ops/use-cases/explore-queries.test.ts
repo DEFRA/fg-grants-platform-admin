@@ -1,7 +1,8 @@
-import { fullCatalogue } from './test-fixtures.ts'
+import { fullCatalogue, queuesApartCatalogue } from './test-fixtures.ts'
 import {
   findOthersItem,
   findExample,
+  opensInExplore,
   toFoundRecord,
   toListQuery,
   toLookup,
@@ -78,12 +79,12 @@ describe('toListQuery', () => {
   )
 
   test('writes a dotted fact as a quoted key, with its values as stored', () => {
-    const outbox = fullCatalogue.buckets.find(({ id }) => id === 'gas.outbox')!
+    const events = fullCatalogue.buckets.find(({ id }) => id === 'gas.events')!
 
     expect(
       toListQuery(
         {
-          ...outbox,
+          ...events,
           facts: [
             {
               name: 'lastError.name',
@@ -98,6 +99,34 @@ describe('toListQuery', () => {
       )
     ).toContain("'lastError.name': { $in: ['MongoError', 'TypeError'] }")
   })
+
+  test.each([
+    [[], "{ service: 'GAS', status: 'DEAD_LETTER' }"],
+    [['inbox'], "{ service: 'GAS', box: 'inbox', status: 'DEAD_LETTER' }"],
+    [['outbox', 'inbox'], "{ service: 'GAS', status: 'DEAD_LETTER' }"]
+  ])(
+    'an Events page with %j picked names its box only when one queue is',
+    (box, filter) => {
+      const events = fullCatalogue.buckets.find(
+        ({ id }) => id === 'gas.events'
+      )!
+
+      expect(
+        toListQuery(events, look({ facts: { box, status: ['DEAD_LETTER'] } }))
+      ).toContain(filter)
+    }
+  )
+
+  test.each(['gas.outbox', 'cw.inbox'])(
+    'a queue’s own list, %s, has no Explore',
+    (id) => {
+      const queue = queuesApartCatalogue.buckets.find(
+        (bucket) => bucket.id === id
+      )!
+
+      expect(opensInExplore(queue)).toBe(false)
+    }
+  )
 
   test('times a range by the list’s own time path', () => {
     expect(

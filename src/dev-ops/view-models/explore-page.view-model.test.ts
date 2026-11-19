@@ -143,9 +143,7 @@ describe('toExplorePage’s addresses past what a restore draws', () => {
     })
   })
 
-  test('a window within it is restored with every window before it', () => {
-    expect(pageOf(2)?.rows[0].restoreHref).toBe(
-      '/dev-ops/explore?run=run-1&through=2'
-    )
+  test('a window within it: its rows have no address of their own, so the loader’s address keeps every window', () => {
+    expect(pageOf(2)?.rows[0].restoreHref).toBeNull()
   })
 })

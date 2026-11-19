@@ -94,8 +94,9 @@
   border-color: var(--bg-accent);
   color: var(--fg-on-accent);
 }
-.gpa-menu-check:has(> input:checked) {
+.gpa-menu-check:has(> input:checked) .gpa-menuitem-label {
   font-weight: 500;
+  letter-spacing: var(--tracking-picked);
 }
 .gpa-menu-check:has(> input:focus-visible) {
   background: var(--bg-hover);

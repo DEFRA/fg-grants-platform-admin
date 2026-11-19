@@ -356,10 +356,10 @@ describe.each(lists)('the $name list', (list) => {
     const { $ } = await view(`${list.path}?${list.param}=example-grant`)
 
     expect(flat($('.gpa-empty-title').text())).toBe(`No ${list.noun} match`)
-    expect(tags($)).toEqual([`${list.chip} is example-grant`])
-    expect(
-      by($, 'list-applied').find('.gpa-tag button, .gpa-tag a')
-    ).toHaveLength(1)
+    expect(by($, `list-chip-${list.fact}`).find('.gpa-chip-value').text()).toBe(
+      'example-grant'
+    )
+    expect(tags($)).toEqual([])
   })
 
   test('L3 searched, keep looking: where the read stopped, and the way on', async () => {
@@ -451,18 +451,15 @@ describe.each(lists)('the $name list', (list) => {
     expect(vi.mocked(queryList).mock.calls.at(-1)?.[0].search).toBeNull()
   })
 
-  test('L9 a version from a version page’s link: a tag of its own, removed with its grant kept', async () => {
+  test('L9 a version from a version page’s link, which has no control: a tag of its own, removed with its grant kept', async () => {
     given(answered(exact(list)))
 
     const { $ } = await view(
       `${list.path}?${list.param}=example-grant&version=1.4.2`
     )
 
-    expect(tags($)).toEqual([
-      `${list.chip} is example-grant`,
-      'Version is 1.4.2'
-    ])
-    expect(by($, 'list-applied').find('.gpa-tag a').eq(1).attr('href')).toBe(
+    expect(tags($)).toEqual(['Version is 1.4.2'])
+    expect(by($, 'list-applied').find('.gpa-tag a').attr('href')).toBe(
       `${list.path}?${list.param}=example-grant`
     )
     expect(vi.mocked(queryList).mock.calls.at(-1)?.[0].params).toEqual({

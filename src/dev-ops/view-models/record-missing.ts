@@ -1,6 +1,11 @@
 import { statusCodes } from '../../common/status-codes.ts'
+import type { Catalogue } from '../repositories/buckets.repository.ts'
 import type { GasFailure } from '../use-cases/gas-status.ts'
+import { toEventsList } from './events-list.ts'
+import type { UrlService } from './event-address.ts'
 import { timedOutWaiting, toFailureText } from './failure-text.ts'
+import { toFields } from './list-filters.ts'
+import type { FilterField } from './list-filters.ts'
 import { toVersionName } from './record-type.ts'
 import type { RecordType } from './record-type.ts'
 import { toRetryHref, type RetryRequest } from './status-page.ts'
@@ -47,7 +52,8 @@ const toFailedMessage = (record: RecordType, failure: GasFailure): Message => ({
 /** A version that was never stored may be a message the service refused: its inbox holds it under the code. */
 export interface InboxSearch {
   action: string
-  code: string
+  /** The search, and the inbox's own filters, as the form posts them. */
+  hidden: FilterField[]
   text: string
 }
 
@@ -68,18 +74,41 @@ const searchTexts: Record<string, (code: string) => string> = {
   workflow: (code) => `Search CW’s inbox for ${code}`
 }
 
+/** The services whose events have a page, by the source a record names. */
+const sourceServices: Partial<Record<string, UrlService>> = {
+  GAS: 'gas',
+  CW: 'cw'
+}
+
+const toInbox = (record: RecordType, catalogue: Catalogue | null) => {
+  const service = sourceServices[record.source]
+
+  return service ? toEventsList(catalogue, { service, box: 'inbox' }) : null
+}
+
 const toInboxSearch = (
   record: RecordType,
   key: MissingKey,
-  state: MissingState
-): InboxSearch | null =>
-  state === 'not-found' && 'version' in key
-    ? {
-        action: `/dev-ops/events/${record.source.toLowerCase()}/inbox`,
-        code: key.code,
-        text: searchTexts[record.itemId](key.code)
-      }
-    : null
+  state: MissingState,
+  catalogue: Catalogue | null
+): InboxSearch | null => {
+  const inbox =
+    state === 'not-found' && 'version' in key
+      ? toInbox(record, catalogue)
+      : null
+
+  return (
+    inbox && {
+      action: inbox.path,
+      hidden: [
+        { name: 'ref-kind', value: 'ref' },
+        { name: 'ref-value', value: key.code },
+        ...toFields(inbox.query, Object.keys(inbox.query))
+      ],
+      text: searchTexts[record.itemId](key.code)
+    }
+  )
+}
 
 const messageFor = (
   record: RecordType,
@@ -108,14 +137,17 @@ export const toRecordMissing = (
   record: RecordType,
   key: MissingKey,
   state: MissingState,
-  request: RetryRequest,
+  {
+    request,
+    catalogue
+  }: { request: RetryRequest; catalogue: Catalogue | null },
   failure?: GasFailure
 ): RecordMissing => ({
   state,
   title: key[record.titleParam],
   pageTitle: toPageTitle(record, key, state),
   message: messageFor(record, key, state, failure),
-  inboxSearch: toInboxSearch(record, key, state),
+  inboxSearch: toInboxSearch(record, key, state, catalogue),
   retryHref: toRetryHref(request, null)
 })
 

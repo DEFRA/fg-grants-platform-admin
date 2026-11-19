@@ -2,18 +2,14 @@ import type {
   ApplicationOverview,
   ApplicationPage
 } from '../use-cases/get-application-page.use-case.ts'
-import type {
-  BucketEntry,
-  BucketFact,
-  Catalogue
-} from '../repositories/buckets.repository.ts'
+import type { Catalogue } from '../repositories/buckets.repository.ts'
 import type { RecordTab } from '../use-cases/record-reads.ts'
 import {
   applicationType,
   toApplicationHref
 } from './applications-page.view-model.ts'
-import { toBucketPath } from './bucket-nav.ts'
 import { toCaseHref } from './cases-page.view-model.ts'
+import { toEventsHref } from './events-list.ts'
 import { toGrantHref } from './grants-page.view-model.ts'
 import { toTabHref } from './record-page.view-model.ts'
 import { toEventsTab, toSectionError } from './record-events-tab.ts'
@@ -90,29 +86,14 @@ const rawCopy = {
   nothing
 }
 
-const createCase = 'CreateCase'
-
-const declaresCreateCase = ({ name, values }: BucketFact): boolean =>
-  name === 'eventType' &&
-  (values ?? []).some(({ value }) => value === createCase)
-
-const createCaseList = (catalogue: Catalogue | null): BucketEntry | undefined =>
-  (catalogue?.buckets ?? []).find(
-    ({ service, facts }) => service === 'GAS' && facts.some(declaresCreateCase)
-  )
-
-/** The GAS list that declares CreateCase, filtered to it: search refs live in the session, so it can't be opened at this reference. */
-const toCreateCaseHref = (catalogue: Catalogue | null): string | null => {
-  const list = createCaseList(catalogue)
-
-  if (!list) {
-    return null
-  }
-
-  const { param } = list.facts.find(declaresCreateCase)!
-
-  return `${toBucketPath(list)}?${new URLSearchParams({ [param]: createCase })}`
-}
+/** GAS's outbox, filtered to CreateCase: search refs live in the session, so it can't be opened at this reference. */
+const toCreateCaseHref = (catalogue: Catalogue | null): string | null =>
+  toEventsHref(catalogue, {
+    service: 'gas',
+    box: 'outbox',
+    filters: { eventType: 'CreateCase' },
+    clear: true
+  })
 
 const toNoCaseCard = (catalogue: Catalogue | null): CounterpartCard => {
   const href = toCreateCaseHref(catalogue)

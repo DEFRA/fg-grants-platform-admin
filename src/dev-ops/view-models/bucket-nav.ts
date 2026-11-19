@@ -24,8 +24,6 @@ export const toHomeHref = (catalogue: Catalogue | null): string | null => {
 
 interface NavItem {
   id: string
-  /** Every list the link stands for: it is the current one on any of them. */
-  ids: string[]
   label: string
   /** A page every service has (its events, its access tokens): read with its service, as the links are named alike. */
   perService: boolean
@@ -41,39 +39,21 @@ export interface NavSection {
 /** A list that declares no icon is drawn with this one. */
 const fallbackIcon = 'folder'
 
-const toKey = ({ id, page }: BucketEntry): string =>
-  page === null ? `list:${id}` : `page:${page.id}`
-
 /** Event lists live under `events/`, whatever the catalogue calls their link. */
 export const isEventList = ({ path }: BucketEntry): boolean =>
   path.startsWith('events/')
 
 const toNavItem = (bucket: BucketEntry): NavItem => ({
   id: bucket.id,
-  ids: [],
-  label: bucket.page?.shortLabel ?? bucket.shortLabel,
+  label: bucket.shortLabel,
   perService: isEventList(bucket),
   href: toBucketPath(bucket),
   icon: bucket.icon ?? fallbackIcon
 })
 
-/** One link per page: a list with a page of its own, or the lists that share one, opening on the first. */
-const toNavItems = (buckets: BucketEntry[]): NavItem[] => {
-  const items = new Map<string, NavItem>()
-
-  for (const bucket of buckets) {
-    const item = items.get(toKey(bucket)) ?? toNavItem(bucket)
-
-    items.set(toKey(bucket), { ...item, ids: [...item.ids, bucket.id] })
-  }
-
-  return [...items.values()]
-}
-
 /** Not a bucket: a page of its own, so it is there whether or not the catalogue answers. */
 const toAccessTokensItem = (service: 'gas' | 'cw'): NavItem => ({
   id: toNavActive(service),
-  ids: [toNavActive(service)],
   label: 'Access tokens',
   perService: true,
   href: toClientsPath(service),
@@ -95,8 +75,7 @@ const withItem = (
     : [...sections, { title, items: [item] }]
 
 const cwListIds = {
-  outbox: 'cw.outbox',
-  inbox: 'cw.inbox',
+  events: 'cw.events',
   cases: 'cw.cases',
   workflows: 'cw.workflows'
 }
@@ -105,7 +84,6 @@ const cwListIds = {
 export interface CaseworkingList {
   id: string
   path: string
-  /** The page it is drawn on: CW's events for a queue, else the list itself. */
   pageLabel: string
   shortLabel: string
   noun: string
@@ -114,15 +92,8 @@ export interface CaseworkingList {
 /** What stays in reach while GAS can't reach CW, when the catalogue names none of CW's lists. */
 const caseworkingLists: CaseworkingList[] = [
   {
-    id: cwListIds.outbox,
-    path: 'events/cw/outbox',
-    pageLabel: 'CW events',
-    shortLabel: 'Events',
-    noun: 'events'
-  },
-  {
-    id: cwListIds.inbox,
-    path: 'events/cw/inbox',
+    id: cwListIds.events,
+    path: 'events/cw',
     pageLabel: 'CW events',
     shortLabel: 'Events',
     noun: 'events'
@@ -153,16 +124,14 @@ const isCaseworkingUnreachable = (catalogue: Catalogue | null): boolean =>
 
 const cwNavItems: NavItem[] = [
   {
-    id: cwListIds.outbox,
-    ids: [cwListIds.outbox, cwListIds.inbox],
+    id: cwListIds.events,
     label: 'Events',
     perService: true,
-    href: `${devOpsPath}/events/cw/outbox`,
+    href: `${devOpsPath}/events/cw`,
     icon: 'activity'
   },
   {
     id: cwListIds.cases,
-    ids: [cwListIds.cases],
     label: 'Cases',
     perService: false,
     href: `${devOpsPath}/cases`,
@@ -170,7 +139,6 @@ const cwNavItems: NavItem[] = [
   },
   {
     id: cwListIds.workflows,
-    ids: [cwListIds.workflows],
     label: 'Workflows',
     perService: false,
     href: `${devOpsPath}/workflows`,
@@ -202,7 +170,6 @@ const overviewSection: NavSection = {
   items: [
     {
       id: overviewNavId,
-      ids: [overviewNavId],
       label: 'Overview',
       perService: false,
       href: devOpsPath,
@@ -210,7 +177,6 @@ const overviewSection: NavSection = {
     },
     {
       id: exploreNavId,
-      ids: [exploreNavId],
       label: 'Explore',
       perService: false,
       href: explorePath,
@@ -225,7 +191,7 @@ export const toNavSections = (catalogue: Catalogue | null): NavSection[] => {
   const services = [...new Set(buckets.map(({ service }) => service))]
   const sections = services.map((title) => ({
     title,
-    items: toNavItems(buckets.filter(({ service }) => service === title))
+    items: buckets.filter(({ service }) => service === title).map(toNavItem)
   }))
 
   return clientServices.reduce(
@@ -262,18 +228,9 @@ export const toBackBucket = (
   return listAt(buckets, back) ?? listAt(buckets, toInnerBack(back))
 }
 
-/** What the front door is called on a button: the first list's page, or the list itself. */
-export const toHomeLabel = (catalogue: Catalogue | null): string | null => {
-  const [first] = catalogue?.buckets ?? []
-
-  return first ? toPageLabel(first) : null
-}
-
-/** A list by the page it is drawn on: a queue by its service's events, the others by their own name. */
-export const toListLabel = ({ page, label }: BucketEntry): string =>
-  page?.label ?? label
-
-const toPageLabel = toListLabel
+/** What the front door is called on a button: the first list's name. */
+export const toHomeLabel = (catalogue: Catalogue | null): string | null =>
+  catalogue?.buckets[0]?.label ?? null
 
 /** The sidebar: the Overview, then each service's lists. */
 export const toShellNav = (catalogue: Catalogue | null): NavSection[] => [

@@ -90,13 +90,13 @@ afterAll(async () => {
 
 describe('with the script, two days picked in the range calendar', () => {
   test('send them as From and To, with the filters already chosen', async () => {
-    await open('/dev-ops/events/gas/outbox?status=DEAD_LETTER')
+    await open('/dev-ops/events/gas?status=DEAD_LETTER')
     const submitted = nextSubmit()
 
     pickRange('2026-10-05', '2026-10-10')
 
     await expect(submitted).resolves.toEqual({
-      action: '/dev-ops/events/gas/outbox',
+      action: '/dev-ops/events/gas',
       fields: expect.arrayContaining([
         ['status', 'DEAD_LETTER'],
         ['from', '2026-10-05'],

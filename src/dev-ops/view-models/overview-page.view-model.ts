@@ -1,5 +1,7 @@
 import { statusCodes } from '../../common/status-codes.ts'
+import { noErrorKey, toErrorText } from './error-search.ts'
 import type { GasFailure } from '../use-cases/gas-status.ts'
+import type { Catalogue } from '../use-cases/shell-catalogue.ts'
 import type {
   ConfigFailed,
   DeadLetters,
@@ -23,6 +25,8 @@ import {
   toClientsPath
 } from './access-token-services.ts'
 import { devOpsPath, overviewNavId } from './bucket-nav.ts'
+import { isListed, toQueueLabel } from './events-list.ts'
+import { clearParam } from './list-page.view-model.ts'
 import { grantType, toGrantHref } from './grants-page.view-model.ts'
 import { toDayTime, toTime, toTimes } from './times.ts'
 import type { Times, TimeText } from './times.ts'
@@ -110,9 +114,9 @@ const partAlerts = <T>(part: PartName, parts: PerService<T>): SectionAlert[] =>
 const noneRead = <T>(parts: PerService<T>): boolean =>
   readParts(parts).length === 0
 
-/** A list as GAS links it: a Top errors group's dead letters, with no time range, as they are the current ones. */
+/** A list as GAS links it: a Top errors group's dead letters, with no time range, as they are the current ones, and no search held. */
 const toListHref = ({ path, query }: ListLink): string =>
-  `${devOpsPath}/${path}?${new URLSearchParams(query).toString()}`
+  `${devOpsPath}/${path}?${new URLSearchParams({ ...query, [clearParam]: 'all' }).toString()}`
 
 const toOptionalTime = (value: string | null, times: Times): TimeText | null =>
   value === null ? null : toTime(new Date(value), times)
@@ -223,10 +227,13 @@ export interface TopErrorRow {
   /** Null for the dead letters that recorded no error. */
   error: string | null
   service: string
+  /** Null for a link that names no queue. */
+  queue: string | null
   event: string | null
   count: string
   lastSeen: TimeText | null
-  href: string
+  /** Null while no list holds the group's dead letters. */
+  href: string | null
 }
 
 export interface TableEmpty {
@@ -242,27 +249,37 @@ export interface TopErrorsSection {
   partial: string | null
 }
 
-/** The key both services store a dead letter that recorded no error under: a group like any other, said in plain words. */
-const noErrorKey = 'No error recorded'
-
 const byCount = (a: Read<TopError>, b: Read<TopError>): number =>
   b.data.count - a.data.count
 
-/** The error a row names, null for the dead letters that recorded none; GAS keys a thrown Error as `Error: <message>`, and the row shows the message. */
-const toErrorText = (errorKey: string | null): string | null =>
-  errorKey === null || errorKey === noErrorKey
-    ? null
-    : errorKey.replace(/^Error: /, '')
+/** The error a row names, null for the dead letters that recorded none. */
+const toRowError = (errorKey: string | null): string | null =>
+  errorKey === null || errorKey === noErrorKey ? null : toErrorText(errorKey)
+
+/** What the page is drawn with beside the overview: the lists GAS's answer carried name each row's queue. */
+interface Drawn {
+  times: Times
+  catalogue: Catalogue | null
+}
+
+/** Where a group's dead letters are listed, and their queue there; neither while the lists GAS sent hold none at the link's path. */
+const toListed = (
+  catalogue: Catalogue | null,
+  list: ListLink | null
+): Pick<TopErrorRow, 'queue' | 'href'> =>
+  list && isListed(catalogue, list.path)
+    ? { queue: toQueueLabel(catalogue, list), href: toListHref(list) }
+    : { queue: null, href: null }
 
 const toTopErrorRow =
-  (times: Times) =>
+  ({ times, catalogue }: Drawn) =>
   ({ service, data }: Read<TopError>): TopErrorRow => ({
-    error: toErrorText(data.errorKey),
+    error: toRowError(data.errorKey),
     service: shortName(service),
+    ...toListed(catalogue, data.list),
     event: data.event?.label ?? null,
     count: toCount(data),
-    lastSeen: toOptionalTime(data.lastAt, times),
-    href: toListHref(data.list)
+    lastSeen: toOptionalTime(data.lastAt, times)
   })
 
 const incompleteOf = (read: Read<TopErrors>[]): string | null => {
@@ -288,7 +305,7 @@ const toTopErrorsEmpty = (only: ClientService | null): TableEmpty =>
         text: `Nothing is waiting as a dead letter in ${shortName(only)}.`
       }
 
-const toTopErrors = (overview: Overview, times: Times): TopErrorsSection => {
+const toTopErrors = (overview: Overview, drawn: Drawn): TopErrorsSection => {
   const read = readParts(overview.topErrors)
   const entries = read
     .flatMap(({ service, data }) =>
@@ -301,7 +318,7 @@ const toTopErrors = (overview: Overview, times: Times): TopErrorsSection => {
 
   return {
     alerts: partAlerts('topErrors', overview.topErrors),
-    rows: none ? null : entries.map(toTopErrorRow(times)),
+    rows: none ? null : entries.map(toTopErrorRow(drawn)),
     empty: none ? null : toTopErrorsEmpty(onlyRead(overview.topErrors)),
     partial: incompleteOf(read)
   }
@@ -511,9 +528,12 @@ export interface OverviewPage {
   sections: OverviewSections | null
 }
 
-const toSections = (overview: Overview, times: Times): OverviewSections => ({
+const toSections = (
+  overview: Overview,
+  { times, catalogue }: Drawn
+): OverviewSections => ({
   figures: toFigures(overview),
-  topErrors: toTopErrors(overview, times),
+  topErrors: toTopErrors(overview, { times, catalogue }),
   deadLetterAlerts: partAlerts('deadLetters', overview.deadLetters),
   configFailed: toConfigFailed(overview, times),
   tokensExpiring: toTokensExpiring(overview)
@@ -521,13 +541,13 @@ const toSections = (overview: Overview, times: Times): OverviewSections => ({
 
 export const toOverviewPage = (
   result: OverviewResult,
-  { times }: { times: Times }
+  drawn: Drawn
 ): OverviewPage => ({
   pageTitle: 'Overview',
   meta: ['Grant Application Service and Caseworking'],
   navActive: overviewNavActive,
   ...(result.outcome === 'read'
-    ? { alert: null, sections: toSections(result.overview, times) }
+    ? { alert: null, sections: toSections(result.overview, drawn) }
     : { alert: toPageAlert(result), sections: null })
 })
 

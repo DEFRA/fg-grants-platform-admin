@@ -1,3 +1,4 @@
+import type { Catalogue } from '../use-cases/shell-catalogue.ts'
 import type {
   Overview,
   OverviewResult,
@@ -21,16 +22,24 @@ import {
   toOverviewStatusCode,
   toPartAlert
 } from './overview-page.view-model.ts'
+import { fullCatalogue } from '../use-cases/test-fixtures.ts'
 import { toTimes } from './times.ts'
 import { toStoredDot } from './version-files.ts'
 
 const utc = toTimes('utc')
 
-const page = (overview: Overview, times = utc) =>
-  toOverviewPage({ outcome: 'read', overview }, { times })
+const page = (
+  overview: Overview,
+  times = utc,
+  catalogue: Catalogue | null = fullCatalogue
+) => toOverviewPage({ outcome: 'read', overview }, { times, catalogue })
 
-const sections = (overview: Overview, times = utc) => {
-  const drawn = page(overview, times).sections
+const sections = (
+  overview: Overview,
+  times = utc,
+  catalogue: Catalogue | null = fullCatalogue
+) => {
+  const drawn = page(overview, times, catalogue).sections
 
   if (drawn === null) {
     throw new Error('no sections')
@@ -179,21 +188,67 @@ describe('Top errors', () => {
 
   test('open each group’s dead letters on the list’s own filters, with no time range: they are the current ones', () => {
     const [first] = sections(needsAttention).topErrors.rows!
-    const href = new URL(first!.href, 'http://app')
+    const href = new URL(first!.href!, 'http://app')
 
-    expect(href.pathname).toBe('/dev-ops/events/gas/inbox')
+    expect(href.pathname).toBe('/dev-ops/events/gas')
     expect(Object.fromEntries(href.searchParams)).toEqual({
+      queue: 'inbox',
       status: 'DEAD_LETTER',
       error: 'Error: Application with clientRef <v> not found',
-      event: 'AgreementStatusUpdated'
+      event: 'AgreementStatusUpdated',
+      clear: 'all'
     })
+  })
+
+  test('name each group’s queue', () => {
+    const rows = sections(needsAttention).topErrors.rows!
+
+    expect(rows.map(({ queue }) => queue)).toEqual([
+      'Inbox',
+      'Outbox',
+      'Outbox',
+      'Outbox',
+      'Inbox'
+    ])
+  })
+
+  test('a group GAS lists no list for: drawn with no link and no queue', () => {
+    const [row] = sections({
+      ...allClear,
+      topErrors: {
+        gas: read({
+          entries: [{ ...gasTopErrors.entries[1]!, list: null }],
+          more: false,
+          complete: true
+        }),
+        cw: read({ entries: [], more: false, complete: true })
+      }
+    }).topErrors.rows!
+
+    expect(row).toMatchObject({
+      href: null,
+      queue: null,
+      count: expect.any(String)
+    })
+  })
+
+  test('name no queue when GAS’s answer carried no lists to read it from', () => {
+    const rows = sections(needsAttention, utc, null).topErrors.rows!
+
+    expect(rows.map(({ queue }) => queue)).toEqual([
+      null,
+      null,
+      null,
+      null,
+      null
+    ])
   })
 
   test('keep the dead letters that recorded no error as their own group, opening exactly those', () => {
     const row = sections(needsAttention).topErrors.rows![3]!
 
     expect(row.error).toBeNull()
-    expect(new URL(row.href, 'http://app').searchParams.get('error')).toBe(
+    expect(new URL(row.href!, 'http://app').searchParams.get('error')).toBe(
       'No error recorded'
     )
   })
@@ -240,8 +295,8 @@ describe('Top errors', () => {
     const { rows } = sections(overview).topErrors
 
     expect(
-      rows!.map(({ href }) => new URL(href, 'http://app').pathname)
-    ).toEqual(['/dev-ops/events/gas/inbox'])
+      rows!.map(({ href }) => new URL(href!, 'http://app').pathname)
+    ).toEqual(['/dev-ops/events/gas'])
   })
 
   test('writes a capped group’s count with a plus', () => {
@@ -637,7 +692,7 @@ describe('toPartAlert', () => {
 
 describe('the page', () => {
   const unread = (result: OverviewResult) =>
-    toOverviewPage(result, { times: utc })
+    toOverviewPage(result, { times: utc, catalogue: fullCatalogue })
 
   test('is the Overview of both services', () => {
     expect(page(needsAttention)).toMatchObject({

@@ -2,7 +2,7 @@ import { canEditEvent } from '../use-cases/event-state.ts'
 import type { EventDetail } from '../use-cases/get-event.use-case.ts'
 import { allSame, timeOf, toSelfHref } from './event-context.ts'
 import type { EventContext } from './event-context.ts'
-import { toEventHref } from './event-formats.ts'
+import { shortId, toEventHref } from './event-formats.ts'
 import type { PurgeFormError } from './purge-form.ts'
 import { noteMaxLength, purgeReasons } from './purge-form.ts'
 import { isEditedSinceAttempts, isEditedSinceRedrive } from './payload-edit.ts'
@@ -64,15 +64,6 @@ export interface DialogAsks {
   prod: boolean
   form?: PurgeFormNotice
 }
-
-const shortIdHead = 8
-const shortIdTail = 4
-
-/** The first 8 and the last 4 of the id, as the dialogs name the event. */
-const shortId = (id: string): string =>
-  id.length > shortIdHead + shortIdTail
-    ? `${id.slice(0, shortIdHead)}…${id.slice(-shortIdTail)}`
-    : id
 
 const toBase = (
   context: EventContext,

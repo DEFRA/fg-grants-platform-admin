@@ -9,7 +9,7 @@ import { expectTablesStyled, isOpenWithoutScript } from '../test-utils.ts'
 import type { ApplicationPage } from '../use-cases/get-application-page.use-case.ts'
 import { getApplicationPageUseCase } from '../use-cases/get-application-page.use-case.ts'
 import { shellCatalogue } from '../use-cases/shell-catalogue.ts'
-import { catalogue, outboxBucket } from '../use-cases/test-fixtures.ts'
+import { catalogue } from '../use-cases/test-fixtures.ts'
 
 vi.mock(import('../use-cases/shell-catalogue.ts'))
 vi.mock(import('../use-cases/get-application-page.use-case.ts'), async () => ({
@@ -449,26 +449,7 @@ describe('the application page, loaded (A1)', () => {
 })
 
 describe('the Case card', () => {
-  const outboxWithCreateCase = {
-    ...outboxBucket,
-    facts: outboxBucket.facts.map((fact) =>
-      fact.name === 'eventType'
-        ? {
-            ...fact,
-            values: [
-              ...(fact.values ?? []),
-              { value: 'CreateCase', label: 'CreateCase' }
-            ]
-          }
-        : fact
-    )
-  }
-
-  test('says Caseworking has no case, and finds its CreateCase event in the outbox (A2)', async () => {
-    vi.mocked(shellCatalogue).mockReturnValue({
-      ...catalogue,
-      buckets: [outboxWithCreateCase, ...catalogue.buckets.slice(1)]
-    })
+  test('says Caseworking has no case, and finds its CreateCase event in the outbox, any search held cleared (A2)', async () => {
     givenPage({ header: { ...header, counterpart: { exists: false } } })
 
     const { $ } = await viewPage()
@@ -484,12 +465,16 @@ describe('the Case card', () => {
       'Find its CreateCase event'
     )
     expect(card.find('a.gpa-btn').attr('href')).toBe(
-      '/dev-ops/events/gas/outbox?event=CreateCase'
+      '/dev-ops/events/gas?queue=outbox&event=CreateCase&clear=all'
     )
     expect(card.find('[data-icon="briefcase"]')).toHaveLength(1)
   })
 
-  test('leaves the button out when no GAS list declares CreateCase', async () => {
+  test('leaves the button out when no list holds GAS’s events', async () => {
+    vi.mocked(shellCatalogue).mockReturnValue({
+      ...catalogue,
+      buckets: catalogue.buckets.slice(1)
+    })
     givenPage({ header: { ...header, counterpart: { exists: false } } })
 
     const { $ } = await viewPage()

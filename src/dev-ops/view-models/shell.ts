@@ -9,15 +9,13 @@ const sectionTitles: Record<string, string> = {
 
 const eventsIcon = 'radio-tower'
 
-/** Each page's icon, by the catalogue id of its first list (or the access tokens page's own id). */
+/** Each page's icon, by its list's catalogue id (or the access tokens page's own id). */
 const itemIcons: Record<string, string> = {
-  'gas.outbox': eventsIcon,
-  'gas.inbox': eventsIcon,
+  'gas.events': eventsIcon,
   'gas.applications': 'file-text',
   'gas.grants': 'landmark',
   'clients-gas': 'key-round',
-  'cw.outbox': eventsIcon,
-  'cw.inbox': eventsIcon,
+  'cw.events': eventsIcon,
   'cw.cases': 'briefcase',
   'cw.workflows': 'workflow',
   'clients-cw': 'key-round'
@@ -64,7 +62,7 @@ export interface SidebarSection {
   items: SidebarItem[]
 }
 
-/** The navigation as the sidebar draws it; a link that stands for several lists is the current one on any of them. */
+/** The navigation as the sidebar draws it. */
 export const toSidebarSections = (
   sections: NavSection[] | undefined,
   navActive: string | null | undefined
@@ -77,7 +75,7 @@ export const toSidebarSections = (
       text: item.label,
       href: item.href,
       icon: toIcon(item.id, item.icon),
-      current: Boolean(navActive) && item.ids.includes(navActive as string),
+      current: item.id === navActive,
       ...(item.perService && {
         srPrefix: toServiceName(title)
       }),

@@ -1,5 +1,6 @@
 import { focusOnArrival } from "./core/dom.ts";
 import { showCurrentNav, watchScroll } from "./core/scroll.ts";
+import { keepPlace } from "./core/history.ts";
 import { GpaAccordion } from "./molecules/accordion/web-component.ts";
 import { GpaCalendar } from "./molecules/calendar/web-component.ts";
 import { GpaClearable } from "./atoms/input/web-component.ts";
@@ -130,9 +131,13 @@ document.addEventListener(
   },
   true,
 );
+const start = () => {
+  upgrade(document);
+  keepPlace();
+};
 if (document.readyState === "loading")
-  document.addEventListener("DOMContentLoaded", () => upgrade(document));
-else upgrade(document);
+  document.addEventListener("DOMContentLoaded", start);
+else start();
 
 export {
   GpaAccordion,

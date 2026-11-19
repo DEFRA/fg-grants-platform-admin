@@ -442,3 +442,34 @@ a:hover:where(:not(:disabled, [aria-disabled="true"], .is-disabled)) {
     transform: translateX(-100%);
   }
 }
+
+:where(
+  button,
+  summary,
+  [role="button"],
+  [role="tab"],
+  [role="menuitem"],
+  [role="menuitemcheckbox"],
+  [role="menuitemradio"],
+  [role="option"],
+  [role="switch"],
+  .gpa-btn,
+  .gpa-chip,
+  .gpa-menuitem,
+  .gpa-tab,
+  .gpa-navitem,
+  .gpa-backlink,
+  .gpa-accordion-trigger,
+  .gpa-sort,
+  .gpa-select-trigger,
+  .gpa-segmented,
+  .gpa-switch,
+  .gpa-check,
+  .gpa-day,
+  .gpa-tree-toggle,
+  .gpa-split-handle,
+  .gpa-tag-remove
+):not(.gpa-rowlink) {
+  -webkit-user-select: none;
+  user-select: none;
+}

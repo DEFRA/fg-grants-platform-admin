@@ -154,7 +154,7 @@ export const toShell = (marker: string): Shell => ({
       {
         ...outboxBucket,
         id: `gas.${marker}`,
-        path: `events/gas/${marker}`,
+        path: `marked/${marker}`,
         label: marker,
         shortLabel: marker,
         order: 99

@@ -45,6 +45,7 @@
 @import "./organisms/page-header/styles.css" layer(gpa);
 @import "./organisms/filter-bar/styles.css" layer(gpa);
 @import "./organisms/data-table/styles.css" layer(gpa);
+@import "./organisms/doc-list/styles.css" layer(gpa);
 @import "./organisms/card/styles.css" layer(gpa);
 @import "./organisms/facts-card/styles.css" layer(gpa);
 @import "./organisms/dialog/styles.css" layer(gpa);

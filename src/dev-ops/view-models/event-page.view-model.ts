@@ -5,6 +5,7 @@ import type {
   PayloadSubmission
 } from '../use-cases/edit-payload-step.ts'
 import { toEventState } from '../use-cases/event-state.ts'
+import { isQueueAddress } from '../use-cases/list-bucket.use-case.ts'
 import { isUnanswered } from '../use-cases/gas-status.ts'
 import type { GasFailure } from '../use-cases/gas-status.ts'
 import type {
@@ -18,8 +19,7 @@ import {
   devOpsPath,
   isEventList,
   toBackBucket,
-  toListAt,
-  toListLabel
+  toListAt
 } from './bucket-nav.ts'
 import { toTone } from './catalogue-presentation.ts'
 import type { Tone } from './catalogue-presentation.ts'
@@ -28,13 +28,7 @@ import { toAttempts } from './event-attempts.ts'
 import type { AttemptsModel } from './event-attempts.ts'
 import { toBanner, toToasts } from './event-banners.ts'
 import type { Banner, EventNotice, Toast } from './event-banners.ts'
-import {
-  ownListPath,
-  serviceNames,
-  timeOf,
-  toOwnList,
-  toSelfHref
-} from './event-context.ts'
+import { serviceNames, timeOf, toSelfHref } from './event-context.ts'
 import type { EventContext } from './event-context.ts'
 import { toPurgeDialog, toRedriveDialog } from './event-dialogs.ts'
 import type {
@@ -45,6 +39,11 @@ import type {
 import { toFacts } from './event-facts.ts'
 import type { Fact } from './event-facts.ts'
 import { toEventHref } from './event-formats.ts'
+import {
+  eventsPresentationId,
+  toEventsEntry,
+  toEventsPageHref
+} from './events-list.ts'
 import { toPayload, toUnknownTitle } from './event-payload.ts'
 import type { HeldSave, PayloadModel, SaveError } from './event-payload.ts'
 import { timedOutWaiting, toFailureText } from './failure-text.ts'
@@ -59,11 +58,23 @@ const unsafeInPath = /\/\/|\\/
 /** A page is opened from a list or a record's page of this admin, and goes back to it. */
 const isOwnPage = (from: string): boolean => from.startsWith(`${devOpsPath}/`)
 
-/** Open-redirect guard: only a list's or a record's own path and query, and `//` or `\` could leave it; one too long to go back to is none. */
+/** A queue's own address is no page, so nothing goes back to it. */
+const isQueuePage = (from: string): boolean =>
+  isQueueAddress(
+    from
+      .slice(devOpsPath.length + 1)
+      .split(/[?#]/)[0]
+      .split('/')
+      .filter(Boolean)
+      .join('/')
+  )
+
+const isBackable = (from: string): boolean =>
+  isOwnPage(from) && !unsafeInPath.test(from) && !isQueuePage(from)
+
+/** Open-redirect guard: only a list's or a record's own path and query, and `//` or `\` could leave it; one too long to go back to, or a queue's own address, is none. */
 export const toSafeFrom = (from: string | undefined | null): string =>
-  typeof from === 'string' && isOwnPage(from) && !unsafeInPath.test(from)
-    ? toFittingBack(from)
-    : ''
+  typeof from === 'string' && isBackable(from) ? toFittingBack(from) : ''
 
 /** Both writes leave their outcome here, under the redrive's key so a session in flight across a deploy still finds its message. */
 export const redriveNoticeKey = 'redriveOutcome'
@@ -148,6 +159,13 @@ export interface EventPageModel {
 export const isProduction = (environment: string): boolean =>
   environment === 'prod'
 
+const toOwnList = (catalogue: Catalogue | null, key: EventKey) =>
+  toEventsEntry(catalogue, toUrlService(key.service))
+
+/** The service's Events page, whether or not the catalogue lists it now. */
+const toOwnListHref = (key: EventKey): string =>
+  toEventsPageHref(toUrlService(key.service))
+
 /** Back where it came from: a record by its name, any event list as Events. */
 const toBack = (
   catalogue: Catalogue | null,
@@ -157,9 +175,9 @@ const toBack = (
   const list = toListAt(catalogue, from)
 
   return {
-    href: from || `${devOpsPath}/${ownListPath(key)}`,
+    href: from || toOwnListHref(key),
     text: toBackLabel(from, {
-      listLabel: list && !isEventList(list) ? toListLabel(list) : null,
+      listLabel: list && !isEventList(list) ? list.label : null,
       ownListLabel: 'Events'
     })
   }
@@ -168,7 +186,7 @@ const toBack = (
 const toStatus = ({ event, key }: EventContext) => ({
   text: event.statusLabel,
   tone: toTone(
-    { id: `${toUrlService(key.service)}.${key.box}` },
+    { id: eventsPresentationId(toUrlService(key.service)) },
     'status',
     event.status,
     event.statusRole
@@ -225,6 +243,7 @@ const toContext = (
   service: serviceNames[input.key.service],
   from: toSafeFrom(input.query.back),
   eventHref: toEventHref(input.key),
+  catalogue: input.catalogue,
   ownList: toOwnList(input.catalogue, input.key)
 })
 

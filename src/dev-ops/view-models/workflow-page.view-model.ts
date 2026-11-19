@@ -5,7 +5,9 @@ import type {
 } from '../use-cases/get-workflow-page.use-case.ts'
 import { workflowTabs } from '../use-cases/workflow-tabs.ts'
 import type { WorkflowTabId } from '../use-cases/workflow-tabs.ts'
+import type { Catalogue } from '../repositories/buckets.repository.ts'
 import type { DefinitionFetchFlash } from './definition-fetch.ts'
+import { deadLetterStatus, toEventsHref } from './events-list.ts'
 import { toGrantHref } from './grants-page.view-model.ts'
 import { toTabHref } from './record-page.view-model.ts'
 import type { Times } from './times.ts'
@@ -63,6 +65,7 @@ interface WorkflowPageOptions {
   notice?: DefinitionFetchFlash
   query: WorkflowPageQuery
   times: Times
+  catalogue: Catalogue | null
 }
 
 const toVersionTabs = (): VersionTab[] =>
@@ -127,13 +130,14 @@ interface TabInput {
   href: string
   from: string
   query: WorkflowPageQuery
+  catalogue: Catalogue | null
 }
 
 /**
  * The grant link comes back to this tab without its own `back`, so links
  * followed back and forth never nest one `back` inside another.
  */
-const toPhases = ({ page, href, from, query }: TabInput) => {
+const toPhases = ({ page, href, from, query, catalogue }: TabInput) => {
   const { header, definition, grantStatusMap } = page
   const self = (selected: string) =>
     toTabHref(href, 'phases', '', { status: selected })
@@ -153,7 +157,13 @@ const toPhases = ({ page, href, from, query }: TabInput) => {
           grant: (selected) =>
             toTabHref(toGrantHref(header), 'overview', self(selected)),
           tasks: (phase, stage) =>
-            `${toTabHref(href, 'tasks', from)}#${toStageAnchor(phase, stage)}`
+            `${toTabHref(href, 'tasks', from)}#${toStageAnchor(phase, stage)}`,
+          deadLetters: toEventsHref(catalogue, {
+            service: 'cw',
+            box: 'inbox',
+            filters: { status: deadLetterStatus },
+            clear: true
+          })
         },
         header,
         { href, from }
@@ -207,7 +217,7 @@ export const toWorkflowPage = (
   page: WorkflowPage,
   tab: WorkflowTabId,
   from: string,
-  { notice, query, times }: WorkflowPageOptions
+  { notice, query, times, catalogue }: WorkflowPageOptions
 ): WorkflowPageModel => {
   const href = toWorkflowHref(page.header)
   const tabs = toVersionTabs()
@@ -229,6 +239,6 @@ export const toWorkflowPage = (
         ? toDetails(page, toTabHref(href, 'overview', from))
         : null,
     files: tab === 'overview' ? toFileRows(page.header) : null,
-    ...toTabModels(tab, { page, href, from, query })
+    ...toTabModels(tab, { page, href, from, query, catalogue })
   }
 }

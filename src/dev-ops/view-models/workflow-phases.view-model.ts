@@ -74,12 +74,12 @@ interface MaySend {
 /** Why a move waits for the stage's tasks, or that it never does. */
 type TasksNote =
   | { kind: 'needs-tasks'; stageName: string; href: string }
-  | { kind: 'gas-blocked'; stageName: string; href: string }
+  | { kind: 'gas-blocked'; stageName: string; href: string | null }
   | { kind: 'none-in-stage' }
 
 interface WayOutTasks {
   badge: string | null
-  note: { text: string; link: { text: string; href: string } } | null
+  note: { text: string; link: { text: string; href: string } | null } | null
 }
 
 type FlagTone = 'warning' | 'neutral'
@@ -160,6 +160,8 @@ interface WorkflowPhasesLinks {
   grant: (selected: string) => string
   /** The Tasks tab at the stage's task groups; stage codes repeat across phases. */
   tasks: (phase: string, stage: string) => string
+  /** CW's inbox dead letters; null when CW's events aren't listed. */
+  deadLetters: string | null
 }
 
 interface Move {
@@ -176,8 +178,6 @@ interface Place {
   findings: Finding[]
   maySend: MaySend[]
 }
-
-const deadLettersHref = '/dev-ops/events/cw/inbox?status=DEAD_LETTER'
 
 const flagTitles: Record<FlagName, string> = {
   start: 'New cases start here',
@@ -493,9 +493,21 @@ const toBlockingNote = (
         stageName: stage.name,
         href: links.tasks(phase.code, stage.code)
       }
-    : { kind: 'gas-blocked', stageName: stage.name, href: deadLettersHref }
+    : { kind: 'gas-blocked', stageName: stage.name, href: links.deadLetters }
 
 const needsTasks = 'needs tasks'
+
+/** CW's dead letters to redrive from, when its events are listed. */
+const toBlockedNote = (stageName: string, href: string | null) => {
+  const text = `CW rejects GAS’s message while mandatory tasks in ${stageName} (the case’s current stage) are open. After its retries the message goes to CW’s inbox as a dead letter, and nothing re-applies it`
+
+  return href
+    ? {
+        text: `${text}:`,
+        link: { text: 'redrive it once the tasks are done', href }
+      }
+    : { text: `${text}.`, link: null }
+}
 
 const toWayOutTasks = (note: TasksNote): WayOutTasks => {
   switch (note.kind) {
@@ -504,10 +516,7 @@ const toWayOutTasks = (note: TasksNote): WayOutTasks => {
     case 'gas-blocked':
       return {
         badge: needsTasks,
-        note: {
-          text: `CW rejects GAS’s message while mandatory tasks in ${note.stageName} (the case’s current stage) are open. After its retries the message goes to CW’s inbox as a dead letter, and nothing re-applies it:`,
-          link: { text: 'redrive it once the tasks are done', href: note.href }
-        }
+        note: toBlockedNote(note.stageName, note.href)
       }
     case 'none-in-stage':
       return { badge: null, note: null }

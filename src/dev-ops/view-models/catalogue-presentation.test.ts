@@ -1,7 +1,7 @@
 import {
   casesBucket,
-  cwInbox,
-  cwOutbox,
+  cwEvents,
+  gasEvents,
   gasInbox,
   gasOutbox,
   grantsBucket,
@@ -28,36 +28,43 @@ const columns = (bucket: BucketEntry) =>
     align
   }))
 
-describe('the event lists', () => {
-  test.each([gasOutbox, gasInbox, cwOutbox, cwInbox])(
-    '$id: Event, Event ID, Status, Created, at the prototype’s widths',
+describe('the Events pages', () => {
+  test.each([gasEvents, cwEvents])(
+    '$id: Event, Event ID, Queue, Status, Created, each an equal share no row moves',
     (bucket) => {
       expect(columns(bucket)).toEqual([
         {
           key: 'title',
           label: 'Event',
-          width: 'minmax(220px, 1fr)',
+          width: 'minmax(160px, 1fr)',
           mono: false,
           align: 'start'
         },
         {
           key: 'subtitle',
           label: 'Event ID',
-          width: '336px',
+          width: 'minmax(160px, 1fr)',
           mono: true,
+          align: 'start'
+        },
+        {
+          key: 'box',
+          label: 'Queue',
+          width: 'minmax(160px, 1fr)',
+          mono: false,
           align: 'start'
         },
         {
           key: 'status',
           label: 'Status',
-          width: '128px',
+          width: 'minmax(160px, 1fr)',
           mono: false,
           align: 'start'
         },
         {
           key: 'time',
           label: 'Created',
-          width: 'var(--size-column-date)',
+          width: 'minmax(160px, 1fr)',
           mono: false,
           align: 'right'
         }
@@ -65,9 +72,23 @@ describe('the event lists', () => {
     }
   )
 
-  test('the inbox’s Received is Created, as on the outbox', () => {
-    expect(gasInbox.time.label).toBe('Received')
-    expect(toTimeLabel(gasInbox)).toBe('Created')
+  test('other lists keep their own widths', () => {
+    expect(columns(applicationsBucket).map(({ width }) => width)).not.toContain(
+      'minmax(160px, 1fr)'
+    )
+  })
+
+  test('the chips go Queue, Event, Status', () => {
+    expect(
+      toChipOrder(
+        gasEvents,
+        gasEvents.facts.filter(({ values }) => values)
+      )
+    ).toEqual(
+      ['box', 'eventType', 'status'].map((name) =>
+        gasEvents.facts.find((fact) => fact.name === name)
+      )
+    )
   })
 
   test.each([
@@ -79,8 +100,20 @@ describe('the event lists', () => {
     ['DEAD_LETTER', 'error', 'danger'],
     ['PURGED', 'neutral', 'neutral']
   ] as const)('%s, declared %s, is drawn %s', (value, declared, tone) => {
-    expect(toTone(gasOutbox, 'status', value, declared)).toBe(tone)
-    expect(toTone(cwInbox, 'status', value, declared)).toBe(tone)
+    expect(toTone(gasEvents, 'status', value, declared)).toBe(tone)
+    expect(toTone(cwEvents, 'status', value, declared)).toBe(tone)
+  })
+
+  test('a queue’s own list, while GAS lists the queues apart, is drawn as the catalogue declares it', () => {
+    expect(
+      columns(gasOutbox).map(({ label, width }) => [label, width])
+    ).toEqual([
+      ['Event', 'auto'],
+      ['Status', 'auto'],
+      ['Created', 'max-content']
+    ])
+    expect(toTone(gasInbox, 'status', 'PUBLISHED', 'neutral')).toBe('neutral')
+    expect(toTimeLabel(gasInbox)).toBe('Received')
   })
 })
 
@@ -179,13 +212,11 @@ describe('a list GPA has no entry for', () => {
 test('every entry is for a list GAS or CW declares', () => {
   expect(Object.keys(cataloguePresentation).sort()).toEqual([
     'cw.cases',
-    'cw.inbox',
-    'cw.outbox',
+    'cw.events',
     'cw.workflows',
     'gas.applications',
-    'gas.grants',
-    'gas.inbox',
-    'gas.outbox'
+    'gas.events',
+    'gas.grants'
   ])
 })
 

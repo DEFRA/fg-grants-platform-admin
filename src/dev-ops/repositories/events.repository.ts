@@ -37,6 +37,8 @@ export interface EventWithAttempts extends Event {
   attempts: string
   targetTopic: string | null
   lastError: EventLastError | null
+  /** The error as Top errors keys it; absent from a service that doesn't send it yet. */
+  errorKey?: string | null
 }
 
 export interface SourceError {

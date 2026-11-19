@@ -14,10 +14,11 @@ import { getOverviewUseCase } from '../use-cases/get-overview.use-case.ts'
 import {
   allClear,
   failed,
+  gasTopErrors,
   needsAttention,
   read
 } from '../use-cases/overview-fixtures.ts'
-import { catalogue } from '../use-cases/test-fixtures.ts'
+import { catalogue, fullCatalogue } from '../use-cases/test-fixtures.ts'
 
 vi.mock(import('../use-cases/shell-catalogue.ts'))
 vi.mock(import('../use-cases/get-overview.use-case.ts'))
@@ -161,13 +162,47 @@ describe('needing attention', () => {
     ).toBe('within 30 days, or expired')
   })
 
+  test('draws a group GAS lists no list for without a link, as GAS sends it before its Events pages are listed', async () => {
+    const [first] = gasTopErrors.entries
+
+    show({
+      ...needsAttention,
+      topErrors: {
+        gas: read({
+          entries: [{ ...first!, list: null }],
+          more: false,
+          complete: true
+        }),
+        cw: read({ entries: [], more: false, complete: true })
+      }
+    })
+
+    const { $, statusCode } = await visit()
+
+    expect(statusCode).toBe(statusCodes.ok)
+    expect(rowCells($, 'overview-top-error-row')).toEqual([
+      [
+        'Application with clientRef <v> not found',
+        'GAS',
+        '—',
+        'AgreementStatusUpdated',
+        '214',
+        '13 Oct 2026 14:53'
+      ]
+    ])
+    expect(part($, 'overview-top-error-row').find('a')).toHaveLength(0)
+  })
+
   test('lists the five biggest groups of current dead letters across both services, each opening them with no time range', async () => {
+    vi.mocked(shellCatalogue).mockReturnValue(fullCatalogue)
+
     const { $ } = await visit()
 
     expect(rowCells($, 'overview-top-error-row')).toEqual([
       [
         'Application with clientRef <v> not found',
         'GAS',
+        'Inbox',
         'AgreementStatusUpdated',
         '214',
         '13 Oct 2026 14:53'
@@ -175,6 +210,7 @@ describe('needing attention', () => {
       [
         'Grant <v> version <v> not found',
         'GAS',
+        'Outbox',
         'CreateCase',
         '96',
         '13 Oct 2026 14:41'
@@ -182,14 +218,23 @@ describe('needing attention', () => {
       [
         'Request failed with status code <v>',
         'GAS',
+        'Outbox',
         'CreateCase',
         '41',
         '12 Oct 2026 16:02'
       ],
-      ['No error recorded', 'GAS', 'CreateCase', '23', '12 Oct 2026 11:17'],
+      [
+        'No error recorded',
+        'GAS',
+        'Outbox',
+        'CreateCase',
+        '23',
+        '12 Oct 2026 11:17'
+      ],
       [
         'Status <v> is not a status of workflow <v>',
         'CW',
+        'Inbox',
         'UpdateCaseStatus',
         '18',
         '13 Oct 2026 15:04'
@@ -198,7 +243,7 @@ describe('needing attention', () => {
     expect(
       part($, 'overview-top-error-row').first().find('a').attr('href')
     ).toBe(
-      '/dev-ops/events/gas/inbox?status=DEAD_LETTER&error=Error%3A+Application+with+clientRef+%3Cv%3E+not+found&event=AgreementStatusUpdated'
+      '/dev-ops/events/gas?queue=inbox&status=DEAD_LETTER&error=Error%3A+Application+with+clientRef+%3Cv%3E+not+found&event=AgreementStatusUpdated&clear=all'
     )
     expect(
       new URL(
@@ -241,7 +286,7 @@ describe('needing attention', () => {
   test('writes last seen on the Times setting', async () => {
     const { $ } = await visit('/dev-ops', 'dev-ops-times=uk')
 
-    expect(rowCells($, 'overview-top-error-row')[0]![4]).toBe(
+    expect(rowCells($, 'overview-top-error-row')[0]![5]).toBe(
       '13 Oct 2026 15:53'
     )
   })
@@ -372,7 +417,7 @@ describe('needing attention', () => {
       part($, testId).find('table').attr('data-gpa-cols')
 
     expect(cols('overview-top-errors-table')).toBe(
-      'minmax(180px, 3fr) auto auto auto max-content var(--size-column-chevron)'
+      'minmax(180px, 3fr) auto auto auto auto max-content var(--size-column-chevron)'
     )
     expect(cols('overview-config-table')).toBe(
       'auto auto auto auto var(--size-column-date) var(--size-column-chevron)'
