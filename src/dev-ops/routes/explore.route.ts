@@ -39,9 +39,6 @@ import { heldSearch, toSearchKey } from '../view-models/stored-search.ts'
 import { toListWindow } from '../view-models/time-range.view-model.ts'
 import { shellQuery, timesOf } from '../view-models/times.ts'
 
-const scopeOf = (request: Request): string[] =>
-  [request.auth.credentials.scope ?? []].flat()
-
 /** A session that has none saved yet is saved with this request, so its id, and so the runs it holds, last. */
 const ownerOf = (request: Request): ExploreOwner => {
   if (!request.state[config.get('session.cache.name')]) {
@@ -125,7 +122,7 @@ interface PageQuery {
 }
 
 const viewOrRestore = (request: Request, { run, page, through }: PageQuery) => {
-  const asker = { owner: ownerOf(request), roles: scopeOf(request) }
+  const asker = { owner: ownerOf(request) }
 
   return through === undefined
     ? viewExploreUseCase({ ...asker, run: run ?? null, page: page ?? 1 })
@@ -306,7 +303,6 @@ export const runExploreRoute: ServerRoute = {
   async handler(request: Request, h: ResponseToolkit) {
     const outcome = await runExploreUseCase({
       owner: ownerOf(request),
-      roles: scopeOf(request),
       wayIn: toWayIn(request, request.payload as RunPayload)
     })
 

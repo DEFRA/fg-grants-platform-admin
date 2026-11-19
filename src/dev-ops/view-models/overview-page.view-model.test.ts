@@ -356,32 +356,8 @@ describe('the dead letters beside the figures', () => {
     expect(sections(allClear).deadLetterLinks).toEqual([])
   })
 
-  test.each([
-    ['there are dead letters', needsAttention],
-    ['all is clear', allClear]
-  ])(
-    'says once, when %s, that it counts by when each event was created',
-    (_when, overview) => {
-      expect(sections(overview).deadLetterNote).toBe(
-        'Counted by when each event was created: when it was dead-lettered isn’t stored.'
-      )
-    }
-  )
-
   test('has no alerts when all is clear', () => {
     expect(sections(allClear).deadLetterAlerts).toEqual([])
-  })
-
-  test('has no note when neither service’s counts were read', () => {
-    const overview: Overview = {
-      ...allClear,
-      deadLetters: {
-        gas: failed({ hop: 'GAS', reason: 'UNREACHABLE' }),
-        cw: failed({ hop: 'CW-BE', reason: 'UNREACHABLE' })
-      }
-    }
-
-    expect(sections(overview).deadLetterNote).toBeNull()
   })
 
   test('says when one service is unread, and links the other’s boxes', () => {
@@ -687,26 +663,6 @@ describe('Access tokens expiring', () => {
       empty: null
     })
   })
-
-  test('says a CW without access tokens as the tokens page does, not as a failure', () => {
-    const overview: Overview = {
-      ...needsAttention,
-      tokensExpiring: {
-        ...needsAttention.tokensExpiring,
-        cw: failed({ hop: 'CW-BE', reason: 'NOT_OFFERED' })
-      }
-    }
-    const { rows, alerts } = sections(overview).tokensExpiring
-
-    expect(rows!.map(({ service }) => service)).toEqual(['GAS'])
-    expect(alerts).toEqual([
-      {
-        tone: 'warning',
-        title: 'This CW doesn’t offer access tokens.',
-        text: 'It’s an older version without the access tokens API. Tokens can be managed here once CW is upgraded.'
-      }
-    ])
-  })
 })
 
 describe('toPartAlert', () => {
@@ -720,16 +676,6 @@ describe('toPartAlert', () => {
     expect(toPartAlert('topErrors', 'cw', { hop, reason }).text).toBe(
       `${said} The rest of the page is unaffected.`
     )
-  })
-
-  test('says a part an older service doesn’t offer as a warning', () => {
-    expect(
-      toPartAlert('configFailed', 'cw', { hop: 'CW-BE', reason: 'NOT_OFFERED' })
-    ).toEqual({
-      tone: 'warning',
-      title: 'This CW doesn’t offer its workflow versions here yet.',
-      text: 'It’s an older version. They show here once CW is upgraded. The rest of the page is unaffected.'
-    })
   })
 })
 
@@ -772,18 +718,6 @@ describe('the page', () => {
       expect(toOverviewStatusCode(result)).toBe(503)
     }
   )
-
-  test('says a GAS without the overview as a warning, with nothing to retry', () => {
-    const result: OverviewResult = { outcome: 'not-offered' }
-
-    expect(unread(result).alert).toMatchObject({
-      tone: 'warning',
-      title: 'This GAS doesn’t offer the overview.',
-      text: 'It’s an older version without it. The overview shows here once GAS is upgraded.',
-      retryHref: null
-    })
-    expect(toOverviewStatusCode(result)).toBe(200)
-  })
 
   test('answers 200 when GAS answered, whatever its parts say', () => {
     expect(

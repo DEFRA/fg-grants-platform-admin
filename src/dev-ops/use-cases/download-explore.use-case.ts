@@ -29,7 +29,6 @@ const toCsvEnd = (furthest: HeldPage | null) => {
 /** The run's rows from the top to the furthest window read in any tab, read again as their own query. */
 export const downloadExploreUseCase = async ({
   owner,
-  roles,
   run
 }: ExploreAsker & { run: string }): Promise<
   ExploreFile | ExplorePageOutcome
@@ -37,23 +36,20 @@ export const downloadExploreUseCase = async ({
   const held = await findLiveRun(owner, run)
 
   if (held === null) {
-    return readPage({ owner, roles }, expired)
+    return readPage({ owner }, expired)
   }
 
-  const { result, vocabulary } = await runExplore(
-    {
-      query: held.q,
-      ...toCsvEnd(await findFurthestPage(owner, run)),
-      limit: csvRowsMax,
-      csv: true
-    },
-    roles
-  )
+  const { result, vocabulary } = await runExplore({
+    query: held.q,
+    ...toCsvEnd(await findFurthestPage(owner, run)),
+    limit: csvRowsMax,
+    csv: true
+  })
 
   return result.outcome === 'read'
     ? { kind: 'file', answer: result.answer }
     : toPage(
-        { owner, roles },
+        { owner },
         {
           q: held.q,
           run: { id: run, page: 1 },

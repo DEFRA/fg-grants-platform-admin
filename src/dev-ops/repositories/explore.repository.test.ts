@@ -9,13 +9,10 @@ import {
 vi.mock(import('../../common/gas.ts'))
 
 describe('queryExplore', () => {
-  test('posts the query and its positions to GAS with the person’s roles, and nothing more, waiting past GAS’s own deadline', async () => {
+  test('posts the query and its positions to GAS, and nothing more, waiting past GAS’s own deadline', async () => {
     vi.mocked(postToGas).mockResolvedValue({ rows: [] })
 
-    await queryExplore({ query: 'db.cases.find()', positions: 'p' }, [
-      'FCP.GrantOperationsAdmin',
-      'FCP.Payments'
-    ])
+    await queryExplore({ query: 'db.cases.find()', positions: 'p' })
 
     expect(postToGas).toHaveBeenCalledExactlyOnceWith(
       '/grant-admin/explore/query',
@@ -24,7 +21,6 @@ describe('queryExplore', () => {
           query: 'db.cases.find()',
           positions: 'p'
         },
-        headers: { 'x-actor-roles': 'FCP.GrantOperationsAdmin,FCP.Payments' },
         timeoutMs: config.get('gas.exploreTimeoutMs')
       }
     )
@@ -34,9 +30,7 @@ describe('queryExplore', () => {
   test('asks for windows 1 to N as one answer', async () => {
     vi.mocked(postToGas).mockResolvedValue({ rows: [] })
 
-    await queryExplore({ query: 'db.cases.find()', windows: 3 }, [
-      'FCP.GrantOperationsAdmin'
-    ])
+    await queryExplore({ query: 'db.cases.find()', windows: 3 })
 
     expect(vi.mocked(postToGas).mock.calls[0][1]?.payload).toEqual({
       query: 'db.cases.find()',
@@ -49,18 +43,13 @@ describe('checkExplore', () => {
   test('asks GAS only to check the query', async () => {
     vi.mocked(postToGas).mockResolvedValue({ ok: true, vocabulary: null })
 
-    expect(
-      await checkExplore('db.cases.find()', ['FCP.GrantOperationsAdmin'])
-    ).toEqual({
+    expect(await checkExplore('db.cases.find()')).toEqual({
       ok: true,
       vocabulary: null
     })
     expect(postToGas).toHaveBeenCalledExactlyOnceWith(
       '/grant-admin/explore/query',
-      {
-        payload: { query: 'db.cases.find()', check: true },
-        headers: { 'x-actor-roles': 'FCP.GrantOperationsAdmin' }
-      }
+      { payload: { query: 'db.cases.find()', check: true } }
     )
   })
 })
@@ -69,12 +58,9 @@ describe('findVocabulary', () => {
   test('reads GAS’s sources and fields', async () => {
     vi.mocked(getFromGas).mockResolvedValue({ sources: [] })
 
-    expect(await findVocabulary(['FCP.GrantOperationsAdmin'])).toEqual({
-      sources: []
-    })
+    expect(await findVocabulary()).toEqual({ sources: [] })
     expect(getFromGas).toHaveBeenCalledExactlyOnceWith(
-      '/grant-admin/explore/vocabulary',
-      { 'x-actor-roles': 'FCP.GrantOperationsAdmin' }
+      '/grant-admin/explore/vocabulary'
     )
   })
 })

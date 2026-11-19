@@ -141,38 +141,26 @@ export interface WithVocabulary {
 
 const queryPath = '/grant-admin/explore/query'
 
-/** GAS refuses a source the person's roles don't allow before it reads anything. */
-const toRolesHeader = (roles: string[]) => ({
-  'x-actor-roles': roles.join(',')
-})
-
 /**
  * A POST, so the query and its positions travel in the body and never in a
  * logged URL. The answer, or refusal, carries the editor's vocabulary, so the
  * page it draws asks nothing more.
  */
 export const queryExplore = async (
-  body: ExploreQuery,
-  roles: string[]
+  body: ExploreQuery
 ): Promise<ExploreAnswer & WithVocabulary> =>
   postToGas<ExploreAnswer & WithVocabulary>(queryPath, {
     payload: body,
-    headers: toRolesHeader(roles),
     timeoutMs: config.get('gas.exploreTimeoutMs')
   })
 
 /** Reads nothing: GAS only checks the query, and names its source. */
 export const checkExplore = async (
-  query: string,
-  roles: string[]
+  query: string
 ): Promise<{ ok: true; source: string } & WithVocabulary> =>
   postToGas<{ ok: true; source: string } & WithVocabulary>(queryPath, {
-    payload: { query, check: true },
-    headers: toRolesHeader(roles)
+    payload: { query, check: true }
   })
 
-export const findVocabulary = async (roles: string[]): Promise<Vocabulary> =>
-  getFromGas<Vocabulary>(
-    '/grant-admin/explore/vocabulary',
-    toRolesHeader(roles)
-  )
+export const findVocabulary = async (): Promise<Vocabulary> =>
+  getFromGas<Vocabulary>('/grant-admin/explore/vocabulary')

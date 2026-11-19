@@ -423,44 +423,6 @@ describe('the list', () => {
     expect(text($, '.gpa-alert-actions')).toBe('Try again')
   })
 
-  test.each(['gas', 'cw'] as const)(
-    'Not offered: a GAS with no token routes says so on the %s page, with nothing to retry and no New token',
-    async (service) => {
-      vi.mocked(listAccessTokensUseCase).mockResolvedValue({
-        outcome: 'not-offered'
-      })
-
-      const { statusCode, $ } = await get(`/dev-ops/clients/${service}`)
-      const alert = $('[data-testid="tokens-alert"]')
-
-      expect(statusCode).toBe(200)
-      expect(alert).toHaveLength(1)
-      expect(alert.hasClass('gpa-alert-warning')).toBe(true)
-      expect(alert.is('[data-focus-on-arrival]')).toBe(false)
-      expect(text($, '[data-testid="tokens-alert"] .gpa-alert-title')).toBe(
-        'This GAS doesn’t offer access tokens.'
-      )
-      expect(flatten(alert.find('.gpa-alert-body > div').first().text())).toBe(
-        'It’s an older version without the access tokens API. Tokens can be managed here once GAS is upgraded.'
-      )
-      expect(alert.find('.gpa-alert-actions')).toHaveLength(0)
-      expect($('[data-testid="tokens-table"]')).toHaveLength(0)
-      expect($('[data-testid="token-new-open"]')).toHaveLength(0)
-      expect($('dialog#token-new')).toHaveLength(0)
-    }
-  )
-
-  test('Not offered: an address asking for New token opens nothing', async () => {
-    vi.mocked(listAccessTokensUseCase).mockResolvedValue({
-      outcome: 'not-offered'
-    })
-
-    const { $ } = await get('/dev-ops/clients/gas?dialog=new')
-
-    expect($('dialog#token-new')).toHaveLength(0)
-    expect($('dialog[open]')).toHaveLength(0)
-  })
-
   test('Unavailable: the alert isn’t news, so it doesn’t take the focus', async () => {
     vi.mocked(listAccessTokensUseCase).mockResolvedValue({ outcome: 'unknown' })
 
@@ -949,26 +911,6 @@ describe('New token', () => {
       expect($('#token-new-client').attr('value')).toBe('new-caller')
     }
   )
-
-  test('a stale New token against a GAS with no token routes: 400, the page says so, and no dialog', async () => {
-    vi.mocked(issueAccessTokenUseCase).mockResolvedValue({
-      outcome: 'not-offered',
-      list: { outcome: 'not-offered' }
-    })
-
-    const { statusCode, $ } = await post('/dev-ops/clients/gas/tokens', {
-      clientId: 'new-caller',
-      expiry: '90',
-      date: ''
-    })
-
-    expect(statusCode).toBe(400)
-    expect(text($, '[data-testid="tokens-alert"] .gpa-alert-title')).toBe(
-      'This GAS doesn’t offer access tokens.'
-    )
-    expect($('dialog#token-new')).toHaveLength(0)
-    expect($('dialog[open]')).toHaveLength(0)
-  })
 })
 
 describe('Rotate', () => {
@@ -1791,28 +1733,6 @@ describe('the outcome of a write', () => {
     expect(flatten(alert.find('.gpa-alert-body > div').text())).toBe(
       'GAS answered with an error. Refresh to see whether the token was revoked before trying again.'
     )
-  })
-
-  test('a GAS with no token routes refuses a write, said beside the page’s warning', async () => {
-    vi.mocked(revokeAccessTokenUseCase).mockResolvedValue({
-      outcome: 'not-offered',
-      list: { outcome: 'not-offered' }
-    })
-
-    const { statusCode, $ } = await post(`${tokenPath(ids.active)}/revoke`, {
-      confirmText: 'grants-ui',
-      hint: '3e1d'
-    })
-
-    expect(statusCode).toBe(400)
-    expect(listAccessTokensUseCase).not.toHaveBeenCalled()
-    expect(text($, '[data-testid="tokens-alert"] .gpa-alert-title')).toBe(
-      'This GAS doesn’t offer access tokens.'
-    )
-    expect(toastOf($)).toEqual({
-      tone: 'danger',
-      text: 'Not revoked. GAS doesn’t offer access tokens. Nothing has changed.'
-    })
   })
 
   test('a notice isn’t shown on the other service’s page', async () => {

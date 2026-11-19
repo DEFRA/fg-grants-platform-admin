@@ -32,19 +32,12 @@ describe('getOverviewUseCase', () => {
     })
   })
 
-  test('takes a bare 404 for a GAS without the overview, and warns', async () => {
-    vi.mocked(getOverview).mockRejectedValue(
-      responseError(404, { statusCode: 404, error: 'Not Found' })
-    )
-
-    expect(await getOverviewUseCase()).toEqual({ outcome: 'not-offered' })
-    expect(logger.warn).toHaveBeenCalledWith(
-      'fg-gas-backend has no overview route'
-    )
-  })
-
   test.each([
-    ['a 404 with a code', responseError(404, { errorCode: 'X' }), 'refused'],
+    [
+      'a 404',
+      responseError(404, { statusCode: 404, error: 'Not Found' }),
+      'refused'
+    ],
     ['a 500', responseError(500), 'errored'],
     ['a 504', responseError(504), 'timed-out'],
     ['no connection', connectionError(), 'not-connected'],

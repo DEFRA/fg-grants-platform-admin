@@ -65,28 +65,6 @@ describe('getFromGas', () => {
   })
 })
 
-describe('getFromGas with headers of its own', () => {
-  beforeEach(() => {
-    vi.mocked(wreck.get).mockResolvedValue({ payload: {} } as never)
-  })
-
-  test('sends them beside the service token', async () => {
-    await getFromGas('/grant-admin/explore/vocabulary', {
-      'x-actor-roles': 'FCP.GrantOperationsAdmin'
-    })
-
-    expect(wreck.get).toHaveBeenCalledWith(
-      expect.any(String),
-      expect.objectContaining({
-        headers: {
-          authorization: `Bearer ${config.get('gas.serviceToken')}`,
-          'x-actor-roles': 'FCP.GrantOperationsAdmin'
-        }
-      })
-    )
-  })
-})
-
 describe('postToGas', () => {
   beforeEach(() => {
     vi.mocked(wreck.post).mockResolvedValue({

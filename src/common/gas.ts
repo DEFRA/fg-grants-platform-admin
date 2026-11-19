@@ -69,19 +69,13 @@ const counted = async <T>(call: () => Promise<{ payload: T }>): Promise<T> => {
   }
 }
 
-/**
- * @param path An absolute path, with its segments already escaped.
- * @param headers Any the call adds to the token and the actor.
- */
-export const getFromGas = async <T>(
-  path: string,
-  headers: Record<string, string> = {}
-): Promise<T> =>
+/** @param path An absolute path, with its segments already escaped. */
+export const getFromGas = async <T>(path: string): Promise<T> =>
   counted(() =>
     wreck.get<T>(`${config.get('gas.apiUrl')}${path}`, {
       json: true,
       timeout: config.get('gas.timeoutMs'),
-      headers: { ...toHeaders(), ...headers }
+      headers: toHeaders()
     })
   )
 

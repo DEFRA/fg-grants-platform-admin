@@ -33,8 +33,6 @@ const credentials = {
   scope: ['FCP.GrantOperationsAdmin']
 }
 
-const roles = credentials.scope
-
 const id = '0b6f3e2a-5c1d-4e8f-9a7b-2c3d4e5f6a7b'
 
 const runHref = `/dev-ops/explore?run=${id}`
@@ -268,7 +266,6 @@ describe('Explore, first opened', () => {
     expect(statusCode).toBe(statusCodes.ok)
     expect(viewExploreUseCase).toHaveBeenCalledExactlyOnceWith({
       owner: expect.objectContaining({ user: credentials.user.id }),
-      roles,
       run: null,
       page: 1
     })
@@ -408,7 +405,6 @@ describe('running a typed query', () => {
 
     expect(runExploreUseCase).toHaveBeenCalledExactlyOnceWith({
       owner: expect.objectContaining({ user: credentials.user.id }),
-      roles,
       wayIn: { kind: 'typed', q: typed }
     })
     expect(posted.statusCode).toBe(statusCodes.seeOther)
@@ -430,7 +426,6 @@ describe('running a typed query', () => {
 
     expect(viewExploreUseCase).toHaveBeenCalledExactlyOnceWith({
       owner: expect.objectContaining({ user: credentials.user.id }),
-      roles,
       run: id,
       page: 1
     })
@@ -1388,7 +1383,6 @@ describe('a windowed run', () => {
 
     expect(viewExploreUseCase).toHaveBeenCalledExactlyOnceWith({
       owner: expect.objectContaining({ user: credentials.user.id }),
-      roles,
       run: id,
       page: 3
     })
@@ -1835,7 +1829,6 @@ describe('drawing every window again', () => {
 
     expect(restoreExploreUseCase).toHaveBeenCalledExactlyOnceWith({
       owner: expect.objectContaining({ user: credentials.user.id }),
-      roles,
       run: id,
       through: 3
     })
@@ -2048,8 +2041,7 @@ describe('an exact run with nothing', () => {
 
 const actionLabels: Record<string, string> = {
   retry: 'Try again',
-  start: 'Start again',
-  none: ''
+  start: 'Start again'
 }
 
 describe('a run that fails', () => {
@@ -2118,17 +2110,6 @@ describe('a run that fails', () => {
       'start'
     ],
     [
-      'GAS refuses a source this person may not query',
-      {
-        kind: 'refused',
-        service: 'GAS',
-        message: 'You can’t query payments.'
-      },
-      statusCodes.badRequest,
-      'The Grant Application Service refused this query. You can’t query payments.',
-      'start'
-    ],
-    [
       'GAS has too many records of a kind to read in full',
       {
         kind: 'refused',
@@ -2139,13 +2120,6 @@ describe('a run that fails', () => {
       statusCodes.badRequest,
       'The Grant Application Service refused this query. The Grant Application Service has too many agreements to read in full',
       'start'
-    ],
-    [
-      'Caseworking has no queries yet',
-      { kind: 'not-offered', service: 'CW' },
-      statusCodes.ok,
-      'Caseworking doesn’t offer queries yet. Nothing was read.',
-      null
     ],
     [
       'GAS refuses it',
@@ -2186,15 +2160,8 @@ describe('a run that fails', () => {
       statusCodes.tooManyRequests,
       'Caseworking is running as many queries as it can. Try again in a moment.',
       'retry'
-    ],
-    [
-      'GAS has no Explore',
-      { kind: 'not-offered', service: 'GAS' },
-      statusCodes.ok,
-      'The Grant Application Service doesn’t offer Explore yet. Nothing was read.',
-      null
     ]
-  ] as [string, ExploreFailure, number, string, string | null][])(
+  ] as [string, ExploreFailure, number, string, string][])(
     'says so when %s',
     async (_, failure, code, text, action) => {
       showing(runPage(failed(failure)))
@@ -2202,9 +2169,7 @@ describe('a run that fails', () => {
       const { $, statusCode } = await view(runHref)
 
       expect(statusCode).toBe(code)
-      expect(textOf($, 'explore-alert')).toBe(
-        [text, actionLabels[action ?? 'none']].filter(Boolean).join(' ')
-      )
+      expect(textOf($, 'explore-alert')).toBe(`${text} ${actionLabels[action]}`)
       expect(by($, 'explore-results')).toHaveLength(0)
       expect($('#q').val()).toBe(typed)
       expect(by($, 'explore-retry').attr('href')).toBe(

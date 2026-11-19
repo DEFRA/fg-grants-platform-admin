@@ -17,8 +17,6 @@ vi.mock(import('../repositories/explore.repository.ts'))
 
 const owner = { session: 'session-a', user: 'user-a' }
 
-const roles = ['FCP.GrantOperationsAdmin']
-
 const typed = "db.applications.find({ code: 'woodland' })"
 
 const answer = (
@@ -52,10 +50,9 @@ const windowed = (positions: string | null, end = false) =>
     window: { to: '2026-10-01T00:00:00.000Z', end, positions }
   })
 
-const view = (run: string, page = 1) =>
-  viewExploreUseCase({ owner, roles, run, page })
+const view = (run: string, page = 1) => viewExploreUseCase({ owner, run, page })
 
-const download = (run: string) => downloadExploreUseCase({ owner, roles, run })
+const download = (run: string) => downloadExploreUseCase({ owner, run })
 
 const lastSent = () => vi.mocked(queryExplore).mock.calls.at(-1)
 
@@ -65,7 +62,7 @@ beforeEach(() => {
 })
 
 describe('downloadExploreUseCase', () => {
-  test('reads an exact run in full, capped at 5,000, with the person’s roles', async () => {
+  test('reads an exact run in full, capped at 5,000', async () => {
     const file = answer({ partial: true })
 
     vi.mocked(queryExplore)
@@ -77,10 +74,7 @@ describe('downloadExploreUseCase', () => {
     await view(id)
 
     expect(await download(id)).toEqual({ kind: 'file', answer: shown(file) })
-    expect(lastSent()).toEqual([
-      { query: typed, limit: 5000, csv: true },
-      roles
-    ])
+    expect(lastSent()).toEqual([{ query: typed, limit: 5000, csv: true }])
   })
 
   test('reads a run no window of which was read from the top', async () => {
@@ -90,10 +84,7 @@ describe('downloadExploreUseCase', () => {
 
     await download(id)
 
-    expect(lastSent()).toEqual([
-      { query: typed, limit: 5000, csv: true },
-      roles
-    ])
+    expect(lastSent()).toEqual([{ query: typed, limit: 5000, csv: true }])
   })
 
   test('reads down to the furthest window Keep looking loaded', async () => {
@@ -181,7 +172,7 @@ describe('downloadExploreUseCase', () => {
       page: { q: '', run: null, notice: { kind: 'expired' } }
     })
     expect(queryExplore).not.toHaveBeenCalled()
-    expect(findVocabulary).toHaveBeenCalledExactlyOnceWith(roles)
+    expect(findVocabulary).toHaveBeenCalledExactlyOnceWith()
   })
 
   test('draws the run’s page GAS refused with the vocabulary its refusal carried', async () => {

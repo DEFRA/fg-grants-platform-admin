@@ -21,8 +21,6 @@ vi.mock(import('../repositories/explore.repository.ts'))
 
 const owner = { session: 'session-a', user: 'user-a' }
 
-const roles = ['FCP.GrantOperationsAdmin']
-
 const typed = "db.applications.find({ code: 'woodland' })"
 
 const answer = (
@@ -67,7 +65,7 @@ const vocabulary: Vocabulary = {
 const sent = () => vi.mocked(queryExplore).mock.calls.map(([body]) => body)
 
 const view = (run: string | null, page = 1, as = owner) =>
-  viewExploreUseCase({ owner: as, roles, run, page })
+  viewExploreUseCase({ owner: as, run, page })
 
 beforeEach(() => {
   provideMemoryExploreStore()
@@ -92,7 +90,7 @@ describe('viewExploreUseCase', () => {
       }
     })
     expect(queryExplore).not.toHaveBeenCalled()
-    expect(findVocabulary).toHaveBeenCalledExactlyOnceWith(roles)
+    expect(findVocabulary).toHaveBeenCalledExactlyOnceWith()
   })
 
   test('carries no vocabulary when GAS can’t give it', async () => {
@@ -104,7 +102,7 @@ describe('viewExploreUseCase', () => {
     })
   })
 
-  test('runs a held run’s first window with the person’s roles, the text back in the editor', async () => {
+  test('runs a held run’s first window, the text back in the editor', async () => {
     vi.mocked(queryExplore).mockResolvedValue({ ...answer(), vocabulary })
 
     const id = await holdRun(owner, typed)
@@ -121,10 +119,7 @@ describe('viewExploreUseCase', () => {
         vocabulary
       }
     })
-    expect(queryExplore).toHaveBeenCalledExactlyOnceWith(
-      { query: typed },
-      roles
-    )
+    expect(queryExplore).toHaveBeenCalledExactlyOnceWith({ query: typed })
     expect(findVocabulary).not.toHaveBeenCalled()
   })
 
@@ -338,7 +333,7 @@ describe('viewWindowUseCase', () => {
     await view(id)
 
     expect(
-      await viewWindowUseCase({ owner, roles }, { run: id, page: 2 })
+      await viewWindowUseCase({ owner }, { run: id, page: 2 })
     ).toMatchObject({ kind: 'page', page: { run: { id, page: 2 } } })
     expect(sent()[1]).toEqual({ query: typed, positions: 'after-first' })
   })
@@ -346,18 +341,20 @@ describe('viewWindowUseCase', () => {
   test('says a run no longer held is gone, reading nothing', async () => {
     const id = '0b6f3e2a-5c1d-4e8f-9a7b-2c3d4e5f6a7b'
 
-    expect(
-      await viewWindowUseCase({ owner, roles }, { run: id, page: 2 })
-    ).toEqual({ kind: 'gone', id })
+    expect(await viewWindowUseCase({ owner }, { run: id, page: 2 })).toEqual({
+      kind: 'gone',
+      id
+    })
     expect(queryExplore).not.toHaveBeenCalled()
   })
 
   test('goes back to the first window for one it can’t start', async () => {
     const id = await holdRun(owner, typed)
 
-    expect(
-      await viewWindowUseCase({ owner, roles }, { run: id, page: 3 })
-    ).toEqual({ kind: 'restart', id })
+    expect(await viewWindowUseCase({ owner }, { run: id, page: 3 })).toEqual({
+      kind: 'restart',
+      id
+    })
   })
 })
 
@@ -373,7 +370,7 @@ describe('restoreExploreUseCase', () => {
     })
 
   const restore = (run: string, through: number) =>
-    restoreExploreUseCase({ owner, roles, run, through })
+    restoreExploreUseCase({ owner, run, through })
 
   /** A run read by Keep looking through window `n`, each window a ref of its own. */
   const readThrough = async (n: number) => {
@@ -431,7 +428,7 @@ describe('restoreExploreUseCase', () => {
       }
     })
     expect(vi.mocked(queryExplore).mock.calls).toEqual([
-      [{ query: typed, windows: 3 }, roles]
+      [{ query: typed, windows: 3 }]
     ])
     expect(findVocabulary).not.toHaveBeenCalled()
   })
@@ -604,6 +601,6 @@ describe('restoreExploreUseCase', () => {
       await restore('0b6f3e2a-5c1d-4e8f-9a7b-2c3d4e5f6a7b', 2)
     ).toMatchObject({ page: { notice: { kind: 'expired' }, vocabulary } })
     expect(queryExplore).not.toHaveBeenCalled()
-    expect(findVocabulary).toHaveBeenCalledExactlyOnceWith(roles)
+    expect(findVocabulary).toHaveBeenCalledExactlyOnceWith()
   })
 })
