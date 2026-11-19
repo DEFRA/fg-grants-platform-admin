@@ -18,7 +18,7 @@
             {{ gpa.Stat({ label: f.label, value: f.value, valueHtml: gpa.NoValue() if f.value === null, trend: f.trend, trendLabel: f.trendLabel, hint: f.hint, testId: f.testId }) }}
           {%- endfor -%}
         {%- endcall -%}
-        {{ overview.deadLetters(sections.deadLetterAlerts, sections.deadLetterLinks) }}
+        {{ overview.deadLetters(sections.deadLetterAlerts) }}
         {{ overview.topErrors(sections.topErrors) }}
         {{ overview.configFailed(sections.configFailed) }}
         {{ overview.tokensExpiring(sections.tokensExpiring) }}

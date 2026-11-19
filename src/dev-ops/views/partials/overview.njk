@@ -51,15 +51,10 @@
   {%- endcall -%}
 {%- endmacro -%}
 
-{%- macro deadLetters(alerts, links) -%}
-  {%- if alerts.length or links.length -%}
+{%- macro deadLetters(alerts) -%}
+  {%- if alerts.length -%}
     {%- call gpa.Stack({ gap: 'sm', testId: 'overview-dead-letters' }) -%}
       {{ sectionAlerts(alerts, 'overview-dead-letters-alert') }}
-      {%- if links.length -%}
-        {%- call gpa.Inline({ gap: 'md', testId: 'overview-dead-letter-links' }) -%}
-          {%- for a in links %}{{ gpa.Link({ text: a.text, href: a.href, testId: a.testId }) }}{% endfor -%}
-        {%- endcall -%}
-      {%- endif -%}
     {%- endcall -%}
   {%- endif -%}
 {%- endmacro -%}
