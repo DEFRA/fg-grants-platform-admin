@@ -89,7 +89,7 @@ const runTyped: WayIn<'typed'> = async (asker, wayIn) => {
     return readPage(asker, { ...toEditor(q), result: tooLong })
   }
 
-  const { result, vocabulary } = await checkExploreQuery(q, asker.roles)
+  const { result, vocabulary } = await checkExploreQuery(q)
 
   return result.outcome === 'failed' && result.failure.kind === 'invalid'
     ? toPage(asker, { ...toEditor(q), result }, vocabulary)
@@ -179,10 +179,7 @@ const toFindOthersOf = ({ find, record }: { find: string; record: string }) => {
 const runFindOthers: WayIn<'find'> = async (asker, wayIn) => {
   const { item, record } = toFindOthersOf(wayIn)
   const lookup = toLookup(record)
-  const { result, vocabulary } = await runExplore(
-    { query: lookup.query },
-    asker.roles
-  )
+  const { result, vocabulary } = await runExplore({ query: lookup.query })
 
   if (result.outcome === 'failed') {
     return toPage(asker, { ...toEditor(defaultQuery), result }, vocabulary)
@@ -214,7 +211,6 @@ const waysIn: { [K in ExploreWayIn['kind']]: WayIn<K> } = {
 /** Holds the run a way in names, or says why it can't on the page. */
 export const runExploreUseCase = async ({
   owner,
-  roles,
   wayIn
 }: ExploreAsker & { wayIn: ExploreWayIn }): Promise<ExploreRunOutcome> =>
-  (waysIn[wayIn.kind] as WayIn<ExploreWayIn['kind']>)({ owner, roles }, wayIn)
+  (waysIn[wayIn.kind] as WayIn<ExploreWayIn['kind']>)({ owner }, wayIn)

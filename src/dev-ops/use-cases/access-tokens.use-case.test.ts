@@ -121,9 +121,9 @@ const failures = [
     { outcome: 'refused', statusCode: 404, errorCode: 'API_CLIENT_NOT_FOUND' }
   ],
   [
-    'a 404 with no error code: a GAS with no token routes',
+    'a 404 with no error code',
     responseError(404, noRoute),
-    { outcome: 'not-offered' }
+    { outcome: 'refused', statusCode: 404, errorCode: null }
   ],
   [
     'a connection that was never made',
@@ -553,17 +553,6 @@ describe('revokeAccessTokenUseCase', () => {
 
     expect(logger.warn).toHaveBeenCalledWith(
       `Did not revoke token gas/grants-ui/${token.tokenId}: 409 API_TOKEN_IN_USE`
-    )
-    expect(logger.error).not.toHaveBeenCalled()
-  })
-
-  test('warns, rather than errs, when GAS has no token routes', async () => {
-    vi.mocked(revokeToken).mockRejectedValue(responseError(404, noRoute))
-
-    await revokeAccessTokenUseCase(key)
-
-    expect(logger.warn).toHaveBeenCalledWith(
-      `Did not revoke token gas/grants-ui/${token.tokenId}: fg-gas-backend has no access token routes`
     )
     expect(logger.error).not.toHaveBeenCalled()
   })

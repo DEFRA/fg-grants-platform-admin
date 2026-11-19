@@ -28,20 +28,17 @@ const connectionError = () =>
     Object.assign(new Error('connect ECONNREFUSED'), { code: 'ECONNREFUSED' })
   )
 
-const roles = ['FCP.GrantOperationsAdmin']
-
 const vocabulary = { sources: [] }
 
 describe('runExplore', () => {
-  test('asks GAS with the person’s roles', async () => {
+  test('asks GAS to run the query', async () => {
     vi.mocked(queryExplore).mockResolvedValue({} as never)
 
-    await runExplore({ query: 'db.cases.find()' }, roles)
+    await runExplore({ query: 'db.cases.find()' })
 
-    expect(queryExplore).toHaveBeenCalledExactlyOnceWith(
-      { query: 'db.cases.find()' },
-      roles
-    )
+    expect(queryExplore).toHaveBeenCalledExactlyOnceWith({
+      query: 'db.cases.find()'
+    })
   })
 
   test.each([
@@ -104,16 +101,7 @@ describe('runExplore', () => {
       { kind: 'refused', service: 'CW', message: 'Too big' }
     ],
     [
-      'a source the person may not query',
-      responseError(403, {
-        reason: 'SOURCE_FORBIDDEN',
-        source: 'payments',
-        message: 'You can’t query payments'
-      }),
-      { kind: 'refused', service: 'GAS', message: 'You can’t query payments' }
-    ],
-    [
-      'another 403',
+      'a 403',
       responseError(403, { message: 'Forbidden' }),
       { kind: 'errored', service: 'GAS' }
     ],
@@ -141,13 +129,8 @@ describe('runExplore', () => {
       { kind: 'full', service: 'CW' }
     ],
     [
-      'a GAS without Explore',
+      'a 404',
       responseError(404, { statusCode: 404, error: 'Not Found' }),
-      { kind: 'not-offered', service: 'GAS' }
-    ],
-    [
-      'another 404',
-      responseError(404, { reason: 'NO_SUCH_SOURCE' }),
       { kind: 'errored', service: 'GAS' }
     ],
     [
@@ -166,9 +149,9 @@ describe('runExplore', () => {
       { kind: 'errored', service: 'CW' }
     ],
     [
-      'Caseworking without queries',
-      responseError(502, { hop: 'CW-BE', reason: 'NOT_OFFERED' }),
-      { kind: 'not-offered', service: 'CW' }
+      'Caseworking failing for a reason GAS names no other way',
+      responseError(502, { hop: 'CW-BE', reason: 'SOMETHING_ELSE' }),
+      { kind: 'errored', service: 'CW' }
     ],
     [
       'Caseworking refusing the query',
@@ -181,11 +164,11 @@ describe('runExplore', () => {
       { kind: 'no-answer', service: 'CW', failure: { kind: 'cw-not-reached' } }
     ],
     [
-      'a GAS that can’t audit queries',
+      'a GAS that can’t run queries for now',
       responseError(503, {
         statusCode: 503,
         error: 'Service Unavailable',
-        message: 'Explore can’t audit queries: SEARCH_AUDIT_KEY isn’t set'
+        message: 'Service Unavailable'
       }),
       { kind: 'unavailable', service: 'GAS' }
     ],
@@ -209,7 +192,7 @@ describe('runExplore', () => {
   ])('says how %s failed', async (_, error, failure) => {
     vi.mocked(queryExplore).mockRejectedValue(error)
 
-    expect(await runExplore({ query: 'db.cases.find()' }, roles)).toEqual({
+    expect(await runExplore({ query: 'db.cases.find()' })).toEqual({
       result: { outcome: 'failed', failure },
       vocabulary: null
     })
@@ -221,7 +204,7 @@ describe('runExplore', () => {
       vocabulary
     } as never)
 
-    expect(await runExplore({ query: 'db.cases.find()' }, roles)).toEqual({
+    expect(await runExplore({ query: 'db.cases.find()' })).toEqual({
       result: { outcome: 'read', answer: { rows: [] } },
       vocabulary
     })
@@ -231,7 +214,7 @@ describe('runExplore', () => {
     vi.mocked(queryExplore).mockResolvedValue({ rows: [] } as never)
 
     expect(
-      (await runExplore({ query: 'db.cases.find()' }, roles)).vocabulary
+      (await runExplore({ query: 'db.cases.find()' })).vocabulary
     ).toBeNull()
   })
 
@@ -240,7 +223,7 @@ describe('runExplore', () => {
       responseError(400, { reason: 'QUERY_REFUSED', vocabulary })
     )
 
-    expect(await runExplore({ query: 'db.cases.find()' }, roles)).toEqual({
+    expect(await runExplore({ query: 'db.cases.find()' })).toEqual({
       result: {
         outcome: 'failed',
         failure: { kind: 'refused', service: 'GAS', message: null }
@@ -254,7 +237,7 @@ describe('runExplore', () => {
       responseError(500, { message: 'secret' })
     )
 
-    await runExplore({ query: 'db.cases.find()' }, roles)
+    await runExplore({ query: 'db.cases.find()' })
 
     expect(logger.warn).toHaveBeenCalledExactlyOnceWith(
       'Could not run an Explore query in fg-gas-backend: Error: Response Error: 500'
@@ -265,7 +248,7 @@ describe('runExplore', () => {
   test('warns of a GAS that can’t run queries for now', async () => {
     vi.mocked(queryExplore).mockRejectedValue(responseError(503))
 
-    await runExplore({ query: 'db.cases.find()' }, roles)
+    await runExplore({ query: 'db.cases.find()' })
 
     expect(logger.warn).toHaveBeenCalledExactlyOnceWith(
       'Could not run an Explore query in fg-gas-backend: Error: Response Error: 503'
@@ -281,7 +264,7 @@ describe('runExplore', () => {
   ])('logs the call and its end as a pair when GAS %s', async (_, answer) => {
     answer()
 
-    await runExplore({ query: 'db.cases.find()' }, roles)
+    await runExplore({ query: 'db.cases.find()' })
 
     expect(vi.mocked(logger.info).mock.calls).toEqual([
       ['Asking fg-gas-backend to run an Explore query'],
@@ -289,40 +272,37 @@ describe('runExplore', () => {
     ])
   })
 
-  test('warns of a GAS without Explore, and logs nothing for a query’s own mistakes', async () => {
+  test('warns of a GAS 404 as an outage, and logs nothing for a query’s own mistakes', async () => {
     vi.mocked(queryExplore).mockRejectedValueOnce(
       responseError(404, { statusCode: 404, error: 'Not Found' })
     )
-    await runExplore({ query: 'db.cases.find()' }, roles)
+    await runExplore({ query: 'db.cases.find()' })
 
     vi.mocked(queryExplore).mockRejectedValueOnce(
       responseError(400, { reason: 'QUERY_REFUSED' })
     )
-    await runExplore({ query: 'db.cases.find()' }, roles)
+    await runExplore({ query: 'db.cases.find()' })
 
     expect(logger.warn).toHaveBeenCalledExactlyOnceWith(
-      'fg-gas-backend has no Explore route'
+      'Could not run an Explore query in fg-gas-backend: Error: Response Error: 404'
     )
     expect(logger.error).not.toHaveBeenCalled()
   })
 })
 
 describe('checkExploreQuery', () => {
-  test('asks GAS only to check, with the person’s roles', async () => {
+  test('asks GAS only to check', async () => {
     vi.mocked(checkExplore).mockResolvedValue({
       ok: true,
       source: 'cases',
       vocabulary
     })
 
-    expect(await checkExploreQuery('db.cases.find()', roles)).toEqual({
+    expect(await checkExploreQuery('db.cases.find()')).toEqual({
       result: { outcome: 'read', answer: { ok: true, source: 'cases' } },
       vocabulary
     })
-    expect(checkExplore).toHaveBeenCalledExactlyOnceWith(
-      'db.cases.find()',
-      roles
-    )
+    expect(checkExplore).toHaveBeenCalledExactlyOnceWith('db.cases.find()')
   })
 
   test('keeps the vocabulary a query that breaks the language carried', async () => {
@@ -334,7 +314,7 @@ describe('checkExploreQuery', () => {
       })
     )
 
-    expect(await checkExploreQuery('db.cases.find(', roles)).toEqual({
+    expect(await checkExploreQuery('db.cases.find(')).toEqual({
       result: {
         outcome: 'failed',
         failure: {
@@ -351,7 +331,7 @@ describe('readExploreVocabulary', () => {
   test('says how GAS failed to give it', async () => {
     vi.mocked(findVocabulary).mockRejectedValue(connectionError())
 
-    expect(await readExploreVocabulary(roles)).toEqual({
+    expect(await readExploreVocabulary()).toEqual({
       outcome: 'failed',
       failure: {
         kind: 'no-answer',
@@ -359,6 +339,6 @@ describe('readExploreVocabulary', () => {
         failure: { kind: 'not-connected' }
       }
     })
-    expect(findVocabulary).toHaveBeenCalledExactlyOnceWith(roles)
+    expect(findVocabulary).toHaveBeenCalledExactlyOnceWith()
   })
 })

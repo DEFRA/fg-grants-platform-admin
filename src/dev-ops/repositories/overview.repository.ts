@@ -4,12 +4,7 @@ import type { ApiToken } from './clients.repository.ts'
 /** Who didn't answer for a part: GAS's own read, or CW behind it. */
 export type OverviewHop = 'GAS' | 'CW-BE'
 
-export type OverviewReason =
-  | 'UNREACHABLE'
-  | 'TIMED_OUT'
-  | 'ERRORED'
-  /** CW has no such read yet: a bare 404 behind GAS. */
-  | 'NOT_OFFERED'
+export type OverviewReason = 'UNREACHABLE' | 'TIMED_OUT' | 'ERRORED'
 
 export interface OverviewSourceError {
   hop: OverviewHop

@@ -68,10 +68,7 @@ const readWindow = async (
   page: number,
   previous: HeldPage | null
 ) => {
-  const reply = await runExplore(
-    { query: held.q, ...toStart(previous) },
-    asker.roles
-  )
+  const reply = await runExplore({ query: held.q, ...toStart(previous) })
 
   if (reply.result.outcome === 'read') {
     const { answer } = reply.result
@@ -133,7 +130,6 @@ const viewRun = async (
 /** The editor holding the default query, unrun; or one window of a run this owner holds: the first, or the next after one read. */
 export const viewExploreUseCase = async ({
   owner,
-  roles,
   run,
   page
 }: ExploreAsker & {
@@ -141,8 +137,8 @@ export const viewExploreUseCase = async ({
   page: number
 }): Promise<ExplorePageOutcome | ExploreRestart> =>
   run === null
-    ? readPage({ owner, roles }, toEditor(defaultQuery))
-    : viewRun({ owner, roles }, run, page)
+    ? readPage({ owner }, toEditor(defaultQuery))
+    : viewRun({ owner }, run, page)
 
 /** Keep looking in place: the run's next window, or gone when the run is no longer held. */
 export const viewWindowUseCase = async (
@@ -173,10 +169,7 @@ const restore = async (
   held: HeldRun,
   windows: number
 ): Promise<ExplorePageOutcome | ExploreApart> => {
-  const { result, vocabulary } = await runExplore(
-    { query: held.q, windows },
-    asker.roles
-  )
+  const { result, vocabulary } = await runExplore({ query: held.q, windows })
   const run = {
     id: held.id,
     page: 1,
@@ -224,14 +217,13 @@ const restore = async (
  */
 export const restoreExploreUseCase = async ({
   owner,
-  roles,
   run,
   through
 }: ExploreAsker & {
   run: string
   through: number
 }): Promise<ExplorePageOutcome | ExploreRestart | ExploreApart> => {
-  const asker = { owner, roles }
+  const asker = { owner }
   const held = await findLiveRun(owner, run)
   const windows = Math.min(through, restoreMax)
 

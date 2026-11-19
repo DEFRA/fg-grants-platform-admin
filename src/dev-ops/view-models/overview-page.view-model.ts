@@ -51,17 +51,14 @@ const hopName = ({ hop }: OverviewSourceError): string =>
   hop === 'CW-BE' ? serviceWords.cw.short : serviceWords.gas.short
 
 export interface SectionAlert {
-  tone: 'danger' | 'warning'
+  tone: 'danger'
   title: string
   text: string
 }
 
 const unaffected = 'The rest of the page is unaffected.'
 
-const reasonTexts: Record<
-  Exclude<OverviewSourceError['reason'], 'NOT_OFFERED'>,
-  string
-> = {
+const reasonTexts: Record<OverviewSourceError['reason'], string> = {
   UNREACHABLE: 'couldn’t be reached.',
   TIMED_OUT: 'didn’t answer in time.',
   ERRORED: 'answered with an error.'
@@ -79,41 +76,16 @@ const partNouns: Record<PartName, Record<ClientService, string>> = {
   tokensExpiring: { gas: 'access tokens', cw: 'access tokens' }
 }
 
-/** An older service without this read: trying again won't help, so it is a warning, said as the tokens page says it. */
-const toNotOffered = (
-  part: PartName,
-  name: string,
-  noun: string
-): SectionAlert =>
-  part === 'tokensExpiring'
-    ? {
-        tone: 'warning',
-        title: `This ${name} doesn’t offer access tokens.`,
-        text: `It’s an older version without the access tokens API. Tokens can be managed here once ${name} is upgraded.`
-      }
-    : {
-        tone: 'warning',
-        title: `This ${name} doesn’t offer its ${noun} here yet.`,
-        text: `It’s an older version. They show here once ${name} is upgraded. ${unaffected}`
-      }
-
 /** Said where the part would be, naming the service that didn't answer; the rest of the page stays. */
 export const toPartAlert = (
   part: PartName,
   service: ClientService,
   error: OverviewSourceError
-): SectionAlert => {
-  const noun = partNouns[part][service]
-  const who = hopName(error)
-
-  return error.reason === 'NOT_OFFERED'
-    ? toNotOffered(part, who, noun)
-    : {
-        tone: 'danger',
-        title: `${shortName(service)}’s ${noun} couldn’t be loaded.`,
-        text: `${who} ${reasonTexts[error.reason]} ${unaffected}`
-      }
-}
+): SectionAlert => ({
+  tone: 'danger',
+  title: `${shortName(service)}’s ${partNouns[part][service]} couldn’t be loaded.`,
+  text: `${hopName(error)} ${reasonTexts[error.reason]} ${unaffected}`
+})
 
 interface Read<T> {
   service: ClientService
@@ -326,9 +298,6 @@ const toDeadLetterLinks = (overview: Overview): ListAction[] =>
       }))
   )
 
-const createdNote =
-  'Counted by when each event was created: when it was dead-lettered isn’t stored.'
-
 const toTopErrorsEmpty = (only: ClientService | null): TableEmpty =>
   only === null
     ? {
@@ -523,7 +492,7 @@ const toTokensExpiring = (overview: Overview): TableSection<TokenRow> => {
 }
 
 export interface PageAlert extends SectionAlert {
-  retryHref: string | null
+  retryHref: string
 }
 
 const failureTexts: Record<GasFailure['kind'], string> = {
@@ -540,32 +509,18 @@ const failureTexts: Record<GasFailure['kind'], string> = {
     'GAS didn’t answer in time. Nothing has changed — try again in a moment.'
 }
 
-const notOfferedAlert: PageAlert = {
-  tone: 'warning',
-  title: 'This GAS doesn’t offer the overview.',
-  text: 'It’s an older version without it. The overview shows here once GAS is upgraded.',
-  retryHref: null
-}
-
-const toPageAlert = (
-  result: Exclude<OverviewResult, { outcome: 'read' }>
-): PageAlert =>
-  result.outcome === 'not-offered'
-    ? notOfferedAlert
-    : {
-        tone: 'danger',
-        title: 'The overview couldn’t be loaded.',
-        text: failureTexts[result.failure.kind],
-        retryHref: overviewPath
-      }
+const toPageAlert = ({ failure }: { failure: GasFailure }): PageAlert => ({
+  tone: 'danger',
+  title: 'The overview couldn’t be loaded.',
+  text: failureTexts[failure.kind],
+  retryHref: overviewPath
+})
 
 export interface OverviewSections {
   figures: Figure[]
   topErrors: TopErrorsSection
   deadLetterAlerts: SectionAlert[]
   deadLetterLinks: ListAction[]
-  /** What the 24-hour counts count by, said whenever a service's count is shown. */
-  deadLetterNote: string | null
   configFailed: TableSection<ConfigRow>
   tokensExpiring: TableSection<TokenRow>
 }
@@ -583,7 +538,6 @@ const toSections = (overview: Overview, times: Times): OverviewSections => ({
   topErrors: toTopErrors(overview, times),
   deadLetterAlerts: partAlerts('deadLetters', overview.deadLetters),
   deadLetterLinks: toDeadLetterLinks(overview),
-  deadLetterNote: readParts(overview.deadLetters).length ? createdNote : null,
   configFailed: toConfigFailed(overview, times),
   tokensExpiring: toTokensExpiring(overview)
 })
@@ -600,6 +554,6 @@ export const toOverviewPage = (
     : { alert: toPageAlert(result), sections: null })
 })
 
-/** 503 for an overview that couldn't be read, as a list that couldn't; a GAS that offers none is no failure. */
+/** 503 for an overview that couldn't be read, as a list that couldn't. */
 export const toOverviewStatusCode = ({ outcome }: OverviewResult): number =>
   outcome === 'failed' ? statusCodes.serviceUnavailable : statusCodes.ok

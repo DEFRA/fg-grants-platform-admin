@@ -1,6 +1,5 @@
 import { describeError } from '../../common/describe-error.ts'
 import { logger } from '../../common/logger.ts'
-import { statusCodes } from '../../common/status-codes.ts'
 import type {
   ApiToken,
   ClientService,
@@ -32,7 +31,6 @@ export type { ApiToken, ClientService, KeepOld, ListedToken, TokenKey }
  * Why a write did not happen, as far as this app can tell.
  *
  * - `refused`: GAS (or Caseworking, through it) answered with a 4xx, so nothing changed.
- * - `not-offered`: GAS answered 404 with no error code: it has no token routes, so nothing changed.
  * - `unreachable`: no connection was made, so nothing changed. With an
  *   `errorCode`, GAS answered but could not reach Caseworking at all.
  * - `errored`: GAS answered with a 5xx of its own, or the call failed some other
@@ -43,7 +41,6 @@ export type { ApiToken, ClientService, KeepOld, ListedToken, TokenKey }
  */
 export type TokenFailure =
   | { outcome: 'refused'; statusCode: number; errorCode: string | null }
-  | { outcome: 'not-offered' }
   | { outcome: 'unreachable'; errorCode?: string }
   | { outcome: 'errored' }
   | { outcome: 'unknown'; gasSilent?: true }
@@ -76,15 +73,6 @@ export type ExpiryResult = { outcome: 'done'; token: ApiToken } | WriteFailure
 
 type Attempt<T> = { outcome: 'done'; value: T } | WriteFailure
 
-/** GAS refuses with a code for every token or client it hasn't got, so a bare 404 is a route it hasn't got. */
-const toRefusal = (
-  statusCode: number,
-  errorCode: string | null
-): TokenFailure =>
-  statusCode === statusCodes.notFound && errorCode === null
-    ? { outcome: 'not-offered' }
-    : { outcome: 'refused', statusCode, errorCode }
-
 const tokenFailures: {
   [K in GasFailure['kind']]: (
     failure: Extract<GasFailure, { kind: K }>
@@ -95,7 +83,11 @@ const tokenFailures: {
     outcome: 'unreachable',
     errorCode: cwNotReachedCode
   }),
-  refused: ({ statusCode, errorCode }) => toRefusal(statusCode, errorCode),
+  refused: ({ statusCode, errorCode }) => ({
+    outcome: 'refused',
+    statusCode,
+    errorCode
+  }),
   errored: () => ({ outcome: 'errored' }),
   'timed-out': () => ({ outcome: 'unknown' }),
   'no-answer': () => ({ outcome: 'unknown', gasSilent: true })
@@ -111,9 +103,6 @@ const toFailure = (error: unknown, read: ToGasFailure): TokenFailure => {
   )
 }
 
-const isNotOffered = (failure: TokenFailure): boolean =>
-  failure.outcome === 'not-offered'
-
 const logFailure = (
   what: string,
   failure: TokenFailure,
@@ -123,8 +112,6 @@ const logFailure = (
     logger.warn(
       `Did not ${what}: ${failure.statusCode} ${failure.errorCode ?? 'with no error code'}`
     )
-  } else if (isNotOffered(failure)) {
-    logger.warn(`Did not ${what}: fg-gas-backend has no access token routes`)
   } else {
     logger.error(`Could not ${what} in fg-gas-backend: ${describeError(error)}`)
   }
