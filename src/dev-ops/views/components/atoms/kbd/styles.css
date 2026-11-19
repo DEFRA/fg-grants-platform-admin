@@ -1,0 +1,22 @@
+.gpa-kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: var(--size-tag-md);
+  height: var(--size-tag-md);
+  padding: 0 var(--inset-tag);
+  border: var(--border-width-hairline) solid var(--border-default);
+  border-bottom-width: var(--border-width-thick);
+  border-radius: var(--radius-xs);
+  background: var(--bg-surface);
+  font-family: var(--font-code);
+  font-feature-settings: var(--font-code-features);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-sm);
+  color: var(--fg-muted);
+}
+.gpa-kbd-sm {
+  min-width: var(--size-tag-sm);
+  height: var(--size-tag-sm);
+  padding: 0 var(--inset-tag-xs);
+}

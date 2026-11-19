@@ -162,6 +162,23 @@ export const toRangeInstants = (
 }
 
 /**
+ * A list's range, as its address spells it, as instants. A later page, and
+ * every page an address restores, reads its first page's pinned start as it
+ * is, never back from now.
+ */
+export const toListWindow = (
+  { from, to, range }: Record<string, string | string[] | undefined>,
+  zone: Zone,
+  now: Date,
+  later = false
+): Pick<TimeRangeQuery, 'from' | 'to'> =>
+  toRangeInstants(
+    { from, to, ...(later ? {} : { range }) } as TimeRangeQuery,
+    zone,
+    now
+  )
+
+/**
  * A quick range's start as its first page read it, so its later pages carry
  * that start rather than move it on; any other window is left as it is spelt.
  */

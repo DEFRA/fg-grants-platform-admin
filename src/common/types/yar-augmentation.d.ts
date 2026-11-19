@@ -23,6 +23,8 @@ declare module '@hapi/yar' {
     definitionFetchOutcome: DefinitionFetchFlash
     /** The words an access token write leaves for the page it goes back to; never the token itself. */
     accessTokenNotice: TokenNotice
+    /** The run a Run just held, so the page it lands on, and only that one, puts focus on the count. */
+    exploreArrival: string
   }
 
   interface YarValues {

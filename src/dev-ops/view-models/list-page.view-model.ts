@@ -16,7 +16,7 @@ import type {
 } from '../use-cases/list-bucket.use-case.ts'
 import { toBucketHref, toRowHref } from './bucket-links.ts'
 import type { BucketFilters } from './bucket-links.ts'
-import { toBucketPath } from './bucket-nav.ts'
+import { explorePath, toBucketPath } from './bucket-nav.ts'
 import type { CaseworkingList } from './bucket-nav.ts'
 import { pageMates, toPageHead } from './bucket-tabs.ts'
 import { toUrlQuery } from './bucket-urls.ts'
@@ -31,6 +31,7 @@ import {
 } from './catalogue-presentation.ts'
 import type { ListColumn, Tone } from './catalogue-presentation.ts'
 import { isIsoInstant } from './event-formats.ts'
+import { opensInExplore } from '../use-cases/explore-queries.ts'
 import { toFailureText } from './failure-text.ts'
 import { toFields } from './list-filters.ts'
 import type { FilterField } from './list-filters.ts'
@@ -227,6 +228,8 @@ export interface ListPageModel {
   total: string | null
   clearAllHref: string
   clearSearchForm: ClearSearchForm | null
+  /** The form Open in Explore sends; null for a list Explore doesn't open. */
+  exploreForm: ClearSearchForm | null
   alert: ListAlert | null
   table: TableModel | null
 }
@@ -254,6 +257,8 @@ interface Searched {
 
 /** The form a search tag clears the session's search with. */
 const clearSearchFormId = 'list-search-clear'
+
+const exploreFormId = 'list-explore'
 
 /** The address Clear all goes to while a search is held: it drops the search too. */
 export const clearParam = 'clear'
@@ -1120,6 +1125,22 @@ const pagesOf = ({ cursor, page, pageRows }: ListPageInput) => ({
   pageRows: pageRows ?? []
 })
 
+/** The list's own address, filters and range, sent in a form: Explore reads the search from the session, as the list does. */
+const toExploreForm = ({ bucket, filters }: Context): ClearSearchForm | null =>
+  opensInExplore(bucket)
+    ? {
+        id: exploreFormId,
+        action: explorePath,
+        hidden: [
+          { name: 'from', value: bucket.path },
+          {
+            name: 'list',
+            value: toBucketHref(bucket, filters).split('?')[1] ?? ''
+          }
+        ]
+      }
+    : null
+
 const toContext = (input: ListPageInput): Context => ({
   bucket: input.bucket,
   filters: input.filters,
@@ -1173,6 +1194,7 @@ export const toListPage = (input: ListPageInput): ListPageModel => {
     total: toTotal(context),
     clearAllHref: toClearAllHref(context),
     clearSearchForm: toClearSearchForm(context),
+    exploreForm: toExploreForm(context),
     alert: toAlert(input, retryHref),
     table: toTable(context, input, set, retryHref)
   }
@@ -1201,6 +1223,7 @@ export const toCaseworkingUnreachable = (
   total: null,
   clearAllHref: '',
   clearSearchForm: null,
+  exploreForm: null,
   alert: {
     tone: 'danger',
     title: 'Caseworking can’t be reached.',

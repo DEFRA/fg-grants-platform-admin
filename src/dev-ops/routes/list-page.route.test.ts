@@ -22,7 +22,11 @@ import {
   styleNonceOf,
   tableStyles
 } from '../test-utils.ts'
-import { fullCatalogue, pagedInbox } from '../use-cases/test-fixtures.ts'
+import {
+  fullCatalogue,
+  outboxBucket,
+  pagedInbox
+} from '../use-cases/test-fixtures.ts'
 import { shellCatalogue } from '../use-cases/shell-catalogue.ts'
 import type { Catalogue } from '../use-cases/shell-catalogue.ts'
 import type { GasFailure } from '../use-cases/gas-status.ts'
@@ -1354,7 +1358,6 @@ describe('a search posted', () => {
   )
 
   test.each([
-    '/dev-ops/explore',
     '/dev-ops/explore/values',
     '/dev-ops/clients',
     '/dev-ops/clients/gas/nothing',
@@ -2403,4 +2406,67 @@ test('a subtitle the catalogue sends for a list with no subtitle column is drawn
   expect(by($, 'list-row').find('td').first().text()).toContain(
     'Woodland application'
   )
+})
+
+describe('Open in Explore', () => {
+  const formOf = ($: CheerioAPI) => {
+    const form = $(`#${by($, 'list-explore').attr('form')}`)
+
+    return {
+      method: form.attr('method'),
+      action: form.attr('action'),
+      hidden: form
+        .find('input[type="hidden"]')
+        .toArray()
+        .map((input) => [$(input).attr('name'), $(input).attr('value')])
+    }
+  }
+
+  test('posts the list and its filters to Explore, never in Explore’s address', async () => {
+    const { $ } = await view(
+      `${outboxPath}?status=DEAD_LETTER&event=CreateCase`
+    )
+
+    expect(textOf($, 'list-explore')).toBe('Open in Explore')
+    expect(by($, 'list-explore').attr('type')).toBe('submit')
+    expect(by($, 'list-explore').find('svg').attr('data-icon')).toBe(
+      'telescope'
+    )
+    expect(formOf($)).toEqual({
+      method: 'post',
+      action: '/dev-ops/explore',
+      hidden: [
+        ['from', 'events/gas/outbox'],
+        ['list', 'status=DEAD_LETTER&event=CreateCase']
+      ]
+    })
+  })
+
+  test.each([
+    'applications',
+    'grants',
+    'cases',
+    'workflows',
+    'events/gas/inbox',
+    'events/cw/outbox',
+    'events/cw/inbox'
+  ])('is on %s', async (path) => {
+    const { $ } = await view(`/dev-ops/${path}`)
+
+    expect(formOf($).hidden).toEqual([
+      ['from', path],
+      ['list', '']
+    ])
+  })
+
+  test('is on no list Explore doesn’t read', async () => {
+    withCatalogue({
+      ...fullCatalogue,
+      buckets: [{ ...outboxBucket, id: 'gas.other', path: 'other' }]
+    })
+
+    const { $ } = await view('/dev-ops/other')
+
+    expect(by($, 'list-explore')).toHaveLength(0)
+  })
 })

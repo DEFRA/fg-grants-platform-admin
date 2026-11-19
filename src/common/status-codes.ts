@@ -17,6 +17,7 @@ export const statusCodes = {
   preconditionFailed: 412,
   imATeapot: 418,
   unprocessableEntity: 422,
+  tooManyRequests: 429,
   internalServerError: 500,
   badGateway: 502,
   serviceUnavailable: 503,

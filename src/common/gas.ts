@@ -9,6 +9,8 @@ export interface GasWriteOptions {
   payload?: object
   actor?: string
   headers?: Record<string, string>
+  /** For a call GAS gives longer than the usual timeout to answer. */
+  timeoutMs?: number
 }
 
 export { toHeaderActor }
@@ -67,25 +69,34 @@ const counted = async <T>(call: () => Promise<{ payload: T }>): Promise<T> => {
   }
 }
 
-/** @param path An absolute path, with its segments already escaped. */
-export const getFromGas = async <T>(path: string): Promise<T> =>
+/**
+ * @param path An absolute path, with its segments already escaped.
+ * @param headers Any the call adds to the token and the actor.
+ */
+export const getFromGas = async <T>(
+  path: string,
+  headers: Record<string, string> = {}
+): Promise<T> =>
   counted(() =>
     wreck.get<T>(`${config.get('gas.apiUrl')}${path}`, {
       json: true,
       timeout: config.get('gas.timeoutMs'),
-      headers: toHeaders()
+      headers: { ...toHeaders(), ...headers }
     })
   )
+
+const toTimeout = (timeoutMs: number | undefined): number =>
+  timeoutMs ?? config.get('gas.timeoutMs')
 
 const writeToGas = async <T>(
   method: 'post' | 'put' | 'delete',
   path: string,
-  { payload, actor, headers = {} }: GasWriteOptions = {}
+  { payload, actor, headers = {}, timeoutMs }: GasWriteOptions = {}
 ): Promise<T> =>
   counted(() =>
     wreck[method]<T>(`${config.get('gas.apiUrl')}${path}`, {
       json: true,
-      timeout: config.get('gas.timeoutMs'),
+      timeout: toTimeout(timeoutMs),
       ...(payload === undefined ? {} : { payload }),
       headers: { ...toHeaders(actor), ...headers }
     })

@@ -153,6 +153,7 @@ describe('the shell', () => {
         ])
     ).toEqual([
       ['Overview', 'layout-dashboard'],
+      ['Explore', 'telescope'],
       ['Grant Application Service Outbox', 'radio-tower'],
       ['Applications', 'file-text'],
       ['Grants', 'landmark'],
@@ -237,7 +238,12 @@ describe('the shell', () => {
         .find('a')
         .toArray()
         .map((link) => $(link).attr('href'))
-    ).toEqual(['/dev-ops', '/dev-ops/clients/gas', '/dev-ops/clients/cw'])
+    ).toEqual([
+      '/dev-ops',
+      '/dev-ops/explore',
+      '/dev-ops/clients/gas',
+      '/dev-ops/clients/cw'
+    ])
   })
 
   test('names the user in Title Case, then Times and Dark theme in one group, then Sign out', async () => {
@@ -565,7 +571,7 @@ describe("Dev Ops' status pages", () => {
     expect(flatten(part($, 'status-home').text())).toBe('Go to GAS outbox')
     expect(part($, 'status-home').attr('class')).toContain('gpa-btn-primary')
     expect(part($, 'status-back').attr('href')).toBe(tokensPath)
-    expect(part($, 'shell-nav').find('a')).toHaveLength(8)
+    expect(part($, 'shell-nav').find('a')).toHaveLength(9)
     expect($('.govuk-header, .govuk-template')).toHaveLength(0)
   })
 
@@ -668,7 +674,12 @@ describe("Dev Ops' status pages", () => {
         .find('a')
         .toArray()
         .map((link) => $(link).attr('href'))
-    ).toEqual(['/dev-ops', '/dev-ops/clients/gas', '/dev-ops/clients/cw'])
+    ).toEqual([
+      '/dev-ops',
+      '/dev-ops/explore',
+      '/dev-ops/clients/gas',
+      '/dev-ops/clients/cw'
+    ])
   })
 })
 

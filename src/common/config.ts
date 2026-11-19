@@ -89,6 +89,7 @@ interface ConfigSchema {
     apiUrl: string
     serviceToken: string
     timeoutMs: number
+    exploreTimeoutMs: number
   }
   logs: {
     explorerBaseUrl: string
@@ -376,6 +377,13 @@ export const config = convict<ConfigSchema>({
       format: 'nat',
       default: 7000,
       env: 'GAS_API_TIMEOUT_MS'
+    },
+    // Above the 10s deadline GAS gives an Explore query, so GAS answers first.
+    exploreTimeoutMs: {
+      doc: 'How long to wait for an Explore query from fg-gas-backend, in milliseconds',
+      format: 'nat',
+      default: 12000,
+      env: 'GAS_EXPLORE_TIMEOUT_MS'
     }
   },
   logs: {

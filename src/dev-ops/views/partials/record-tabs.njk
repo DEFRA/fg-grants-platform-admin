@@ -8,6 +8,21 @@
   {%- else -%}{{ time.text }}{%- endif -%}
 {%- endmacro %}
 
+{#- The header's actions: Copy reference, and Find others, whose items are posts of the form `findOthersForm` draws. -#}
+{% macro recordActions(ref, findOthers) -%}
+  {%- set trigger %}<span>Find others</span>{{ gpa.Icon({ name: 'chevron-down', size: 'sm', classes: 'gpa-chevron' }) }}{% endset -%}
+  {{ gpa.CopyButton({ value: ref, text: 'Copy reference' }) }}
+  {%- call gpa.Dropdown({ trigger: trigger, triggerClasses: 'gpa-btn gpa-btn-default gpa-btn-sm', triggerTestId: 'find-others', align: 'end', menuLabel: 'Find others', panelTestId: 'find-others-menu' }) -%}
+    {%- for item in findOthers.items -%}
+      {{ gpa.MenuItem({ text: item.text, icon: 'telescope', meta: 'Explore', type: 'submit', name: 'find', value: item.value, form: findOthers.id, testId: 'find-others-item' }) }}
+    {%- endfor -%}
+  {%- endcall -%}
+{%- endmacro %}
+
+{% macro findOthersForm(findOthers) -%}
+  {{ gpa.Form({ id: findOthers.id, action: findOthers.action, method: 'post', label: 'Find others', hidden: findOthers.hidden, attributes: { hidden: true } }) }}
+{%- endmacro %}
+
 {% macro recordAlert(alert) -%}
   {%- set actions = gpa.Button({ text: alert.action.text, size: 'sm', iconEnd: 'arrow-right', href: alert.action.href }) if alert.action else '' -%}
   {{ gpa.Alert({ tone: 'info', title: alert.title, text: alert.text, actions: actions, testId: 'record-alert' }) }}

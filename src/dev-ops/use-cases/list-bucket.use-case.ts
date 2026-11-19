@@ -41,14 +41,22 @@ const reservedKeys = new Set([
   'audit'
 ])
 
-/** The address's facts as typed, for GAS to read and check. */
-const toParams = (address: ListAsk['address']): ListQuery['params'] =>
-  Object.fromEntries(
+/** Where a list is, as its address spells it, with its range as instants: what GAS finds and checks it by. */
+export type ListAddress = Pick<ListQuery, 'path' | 'params' | 'from' | 'to'>
+
+/** The list's path and its address's facts as typed, for GAS to read and check. */
+export const toListAddress = (
+  path: string,
+  address: ListAsk['address']
+): Pick<ListAddress, 'path' | 'params'> => ({
+  path,
+  params: Object.fromEntries(
     Object.entries(address).filter(
       (entry): entry is [string, string | string[]] =>
         !reservedKeys.has(entry[0]) && entry[1] !== undefined
     )
   )
+})
 
 /** Only a first page is counted. */
 const toPlaceFields = ({ cursor, through }: ListAsk['place']) => ({
@@ -65,8 +73,7 @@ const toListQuery = ({
   place,
   search
 }: ListAsk): ListQuery => ({
-  path,
-  params: toParams(address),
+  ...toListAddress(path, address),
   search: search.q || null,
   ...(window ?? { read: false }),
   ...toPlaceFields(place),

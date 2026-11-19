@@ -499,7 +499,12 @@ describe('the list', () => {
       $('[data-testid="shell-nav"] a')
         .map((_i, a) => $(a).attr('href'))
         .get()
-    ).toEqual(['/dev-ops', '/dev-ops/clients/gas', '/dev-ops/clients/cw'])
+    ).toEqual([
+      '/dev-ops',
+      '/dev-ops/explore',
+      '/dev-ops/clients/gas',
+      '/dev-ops/clients/cw'
+    ])
   })
 
   test('a token, dialog or param the address can’t mean is a bad request', async () => {

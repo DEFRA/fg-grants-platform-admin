@@ -7,7 +7,7 @@ import {
   redirectCookieOptions,
   takeRedirectTo
 } from './redirect-cookie.ts'
-import { clearAuthSession, setAuthSession } from './session.ts'
+import { endAuthSession, startAuthSession } from './session.ts'
 import { continuePage } from './continue-page.ts'
 import { signedOutPage } from './signed-out-page.ts'
 import {
@@ -48,7 +48,7 @@ const loginCallbackRoute: ServerRoute = {
   async handler(request: Request, h: ResponseToolkit) {
     const credentials = await request.callback(h)
 
-    setAuthSession(request, credentials)
+    startAuthSession(request, credentials)
 
     // The content type is left to hapi: blankie adds no content security
     // policy to a response whose type the handler set itself.
@@ -71,7 +71,7 @@ const logoutRoute: ServerRoute = {
     auth: false as const
   },
   handler(request: Request, h: ResponseToolkit) {
-    clearAuthSession(request)
+    endAuthSession(request)
 
     return h.redirect(toSignedOutPath(request.query.next))
   }

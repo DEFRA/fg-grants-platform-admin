@@ -110,3 +110,10 @@ export const searchError =
 /** What is stored for a search, or null for a value it could not hold. A kind the list hasn't got is GAS's to refuse. */
 export const toSearchQuery = (kind: string, value: string): string | null =>
   searchable.test(value) ? `${kind}:${value}` : null
+
+/** The search the list shows now, as stored, left as it is; empty when it holds none. */
+export const heldSearch = (request: Request, key: StoredSearchKey): string => {
+  const stored = request.yar.get(key)
+
+  return isLive(stored) ? stored.q : ''
+}

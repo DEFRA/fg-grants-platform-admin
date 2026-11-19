@@ -17,6 +17,7 @@ import type {
   WorkflowVersionPage
 } from './get-workflow-page.use-case.ts'
 import type { EventRow } from '../repositories/events.repository.ts'
+import { provideExploreRunsStore } from '../repositories/explore-runs.repository.ts'
 
 /** A bucket of events and a bucket of records, shaped as GAS's catalogue describes them. */
 export const outboxBucket: BucketEntry = {
@@ -981,3 +982,22 @@ export const configEvent = (
   latencyTitle: 'Received to completed',
   ...overrides
 })
+
+/** Explore's runs in memory, keyed as its cache segment keys them, to read back. */
+export const provideMemoryExploreStore = (): Map<string, unknown> => {
+  const entries = new Map<string, unknown>()
+
+  provideExploreRunsStore({
+    cache: () => ({
+      get: async (key: string) => entries.get(key) ?? null,
+      set: async (key: string, value: unknown) => {
+        entries.set(key, value)
+      },
+      drop: async (key: string) => {
+        entries.delete(key)
+      }
+    })
+  } as never)
+
+  return entries
+}
