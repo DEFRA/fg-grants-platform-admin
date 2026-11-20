@@ -1,0 +1,36 @@
+{% extends 'layouts/page.njk' %}
+
+{% from "govuk/components/back-link/macro.njk" import govukBackLink %}
+{% from "govuk/components/button/macro.njk" import govukButton %}
+{% from "govuk/components/summary-list/macro.njk" import govukSummaryList %}
+
+{% block content %}
+  {{ govukBackLink({ text: "Back", href: backHref }) }}
+
+  <div class="govuk-grid-row">
+    <div class="govuk-grid-column-two-thirds">
+      <span class="govuk-caption-l">Reference data {{ name }}</span>
+      <h1 class="govuk-heading-l">Are you sure you want to remove {{ item.code }}?</h1>
+
+      {{ govukSummaryList({
+        rows: [
+          { key: { text: "Code" }, value: { text: item.code } },
+          { key: { text: "Description" }, value: { text: item.description } }
+        ]
+      }) }}
+
+      <p class="govuk-body">Answers that already use this code keep it, but new answers can no longer choose it.</p>
+
+      <form method="post" novalidate>
+        <div class="govuk-button-group">
+          {{ govukButton({
+            text: "Remove item",
+            classes: "govuk-button--warning",
+            attributes: { "data-testid": "reference-data-remove" }
+          }) }}
+          <a class="govuk-link" href="{{ backHref }}">Cancel</a>
+        </div>
+      </form>
+    </div>
+  </div>
+{% endblock %}

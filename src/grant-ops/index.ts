@@ -18,6 +18,15 @@ import {
   viewAllowListRoute
 } from './routes/allow-list.route.ts'
 import { saveGrantSettingsRoute } from './routes/grant-settings.route.ts'
+import {
+  addReferenceDataItemRoute,
+  changeReferenceDataItemRoute,
+  confirmRemoveReferenceDataItemRoute,
+  newReferenceDataItemRoute,
+  removeReferenceDataItemRoute,
+  updateReferenceDataItemRoute,
+  viewReferenceDataRoute
+} from './routes/reference-data.route.ts'
 import { viewClaimsRoute } from './routes/view-claims.route.ts'
 import { viewGrantOpsRoute } from './routes/view-grant-ops.route.ts'
 
@@ -44,7 +53,14 @@ export const grantOps = {
             newClaimableItemRoute,
             createClaimableItemRoute,
             changeClaimableItemRoute,
-            updateClaimableItemRoute
+            updateClaimableItemRoute,
+            viewReferenceDataRoute,
+            newReferenceDataItemRoute,
+            addReferenceDataItemRoute,
+            changeReferenceDataItemRoute,
+            updateReferenceDataItemRoute,
+            removeReferenceDataItemRoute,
+            confirmRemoveReferenceDataItemRoute
           ])
         )
       )

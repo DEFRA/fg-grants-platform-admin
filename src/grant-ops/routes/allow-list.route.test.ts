@@ -12,6 +12,8 @@ import {
   replaceGrantAllowList
 } from '../repositories/allow-list.repository.ts'
 
+import { listGrantReferenceData } from '../repositories/reference-data.repository.ts'
+
 vi.mock(
   import('../repositories/allow-list.repository.ts'),
   async (importOriginal) => ({
@@ -22,10 +24,15 @@ vi.mock(
 )
 
 vi.mock(import('../repositories/grant-settings.repository.ts'))
+vi.mock(import('../repositories/reference-data.repository.ts'))
 beforeEach(() => {
   vi.mocked(getGrantSettings).mockImplementation(async (grantCode) => ({
     grantCode,
     open: false
+  }))
+  vi.mocked(listGrantReferenceData).mockImplementation(async (grantCode) => ({
+    grantCode,
+    referenceData: []
   }))
 })
 
@@ -170,13 +177,14 @@ describe('viewAllowListRoute', () => {
     )
   })
 
-  test('renders setup then who-can-apply tabs with setup selected on normal entry', async () => {
+  test('renders setup, who-can-apply and reference data tabs with setup selected on normal entry', async () => {
     const { $ } = await viewPage()
     const tabs = $('.govuk-tabs__list-item')
 
     expect(tabs.map((_, tab) => $(tab).text().trim()).get()).toEqual([
       'Grant setup',
-      'Who can apply'
+      'Who can apply',
+      'Reference data'
     ])
     expect(tabs.eq(0).hasClass('govuk-tabs__list-item--selected')).toBe(true)
     expect($('.govuk-tabs').attr('data-active-tab')).toBe('grant-setup')

@@ -37,6 +37,15 @@ const allowList = {
   },
   errorSummary: []
 }
+const noReferenceData = { grantCode: 'woodland', referenceData: [] }
+/** The admin page reads its settings, allow list and reference data from GAS. */
+const gasAnswer = (path: string, settings: unknown) => {
+  if (path.endsWith('/settings')) {
+    return settings
+  }
+
+  return path.endsWith('/reference-data') ? noReferenceData : allowList
+}
 let server: Server
 let open: boolean
 beforeAll(async () => {
@@ -47,7 +56,7 @@ beforeAll(async () => {
 beforeEach(() => {
   open = false
   vi.mocked(getFromGas).mockImplementation(async (path) =>
-    path.endsWith('/settings') ? { grantCode: 'woodland', open } : allowList
+    gasAnswer(path, { grantCode: 'woodland', open })
   )
   vi.mocked(putToGas).mockImplementation(async (_path, options) => {
     open = (options?.payload as { open: boolean }).open
@@ -197,7 +206,7 @@ describe('Grant setup', () => {
     'refuses an unreadable or wrong-grant settings response %j',
     async (settings) => {
       vi.mocked(getFromGas).mockImplementation(async (path) =>
-        path.endsWith('/settings') ? settings : allowList
+        gasAnswer(path, settings)
       )
       expect((await get()).statusCode).toBe(502)
     }

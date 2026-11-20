@@ -8,6 +8,7 @@ import {
 } from '../use-cases/gas-refusal.ts'
 import { getGrantSettingsUseCase } from '../use-cases/grant-settings.use-case.ts'
 import { getAllowListUseCase } from '../use-cases/get-allow-list.use-case.ts'
+import { listGrantReferenceDataUseCase } from '../use-cases/reference-data.use-case.ts'
 import type {
   AllowListFormSubmission,
   ReplaceAllowListOutcome
@@ -21,6 +22,7 @@ import {
   toAllowListPage,
   toAllowListRefusalPage
 } from '../view-models/allow-list-page.view-model.ts'
+import { toReferenceDataRows } from '../view-models/reference-data.view-model.ts'
 
 interface AllowListParams {
   code: string
@@ -74,7 +76,11 @@ const renderAllowListPage = async (
     .view('allow-list', {
       ...page,
       settings: await getGrantSettingsUseCase(code),
-      settingsFormAction: `${toAdminHref(code)}/settings`
+      settingsFormAction: `${toAdminHref(code)}/settings`,
+      referenceData: toReferenceDataRows(
+        code,
+        (await listGrantReferenceDataUseCase(code)).referenceData
+      )
     })
     .code(statusCode)
 

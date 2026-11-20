@@ -36,6 +36,9 @@
           <li class="govuk-tabs__list-item{% if activeTab == 'who-can-apply' %} govuk-tabs__list-item--selected{% endif %}">
             <a class="govuk-tabs__tab" href="#who-can-apply">Who can apply</a>
           </li>
+          <li class="govuk-tabs__list-item{% if activeTab == 'reference-data' %} govuk-tabs__list-item--selected{% endif %}">
+            <a class="govuk-tabs__tab" href="#reference-data">Reference data</a>
+          </li>
         </ul>
 
         <div class="govuk-tabs__panel" id="grant-setup">
@@ -87,6 +90,35 @@
               }) }}
             </div>
           </form>
+        </div>
+
+        <div class="govuk-tabs__panel" id="reference-data">
+          <h2 class="govuk-heading-l">Reference data</h2>
+          {% if referenceData | length %}
+            <p class="govuk-body">The lists this grant's current version declares. You can change a list held in GAS here; the others change with the grant definition or the service they come from.</p>
+            <table class="govuk-table" data-testid="reference-data-sets">
+              <thead class="govuk-table__head">
+                <tr class="govuk-table__row">
+                  <th scope="col" class="govuk-table__header">Name</th>
+                  <th scope="col" class="govuk-table__header">Source</th>
+                  <th scope="col" class="govuk-table__header govuk-table__header--numeric">Items</th>
+                </tr>
+              </thead>
+              <tbody class="govuk-table__body">
+                {% for set in referenceData %}
+                  <tr class="govuk-table__row" data-testid="reference-data-set">
+                    <td class="govuk-table__cell">
+                      {% if set.href %}<a class="govuk-link" href="{{ set.href }}">{{ set.name }}</a>{% else %}{{ set.name }}{% endif %}
+                    </td>
+                    <td class="govuk-table__cell">{{ set.source }}</td>
+                    <td class="govuk-table__cell govuk-table__cell--numeric">{{ set.itemCount if set.itemCount != undefined else "" }}</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          {% else %}
+            <p class="govuk-body" data-testid="reference-data-none">This grant declares no reference data.</p>
+          {% endif %}
         </div>
       </div>
     </div>

@@ -3,7 +3,7 @@ import type { AllowListView } from '../use-cases/get-allow-list.use-case.ts'
 export const allowListSavedKey = 'allowListSaved'
 export const allowListActiveTabKey = 'allowListActiveTab'
 
-type AllowListTab = 'grant-setup' | 'who-can-apply'
+type AllowListTab = 'grant-setup' | 'who-can-apply' | 'reference-data'
 
 interface ErrorSummaryItem {
   text: string
