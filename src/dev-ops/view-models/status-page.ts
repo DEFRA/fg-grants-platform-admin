@@ -1,6 +1,7 @@
 import { config } from '../../common/config.ts'
 import { roles } from '../../common/roles.ts'
 import { insufficientScope, statusCodes } from '../../common/status-codes.ts'
+import { explorePath, exploreNavId } from './bucket-nav.ts'
 import { toSafeFrom } from './event-page.view-model.ts'
 
 /** Each page Dev Ops answers with when it has nothing to show. */
@@ -61,6 +62,10 @@ const titles: Record<StatusState, string> = {
 /** Without the role there is nothing in the navigation to use. */
 const emptySidebar: StatusState[] = ['no-role']
 
+/** An Explore address it can't read is still Explore's page. */
+const toNavActive = (state: StatusState, url: URL): string | null =>
+  state === 'bad-request' && url.pathname === explorePath ? exploreNavId : null
+
 export interface StatusRequest {
   method: string
   url: URL
@@ -73,6 +78,7 @@ export interface StatusPageModel {
   statusCode: number
   pageTitle: string
   emptySidebar: boolean
+  navActive: string | null
   backHref: string | null
   retryHref: string
   /** The role a page without it tells the user to ask for. */
@@ -104,6 +110,7 @@ export const toStatusPage = (
     statusCode,
     pageTitle: titles[state],
     emptySidebar: emptySidebar.includes(state),
+    navActive: toNavActive(state, request.url),
     backHref,
     retryHref: toRetryHref(request, backHref),
     requiredRole: roles.grantOperationsAdmin,

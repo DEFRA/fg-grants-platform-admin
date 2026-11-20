@@ -7,7 +7,7 @@ import type { ExploreAsker, ExplorePageOutcome } from './explore-page.ts'
 import {
   defaultQuery,
   findOthersItem,
-  findStartingPoint,
+  findExample,
   toFoundRecord,
   toListQuery,
   toLookup,
@@ -34,7 +34,7 @@ import type {
 /**
  * Every way into a run:
  * - `typed`: the editor's Run;
- * - `pick`: the Queries menu, a starting point by its slug or a Recent query by its id;
+ * - `pick`: the Queries menu, an example by its slug or a Recent query by its id;
  * - `window`: Keep looking, the run's next window, `inPlace` when the footer's loader appends it;
  * - `list`: a list's Open in Explore, by its path and params; its entry, filters and search are read once GAS names its list;
  * - `find`: a record's Find others, by the record's page.
@@ -89,7 +89,7 @@ const runTyped: WayIn<'typed'> = async (asker, wayIn) => {
     return readPage(asker, { ...toEditor(q), result: tooLong })
   }
 
-  const { result, vocabulary } = await checkExploreQuery(q, asker.roles)
+  const { result, vocabulary } = await checkExploreQuery(q)
 
   return result.outcome === 'failed' && result.failure.kind === 'invalid'
     ? toPage(asker, { ...toEditor(q), result }, vocabulary)
@@ -98,8 +98,7 @@ const runTyped: WayIn<'typed'> = async (asker, wayIn) => {
 
 const runPicked: WayIn<'pick'> = async (asker, { pick }) => {
   const q =
-    findStartingPoint(pick, new Date())?.q ??
-    (await findRecent(asker.owner, pick))
+    findExample(pick, new Date())?.q ?? (await findRecent(asker.owner, pick))
 
   return q === null ? readPage(asker, expired) : toHeld(asker, q)
 }
@@ -179,10 +178,7 @@ const toFindOthersOf = ({ find, record }: { find: string; record: string }) => {
 const runFindOthers: WayIn<'find'> = async (asker, wayIn) => {
   const { item, record } = toFindOthersOf(wayIn)
   const lookup = toLookup(record)
-  const { result, vocabulary } = await runExplore(
-    { query: lookup.query },
-    asker.roles
-  )
+  const { result, vocabulary } = await runExplore({ query: lookup.query })
 
   if (result.outcome === 'failed') {
     return toPage(asker, { ...toEditor(defaultQuery), result }, vocabulary)
@@ -214,7 +210,6 @@ const waysIn: { [K in ExploreWayIn['kind']]: WayIn<K> } = {
 /** Holds the run a way in names, or says why it can't on the page. */
 export const runExploreUseCase = async ({
   owner,
-  roles,
   wayIn
 }: ExploreAsker & { wayIn: ExploreWayIn }): Promise<ExploreRunOutcome> =>
-  (waysIn[wayIn.kind] as WayIn<ExploreWayIn['kind']>)({ owner, roles }, wayIn)
+  (waysIn[wayIn.kind] as WayIn<ExploreWayIn['kind']>)({ owner }, wayIn)

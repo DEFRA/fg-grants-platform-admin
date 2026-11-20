@@ -81,14 +81,14 @@ const deadLettersDays = 7
 const toDaysAgo = (now: Date, days: number): string =>
   `ISODate('${new Date(now.getTime() - days * day).toISOString().slice(0, 10)}')`
 
-export interface StartingPoint {
+export interface Example {
   slug: string
   label: string
   q: string
 }
 
 /** Queries that answer on any amount of data: a busy source is read over a recent stretch of days only. */
-export const toStartingPoints = (now: Date): StartingPoint[] => {
+export const toExamples = (now: Date): Example[] => {
   const today = toDaysAgo(now, 0)
 
   return [
@@ -145,11 +145,8 @@ export const toStartingPoints = (now: Date): StartingPoint[] => {
   ]
 }
 
-export const findStartingPoint = (
-  slug: string,
-  now: Date
-): StartingPoint | null =>
-  toStartingPoints(now).find((point) => point.slug === slug) ?? null
+export const findExample = (slug: string, now: Date): Example | null =>
+  toExamples(now).find((example) => example.slug === slug) ?? null
 
 interface ListSource {
   from: string

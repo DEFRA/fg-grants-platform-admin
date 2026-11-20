@@ -239,6 +239,16 @@ describe('the case page, loaded (C1)', () => {
     ).toBe('/dev-ops/cases')
   })
 
+  test('sits under Cases when opened from Explore, and goes back to the run', async () => {
+    const back = '/dev-ops/explore?run=run-1&through=2'
+    const { $ } = await viewPage(`${path}?back=${encodeURIComponent(back)}`)
+
+    expect(part($, 'record-back').attr('href')).toBe(back)
+    expect(
+      part($, 'shell-nav').find('[aria-current="page"]').attr('href')
+    ).toBe('/dev-ops/cases')
+  })
+
   test('shows where the case is: the phases as steps, then the stage', async () => {
     const { $ } = await viewPage()
     const where = part($, 'record-where')
@@ -939,6 +949,21 @@ describe('a case CW could not show', () => {
     expect(flatten(notFound.find('.gpa-empty-body').text())).toBe(
       'Check the reference — it may belong to a case that was closed and replaced. Search for it from Cases.'
     )
+  })
+
+  test('a missing one opened from Explore sits under Cases too', async () => {
+    vi.mocked(getCasePageUseCase).mockResolvedValue({
+      outcome: 'not-found',
+      page: null
+    })
+
+    const { $ } = await viewPage(
+      `${path}?back=${encodeURIComponent('/dev-ops/explore?run=run-1')}`
+    )
+
+    expect(
+      part($, 'shell-nav').find('[aria-current="page"]').attr('href')
+    ).toBe('/dev-ops/cases')
   })
 })
 

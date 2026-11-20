@@ -15,7 +15,7 @@ import type {
   ExploreNotice,
   ExplorePageData
 } from '../use-cases/explore-page.ts'
-import { queryMax, toStartingPoints } from '../use-cases/explore-queries.ts'
+import { queryMax, toExamples } from '../use-cases/explore-queries.ts'
 import { pageMax, restoreMax, toFound } from '../use-cases/held-runs.ts'
 import type { HeldPage, RecentQuery } from '../use-cases/held-runs.ts'
 import type { BucketLink } from '../repositories/buckets.repository.ts'
@@ -87,7 +87,6 @@ export interface ExploreAlert {
 export interface ExploreMenuItem {
   text: string
   value: string
-  recent: boolean
 }
 
 export type ExploreCellModel =
@@ -166,7 +165,8 @@ export interface ExplorePage {
   meta: string[]
   navActive: string
   action: string
-  queries: { heading: string; items: ExploreMenuItem[] }
+  /** Your recent queries, none when there are none, then the examples. */
+  queries: { recent: ExploreMenuItem[]; examples: ExploreMenuItem[] }
   editor: {
     value: string
     error: QueryError | null
@@ -177,23 +177,12 @@ export interface ExplorePage {
 }
 
 const toQueries = (recent: RecentQuery[], now: Date) => ({
-  heading: recent.length ? 'Recent, then starting points' : 'Starting points',
-  items: [
-    ...recent.map(
-      ({ id, q }): ExploreMenuItem => ({
-        text: toRecentLabel(q),
-        value: id,
-        recent: true
-      })
-    ),
-    ...toStartingPoints(now).map(
-      ({ slug, label }): ExploreMenuItem => ({
-        text: label,
-        value: slug,
-        recent: false
-      })
-    )
-  ]
+  recent: recent.map(
+    ({ id, q }): ExploreMenuItem => ({ text: toRecentLabel(q), value: id })
+  ),
+  examples: toExamples(now).map(
+    ({ slug, label }): ExploreMenuItem => ({ text: label, value: slug })
+  )
 })
 
 const tryAgain = (title: string, href: string): ExploreAlert => ({
@@ -211,11 +200,6 @@ const refusedBy = (service: ExploreService, text: string | null) => ({
   retryHref: null,
   startHref: explorePath
 })
-
-const notOffered: Record<ExploreService, string> = {
-  GAS: 'The Grant Application Service doesn’t offer Explore yet.',
-  CW: 'Caseworking doesn’t offer queries yet.'
-}
 
 /** GAS names the source's indexed paths when it says why; without that, the editor marks them. */
 const tooSlow = 'It took too long. Narrow it with an indexed path.'
@@ -242,13 +226,6 @@ const failureAlerts: ByKind<AlertFailure, [string], ExploreAlert> = {
     title: `${serviceNames[service]} is running as many queries as it can.`,
     text: 'Try again in a moment.',
     retryHref: selfHref,
-    startHref: null
-  }),
-  'not-offered': ({ service }) => ({
-    tone: 'warning',
-    title: notOffered[service],
-    text: 'Nothing was read.',
-    retryHref: null,
     startHref: null
   }),
   errored: ({ service }, selfHref) =>
@@ -950,7 +927,6 @@ const failureCodes: Record<ExploreFailure['kind'], number> = {
   'too-slow': statusCodes.serviceUnavailable,
   busy: statusCodes.tooManyRequests,
   full: statusCodes.tooManyRequests,
-  'not-offered': statusCodes.ok,
   unavailable: statusCodes.serviceUnavailable,
   'no-answer': statusCodes.serviceUnavailable,
   errored: statusCodes.serviceUnavailable

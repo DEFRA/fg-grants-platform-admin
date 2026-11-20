@@ -3,7 +3,12 @@ import { place, unplace } from "../../core/floating.ts";
 import type { Placement } from "../../core/floating.ts";
 
 const itemSelector =
-  '[role^="menuitem"]:not([disabled]):not([aria-disabled="true"])';
+  '[role^="menuitem"]:not([disabled]):not([aria-disabled="true"]), .gpa-menu-check > input:not(:disabled)';
+const actionSelector = ".gpa-menu-actions :is(a[href], button:not([disabled]))";
+
+const isOn = (item: HTMLElement) =>
+  item.getAttribute("aria-checked") === "true" ||
+  (item as HTMLInputElement).checked === true;
 
 interface Parts {
   panel: HTMLElement;
@@ -39,6 +44,7 @@ const partsOf = (element: HTMLElement): Parts | null => {
 export class GpaDropdown extends HTMLElement {
   #parts: Parts | null = null;
   #pending: string | null = null;
+  #applying = false;
 
   connectedCallback() {
     queueMicrotask(() => this.enhance());
@@ -65,6 +71,16 @@ export class GpaDropdown extends HTMLElement {
     );
     parts.panel.addEventListener("keydown", this.#onKey);
     parts.panel.addEventListener("click", this.#onTick);
+    const apply = this.#apply();
+    if (apply) {
+      apply.disabled = true;
+      parts.panel.addEventListener("change", () => {
+        apply.disabled = !this.#changed();
+      });
+      apply.addEventListener("click", () => {
+        this.#applying = true;
+      });
+    }
     parts.panel.addEventListener("pointerover", (event) => {
       const label = (event.target as Element).closest?.(
         ".gpa-menuitem-label",
@@ -90,6 +106,18 @@ export class GpaDropdown extends HTMLElement {
     }
   }
 
+  #apply = () =>
+    this.#parts?.panel.querySelector<HTMLButtonElement>("[data-gpa-apply]") ??
+    null;
+
+  #checks = (): HTMLInputElement[] => [
+    ...(this.#parts?.panel.querySelectorAll<HTMLInputElement>(
+      '.gpa-menu-check > input[type="checkbox"]',
+    ) ?? []),
+  ];
+
+  #changed = () => this.#checks().some((c) => c.checked !== c.defaultChecked);
+
   #items = (): HTMLElement[] => [
     ...(this.#parts?.panel.querySelectorAll<HTMLElement>(itemSelector) ?? []),
   ];
@@ -107,14 +135,12 @@ export class GpaDropdown extends HTMLElement {
   #opened() {
     const items = this.#items();
 
+    this.#applying = false;
     this.#parts?.trigger.setAttribute("aria-expanded", "true");
     this.#reposition();
     window.addEventListener("scroll", this.#reposition, true);
     window.addEventListener("resize", this.#reposition);
-    show(
-      items.find((item) => item.getAttribute("aria-checked") === "true") ??
-        items[0],
-    );
+    show(items.find(isOn) ?? items[0]);
   }
 
   #closed() {
@@ -123,6 +149,11 @@ export class GpaDropdown extends HTMLElement {
       const href = this.#pending;
       this.#pending = null;
       location.assign(href);
+    }
+    if (!this.#applying) {
+      for (const c of this.#checks()) c.checked = c.defaultChecked;
+      const apply = this.#apply();
+      if (apply) apply.disabled = true;
     }
     if (this.#parts) {
       unplace(this.#parts.panel);
@@ -199,9 +230,41 @@ export class GpaDropdown extends HTMLElement {
     }
   };
 
+  #onTab(event: KeyboardEvent) {
+    const acts = [
+      ...(this.#parts?.panel.querySelectorAll<HTMLElement>(actionSelector) ??
+        []),
+    ];
+    const items = this.#items();
+    const at = acts.indexOf(document.activeElement as HTMLElement);
+    const inItems = items.includes(document.activeElement as HTMLElement);
+
+    if (acts.length && inItems && !event.shiftKey) {
+      event.preventDefault();
+      acts[0].focus();
+    } else if (at > 0 && event.shiftKey) {
+      return;
+    } else if (at >= 0 && at < acts.length - 1 && !event.shiftKey) {
+      return;
+    } else if (at === 0 && event.shiftKey && items.length) {
+      event.preventDefault();
+      show(items.find(isOn) ?? items[0]);
+    } else {
+      this.close();
+    }
+  }
+
   #onKey = (event: KeyboardEvent) => {
     if (event.key === "Tab") {
-      this.close();
+      this.#onTab(event);
+      return;
+    }
+    if (
+      event.key === "Enter" &&
+      (event.target as HTMLInputElement).type === "checkbox"
+    ) {
+      event.preventDefault();
+      (event.target as HTMLElement).click();
       return;
     }
     if (event.key === " ") {

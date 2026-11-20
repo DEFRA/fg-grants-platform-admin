@@ -265,21 +265,6 @@ describe('the list', () => {
     expect(p.newToken).not.toBeNull()
   })
 
-  test('a GAS with no token routes: a warning with nothing to retry, and no New token', () => {
-    const p = page({ list: { outcome: 'not-offered' }, service: 'cw' })
-
-    expect(p.tokens).toBeNull()
-    expect(p.alerts).toEqual([
-      {
-        tone: 'warning',
-        title: 'This GAS doesn’t offer access tokens.',
-        text: 'It’s an older version without the access tokens API. Tokens can be managed here once GAS is upgraded.',
-        focusOnArrival: false
-      }
-    ])
-    expect(p.newToken).toBeNull()
-  })
-
   test('Token issued after a rotation leaves the old token’s drawer open, and Done goes back to it', () => {
     const p = page({
       reveal: {
@@ -313,7 +298,6 @@ describe('the list', () => {
 describe('toListStatus', () => {
   test.each([
     [{ outcome: 'done', tokens: [] }, 200],
-    [{ outcome: 'not-offered' }, 200],
     [{ outcome: 'unlisted' }, 200],
     [{ outcome: 'unknown' }, 503],
     [{ outcome: 'unreachable' }, 503],

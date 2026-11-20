@@ -8,7 +8,7 @@
   {%- call gpa.Page() -%}
     {{ gpa.PageHeader({ title: pageTitle, meta: meta, titleTestId: 'overview-title' }) }}
     {%- if alert -%}
-      {%- set retry = gpa.Button({ text: 'Try again', size: 'sm', iconStart: 'refresh-cw', href: alert.retryHref, testId: 'overview-retry' }) if alert.retryHref else '' -%}
+      {%- set retry = gpa.Button({ text: 'Try again', size: 'sm', iconStart: 'refresh-cw', href: alert.retryHref, testId: 'overview-retry' }) -%}
       {{ gpa.Alert({ tone: alert.tone, title: alert.title, text: alert.text, actions: retry, testId: 'overview-alert' }) }}
     {%- endif -%}
     {%- if sections -%}
@@ -18,7 +18,7 @@
             {{ gpa.Stat({ label: f.label, value: f.value, valueHtml: gpa.NoValue() if f.value === null, trend: f.trend, trendLabel: f.trendLabel, hint: f.hint, testId: f.testId }) }}
           {%- endfor -%}
         {%- endcall -%}
-        {{ overview.deadLetters(sections.deadLetterAlerts, sections.deadLetterLinks, sections.deadLetterNote) }}
+        {{ overview.deadLetters(sections.deadLetterAlerts) }}
         {{ overview.topErrors(sections.topErrors) }}
         {{ overview.configFailed(sections.configFailed) }}
         {{ overview.tokensExpiring(sections.tokensExpiring) }}

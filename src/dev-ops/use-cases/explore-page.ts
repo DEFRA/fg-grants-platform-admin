@@ -43,10 +43,9 @@ export interface ExplorePageOutcome {
   page: ExplorePageData
 }
 
-/** Who is asking: whose runs, and the roles GAS reads by. */
+/** Who is asking: whose runs. */
 export interface ExploreAsker {
   owner: ExploreOwner
-  roles: string[]
 }
 
 export const toEditor = (
@@ -56,7 +55,7 @@ export const toEditor = (
 
 export const expired: ExploreShown = toEditor('', { kind: 'expired' })
 
-/** The page around what it shows: this owner's Recent, and the vocabulary for their roles that came with the request's one call. */
+/** The page around what it shows: this owner's Recent, and the vocabulary that came with the request's one call. */
 export const toPage = async (
   { owner }: ExploreAsker,
   shown: ExploreShown,
@@ -71,7 +70,7 @@ export const readPage = async (
   asker: ExploreAsker,
   shown: ExploreShown
 ): Promise<ExplorePageOutcome> => {
-  const vocabulary = await getExploreVocabularyUseCase({ roles: asker.roles })
+  const vocabulary = await getExploreVocabularyUseCase()
 
   return toPage(
     asker,

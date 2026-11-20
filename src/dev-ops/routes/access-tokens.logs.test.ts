@@ -187,24 +187,24 @@ const alertOf = (payload: string) => {
 }
 
 describe('the tokens list, from the answers GAS gives', () => {
-  test('a GAS with no token routes answers Hapi’s 404: a warning, logged as one', async () => {
+  test('Hapi’s bare 404 is a refusal, logged as a warning', async () => {
     vi.mocked(listTokens).mockRejectedValue(
       gasAnswer(404, 'Not Found', 'Not Found')
     )
 
     const { statusCode, payload } = await get('/dev-ops/clients/gas')
 
-    expect(statusCode).toBe(200)
+    expect(statusCode).toBe(503)
     expect(alertOf(payload)).toEqual({
-      warning: true,
-      title: 'This GAS doesn’t offer access tokens.',
-      text: 'It’s an older version without the access tokens API. Tokens can be managed here once GAS is upgraded.',
-      retry: false
+      warning: false,
+      title: 'The tokens list couldn’t be loaded.',
+      text: 'GAS refused the request. Nothing has changed.',
+      retry: true
     })
     expect(
       lines
         .map((line) => JSON.parse(line) as { level: number; msg: string })
-        .find(({ msg }) => msg.includes('has no access token routes'))?.level
+        .find(({ msg }) => msg.includes('404 with no error code'))?.level
     ).toBe(40)
   })
 

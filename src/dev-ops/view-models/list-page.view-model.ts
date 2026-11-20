@@ -90,16 +90,22 @@ export type ListNotice = 'expired'
 
 interface ChipItem {
   text: string
-  href: string
+  value: string
   checked: boolean
 }
 
+/** A chip's ticks are applied at once, by a form that carries the list's other filters. */
 interface FilterChipModel {
   fact: string
   label: string
   /** The one value chosen, "2 selected", or All. */
   value: string
+  /** The field the ticks are sent under, as the list's URL spells the fact. */
+  name: string
   items: ChipItem[]
+  action: string
+  keep: FilterField[]
+  clearHref: string
 }
 
 interface SearchKind {
@@ -288,21 +294,31 @@ const chosenOf = ({ filters }: Context, fact: string): string[] =>
   [filters[fact] ?? []].flat()
 
 /** A fact's values mean nothing under another choice of the fact they are within, so that choice drops them. */
-const hrefWith = (
+const withoutFact = (
   { bucket, filters }: Context,
+  fact: string
+): BucketFilters => {
+  const dropped = new Set([
+    fact,
+    ...bucket.facts
+      .filter(({ within }) => within === fact)
+      .map(({ name }) => name)
+  ])
+
+  return Object.fromEntries(
+    Object.entries(filters).filter(([key]) => !dropped.has(key))
+  )
+}
+
+const hrefWith = (
+  context: Context,
   fact: string,
   values: string[] | undefined
-): string => {
-  const cleared = bucket.facts
-    .filter(({ within }) => within === fact)
-    .map(({ name }) => [name, undefined])
-
-  return toBucketHref(bucket, {
-    ...filters,
-    ...Object.fromEntries(cleared),
+): string =>
+  toBucketHref(context.bucket, {
+    ...withoutFact(context, fact),
     [fact]: values?.length ? values : undefined
   })
-}
 
 const hasValues = (
   fact: BucketFact
@@ -347,21 +363,6 @@ const labelOf = (fact: BucketFact, value: string): string =>
   fact.values?.find((option) => String(option.value) === value)?.label ??
   shownValue(fact, value)
 
-/** The chosen values with one ticked on or off, in the order the menu lists them. */
-const toggled = (
-  options: BucketFactValue[],
-  chosen: string[],
-  value: string
-): string[] => {
-  const next = chosen.includes(value)
-    ? chosen.filter((one) => one !== value)
-    : [...chosen, value]
-
-  return options
-    .map((option) => String(option.value))
-    .filter((one) => next.includes(one))
-}
-
 /** The chosen values in the order the chip's menu lists them. */
 const inMenuOrder = (
   bucket: BucketEntry,
@@ -382,33 +383,26 @@ const chipText = (fact: BucketFact, chosen: string[]): string => {
   return chosen.length ? labelOf(fact, chosen[0]) : 'All'
 }
 
-/** Each value ticks on and off; All clears them. */
+/** Apply sends the list's other filters with the boxes ticked, so a new choice drops the facts within it as Clear does. */
 const toChip =
   (context: Context) =>
   (fact: BucketFact & { values: BucketFactValue[] }): FilterChipModel => {
+    const { bucket } = context
     const chosen = chosenOf(context, fact.name)
-    const options = withChosen(context.bucket, fact, chosen)
 
     return {
       fact: fact.name,
-      label: toFactLabel(context.bucket, fact),
+      label: toFactLabel(bucket, fact),
       value: chipText(fact, chosen),
-      items: [
-        {
-          text: 'All',
-          href: hrefWith(context, fact.name, undefined),
-          checked: chosen.length === 0
-        },
-        ...options.map((option) => {
-          const value = String(option.value)
-
-          return {
-            text: option.label,
-            href: hrefWith(context, fact.name, toggled(options, chosen, value)),
-            checked: chosen.includes(value)
-          }
-        })
-      ]
+      name: fact.param,
+      items: withChosen(bucket, fact, chosen).map((option) => ({
+        text: option.label,
+        value: String(option.value),
+        checked: chosen.includes(String(option.value))
+      })),
+      action: toBucketPath(bucket),
+      keep: toUrlFields(bucket, withoutFact(context, fact.name)),
+      clearHref: hrefWith(context, fact.name, undefined)
     }
   }
 
@@ -517,7 +511,7 @@ const searchTags = ({ bucket, searched }: Context): Applied[] => {
 const isNoneOf = (bucket: BucketEntry, fact: string, value: string): boolean =>
   bucket.summaries.some(({ by, none }) => by.includes(fact) && none === value)
 
-/** Every filter set: the chosen values, the time, the search, then the open facts. */
+/** Every filter set, in the row's order: the time, the chosen values, the search, then the open facts. */
 const toSetFilters = (context: Context, range: RangeModel): Applied[] => {
   const { bucket } = context
   const valueTag =
@@ -540,8 +534,8 @@ const toSetFilters = (context: Context, range: RangeModel): Applied[] => {
   }
 
   return [
-    ...toChipOrder(bucket, bucket.facts.filter(hasValues)).flatMap(tagsOf),
     ...timeTags(context, range),
+    ...toChipOrder(bucket, bucket.facts.filter(hasValues)).flatMap(tagsOf),
     ...searchTags(context),
     ...bucket.facts.filter((fact) => !hasValues(fact)).flatMap(tagsOf)
   ]

@@ -3,6 +3,7 @@ import type {
   ListFailure,
   TokenFailure
 } from '../use-cases/access-tokens.use-case.ts'
+import { statusCodes } from '../../common/status-codes.ts'
 import { cwNotReachedCode } from '../use-cases/gas-status.ts'
 import { toExpiryDay } from './access-token-dates.ts'
 import type { FormRefusal } from './access-token-forms.ts'
@@ -93,20 +94,23 @@ const nothingChanged = 'Nothing has changed.'
 /** The codes GAS and CW refuse with for a token or client they haven't got. */
 const notFoundCodes = new Set(['API_TOKEN_NOT_FOUND', 'API_CLIENT_NOT_FOUND'])
 
-const gasOwnFailures = new Set<ListFailure['outcome']>([
-  'errored',
-  'not-offered'
-])
+/** GAS forwards CW's refusals with a code, so a 404 without one is GAS's own. */
+const isGasRefusal = (failure: ListFailure): boolean =>
+  failure.outcome === 'refused' &&
+  failure.statusCode === statusCodes.notFound &&
+  failure.errorCode === null
+
+const isGasSilent = (failure: ListFailure): boolean =>
+  failure.outcome === 'unknown' && failure.gasSilent === true
 
 const isGasOwn = (failure: ListFailure): boolean =>
-  gasOwnFailures.has(failure.outcome) ||
-  (failure.outcome === 'unknown' && failure.gasSilent === true)
+  failure.outcome === 'errored' || isGasSilent(failure) || isGasRefusal(failure)
 
 /**
  * The service a failure names. Every write goes to GAS, which forwards CW's:
  * one never sent names GAS, unless GAS said it couldn't reach CW; an error
- * of GAS's own, or GAS sending nothing, names GAS; any other answer is the
- * token's own service's.
+ * or refusal of GAS's own, or GAS sending nothing, names GAS; any other
+ * answer is the token's own service's.
  */
 const whoFailed = (failure: ListFailure, service: ClientService): string => {
   if (failure.outcome === 'unreachable') {
@@ -181,21 +185,12 @@ const refusedReason = (
 
   return (
     codeReason(action, failure.errorCode, service) ||
-    `${serviceWords[service].short} refused the request.`
+    `${whoFailed(failure, service)} refused the request.`
   )
 }
 
 /** A write that certainly didn't happen; an uncertain one goes back to the list instead. */
 export type CertainFailure = Exclude<TokenFailure, UncertainFailure>
-
-const failureReasons: Record<
-  Exclude<CertainFailure['outcome'], 'refused'>,
-  (failure: CertainFailure, service: ClientService) => string
-> = {
-  'not-offered': () => `${serviceWords.gas.short} doesn’t offer access tokens.`,
-  unreachable: (failure, service) =>
-    `${whoFailed(failure, service)} couldn’t be reached.`
-}
 
 const toReason = (
   action: TokenAction,
@@ -204,7 +199,7 @@ const toReason = (
 ): string =>
   failure.outcome === 'refused'
     ? refusedReason(action, failure, service)
-    : failureReasons[failure.outcome](failure, service)
+    : `${whoFailed(failure, service)} couldn’t be reached.`
 
 /** A write that didn't happen, said in the dialog it came from: what, why, and that nothing changed. */
 export const toRefusal = (
@@ -235,10 +230,7 @@ export const toRefusalToast = (refusal: FormRefusal): TokenToast => ({
 })
 
 /** The tokens list couldn't be read: whoever didn't answer, GAS or CW behind it. */
-const unavailableReasons: Record<
-  Exclude<ListFailure['outcome'], 'not-offered'>,
-  string
-> = {
+const unavailableReasons: Record<ListFailure['outcome'], string> = {
   errored:
     'answered with an error. Nothing has changed — try again in a moment; if it keeps failing, check GAS’s logs.',
   unknown:
@@ -250,38 +242,20 @@ const unavailableReasons: Record<
 }
 
 export interface UnavailableAlert {
-  tone: 'danger' | 'warning'
+  tone: 'danger'
   title: string
   text: string
-  /** Whether trying again could help. */
-  retry: boolean
 }
 
-/** A GAS without token routes: trying again won't help until it has them. */
-const notOfferedAlert: UnavailableAlert = {
-  tone: 'warning',
-  title: 'This GAS doesn’t offer access tokens.',
-  text: 'It’s an older version without the access tokens API. Tokens can be managed here once GAS is upgraded.',
-  retry: false
-}
-
-/**
- * The tokens list couldn't be read, said for how it failed. It names the
- * service the list belongs to, except when nothing connected: then GAS, or CW
- * when GAS said it couldn't reach CW; and GAS for an error of its own.
- */
+/** The tokens list couldn't be read, said for how it failed, naming the service as `whoFailed` does. */
 export const toUnavailableAlert = (
   failure: ListFailure,
   service: ClientService
-): UnavailableAlert =>
-  failure.outcome === 'not-offered'
-    ? notOfferedAlert
-    : {
-        tone: 'danger',
-        title: 'The tokens list couldn’t be loaded.',
-        text: `${whoFailed(failure, service)} ${unavailableReasons[failure.outcome]}`,
-        retry: true
-      }
+): UnavailableAlert => ({
+  tone: 'danger',
+  title: 'The tokens list couldn’t be loaded.',
+  text: `${whoFailed(failure, service)} ${unavailableReasons[failure.outcome]}`
+})
 
 /** Null for a notice meant for the other service's page. */
 export const toNoticeFor = (

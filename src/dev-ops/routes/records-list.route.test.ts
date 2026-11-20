@@ -327,12 +327,17 @@ describe.each(lists)('the $name list', (list) => {
         .toArray()
         .map((item) => [
           flat($(item).find('.gpa-menuitem-label').text()),
-          $(item).attr('href')
+          $(item).find('input[type="checkbox"]').attr('name'),
+          $(item).find('input[type="checkbox"]').attr('value')
         ])
-    ).toEqual([
-      ['All', list.path],
-      ['example-grant', `${list.path}?${list.param}=example-grant`]
-    ])
+    ).toEqual([['example-grant', list.param, 'example-grant']])
+    expect(chip.find('form').attr('action')).toBe(list.path)
+    expect(chip.find('.gpa-menu-actions a').attr('aria-disabled')).toBe('true')
+    expect(
+      $('.gpa-filterbar-row .gpa-chip-label')
+        .toArray()
+        .map((label) => flat($(label).text()))
+    ).toEqual([`${list.time}:`, `${list.chip}:`])
     expect(chip.find('.gpa-menuitem-meta')).toHaveLength(0)
     expect(flat(by($, 'list-range').find('.gpa-chip-label').text())).toBe(
       `${list.time}:`

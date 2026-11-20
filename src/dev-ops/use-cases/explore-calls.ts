@@ -33,11 +33,10 @@ export type ExploreService = 'GAS' | 'CW'
 
 /**
  * - `invalid`: the query broke a rule of the language, at a place in its text.
- * - `refused`: a service would not run it, or not for this person, with its reason when it gave one.
+ * - `refused`: a service would not run it, with its reason when it gave one.
  * - `too-slow`: a service stopped it at its deadline.
  * - `busy`: this person already has a query running.
  * - `full`: a service is running as many queries as it can.
- * - `not-offered`: a service without Explore.
  * - `unavailable`: a service can't run queries at all for now, whatever is asked.
  * - `no-answer`: a service didn't answer, or couldn't be reached, as `failure` says.
  * - `errored`: a service answered with an error.
@@ -48,7 +47,6 @@ export type ExploreFailure =
   | { kind: 'too-slow'; service: ExploreService; message: string | null }
   | { kind: 'busy'; service: ExploreService }
   | { kind: 'full'; service: ExploreService }
-  | { kind: 'not-offered'; service: ExploreService }
   | { kind: 'unavailable'; service: ExploreService }
   | { kind: 'no-answer'; service: ExploreService; failure: GasFailure }
   | { kind: 'errored'; service: ExploreService }
@@ -86,30 +84,29 @@ const toQueryError = (value: unknown): QueryError | null => {
     : null
 }
 
-const toNotOffered = (service: ExploreService): ExploreFailure => ({
-  kind: 'not-offered',
-  service
-})
-
 const cwNotReached: ExploreFailure = {
   kind: 'no-answer',
   service: 'CW',
   failure: { kind: 'cw-not-reached' }
 }
 
-/** What GAS's 502 for Caseworking says went wrong there; any other reason is Caseworking not answering. */
+/** What GAS's 502 for Caseworking says went wrong there; any other reason is Caseworking answering with an error. */
 const caseworkingReasons: Record<string, (body: Body) => ExploreFailure> = {
   UNREACHABLE: () => cwNotReached,
-  NOT_OFFERED: () => toNotOffered('CW'),
+  TIMED_OUT: () => ({
+    kind: 'no-answer',
+    service: 'CW',
+    failure: { kind: 'timed-out' }
+  }),
   EXPLORE_QUERY_INVALID: (body) => ({
     kind: 'refused',
     service: 'CW',
     message: textOf(body.message)
-  }),
-  ERRORED: () => ({ kind: 'errored', service: 'CW' })
+  })
 }
 
 const gasErrored: ExploreFailure = { kind: 'errored', service: 'GAS' }
+const cwErrored: ExploreFailure = { kind: 'errored', service: 'CW' }
 
 /** GAS's 502 names the hop when it is Caseworking's failure; else it is GAS's own. */
 const toBadGateway = (body: Body): ExploreFailure => {
@@ -121,7 +118,7 @@ const toBadGateway = (body: Body): ExploreFailure => {
 
   return Object.hasOwn(caseworkingReasons, reason)
     ? caseworkingReasons[reason](body)
-    : { kind: 'no-answer', service: 'CW', failure: { kind: 'timed-out' } }
+    : cwErrored
 }
 
 /** The service a body names as the one that refused or stopped the query; GAS unless it says Caseworking. */
@@ -140,21 +137,9 @@ const toBadRequest = (body: Body): ExploreFailure => {
   return error ? { kind: 'invalid', error } : toRefused(body)
 }
 
-/** GAS refuses a source the person's roles don't allow, before it reads it. */
-const toForbidden = (body: Body): ExploreFailure =>
-  body.reason === 'SOURCE_FORBIDDEN' ? toRefused(body) : gasErrored
-
-/** A bare 404 is a GAS without Explore; one with a reason is GAS failing. */
-const toNotFound = (body: Body): ExploreFailure =>
-  body.reason === undefined && body.errorCode === undefined
-    ? toNotOffered('GAS')
-    : gasErrored
-
 /** What each status GAS answered with means; any other is GAS failing. */
 const answers: Record<number, (body: Body) => ExploreFailure> = {
   [statusCodes.badRequest]: toBadRequest,
-  [statusCodes.forbidden]: toForbidden,
-  [statusCodes.notFound]: toNotFound,
   [statusCodes.requestTimeout]: (body) => ({
     kind: 'too-slow',
     service: serviceOf(body),
@@ -194,9 +179,6 @@ const toExploreFailure = (error: unknown): ExploreFailure => {
   )
 }
 
-const isNotOffered = (failure: ExploreFailure): boolean =>
-  failure.kind === 'not-offered' && failure.service === 'GAS'
-
 const outages = new Set<ExploreFailure['kind']>([
   'no-answer',
   'errored',
@@ -207,10 +189,6 @@ const isOutage = ({ kind }: ExploreFailure): boolean => outages.has(kind)
 
 /** Never the query, its values or its positions: only the error's name and message. */
 const logFailure = (what: string, failure: ExploreFailure, error: unknown) => {
-  if (isNotOffered(failure)) {
-    logger.warn('fg-gas-backend has no Explore route')
-  }
-
   if (isOutage(failure)) {
     logger.warn(`Could not ${what} in fg-gas-backend: ${describeError(error)}`)
   }
@@ -271,26 +249,21 @@ const callExplore = async <T>(
   return called
 }
 
-/** Each call names the person's roles, so GAS refuses a source they may not query before reading it. */
 export const runExplore = async (
-  query: ExploreQuery,
-  roles: string[]
+  query: ExploreQuery
 ): Promise<ExploreReply<ExploreAnswer>> =>
   callExplore('run an Explore query', () =>
-    toReply('run an Explore query', () => queryExplore(query, roles))
+    toReply('run an Explore query', () => queryExplore(query))
   )
 
 export const checkExploreQuery = async (
-  query: string,
-  roles: string[]
+  query: string
 ): Promise<ExploreReply<{ ok: true }>> =>
   callExplore('check an Explore query', () =>
-    toReply('check an Explore query', () => checkExplore(query, roles))
+    toReply('check an Explore query', () => checkExplore(query))
   )
 
-export const readExploreVocabulary = async (
-  roles: string[]
-): Promise<Explored<Vocabulary>> =>
+export const readExploreVocabulary = async (): Promise<Explored<Vocabulary>> =>
   callExplore('read the Explore vocabulary', () =>
-    toExplored('read the Explore vocabulary', () => findVocabulary(roles))
+    toExplored('read the Explore vocabulary', () => findVocabulary())
   )

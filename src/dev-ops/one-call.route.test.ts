@@ -1347,22 +1347,6 @@ const overview: Row[] = [
     drawn: 'shell'
   },
   {
-    name: 'the Overview, from a GAS without it',
-    url: '/dev-ops',
-    gas: { [overviewCall]: refusal(statusCodes.notFound) },
-    calls: [overviewCall],
-    status: statusCodes.ok,
-    drawn: 'shell'
-  },
-  {
-    name: 'the Overview, from a GAS without it or its shell',
-    url: '/dev-ops',
-    gas: { [overviewCall]: { status: statusCodes.notFound } },
-    calls: [overviewCall],
-    status: statusCodes.ok,
-    drawn: 'no-lists'
-  },
-  {
     name: 'the Overview GAS refuses',
     url: '/dev-ops',
     gas: { [overviewCall]: refusal(statusCodes.badRequest) },
@@ -1529,7 +1513,7 @@ const explore: Row[] = [
     drawn: 'shell'
   },
   {
-    name: 'a starting point picked',
+    name: 'an example picked',
     method: 'POST',
     url: exploreUrl,
     payload: { pick: 'frps-cases-by-status', q: typedQuery },

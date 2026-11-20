@@ -23,8 +23,6 @@ vi.mock(import('../repositories/lists.repository.ts'))
 
 const owner = { session: 'session-a', user: 'user-a' }
 
-const roles = ['FCP.GrantOperationsAdmin']
-
 const typed =
   "db.applications.find(\n  { code: 'woodland' },\n  { clientRef: 1 }\n)"
 
@@ -73,7 +71,7 @@ const lookup = (business: string | null, sbi: string | null) =>
     rows: [{ open: null, cells: { c0: business, c1: sbi } }]
   })
 
-const run = (wayIn: ExploreWayIn) => runExploreUseCase({ owner, roles, wayIn })
+const run = (wayIn: ExploreWayIn) => runExploreUseCase({ owner, wayIn })
 
 /** The text a way in held, read back as its run shows it. */
 const heldText = async (wayIn: ExploreWayIn) => {
@@ -83,7 +81,6 @@ const heldText = async (wayIn: ExploreWayIn) => {
 
   const shown = await viewExploreUseCase({
     owner,
-    roles,
     run: (outcome as { id: string }).id,
     page: 1
   })
@@ -132,12 +129,12 @@ beforeEach(() => {
 })
 
 describe('runExploreUseCase', () => {
-  test('checks a typed query with the person’s roles, then holds it, reading nothing yet', async () => {
+  test('checks a typed query, then holds it, reading nothing yet', async () => {
     expect(await run({ kind: 'typed', q: typed })).toEqual({
       kind: 'held',
       id: expect.stringMatching(/^[0-9a-f-]{36}$/)
     })
-    expect(checkExplore).toHaveBeenCalledExactlyOnceWith(typed, roles)
+    expect(checkExplore).toHaveBeenCalledExactlyOnceWith(typed)
     expect(queryExplore).not.toHaveBeenCalled()
     expect(await recentQueries(owner)).toEqual([
       { id: expect.any(String), q: typed }
@@ -153,7 +150,7 @@ describe('runExploreUseCase', () => {
     expect(
       await heldText({ kind: 'typed', q: typed.replaceAll('\n', '\r\n') })
     ).toBe(typed)
-    expect(checkExplore).toHaveBeenCalledExactlyOnceWith(typed, roles)
+    expect(checkExplore).toHaveBeenCalledExactlyOnceWith(typed)
   })
 
   test('says a query GAS refuses at the field, and holds nothing', async () => {
@@ -202,7 +199,7 @@ describe('runExploreUseCase', () => {
       }
     })
     expect(checkExplore).not.toHaveBeenCalled()
-    expect(findVocabulary).toHaveBeenCalledExactlyOnceWith(roles)
+    expect(findVocabulary).toHaveBeenCalledExactlyOnceWith()
     expect(await recentQueries(owner)).toEqual([])
   })
 
@@ -214,7 +211,7 @@ describe('runExploreUseCase', () => {
     })
   })
 
-  test('runs a starting point without checking it, its dates as of today in UTC', async () => {
+  test('runs an example without checking it, its dates as of today in UTC', async () => {
     vi.useFakeTimers({
       now: new Date('2026-11-14T23:30:00Z'),
       toFake: ['Date']
@@ -243,7 +240,7 @@ describe('runExploreUseCase', () => {
     expect(await heldText({ kind: 'pick', pick: id })).toBe(typed)
   })
 
-  test('says a pick that is neither a starting point nor a Recent query has expired', async () => {
+  test('says a pick that is neither an example nor a Recent query has expired', async () => {
     expect(await run({ kind: 'pick', pick: 'everything' })).toMatchObject({
       kind: 'page',
       page: { q: '', notice: { kind: 'expired' } }
@@ -300,16 +297,16 @@ describe('runExploreUseCase', () => {
     )
     const held = await run({ kind: 'typed', q: typed })
     const id = (held as { id: string }).id
-    await viewExploreUseCase({ owner, roles, run: id, page: 1 })
+    await viewExploreUseCase({ owner, run: id, page: 1 })
     vi.mocked(queryExplore).mockClear()
 
     expect(
       await run({ kind: 'window', run: id, page: 2, inPlace: true })
     ).toMatchObject({ kind: 'page', page: { run: { id, page: 2 } } })
-    expect(queryExplore).toHaveBeenCalledExactlyOnceWith(
-      { query: typed, positions: 'p1' },
-      roles
-    )
+    expect(queryExplore).toHaveBeenCalledExactlyOnceWith({
+      query: typed,
+      positions: 'p1'
+    })
   })
 
   test.each([
@@ -506,14 +503,10 @@ describe('runExploreUseCase', () => {
       expect(
         await heldText({ kind: 'find', find, record: applicationRecord })
       ).toBe(query)
-      expect(queryExplore).toHaveBeenNthCalledWith(
-        1,
-        {
-          query:
-            "db.applications.find(\n  { code: 'woodland', clientRef: 'wmp-aa1-bb2' },\n  { business: '$phases.answers.applicant.business.name', sbi: '$identifiers.sbi' }\n).limit(1)"
-        },
-        roles
-      )
+      expect(queryExplore).toHaveBeenNthCalledWith(1, {
+        query:
+          "db.applications.find(\n  { code: 'woodland', clientRef: 'wmp-aa1-bb2' },\n  { business: '$phases.answers.applicant.business.name', sbi: '$identifiers.sbi' }\n).limit(1)"
+      })
     }
   )
 

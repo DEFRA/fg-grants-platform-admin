@@ -4,12 +4,7 @@ import type { ApiToken } from './clients.repository.ts'
 /** Who didn't answer for a part: GAS's own read, or CW behind it. */
 export type OverviewHop = 'GAS' | 'CW-BE'
 
-export type OverviewReason =
-  | 'UNREACHABLE'
-  | 'TIMED_OUT'
-  | 'ERRORED'
-  /** CW has no such read yet: a bare 404 behind GAS. */
-  | 'NOT_OFFERED'
+export type OverviewReason = 'UNREACHABLE' | 'TIMED_OUT' | 'ERRORED'
 
 export interface OverviewSourceError {
   hop: OverviewHop
@@ -42,14 +37,6 @@ export interface ListLink {
 export interface DeadLetters extends OverviewCount {
   /** Twelve two-hour windows back to back over the last 24 hours, oldest first. */
   bars: { count: number }[]
-  /** One per box, outbox then inbox, each with its own count, so a link opens what its count counted. */
-  lists: DeadLetterList[]
-}
-
-/** A box's dead letters over the window, and its list filtered to them: Dead letter, from and to. */
-export interface DeadLetterList extends OverviewCount {
-  box: 'outbox' | 'inbox'
-  list: ListLink
 }
 
 export interface TopError extends OverviewCount {

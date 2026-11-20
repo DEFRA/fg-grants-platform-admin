@@ -16,6 +16,11 @@
   background: var(--bg-surface-raised);
   box-shadow: var(--elevation-overlay);
 }
+.gpa-menu-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-stack-2xs);
+}
 .gpa-menu-heading {
   padding: var(--inset-menuitem-y) var(--inset-menuitem-x) var(--inset-tag-xs);
   font-size: var(--font-size-sm);

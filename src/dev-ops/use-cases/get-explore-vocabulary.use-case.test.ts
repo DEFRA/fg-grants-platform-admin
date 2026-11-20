@@ -27,32 +27,20 @@ const vocabulary: Vocabulary = {
 }
 
 describe('getExploreVocabularyUseCase', () => {
-  test('asks GAS with the person’s roles, and gives exactly the sources it lists', async () => {
+  test('gives exactly the sources GAS lists', async () => {
     vi.mocked(findVocabulary).mockResolvedValue(vocabulary)
 
-    expect(
-      await getExploreVocabularyUseCase({ roles: ['FCP.GrantOperationsAdmin'] })
-    ).toEqual({ outcome: 'read', answer: vocabulary })
-    expect(findVocabulary).toHaveBeenCalledExactlyOnceWith([
-      'FCP.GrantOperationsAdmin'
-    ])
-  })
-
-  test('suggests no source when GAS lists none for the person’s roles', async () => {
-    vi.mocked(findVocabulary).mockResolvedValue({ sources: [] })
-
-    expect(await getExploreVocabularyUseCase({ roles: ['FCP.Other'] })).toEqual(
-      { outcome: 'read', answer: { sources: [] } }
-    )
-    expect(findVocabulary).toHaveBeenCalledExactlyOnceWith(['FCP.Other'])
+    expect(await getExploreVocabularyUseCase()).toEqual({
+      outcome: 'read',
+      answer: vocabulary
+    })
+    expect(findVocabulary).toHaveBeenCalledExactlyOnceWith()
   })
 
   test('passes on how GAS failed', async () => {
     vi.mocked(findVocabulary).mockRejectedValue(Boom.gatewayTimeout())
 
-    expect(
-      await getExploreVocabularyUseCase({ roles: ['FCP.GrantOperationsAdmin'] })
-    ).toEqual({
+    expect(await getExploreVocabularyUseCase()).toEqual({
       outcome: 'failed',
       failure: {
         kind: 'no-answer',

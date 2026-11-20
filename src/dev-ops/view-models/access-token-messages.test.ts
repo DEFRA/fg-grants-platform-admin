@@ -149,18 +149,6 @@ describe('toRefusal', () => {
       'GAS refused the request. Nothing has changed.'
     ],
     [
-      'revoke',
-      { outcome: 'not-offered' },
-      'Not revoked.',
-      'GAS doesn’t offer access tokens. Nothing has changed.'
-    ],
-    [
-      'issue',
-      { outcome: 'not-offered' },
-      'Not issued.',
-      'GAS doesn’t offer access tokens. Nothing has changed.'
-    ],
-    [
       'delete',
       refused(400, 'SOMETHING_ELSE'),
       'Not deleted.',
@@ -187,9 +175,12 @@ describe('toRefusal', () => {
     ).toBe('CW no longer has this token. Nothing has changed.')
   })
 
-  test('on CW, a GAS with no token routes is named as GAS', () => {
-    expect(toRefusal('delete', { outcome: 'not-offered' }, 'cw').text).toBe(
-      'GAS doesn’t offer access tokens. Nothing has changed.'
+  test('on CW, a 404 without a code is GAS’s own', () => {
+    expect(toRefusal('delete', refused(404, null), 'cw').text).toBe(
+      'GAS refused the request. Nothing has changed.'
+    )
+    expect(toRefusal('delete', refused(400, null), 'cw').text).toBe(
+      'CW refused the request. Nothing has changed.'
     )
   })
 
@@ -267,6 +258,11 @@ describe('toUnavailableAlert', () => {
       'GAS refused the request. Nothing has changed.'
     ],
     [
+      'cw',
+      { outcome: 'refused', statusCode: 404, errorCode: null },
+      'GAS refused the request. Nothing has changed.'
+    ],
+    [
       'gas',
       errored,
       'GAS answered with an error. Nothing has changed — try again in a moment; if it keeps failing, check GAS’s logs.'
@@ -290,22 +286,9 @@ describe('toUnavailableAlert', () => {
     expect(toUnavailableAlert(failure, service)).toEqual({
       tone: 'danger',
       title: 'The tokens list couldn’t be loaded.',
-      text,
-      retry: true
+      text
     })
   })
-
-  test.each(['gas', 'cw'] as const)(
-    'on %s, a GAS with no token routes is a warning with nothing to retry',
-    (service) => {
-      expect(toUnavailableAlert({ outcome: 'not-offered' }, service)).toEqual({
-        tone: 'warning',
-        title: 'This GAS doesn’t offer access tokens.',
-        text: 'It’s an older version without the access tokens API. Tokens can be managed here once GAS is upgraded.',
-        retry: false
-      })
-    }
-  )
 })
 
 describe('toNoticeFor', () => {

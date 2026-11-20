@@ -491,15 +491,11 @@ const toListAlert = (
   failure: ListFailure,
   service: ClientService,
   path: string
-): PageAlert => {
-  const { retry, ...alert } = toUnavailableAlert(failure, service)
-
-  return {
-    ...alert,
-    ...(retry ? { retryHref: path } : {}),
-    focusOnArrival: false
-  }
-}
+): PageAlert => ({
+  ...toUnavailableAlert(failure, service),
+  retryHref: path,
+  focusOnArrival: false
+})
 
 const toAlerts = (input: AccessTokensPageInput, path: string): PageAlert[] => [
   ...listIf(input.list.outcome !== 'done', () =>
@@ -510,13 +506,6 @@ const toAlerts = (input: AccessTokensPageInput, path: string): PageAlert[] => [
     focusOnArrival: true
   }))
 ]
-
-const offersTokens = (list: ListResult): boolean =>
-  list.outcome !== 'not-offered'
-
-/** No New token where GAS offers no tokens. */
-const toOfferedNewToken = (list: ListResult, context: Context) =>
-  offersTokens(list) ? toNewToken(context) : null
 
 const toReveal = (reveal: Reveal | null | undefined, path: string) =>
   reveal
@@ -542,12 +531,8 @@ const toToasts = (
 const tokensOf = (list: ListResult): ListedToken[] | null =>
   list.outcome === 'done' ? list.tokens : null
 
-/** What the page is drawn whole without: a GAS that offers no tokens, or a write's answer GAS couldn't list beside. */
-const drawnWithout = new Set<ListResult['outcome']>([
-  'done',
-  'not-offered',
-  'unlisted'
-])
+/** What the page is drawn whole without: a write's answer GAS couldn't list beside. */
+const drawnWithout = new Set<ListResult['outcome']>(['done', 'unlisted'])
 
 /** 503 for a list that couldn't be read, as a record that couldn't; a token issued beside no list is no failure. */
 export const toListStatus = (list: ListResult): number =>
@@ -587,7 +572,7 @@ export const toAccessTokensPage = (input: AccessTokensPageInput) => {
       toTokenRows(tokens, words).map((row) =>
         toTokenView(row, context, openTokenId)
       ),
-    newToken: toOfferedNewToken(input.list, context),
+    newToken: toNewToken(context),
     reveal: toReveal(input.reveal, path),
     toasts: toToasts(input, tokens)
   }

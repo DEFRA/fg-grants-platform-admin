@@ -244,7 +244,7 @@ describe.each(lists)('the $name list', (list) => {
     expect(by($, 'list-row').eq(1).find('.gpa-dot-danger')).toHaveLength(1)
   })
 
-  test('loaded: the chips in the prototype’s order, Stored named so, and no search field', async () => {
+  test('loaded: the time first, then the chips in the prototype’s order, Stored named so, and no search field', async () => {
     given(answered(exact(list)))
 
     const { $ } = await view(list.path)
@@ -253,13 +253,13 @@ describe.each(lists)('the $name list', (list) => {
       $('.gpa-filterbar .gpa-chip-label')
         .toArray()
         .map((label) => flat($(label).text()))
-    ).toEqual([`${list.chip}:`, 'Stored:', 'Status:', 'Received:'])
+    ).toEqual(['Received:', `${list.chip}:`, 'Stored:', 'Status:'])
     expect(
       by($, `list-chip-${list.stored}`)
-        .find('a.gpa-menuitem')
-        .eq(1)
-        .attr('href')
-    ).toBe(`${list.path}?definition=fetched`)
+        .find('input[type="checkbox"]')
+        .toArray()
+        .map((box) => `${$(box).attr('name')}=${$(box).attr('value')}`)
+    ).toContain('definition=fetched')
     expect(by($, 'list-search')).toHaveLength(0)
   })
 

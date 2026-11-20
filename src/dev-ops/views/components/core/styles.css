@@ -132,6 +132,9 @@ a:hover:where(:not(:disabled, [aria-disabled="true"], .is-disabled)) {
   outline: var(--focus-ring-width) solid var(--border-focus);
   outline-offset: var(--focus-ring-offset);
 }
+[data-focus-on-arrival]:focus-visible {
+  outline-style: none;
+}
 .gpa-focus-inset:focus-visible {
   outline: var(--focus-ring-width) solid var(--border-focus);
   outline-offset: var(--focus-ring-offset-inset);

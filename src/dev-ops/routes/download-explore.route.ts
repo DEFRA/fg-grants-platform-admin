@@ -20,8 +20,7 @@ const askerOf = (request: Request) => ({
   owner: {
     session: request.yar.id,
     user: request.auth.credentials.user?.id ?? ''
-  },
-  roles: [request.auth.credentials.scope ?? []].flat()
+  }
 })
 
 const toFile = (h: ResponseToolkit, answer: ExploreAnswer) =>

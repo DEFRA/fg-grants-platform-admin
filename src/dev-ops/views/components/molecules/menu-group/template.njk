@@ -1,0 +1,3 @@
+{%- from "../../core/macros.njk" import attrs, cls -%}
+{%- set hid = p.id or gpaId('gpa-menu-group') -%}
+  <div class="{{ cls('gpa-menu-group', p) }}" role="group" aria-labelledby="{{ hid }}"{{ attrs(p) }}><div class="gpa-menu-heading" id="{{ hid }}" role="presentation">{{ p.heading }}</div>{{ caller() if caller }}</div>

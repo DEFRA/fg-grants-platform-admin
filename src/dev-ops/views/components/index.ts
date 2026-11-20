@@ -1,5 +1,5 @@
 import { focusOnArrival } from "./core/dom.ts";
-import { watchScroll } from "./core/scroll.ts";
+import { showCurrentNav, watchScroll } from "./core/scroll.ts";
 import { GpaAccordion } from "./molecules/accordion/web-component.ts";
 import { GpaCalendar } from "./molecules/calendar/web-component.ts";
 import { GpaClearable } from "./atoms/input/web-component.ts";
@@ -67,6 +67,8 @@ const upgrade = (root: ParentNode) => {
     ".gpa-table-scroll:has(> .gpa-htable)",
   ))
     watchScroll(box);
+  for (const nav of root.querySelectorAll<HTMLElement>(".gpa-sidebar-nav"))
+    showCurrentNav(nav);
   const arrived = root.querySelector<HTMLElement>("[data-focus-on-arrival]");
   if (arrived && root === document) focusOnArrival(arrived);
   for (const count of root.querySelectorAll<HTMLElement>(

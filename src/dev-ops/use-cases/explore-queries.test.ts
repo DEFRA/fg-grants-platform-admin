@@ -1,7 +1,7 @@
 import { fullCatalogue } from './test-fixtures.ts'
 import {
   findOthersItem,
-  findStartingPoint,
+  findExample,
   toFoundRecord,
   toListQuery,
   toLookup,
@@ -170,11 +170,11 @@ describe('toLookup', () => {
   })
 })
 
-describe('toStartingPoints', () => {
+describe('toExamples', () => {
   const now = new Date('2026-11-17T09:00:00.000Z')
 
   test('lists each recent Grassland application’s parcels by their IDs, as one phase holds them', () => {
-    expect(findStartingPoint('grasslands-last-30-days', now)?.q).toBe(
+    expect(findExample('grasslands-last-30-days', now)?.q).toBe(
       "db.applications.find(\n  { code: 'grasslands', createdAt: { $gte: ISODate('2026-10-18') } },\n  { clientRef: 1, 'phases.answers.applicant.business.name': 1, parcels: '$phases.answers.parcels.parcelId' }\n)"
     )
   })

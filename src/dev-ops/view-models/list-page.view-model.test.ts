@@ -6,7 +6,7 @@ import {
 } from '../use-cases/test-fixtures.ts'
 import { toCaseworkingListAt } from './bucket-nav.ts'
 import { toCaseworkingUnreachable, toListPage } from './list-page.view-model.ts'
-import type { ListPageInput } from './list-page.view-model.ts'
+import type { ListPageInput, ListPageModel } from './list-page.view-model.ts'
 import { toTimes } from './times.ts'
 
 const result = (overrides: Partial<BucketResult> = {}): BucketResult => ({
@@ -23,6 +23,9 @@ const result = (overrides: Partial<BucketResult> = {}): BucketResult => ({
   page: { next: null, keepLooking: null, searchedTo: null, complete: true },
   ...overrides
 })
+
+const chipOf = (page: ListPageModel, fact: string) =>
+  page.chips.find((chip) => chip.fact === fact)!
 
 const input = (overrides: Partial<ListPageInput> = {}): ListPageInput => ({
   bucket: gasOutbox,
@@ -47,10 +50,14 @@ describe('toListPage', () => {
       })
     )
 
-    expect(page.chips[0].items.map(({ href }) => href)).toEqual([
-      '/dev-ops/cases',
-      '/dev-ops/cases'
-    ])
+    expect(page.chips[0]).toEqual(
+      expect.objectContaining({
+        name: 'workflow',
+        action: '/dev-ops/cases',
+        keep: [],
+        clearHref: '/dev-ops/cases'
+      })
+    )
     expect(
       page.applied.map(({ label, value }) => `${label} is ${value}`)
     ).toEqual(['Workflow is example-grant', 'Version is 1.0.0'])
@@ -73,7 +80,7 @@ describe('toListPage', () => {
       input({ filters: { status: ['DEAD_LETTER', 'FAILED'] } })
     )
 
-    expect(page.chips[0].value).toBe('2 selected')
+    expect(chipOf(page, 'status').value).toBe('2 selected')
     expect(page.applied.map(({ value }) => value)).toEqual([
       'Failed',
       'Dead letter'
@@ -109,7 +116,7 @@ describe('toListPage', () => {
   test('a chosen value the catalogue no longer lists is kept in the menu', () => {
     const page = toListPage(input({ filters: { eventType: 'Retired' } }))
 
-    expect(page.chips[1].items.at(-1)).toEqual(
+    expect(chipOf(page, 'eventType').items.at(-1)).toEqual(
       expect.objectContaining({ text: 'Retired', checked: true })
     )
   })
@@ -311,6 +318,6 @@ test('a chosen value is named by its label, not its code', () => {
     })
   )
 
-  expect(page.chips[1].value).toBe('Audit')
-  expect(page.chips[1].items.at(-1)?.text).toBe('Audit')
+  expect(chipOf(page, 'eventType').value).toBe('Audit')
+  expect(chipOf(page, 'eventType').items.at(-1)?.text).toBe('Audit')
 })
