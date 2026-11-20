@@ -1,4 +1,5 @@
 import Boom from '@hapi/boom'
+import { BSON, ObjectId } from 'bson'
 import { load, type CheerioAPI } from 'cheerio'
 import type { Request, Server } from '@hapi/hapi'
 import type { OidcToken } from '@defra/hapi-auth-oidc'
@@ -44,10 +45,16 @@ const applications = (
   mode: 'rows',
   read: 'exact',
   columns: [
-    { key: 'c0', label: 'Reference', kind: 'text', aggregate: false },
-    { key: 'c1', label: 'Grant', kind: 'text', aggregate: false },
-    { key: 'c2', label: 'Status', kind: 'text', aggregate: false },
-    { key: 'c3', label: 'Created', kind: 'date', aggregate: false }
+    {
+      key: 'c0',
+      label: 'Reference',
+      kind: 'text',
+      aggregate: false,
+      path: null
+    },
+    { key: 'c1', label: 'Grant', kind: 'text', aggregate: false, path: null },
+    { key: 'c2', label: 'Status', kind: 'text', aggregate: false, path: null },
+    { key: 'c3', label: 'Created', kind: 'date', aggregate: false, path: null }
   ],
   rows: [
     {
@@ -99,11 +106,30 @@ const vocabulary: Vocabulary = {
   ]
 }
 
-const windowed = (
-  window: ExploreAnswer['window'],
-  rows: ExploreAnswer['rows'] = applications().rows
-) => applications({ read: 'windowed', count: null, rows, window })
+type Window = NonNullable<ExploreAnswer['window']>
 
+const windowed = (
+  window: Omit<Window, 'skipped'> & Partial<Pick<Window, 'skipped'>>,
+  rows: ExploreAnswer['rows'] = applications().rows
+) =>
+  applications({
+    read: 'windowed',
+    count: null,
+    rows,
+    window: { skipped: [], ...window }
+  })
+
+const [oid1, oid2, oid3] = [
+  '6741a0c2e4b0f1a2b3c4d5e6',
+  '6741a0c2e4b0f1a2b3c4d5e7',
+  '6741a0c2e4b0f1a2b3c4d5e8'
+]
+
+/** A record too large to search, as GAS names it: its `_id` as base64 BSON of `{ _id }`. */
+const skippedRecord = (ref: string, hex: string) => ({
+  open: { kind: 'application' as const, code: 'woodland', ref },
+  id: Buffer.from(BSON.serialize({ _id: new ObjectId(hex) })).toString('base64')
+})
 const typed =
   "db.applications.find(\n  { grant: 'woodland' },\n  { ref: 1, grant: 1, status: 1, created: 1 }\n)"
 
@@ -494,22 +520,91 @@ describe('running a typed query', () => {
     )
   })
 
-  test('shows no cell in mono, opens the record from anywhere in the row, and leaves widths to the table', async () => {
+  test('shows no cell in mono, opens the record from anywhere in the row, cuts the sticky column at 40ch, and gives every column an equal share of at least 160px', async () => {
     const { $ } = await ran(applications())
     const table = by($, 'explore-table')
+    const cells = by($, 'explore-row').first().find('td')
 
-    expect(by($, 'explore-row').find('td.gpa-cell-mono')).toHaveLength(0)
+    expect(
+      by($, 'explore-row').find('td.gpa-cell-mono, .gpa-mono')
+    ).toHaveLength(0)
     expect($('gpa-data-table').is('[data-sticky]')).toBe(true)
     expect(table.find('table').attr('data-gpa-cols')).toBe(
-      [
-        'minmax(max-content, 1fr)',
-        'minmax(120px, 1fr)',
-        'minmax(120px, 1fr)',
-        'minmax(120px, 1fr)',
-        'var(--size-column-chevron)'
-      ].join(' ')
+      `${'minmax(160px, 1fr) '.repeat(4)}var(--size-column-chevron)`
     )
+    expect(table.find('th').first().hasClass('gpa-cell-max-40')).toBe(true)
+    expect(cells.first().attr('class')).toBe('gpa-cell-max-40')
+    expect(cells.first().find('a gpa-cut-text')).toHaveLength(1)
+    expect(table.find('.gpa-cell-max-40')).toHaveLength(2)
   })
+
+  const groupColumns: ExploreAnswer['columns'] = [
+    { key: 'c0', label: '_id', kind: 'text', aggregate: false, path: null },
+    { key: 'c1', label: 'n', kind: 'number', aggregate: true, path: null }
+  ]
+
+  test.each([
+    [
+      'groups',
+      applications({
+        mode: 'groups',
+        groups: true,
+        count: { n: 1, capped: false, groups: 1 },
+        rows: [{ open: null, cells: { c0: 'x'.repeat(60), c1: 3 } }],
+        columns: groupColumns
+      }),
+      `${'minmax(160px, 1fr) '.repeat(2)}var(--size-column-chevron)`
+    ],
+    [
+      'distinct values',
+      applications({
+        mode: 'distinct',
+        groups: true,
+        count: { n: 1, capped: false, groups: 1 },
+        rows: [{ open: null, cells: { c0: 'x'.repeat(60) } }],
+        columns: [groupColumns[0]]
+      }),
+      `${'minmax(160px, 1fr) '.repeat(1)}var(--size-column-chevron)`
+    ],
+    [
+      'a count',
+      applications({
+        mode: 'count',
+        rows: [{ open: null, cells: { c0: '10,000+' } }],
+        columns: [
+          {
+            key: 'c0',
+            label: 'count',
+            kind: 'text',
+            aggregate: true,
+            path: null
+          }
+        ]
+      }),
+      `${'minmax(160px, 1fr) '.repeat(1)}var(--size-column-chevron)`
+    ],
+    [
+      'rows that open no record',
+      applications({
+        rows: [{ ...applications().rows[0], open: null }]
+      }),
+      `${'minmax(160px, 1fr) '.repeat(4)}var(--size-column-chevron)`
+    ]
+  ])(
+    'cuts the sticky first column of %s at 40ch, every column an equal share',
+    async (_, answer, cols) => {
+      const { $ } = await ran(answer)
+      const cells = by($, 'explore-row').first().find('td')
+
+      expect($('gpa-data-table').is('[data-sticky]')).toBe(true)
+      expect(by($, 'explore-table').find('table').attr('data-gpa-cols')).toBe(
+        cols
+      )
+      expect(cells.first().find('a')).toHaveLength(0)
+      expect(cells.first().hasClass('gpa-cell-max-40')).toBe(true)
+      expect(cells.slice(1).filter('.gpa-cell-max-40')).toHaveLength(0)
+    }
+  )
 
   test('says a query GAS refuses at the field, where it is, and holds nothing', async () => {
     const error = {
@@ -573,6 +668,8 @@ const frameOf = ($: CheerioAPI) =>
       $(part).is('table') ? 'header' : $(part).children().attr('data-testid')
     )
 
+const barIds = ['explore-count', 'explore-csv']
+
 /** The page's parts top to bottom, the results bar's, the table's frame, and what is made to stick. */
 const layoutOf = ($: CheerioAPI) => {
   const page = $('.gpa-page')
@@ -583,9 +680,10 @@ const layoutOf = ($: CheerioAPI) => {
       .map((part) => $(part).attr('data-testid')!)
       .filter((part) => partIds.includes(part)),
     bar: by($, 'explore-bar')
-      .children('[data-testid]')
+      .find('[data-testid]')
       .toArray()
-      .map((part) => $(part).attr('data-testid')),
+      .map((part) => $(part).attr('data-testid')!)
+      .filter((part) => barIds.includes(part)),
     frame: frameOf($),
     stickyTop: $('.gpa-listpage, .gpa-listpage-top').length,
     tableHeads: page.find('.gpa-thead').length
@@ -623,6 +721,7 @@ describe('the page’s layout', () => {
 
     expect(layoutOf($)).toEqual(resultsLayout)
     expect(by($, 'explore-bar').hasClass('gpa-justify-between')).toBe(true)
+    expect(by($, 'explore-csv-slot').hasClass('gpa-btnslot-lg')).toBe(true)
     expect($('.gpa-justify-end')).toHaveLength(0)
   })
 
@@ -646,7 +745,13 @@ describe('the page’s layout', () => {
       applications({
         mode: 'count',
         columns: [
-          { key: 'c0', label: 'count', kind: 'number', aggregate: true }
+          {
+            key: 'c0',
+            label: 'count',
+            kind: 'number',
+            aggregate: true,
+            path: null
+          }
         ],
         rows: [{ open: null, cells: { c0: 12 } }]
       })
@@ -706,7 +811,7 @@ describe('the page’s layout', () => {
           to: '2026-10-05T08:30:00.000Z',
           end: false,
           positions: 'early',
-          skipped: 1
+          skipped: [skippedRecord('wmp-big-1', oid1)]
         }
       })
     )
@@ -727,7 +832,8 @@ describe('the page’s layout', () => {
             windowed({
               to: '2026-10-01T00:00:00.000Z',
               end: false,
-              positions: 'after-second'
+              positions: 'after-second',
+              skipped: []
             })
           ),
           {
@@ -878,7 +984,8 @@ describe('the count line', () => {
       windowed({
         to: '2026-10-01T00:00:00.000Z',
         end: false,
-        positions: 'p'
+        positions: 'p',
+        skipped: []
       }),
       '1 application found so far'
     ]
@@ -893,7 +1000,13 @@ describe('the count line', () => {
       applications({
         mode: 'count',
         columns: [
-          { key: 'c0', label: 'Count', kind: 'number', aggregate: true }
+          {
+            key: 'c0',
+            label: 'Count',
+            kind: 'number',
+            aggregate: true,
+            path: null
+          }
         ],
         rows: [{ open: null, cells: { c0: '10,000+' } }],
         count: { n: 10000, capped: true }
@@ -910,17 +1023,153 @@ describe('the count line', () => {
   })
 })
 
+describe('the table’s columns', () => {
+  const column = (
+    key: string,
+    label: string,
+    path: string | null
+  ): ExploreAnswer['columns'][number] => ({
+    key,
+    label,
+    kind: 'text',
+    aggregate: false,
+    path
+  })
+  const record = {
+    open: { kind: 'application', code: 'woodland', ref: 'wmp-aa1-bb2' },
+    cells: {
+      c0: 'wmp-aa1-bb2',
+      c1: '6741a0c2e4b0f1a2b3c4d5e6',
+      c2: 12.5,
+      c3: 'Hilltop'
+    }
+  } as const
+  const headingsOf = ($: CheerioAPI) =>
+    by($, 'explore-table')
+      .find('thead th')
+      .toArray()
+      .map((head) => ({
+        text: flat($(head).text()),
+        path: $(head).find('.gpa-pathhead').length > 0
+      }))
+
+  test('head a dotted stored path as a path, and any other column by its name', async () => {
+    const { $ } = await ran(
+      applications({
+        columns: [
+          column('c0', 'clientRef', 'clientRef'),
+          column(
+            'c2',
+            'phases.answers.payments.agreement.quantity',
+            'phases.answers.payments.agreement.quantity'
+          ),
+          column('c3', 'business', null)
+        ],
+        rows: [record]
+      })
+    )
+    const path = by($, 'explore-table').find('.gpa-pathhead')
+
+    expect(headingsOf($)).toEqual([
+      { text: 'clientRef', path: false },
+      { text: 'phases.answers.payments.agreement.quantity', path: true },
+      { text: 'business', path: false }
+    ])
+    expect(path.find('.gpa-pathhead-up').text()).toBe(
+      'phases.answers.payments.agreement.'
+    )
+    expect(path.find('.gpa-pathhead-key').text()).toBe('quantity')
+  })
+
+  test('draw a first _id in mono at the text’s weight, sticking to nothing, opening the row, the table scrolling on a phone so it keeps its width', async () => {
+    const { $ } = await ran(
+      applications({
+        columns: [
+          column('c1', '_id', '_id'),
+          column('c0', 'clientRef', 'clientRef')
+        ],
+        rows: [record]
+      })
+    )
+    const link = by($, 'explore-row').find('td').first().find('a.gpa-rowlink')
+
+    expect(headingsOf($).map(({ text }) => text)).toEqual(['_id', 'clientRef'])
+    expect(rowsOf($)).toEqual([['6741a0c2e4b0f1a2b3c4d5e6', 'wmp-aa1-bb2']])
+    expect($('gpa-data-table').is('[data-sticky]')).toBe(false)
+    expect(by($, 'explore-table').find('table').hasClass('is-wrapping')).toBe(
+      false
+    )
+    expect(by($, 'explore-table').find('table').attr('data-gpa-cols')).toBe(
+      `${'minmax(160px, 1fr) '.repeat(2)}var(--size-column-chevron)`
+    )
+    expect(by($, 'explore-table').find('.gpa-cell-max-40')).toHaveLength(0)
+    expect(link.hasClass('is-plain')).toBe(true)
+    expect(link.hasClass('gpa-mono')).toBe(true)
+    expect(link.attr('href')).toBe(
+      `/dev-ops/applications/woodland/wmp-aa1-bb2?back=${encodeURIComponent(`${runHref}#row-1-1`)}`
+    )
+  })
+
+  test('keep the columns in GAS’s order, a first column that isn’t _id sticky at the record name’s weight', async () => {
+    const { $ } = await ran(
+      applications({
+        columns: [
+          column('c0', 'clientRef', 'clientRef'),
+          column('c1', '_id', '_id')
+        ],
+        rows: [record]
+      })
+    )
+    const link = by($, 'explore-row').find('a.gpa-rowlink')
+
+    expect(headingsOf($).map(({ text }) => text)).toEqual(['clientRef', '_id'])
+    expect($('gpa-data-table').is('[data-sticky]')).toBe(true)
+    expect(link.hasClass('is-plain')).toBe(false)
+    expect(link.hasClass('gpa-mono')).toBe(false)
+  })
+})
+
 describe('the table’s cells', () => {
   const columns: ExploreAnswer['columns'] = [
-    { key: 'c0', label: 'Reference', kind: 'text', aggregate: false },
-    { key: 'c1', label: 'Land parcel', kind: 'text', aggregate: false },
-    { key: 'c2', label: 'Total area (ha)', kind: 'number', aggregate: true },
-    { key: 'c3', label: 'Starts', kind: 'date', aggregate: false },
-    { key: 'c4', label: 'Business name', kind: 'text', aggregate: false },
-    { key: 'c5', label: 'Latest created', kind: 'date', aggregate: true }
+    {
+      key: 'c0',
+      label: 'Reference',
+      kind: 'text',
+      aggregate: false,
+      path: null
+    },
+    {
+      key: 'c1',
+      label: 'Land parcel',
+      kind: 'text',
+      aggregate: false,
+      path: null
+    },
+    {
+      key: 'c2',
+      label: 'Total area (ha)',
+      kind: 'number',
+      aggregate: true,
+      path: null
+    },
+    { key: 'c3', label: 'Starts', kind: 'date', aggregate: false, path: null },
+    {
+      key: 'c4',
+      label: 'Business name',
+      kind: 'text',
+      aggregate: false,
+      path: null
+    },
+    {
+      key: 'c5',
+      label: 'Latest created',
+      kind: 'date',
+      aggregate: true,
+      path: null
+    }
   ]
 
-  test('show numbers with separators, lists cut at three, a day as a day, and nothing as a dash', async () => {
+  test('show numbers with separators, every value of a list, a day as a day, and nothing as a dash', async () => {
     const { $ } = await ran(
       applications({
         columns,
@@ -944,7 +1193,7 @@ describe('the table’s cells', () => {
     expect(rowsOf($)).toEqual([
       [
         'wmp-aa1-bb2',
-        'SX1, SX2, SX3 +2',
+        'SX1, SX2, SX3, SX4, SX5',
         '1,860.5',
         '30 Nov 2026',
         '—',
@@ -963,8 +1212,20 @@ describe('the table’s cells', () => {
     const { $ } = await ran(
       applications({
         columns: [
-          { key: 'c0', label: 'Parcels', kind: 'text', aggregate: false },
-          { key: 'c1', label: 'Tags', kind: 'text', aggregate: false }
+          {
+            key: 'c0',
+            label: 'Parcels',
+            kind: 'text',
+            aggregate: false,
+            path: null
+          },
+          {
+            key: 'c1',
+            label: 'Tags',
+            kind: 'text',
+            aggregate: false,
+            path: null
+          }
         ],
         rows: [
           { open: null, cells: { c0: [['P1', 'P2'], ['P3'], null], c1: [] } }
@@ -975,16 +1236,36 @@ describe('the table’s cells', () => {
     expect(rowsOf($)).toEqual([['[P1, P2], [P3], null', '[]']])
   })
 
-  test('show an object as GAS writes it, in mono, cut past 80 characters with the whole in its title', async () => {
+  test('show an object as GAS writes it, whole, on one line in mono, with no value in a title', async () => {
     const short = "{ reference: 'WMP-2431', hectares: 18.5 }"
-    const long =
-      "{ reference: 'WMP-2431', hectares: 18.5, parcels: [ { sheet: 'SU4471', id: '2210' }, { sheet: 'SU4472', id: '2211' } ] }"
+    const long = `{ reference: 'WMP-2431', parcels: [ ${Array.from(
+      { length: 20 },
+      (_, n) => `{ sheet: 'SU44${n}', id: '22${n}' }`
+    ).join(', ')} ] }`
     const { $ } = await ran(
       applications({
         columns: [
-          { key: 'c0', label: 'Plan', kind: 'text', aggregate: false },
-          { key: 'c1', label: 'Plan in full', kind: 'text', aggregate: false },
-          { key: 'c2', label: 'Applicant', kind: 'text', aggregate: false }
+          {
+            key: 'c0',
+            label: 'Plan',
+            kind: 'text',
+            aggregate: false,
+            path: null
+          },
+          {
+            key: 'c1',
+            label: 'Plan in full',
+            kind: 'text',
+            aggregate: false,
+            path: null
+          },
+          {
+            key: 'c2',
+            label: 'Applicant',
+            kind: 'text',
+            aggregate: false,
+            path: null
+          }
         ],
         rows: [
           {
@@ -994,32 +1275,180 @@ describe('the table’s cells', () => {
         ]
       })
     )
-    const codes = by($, 'explore-row').find('code.gpa-code-inline')
+    const cuts = by($, 'explore-row').find('gpa-cut-text')
 
-    expect(rowsOf($)).toEqual([[short, `${long.slice(0, 80)}…`, 'Sam Rowe']])
-    expect(codes).toHaveLength(2)
-    expect(codes.eq(0).attr('title')).toBeUndefined()
-    expect(codes.eq(1).attr('title')).toBe(long)
+    expect(rowsOf($)).toEqual([[short, long, 'Sam Rowe']])
+    expect(cuts).toHaveLength(3)
+    expect(cuts.eq(1).text()).toBe(long)
+    expect(cuts.eq(1).attr('text')).toBeUndefined()
+    expect(cuts.eq(1).hasClass('gpa-mono')).toBe(true)
+    expect(cuts.eq(1).hasClass('gpa-cut-max-40')).toBe(true)
+    expect(cuts.eq(2).hasClass('gpa-mono')).toBe(false)
+    expect(cuts.eq(1).attr('data-size')).toBeUndefined()
+    expect(by($, 'explore-row').find('[title]')).toHaveLength(0)
   })
 
-  test('cut an object by characters, never splitting one', async () => {
-    const long = `{ note: '${'a'.repeat(70)}🌳🌳🌳🌳🌳🌳🌳' }`
+  test('hold a value of up to 1,000 characters whole, and of more only its first 300 and its size', async () => {
+    const whole = `${'a'.repeat(999)}🌳`
+    const longer = `${'b'.repeat(299)}🌳${'c'.repeat(2000)}`
     const { $ } = await ran(
       applications({
-        columns: [{ key: 'c0', label: 'Plan', kind: 'text', aggregate: false }],
+        columns: [
+          {
+            key: 'c0',
+            label: 'Note',
+            kind: 'text',
+            aggregate: false,
+            path: null
+          },
+          {
+            key: 'c1',
+            label: 'Answers',
+            kind: 'text',
+            aggregate: false,
+            path: null
+          }
+        ],
+        rows: [{ open: null, cells: { c0: whole, c1: { text: longer } } }]
+      })
+    )
+    const cuts = by($, 'explore-row').find('gpa-cut-text')
+
+    expect(rowsOf($)).toEqual([[whole, `${'b'.repeat(299)}🌳`]])
+    expect(cuts.eq(0).attr('data-size')).toBeUndefined()
+    expect(cuts.eq(1).attr('data-size')).toBe('2.2 KiB')
+    expect(cuts.eq(1).text()).toBe(`${'b'.repeat(299)}🌳`)
+    expect(cuts.eq(1).find('a')).toHaveLength(0)
+  })
+
+  test('show a number with every digit it has, grouped by thousands', async () => {
+    const { $ } = await ran(
+      applications({
+        columns: ['c0', 'c1', 'c2', 'c3'].map((key) => ({
+          key,
+          label: key,
+          kind: 'number' as const,
+          aggregate: false,
+          path: null
+        })),
+        rows: [
+          {
+            open: null,
+            cells: {
+              c0: 0.123456789,
+              c1: -1234567.891,
+              c2: 1e21,
+              c3: [0.5, 2.25]
+            }
+          }
+        ]
+      })
+    )
+
+    expect(rowsOf($)).toEqual([
+      ['0.123456789', '-1,234,567.891', '1e+21', '0.5, 2.25']
+    ])
+  })
+
+  test('draw the row link’s value as its cut text, with no control inside it: past 1,000 characters its start and size', async () => {
+    const start = `${'b'.repeat(299)}🌳`
+    const { $ } = await ran(
+      applications({
+        columns: [
+          {
+            key: 'c0',
+            label: 'note',
+            kind: 'text',
+            aggregate: false,
+            path: 'note'
+          }
+        ],
+        rows: [
+          {
+            open: { kind: 'application', code: 'woodland', ref: 'wmp-1' },
+            cells: { c0: `${start}${'c'.repeat(2000)}` }
+          }
+        ]
+      })
+    )
+    const link = by($, 'explore-row').find('a.gpa-rowlink')
+
+    expect(flat(link.text())).toBe(`${start}(2.2 KiB)`)
+    expect(link.find('gpa-cut-text').attr('data-size')).toBe('2.2 KiB')
+    expect(link.find('a, [tabindex]')).toHaveLength(0)
+  })
+
+  test('hold a page of 4 MB values as their starts, the page no bigger for them', async () => {
+    const huge = 'x'.repeat(4_000_000)
+    const columns = ['c0', 'c1', 'c2'].map((key) => ({
+      key,
+      label: key,
+      kind: 'text' as const,
+      aggregate: false,
+      path: null
+    }))
+    const page = (value: string) =>
+      ran(
+        applications({
+          columns,
+          rows: Array.from({ length: 20 }, () => ({
+            open: null,
+            cells: { c0: value, c1: { text: value }, c2: [value] }
+          }))
+        })
+      )
+    const { $, payload } = await page(huge)
+    const short = await page('x'.repeat(300))
+
+    expect(payload.length).toBeLessThan(short.payload.length + 20 * 3 * 100)
+    expect(rowsOf($)[0]).toEqual([
+      'x'.repeat(300),
+      'x'.repeat(300),
+      'x'.repeat(300)
+    ])
+    expect(
+      by($, 'explore-row').find('gpa-cut-text').first().attr('data-size')
+    ).toBe('3.8 MiB')
+  })
+
+  test('cut a long value by characters, never splitting one', async () => {
+    const long = `${'a'.repeat(299)}🌳🌳${'a'.repeat(1000)}`
+    const { $ } = await ran(
+      applications({
+        columns: [
+          {
+            key: 'c0',
+            label: 'Plan',
+            kind: 'text',
+            aggregate: false,
+            path: null
+          }
+        ],
         rows: [{ open: null, cells: { c0: { text: long } } }]
       })
     )
 
-    expect(rowsOf($)).toEqual([[`{ note: '${'a'.repeat(70)}🌳…`]])
+    expect(rowsOf($)).toEqual([[`${'a'.repeat(299)}🌳`]])
   })
 
   test('show a list of one object as that object, and objects in a longer list inline in it', async () => {
     const { $ } = await ran(
       applications({
         columns: [
-          { key: 'c0', label: 'Parcels', kind: 'text', aggregate: false },
-          { key: 'c1', label: 'Parcel', kind: 'text', aggregate: false }
+          {
+            key: 'c0',
+            label: 'Parcels',
+            kind: 'text',
+            aggregate: false,
+            path: null
+          },
+          {
+            key: 'c1',
+            label: 'Parcel',
+            kind: 'text',
+            aggregate: false,
+            path: null
+          }
         ],
         rows: [
           {
@@ -1036,16 +1465,32 @@ describe('the table’s cells', () => {
     expect(rowsOf($)).toEqual([
       ["{ id: '2210' }, { id: '2211' }", "{ id: '2212' }"]
     ])
-    expect(by($, 'explore-row').find('td').eq(0).find('code')).toHaveLength(0)
-    expect(by($, 'explore-row').find('td').eq(1).find('code')).toHaveLength(1)
+    expect(
+      by($, 'explore-row').find('td').eq(0).find('.gpa-mono')
+    ).toHaveLength(0)
+    expect(
+      by($, 'explore-row').find('td').eq(1).find('.gpa-mono')
+    ).toHaveLength(1)
   })
 
   test('show a day as a day in any column, and leave an instant in a text column as it is', async () => {
     const { $ } = await ran(
       applications({
         columns: [
-          { key: 'c0', label: 'Due', kind: 'text', aggregate: false },
-          { key: 'c1', label: 'Note', kind: 'text', aggregate: false }
+          {
+            key: 'c0',
+            label: 'Due',
+            kind: 'text',
+            aggregate: false,
+            path: null
+          },
+          {
+            key: 'c1',
+            label: 'Note',
+            kind: 'text',
+            aggregate: false,
+            path: null
+          }
         ],
         rows: [
           {
@@ -1066,8 +1511,20 @@ describe('the table’s cells', () => {
     const { $, statusCode } = await ran(
       applications({
         columns: [
-          { key: 'c0', label: 'Due', kind: 'text', aggregate: false },
-          { key: 'c1', label: 'Starts', kind: 'date', aggregate: false }
+          {
+            key: 'c0',
+            label: 'Due',
+            kind: 'text',
+            aggregate: false,
+            path: null
+          },
+          {
+            key: 'c1',
+            label: 'Starts',
+            kind: 'date',
+            aggregate: false,
+            path: null
+          }
         ],
         rows: [{ open: null, cells: { c0: '2026-13-01', c1: '2026-02-30' } }]
       })
@@ -1171,7 +1628,8 @@ describe('a windowed run', () => {
   const firstWindow = windowed({
     to: '2026-10-01T00:00:00.000Z',
     end: false,
-    positions: 'after-first'
+    positions: 'after-first',
+    skipped: []
   })
 
   test('says how far back it searched, with Keep looking: a post of the run and its next window, never the query', async () => {
@@ -1209,9 +1667,12 @@ describe('a windowed run', () => {
 
   test('answers Keep looking in place with the window itself, as the loader goes to any page that redirects', async () => {
     answering(
-      runPage(read(windowed({ to: null, end: true, positions: null })), {
-        run: { id, page: 2 }
-      })
+      runPage(
+        read(windowed({ to: null, end: true, positions: null, skipped: [] })),
+        {
+          run: { id, page: 2 }
+        }
+      )
     )
 
     const next = await post({ run: id, page: '2' }, '', '/dev-ops/explore', {
@@ -1240,15 +1701,18 @@ describe('a windowed run', () => {
     'answers Keep looking in place into a window with no matches with a footer saying %s, with Keep looking for the loader to go further back',
     async (_, to, text) => {
       answering(
-        runPage(read(windowed({ to, end: false, positions: 'q' }, [])), {
-          run: { id, page: 2 },
-          previous: {
-            positions: 'p',
-            end: false,
-            found: 1,
-            source: { name: 'applications', noun: 'application' }
+        runPage(
+          read(windowed({ to, end: false, positions: 'q', skipped: [] }, [])),
+          {
+            run: { id, page: 2 },
+            previous: {
+              positions: 'p',
+              end: false,
+              found: 1,
+              source: { name: 'applications', noun: 'application' }
+            }
           }
-        })
+        )
       )
 
       const { $, statusCode } = await post(
@@ -1284,7 +1748,12 @@ describe('a windowed run', () => {
       runPage(
         read(
           windowed(
-            { to: '2026-09-01T00:00:00.000Z', end: true, positions: null },
+            {
+              to: '2026-09-01T00:00:00.000Z',
+              end: true,
+              positions: null,
+              skipped: []
+            },
             [applications().rows[0], applications().rows[0]]
           )
         ),
@@ -1352,9 +1821,14 @@ describe('a windowed run', () => {
 
   test('says the last window a run can read matched nothing, with no Keep looking', async () => {
     showing(
-      runPage(read(windowed({ to: null, end: false, positions: 'p' }, [])), {
-        run: { id, page: 1000 }
-      })
+      runPage(
+        read(
+          windowed({ to: null, end: false, positions: 'p', skipped: [] }, [])
+        ),
+        {
+          run: { id, page: 1000 }
+        }
+      )
     )
 
     const { $ } = await view(`${runHref}&page=1000`)
@@ -1372,7 +1846,8 @@ describe('a windowed run', () => {
           windowed({
             to: '2026-10-01T00:00:00.000Z',
             end: false,
-            positions: 'p'
+            positions: 'p',
+            skipped: []
           })
         ),
         { run: { id, page: 999 } }
@@ -1394,7 +1869,7 @@ describe('a windowed run', () => {
     })
   })
 
-  test('says a window ended early, with how far back it got and how many records were too large to search', async () => {
+  test('says a window ended early, with how far back it got and each record too large to search, by its _id and a link to it', async () => {
     const { $ } = await ran(
       applications({
         read: 'windowed',
@@ -1404,34 +1879,68 @@ describe('a windowed run', () => {
           to: '2026-10-05T08:30:00.000Z',
           end: false,
           positions: 'early',
-          skipped: 1
+          skipped: [skippedRecord('wmp-big-1', oid1)]
         }
       })
     )
+    const link = by($, 'explore-skipped').find('a')
 
     expect(textOf($, 'explore-footer')).toBe(
-      'Searched back to 5 Oct 2026 08:30. 1 record too large to search. Keep looking'
+      `Searched back to 5 Oct 2026 08:30. 1 record too large to search, so it may or may not match: ObjectId('${oid1}') Open application Keep looking`
+    )
+    expect(link.attr('aria-label')).toBe('Open application wmp-big-1')
+    expect(link.attr('href')).toBe(
+      `/dev-ops/applications/woodland/wmp-big-1?back=${encodeURIComponent(runHref)}`
     )
   })
 
-  test('counts several records too large to search', async () => {
+  test('lists every record too large to search by its _id, one with no page to open too', async () => {
     const { $ } = await ran(
       windowed({
         to: '2026-10-05T08:30:00.000Z',
         end: false,
         positions: 'early',
-        skipped: 3
+        skipped: [
+          skippedRecord('wmp-big-1', oid1),
+          { open: null, id: skippedRecord('x', oid2).id },
+          skippedRecord('wmp-big-2', oid3)
+        ]
       })
+    )
+    const records = by($, 'explore-skipped')
+
+    expect(records.map((_, record) => flat($(record).text())).get()).toEqual([
+      `ObjectId('${oid1}') Open application`,
+      `ObjectId('${oid2}')`,
+      `ObjectId('${oid3}') Open application`
+    ])
+    expect(
+      records
+        .find('a')
+        .map((_, link) => $(link).attr('aria-label'))
+        .get()
+    ).toEqual(['Open application wmp-big-1', 'Open application wmp-big-2'])
+  })
+
+  test('says the records too large to search when the window reached the end too, as a restore of earlier windows that skipped some does', async () => {
+    const { $ } = await ran(
+      windowed({
+        to: '2026-09-01T00:00:00.000Z',
+        end: true,
+        positions: null,
+        skipped: [skippedRecord('wmp-big-1', oid1)]
+      }),
+      { run: { id, page: 2, through: 2 } }
     )
 
     expect(textOf($, 'explore-footer')).toBe(
-      'Searched back to 5 Oct 2026 08:30. 3 records too large to search. Keep looking'
+      `Searched everything. 1 record too large to search, so it may or may not match: ObjectId('${oid1}') Open application`
     )
   })
 
   test('offers Keep looking on its own when a window read nothing to say how far back it got', async () => {
     const { $ } = await ran(
-      windowed({ to: null, end: false, positions: 'none-yet' }, [])
+      windowed({ to: null, end: false, positions: 'none-yet', skipped: [] }, [])
     )
 
     expect(by($, 'explore-footer')).toHaveLength(0)
@@ -1443,18 +1952,37 @@ describe('a windowed run', () => {
 
   test('says the records too large to search in the empty state when a window read nothing to say how far back it got', async () => {
     const { $ } = await ran(
-      windowed({ to: null, end: false, positions: 'none-yet', skipped: 2 }, [])
+      windowed(
+        {
+          to: null,
+          end: false,
+          positions: 'none-yet',
+          skipped: [
+            skippedRecord('wmp-big-1', oid1),
+            skippedRecord('wmp-big-2', oid2)
+          ]
+        },
+        []
+      )
     )
 
     expect(textOf($, 'explore-empty')).toContain(
-      'Keep looking to go further back. 2 records too large to search.'
+      `Keep looking to go further back. 2 records too large to search, so they may or may not match: ObjectId('${oid1}') Open application ; ObjectId('${oid2}') Open application`
     )
+    expect(
+      by($, 'explore-empty').find('[data-testid="explore-skipped"]')
+    ).toHaveLength(2)
   })
 
   test('says nothing matches yet, with Keep looking a plain post of the run and its next window that no loader appends to', async () => {
     const { $ } = await ran(
       windowed(
-        { to: '2026-10-01T00:00:00.000Z', end: false, positions: 'p' },
+        {
+          to: '2026-10-01T00:00:00.000Z',
+          end: false,
+          positions: 'p',
+          skipped: []
+        },
         []
       )
     )
@@ -1479,7 +2007,12 @@ describe('a windowed run', () => {
       runPage(
         read(
           windowed(
-            { to: '2026-09-01T00:00:00.000Z', end: false, positions: 'q' },
+            {
+              to: '2026-09-01T00:00:00.000Z',
+              end: false,
+              positions: 'q',
+              skipped: []
+            },
             [applications().rows[0]]
           )
         ),
@@ -1505,9 +2038,14 @@ describe('a windowed run', () => {
 
   test('says nothing has these values once every window read none, with no Keep looking', async () => {
     showing(
-      runPage(read(windowed({ to: null, end: true, positions: null }, [])), {
-        run: { id, page: 2 }
-      })
+      runPage(
+        read(
+          windowed({ to: null, end: true, positions: null, skipped: [] }, [])
+        ),
+        {
+          run: { id, page: 2 }
+        }
+      )
     )
 
     const { $ } = await view(`${runHref}&page=2`)
@@ -1607,7 +2145,7 @@ describe('the count’s focus', () => {
 
   test('is not put on the count of a later window, in place or without script', async () => {
     const page2 = runPage(
-      read(windowed({ to: null, end: true, positions: null })),
+      read(windowed({ to: null, end: true, positions: null, skipped: [] })),
       { run: { id, page: 2 } }
     )
     const posted = await post({ q: typed })
@@ -1707,9 +2245,12 @@ describe('drawing every window again', () => {
     'puts on %s window’s footer the address its rows carry: every window through it up to 50, its own past them',
     async (_, page, href) => {
       showing(
-        runPage(read(windowed({ to: null, end: false, positions: 'p' })), {
-          run: { id, page }
-        })
+        runPage(
+          read(windowed({ to: null, end: false, positions: 'p', skipped: [] })),
+          {
+            run: { id, page }
+          }
+        )
       )
 
       expect(restoreOf((await view(`${runHref}&page=${page}`)).$)).toBe(href)
@@ -1800,7 +2341,8 @@ describe('drawing every window again', () => {
           windowed({
             to: '2026-10-01T00:00:00.000Z',
             end: false,
-            positions: 'p'
+            positions: 'p',
+            skipped: []
           })
         ),
         { run: { id, page: 2 } }
@@ -1819,7 +2361,12 @@ describe('drawing every window again', () => {
       runPage(
         read(
           windowed(
-            { to: '2026-09-01T00:00:00.000Z', end: false, positions: 'p' },
+            {
+              to: '2026-09-01T00:00:00.000Z',
+              end: false,
+              positions: 'p',
+              skipped: []
+            },
             [
               applications().rows[0],
               applications().rows[0],
@@ -1858,11 +2405,15 @@ describe('drawing every window again', () => {
     ).searchParams.get('back')
 
   const threeRows = () =>
-    windowed({ to: '2026-09-01T00:00:00.000Z', end: false, positions: 'p' }, [
-      applications().rows[0],
-      applications().rows[0],
-      applications().rows[0]
-    ])
+    windowed(
+      {
+        to: '2026-09-01T00:00:00.000Z',
+        end: false,
+        positions: 'p',
+        skipped: []
+      },
+      [applications().rows[0], applications().rows[0], applications().rows[0]]
+    )
 
   test('places each row drawn again in its own window, coming back through that window and landing on the row', async () => {
     restoring(
@@ -2047,7 +2598,8 @@ describe('an exact run with nothing', () => {
 
 const actionLabels: Record<string, string> = {
   retry: 'Try again',
-  start: 'Start again'
+  start: 'Start again',
+  none: ''
 }
 
 describe('a run that fails', () => {
@@ -2147,6 +2699,42 @@ describe('a run that fails', () => {
       'start'
     ],
     [
+      'its cells are too large to show together',
+      {
+        kind: 'too-large',
+        service: 'GAS',
+        message:
+          'These cells are too large to show together. Name fewer paths or set a lower .limit()'
+      },
+      statusCodes.badRequest,
+      'This answer is too large to show. These cells are too large to show together. Name fewer paths or set a lower .limit()',
+      'none'
+    ],
+    [
+      'Caseworking’s answer is too large',
+      {
+        kind: 'too-large',
+        service: 'CW',
+        message:
+          'This answer is too large: set a lower .limit() or name fewer paths'
+      },
+      statusCodes.badRequest,
+      'This answer is too large to show. This answer is too large: set a lower .limit() or name fewer paths',
+      'none'
+    ],
+    [
+      'mongod fails on a stored value where GAS can’t say at which expression',
+      {
+        kind: 'refused',
+        service: 'GAS',
+        message:
+          'The argument to $size must be an array, but was of type: string'
+      },
+      statusCodes.badRequest,
+      'The Grant Application Service refused this query. The argument to $size must be an array, but was of type: string',
+      'start'
+    ],
+    [
       'another query of this person’s is running',
       { kind: 'busy', service: 'GAS' },
       statusCodes.tooManyRequests,
@@ -2175,7 +2763,9 @@ describe('a run that fails', () => {
       const { $, statusCode } = await view(runHref)
 
       expect(statusCode).toBe(code)
-      expect(textOf($, 'explore-alert')).toBe(`${text} ${actionLabels[action]}`)
+      expect(textOf($, 'explore-alert')).toBe(
+        `${text} ${actionLabels[action]}`.trim()
+      )
       expect(by($, 'explore-results')).toHaveLength(0)
       expect($('#q').val()).toBe(typed)
       expect(by($, 'explore-retry').attr('href')).toBe(

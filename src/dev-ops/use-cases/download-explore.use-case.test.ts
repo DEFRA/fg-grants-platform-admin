@@ -25,7 +25,15 @@ const answer = (
   source: { name: 'applications', noun: 'application' },
   mode: 'rows',
   read: 'exact',
-  columns: [{ key: 'c0', label: 'Reference', kind: 'text', aggregate: false }],
+  columns: [
+    {
+      key: 'c0',
+      label: 'Reference',
+      kind: 'text',
+      aggregate: false,
+      path: null
+    }
+  ],
   rows: [{ open: null, cells: { c0: 'wmp-aa1-bb2' } }],
   count: { n: 1, capped: false },
   groups: false,
@@ -47,7 +55,7 @@ const windowed = (positions: string | null, end = false) =>
   answer({
     read: 'windowed',
     count: null,
-    window: { to: '2026-10-01T00:00:00.000Z', end, positions }
+    window: { to: '2026-10-01T00:00:00.000Z', end, positions, skipped: [] }
   })
 
 const view = (run: string, page = 1) => viewExploreUseCase({ owner, run, page })
@@ -74,7 +82,7 @@ describe('downloadExploreUseCase', () => {
     await view(id)
 
     expect(await download(id)).toEqual({ kind: 'file', answer: shown(file) })
-    expect(lastSent()).toEqual([{ query: typed, limit: 5000, csv: true }])
+    expect(lastSent()).toEqual([{ query: typed, csv: true }])
   })
 
   test('reads a run no window of which was read from the top', async () => {
@@ -84,7 +92,7 @@ describe('downloadExploreUseCase', () => {
 
     await download(id)
 
-    expect(lastSent()).toEqual([{ query: typed, limit: 5000, csv: true }])
+    expect(lastSent()).toEqual([{ query: typed, csv: true }])
   })
 
   test('reads down to the furthest window Keep looking loaded', async () => {
@@ -104,7 +112,6 @@ describe('downloadExploreUseCase', () => {
     expect(lastSent()?.[0]).toEqual({
       query: typed,
       positions: 'after-2',
-      limit: 5000,
       csv: true
     })
   })
@@ -139,7 +146,6 @@ describe('downloadExploreUseCase', () => {
     expect(lastSent()?.[0]).toEqual({
       query: typed,
       positions: 'after-3',
-      limit: 5000,
       csv: true
     })
   })
@@ -159,7 +165,6 @@ describe('downloadExploreUseCase', () => {
     expect(lastSent()?.[0]).toEqual({
       query: typed,
       untilEnd: true,
-      limit: 5000,
       csv: true
     })
   })

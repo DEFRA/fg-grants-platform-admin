@@ -35,6 +35,7 @@
 @import "./molecules/accordion/styles.css" layer(gpa);
 @import "./molecules/status-mark/styles.css" layer(gpa);
 @import "./molecules/facts-list/styles.css" layer(gpa);
+@import "./molecules/cut-text/styles.css" layer(gpa);
 @import "./molecules/theme-toggle/styles.css" layer(gpa);
 @import "./molecules/list-footer/styles.css" layer(gpa);
 @import "./molecules/toast/styles.css" layer(gpa);
@@ -67,6 +68,7 @@
 @import "./layouts/grid/styles.css" layer(gpa);
 @import "./layouts/columns/styles.css" layer(gpa);
 @import "./layouts/section/styles.css" layer(gpa);
+@import "./layouts/button-slot/styles.css" layer(gpa);
 @import "./layouts/form/styles.css" layer(gpa);
 @import "./layouts/form-actions/styles.css" layer(gpa);
 @import "./templates/page/styles.css" layer(gpa);

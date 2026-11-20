@@ -29,7 +29,15 @@ const answer = (
   source: { name: 'applications', noun: 'application' },
   mode: 'rows',
   read: 'exact',
-  columns: [{ key: 'c0', label: 'Reference', kind: 'text', aggregate: false }],
+  columns: [
+    {
+      key: 'c0',
+      label: 'Reference',
+      kind: 'text',
+      aggregate: false,
+      path: null
+    }
+  ],
   rows: [{ open: null, cells: { c0: 'wmp-aa1-bb2' } }],
   count: { n: 1, capped: false },
   groups: false,
@@ -52,7 +60,7 @@ const windowed = (positions: string | null, end = false, rows = 1) =>
     read: 'windowed',
     count: null,
     rows: Array.from({ length: rows }, () => answer().rows[0]),
-    window: { to: '2026-10-01T00:00:00.000Z', end, positions }
+    window: { to: '2026-10-01T00:00:00.000Z', end, positions, skipped: [] }
   })
 
 const vocabulary: Vocabulary = {
@@ -366,7 +374,7 @@ describe('restoreExploreUseCase', () => {
       read: 'windowed',
       count: null,
       rows: refs.map(rowOf),
-      window: { to: '2026-10-01T00:00:00.000Z', end, positions }
+      window: { to: '2026-10-01T00:00:00.000Z', end, positions, skipped: [] }
     })
 
   const restore = (run: string, through: number) =>

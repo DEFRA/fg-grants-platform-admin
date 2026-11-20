@@ -45,7 +45,10 @@ const credentials = {
 /** A value nobody would type, so finding it anywhere means it leaked. */
 const sentinel = 'Zq7Sentinel9Xv'
 
-const query = `db.applications.find({ 'phases.answers.applicant.business.name': '${sentinel}' })`
+/** An `_id` nobody would hold, as hex. */
+const idSentinel = 'f00dfacecafe5e9b1c3d5f70'
+
+const query = `db.applications.find({ _id: ObjectId('${idSentinel}'), 'phases.answers.applicant.business.name': '${sentinel}' })`
 
 const responseError = (statusCode: number, body: object) =>
   new Boom.Boom(`Response Error: ${statusCode}`, {
@@ -60,8 +63,14 @@ const answer = (
   mode: 'rows',
   read: 'windowed',
   columns: [
-    { key: 'c0', label: 'Business name', kind: 'text', aggregate: false },
-    { key: 'c1', label: 'SBI', kind: 'text', aggregate: false }
+    {
+      key: 'c0',
+      label: 'Business name',
+      kind: 'text',
+      aggregate: false,
+      path: null
+    },
+    { key: 'c1', label: 'SBI', kind: 'text', aggregate: false, path: null }
   ],
   rows: [
     {
@@ -77,7 +86,8 @@ const answer = (
   window: {
     to: '2026-10-01T00:00:00.000Z',
     end: false,
-    positions: sentinel
+    positions: sentinel,
+    skipped: []
   },
   vocabulary: null,
   ...overrides
@@ -161,6 +171,16 @@ describe('a query’s values', () => {
     )
     await inject('GET', run.location, next.cookie)
 
+    vi.mocked(queryExplore).mockRejectedValueOnce(
+      responseError(400, {
+        reason: 'QUERY_REFUSED',
+        refusal: 'MONGOD_ERROR',
+        message: sentinel,
+        error: { message: sentinel, at: 0, end: 1 }
+      })
+    )
+    await inject('GET', run.location, next.cookie)
+
     vi.mocked(checkExplore).mockRejectedValueOnce(
       responseError(400, {
         reason: 'QUERY_INVALID',
@@ -193,10 +213,17 @@ describe('a query’s values', () => {
     )
 
     expect(lines.length).toBeGreaterThan(0)
-    expect(lines.filter((line) => line.includes(sentinel))).toEqual([])
+    expect(
+      lines.filter(
+        (line) => line.includes(sentinel) || line.includes(idSentinel)
+      )
+    ).toEqual([])
     expect(locations.every((location) => location.includes('run='))).toBe(true)
-    expect(locations.filter((location) => location.includes(sentinel))).toEqual(
-      []
-    )
+    expect(
+      locations.filter(
+        (location) =>
+          location.includes(sentinel) || location.includes(idSentinel)
+      )
+    ).toEqual([])
   })
 })

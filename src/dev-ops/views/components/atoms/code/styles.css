@@ -51,6 +51,22 @@
   padding: 0 var(--inset-code-x);
   background: var(--bg-danger-subtle);
 }
+.gpa-code-coloured {
+  color: var(--fg-muted);
+}
+.gpa-code-key {
+  color: var(--fg-default);
+}
+.gpa-code-str {
+  color: var(--fg-success);
+}
+.gpa-code-num {
+  color: var(--fg-warning);
+}
+.gpa-code-kw {
+  color: var(--fg-info);
+  font-weight: 600;
+}
 .gpa-code-pre:focus-visible {
   outline: var(--focus-ring-width) solid var(--border-focus);
   outline-offset: var(--focus-ring-offset-inset);

@@ -1,3 +1,4 @@
+import { BSON, ObjectId } from 'bson'
 import { load } from 'cheerio'
 import type { Server } from '@hapi/hapi'
 
@@ -22,16 +23,48 @@ const id = '0b6f3e2a-5c1d-4e8f-9a7b-2c3d4e5f6a7b'
 
 const q = 'db.applications.find()'
 
+/** A record's `_id` as GAS sends it: base64 BSON of `{ _id }`. */
+const idOf = (_id: unknown) =>
+  Buffer.from(BSON.serialize({ _id })).toString('base64')
+
+/** The file's last lines, before the line end that closes it. */
+const lastLinesOf = (payload: string, n: number) =>
+  payload.split('\r\n').slice(-n - 1, -1)
+
 const csvAnswer: ExploreAnswer = {
   source: { name: 'applications', noun: 'application' },
   mode: 'rows',
   read: 'exact',
   columns: [
-    { key: 'c0', label: 'Reference', kind: 'text', aggregate: false },
-    { key: 'c1', label: 'Land parcel', kind: 'text', aggregate: false },
-    { key: 'c2', label: 'Total area (ha)', kind: 'number', aggregate: true },
-    { key: 'c3', label: 'Created', kind: 'date', aggregate: false },
-    { key: 'c4', label: 'Business name', kind: 'text', aggregate: false }
+    {
+      key: 'c0',
+      label: 'Reference',
+      kind: 'text',
+      aggregate: false,
+      path: null
+    },
+    {
+      key: 'c1',
+      label: 'Land parcel',
+      kind: 'text',
+      aggregate: false,
+      path: null
+    },
+    {
+      key: 'c2',
+      label: 'Total area (ha)',
+      kind: 'number',
+      aggregate: true,
+      path: null
+    },
+    { key: 'c3', label: 'Created', kind: 'date', aggregate: false, path: null },
+    {
+      key: 'c4',
+      label: 'Business name',
+      kind: 'text',
+      aggregate: false,
+      path: null
+    }
   ],
   rows: [
     {
@@ -153,17 +186,141 @@ describe('Download CSV', () => {
     expect(payload).toBe(`Reference\r\n"${plan}"\r\n`)
   })
 
-  test('says in its name when GAS marks it partial', async () => {
+  test.each([
+    [
+      'its rows, by the limit it ran with',
+      'rows',
+      'explore-applications-stopped-at-4000-rows.csv',
+      '"# Stopped at the 4,000-row limit: searched back to 2026-09-01T00:00:00.000Z. Run a narrower query for the rest."'
+    ],
+    [
+      'its time',
+      'time',
+      'explore-applications-stopped-at-time-limit.csv',
+      '# Stopped at the 10-second time limit: searched back to 2026-09-01T00:00:00.000Z. Run a narrower query for the rest.'
+    ],
+    [
+      'its windows',
+      'windows',
+      'explore-applications-stopped-at-50-windows.csv',
+      '# Stopped at the 50-window limit: searched back to 2026-09-01T00:00:00.000Z. Run a narrower query for the rest.'
+    ],
+    [
+      'its size',
+      'bytes',
+      'explore-applications-stopped-at-size-limit.csv',
+      '# Stopped at the 256 MiB size limit: searched back to 2026-09-01T00:00:00.000Z. Run a narrower query for the rest.'
+    ],
+    [
+      'a later window it couldn’t read',
+      'error',
+      'explore-applications-stopped-early.csv',
+      '"# Stopped early, as a later part of the search couldn’t be read: searched back to 2026-09-01T00:00:00.000Z. Run a narrower query for the rest."'
+    ]
+  ] as const)(
+    'says it stopped at %s in its name and its last row',
+    async (_, stopped, name, last) => {
+      vi.mocked(downloadExploreUseCase).mockResolvedValue({
+        kind: 'file',
+        answer: {
+          ...csvAnswer,
+          partial: true,
+          download: {
+            rows: 4000,
+            stopped,
+            searchedTo: '2026-09-01T00:00:00.000Z'
+          }
+        }
+      })
+
+      const { headers, payload } = await download()
+
+      expect(headers['content-disposition']).toBe(
+        `attachment; filename="${name}"`
+      )
+      expect(lastLinesOf(payload, 1)).toEqual([last])
+    }
+  )
+
+  test('names the row limit it ran with, a typed one included', async () => {
     vi.mocked(downloadExploreUseCase).mockResolvedValue({
       kind: 'file',
-      answer: { ...csvAnswer, partial: true }
+      answer: {
+        ...csvAnswer,
+        download: { rows: 200, stopped: 'rows', searchedTo: null }
+      }
     })
 
     const { headers } = await download()
 
     expect(headers['content-disposition']).toBe(
-      'attachment; filename="explore-applications-partial.csv"'
+      'attachment; filename="explore-applications-stopped-at-200-rows.csv"'
     )
+  })
+
+  test('says where it stopped without how far back when GAS doesn’t know', async () => {
+    vi.mocked(downloadExploreUseCase).mockResolvedValue({
+      kind: 'file',
+      answer: {
+        ...csvAnswer,
+        download: { rows: 5000, stopped: 'rows', searchedTo: null }
+      }
+    })
+
+    const { payload } = await download()
+
+    expect(lastLinesOf(payload, 1)).toEqual([
+      '"# Stopped at the 5,000-row limit. Run a narrower query for the rest."'
+    ])
+  })
+
+  test('names nothing it didn’t stop at, and ends with its last row', async () => {
+    vi.mocked(downloadExploreUseCase).mockResolvedValue({
+      kind: 'file',
+      answer: {
+        ...csvAnswer,
+        download: { rows: 4000, stopped: null, searchedTo: null }
+      }
+    })
+
+    const { headers, payload } = await download()
+
+    expect(headers['content-disposition']).toBe(
+      'attachment; filename="explore-applications.csv"'
+    )
+    expect(lastLinesOf(payload, 1)).toEqual(['\'@sum,[],-3,,"A, ""B"""'])
+  })
+
+  test('lists the records too large to search by their _id, before where it stopped', async () => {
+    vi.mocked(downloadExploreUseCase).mockResolvedValue({
+      kind: 'file',
+      answer: {
+        ...csvAnswer,
+        read: 'windowed',
+        count: null,
+        window: {
+          to: '2026-09-01T00:00:00.000Z',
+          end: false,
+          positions: null,
+          skipped: [
+            { open: null, id: idOf(new ObjectId('6741a0c2e4b0f1a2b3c4d5e6')) },
+            { open: null, id: idOf("WMP-it's") }
+          ]
+        },
+        download: {
+          rows: 4000,
+          stopped: 'time',
+          searchedTo: '2026-09-01T00:00:00.000Z'
+        }
+      }
+    })
+
+    const { payload } = await download()
+
+    expect(lastLinesOf(payload, 2)).toEqual([
+      `"# 2 records too large to search, which may or may not match: ObjectId('6741a0c2e4b0f1a2b3c4d5e6'), 'WMP-it\\'s'"`,
+      '# Stopped at the 10-second time limit: searched back to 2026-09-01T00:00:00.000Z. Run a narrower query for the rest.'
+    ])
   })
 
   test('says a run the use case no longer holds has expired', async () => {

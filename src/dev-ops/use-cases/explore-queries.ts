@@ -1,5 +1,6 @@
 import type { QueryError } from '../repositories/explore.repository.ts'
 import type { BucketEntry } from '../repositories/buckets.repository.ts'
+import { toBsonText } from './explore-bson-text.ts'
 import { queueFact } from './list-bucket.use-case.ts'
 
 /** Shown in the editor, not run, when the page opens on nothing else. */
@@ -34,9 +35,9 @@ export const toTooLong = (
 /** A form post sends CRLF where the editor counts LF, so GAS's places line up with the editor's text. */
 export const toQueryText = (q: string): string => q.replace(/\r\n?/g, '\n')
 
-/** Text in quotes, as the language reads it back: a backslash escapes the next character. */
+/** Text in quotes, as the language reads it back: a backslash escapes the next character, a line break included. */
 export const toQuoted = (value: string): string =>
-  `'${value.replace(/[\\']/g, '\\$&')}'`
+  `'${value.replace(/[\\'\n]/g, '\\$&')}'`
 
 /** A path as a key: bare when it is a plain word, else quoted, as mongosh needs. */
 const toKey = (path: string): string =>
@@ -431,3 +432,7 @@ export const toLookup = ({
   })}.limit(1)`,
   columns: lookedUp
 })
+
+/** A record's `_id`, sent as base64 BSON of `{ _id }`, as a query writes its type: `ObjectId('…')`, text in quotes, `Long('…')`, `ISODate('…')`. */
+export const toIdText = (id: string): string =>
+  toBsonText(Buffer.from(id, 'base64'), toQuoted)

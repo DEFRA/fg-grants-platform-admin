@@ -45,7 +45,15 @@ const answer = (
   source: { name: 'applications', noun: 'application' },
   mode: 'rows',
   read: 'exact',
-  columns: [{ key: 'c0', label: 'Reference', kind: 'text', aggregate: false }],
+  columns: [
+    {
+      key: 'c0',
+      label: 'Reference',
+      kind: 'text',
+      aggregate: false,
+      path: null
+    }
+  ],
   rows: [{ open: null, cells: { c0: 'wmp-aa1-bb2' } }],
   count: { n: 1, capped: false },
   groups: false,
@@ -61,7 +69,8 @@ const column = (key: string, label: string): ExploreColumn => ({
   key,
   label,
   kind: 'text',
-  aggregate: false
+  aggregate: false,
+  path: null
 })
 
 /** The one row a lookup reads, keyed as GAS keys columns: by their place. */
@@ -292,7 +301,12 @@ describe('runExploreUseCase', () => {
       answer({
         read: 'windowed',
         count: null,
-        window: { to: '2026-10-01T00:00:00.000Z', end: false, positions: 'p1' }
+        window: {
+          to: '2026-10-01T00:00:00.000Z',
+          end: false,
+          positions: 'p1',
+          skipped: []
+        }
       })
     )
     const held = await run({ kind: 'typed', q: typed })

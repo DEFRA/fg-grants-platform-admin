@@ -177,6 +177,10 @@
   {%- set __html %}{% include "./molecules/copy-button/template.njk" %}{% endset -%}
   {{- __html | trim | safe -}}
 {%- endmacro %}
+{% macro CutText(p) -%}
+  {%- set __html %}{% include "./molecules/cut-text/template.njk" %}{% endset -%}
+  {{- __html | trim | safe -}}
+{%- endmacro %}
 {% macro ThemeToggle(p) -%}
   {%- set __html %}{% include "./molecules/theme-toggle/template.njk" %}{% endset -%}
   {{- __html | trim | safe -}}
@@ -347,6 +351,10 @@
 {%- endmacro %}
 {% macro Section(p) -%}
   {%- set __html %}{% include "./layouts/section/template.njk" %}{% endset -%}
+  {{- __html | trim | safe -}}
+{%- endmacro %}
+{% macro ButtonSlot(p) -%}
+  {%- set __html %}{% include "./layouts/button-slot/template.njk" %}{% endset -%}
   {{- __html | trim | safe -}}
 {%- endmacro %}
 {% macro HiddenField(p) -%}

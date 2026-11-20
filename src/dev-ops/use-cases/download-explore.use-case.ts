@@ -5,9 +5,6 @@ import type { ExploreAsker, ExplorePageOutcome } from './explore-page.ts'
 import { findFurthestPage, findLiveRun } from './held-runs.ts'
 import type { HeldPage } from './held-runs.ts'
 
-/** The rows a CSV holds at most, as GAS reads at most. */
-const csvRowsMax = 5000
-
 export interface ExploreFile {
   kind: 'file'
   answer: ExploreAnswer
@@ -42,7 +39,6 @@ export const downloadExploreUseCase = async ({
   const { result, vocabulary } = await runExplore({
     query: held.q,
     ...toCsvEnd(await findFurthestPage(owner, run)),
-    limit: csvRowsMax,
     csv: true
   })
 
