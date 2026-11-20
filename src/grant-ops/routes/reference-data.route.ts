@@ -6,17 +6,22 @@ import { toGasRefusal } from '../use-cases/gas-refusal.ts'
 import {
   addReferenceDataItemUseCase,
   changeReferenceDataItemUseCase,
-  getDbReferenceDataUseCase,
   removeReferenceDataItemUseCase,
+  viewReferenceDataUseCase,
   type ReferenceDataChangeOutcome,
   type ReferenceDataItem
 } from '../use-cases/reference-data.use-case.ts'
 import {
-  referenceDataSavedKey,
+  allowListActiveTabKey,
+  allowListSavedKey,
+  toAdminHref
+} from '../view-models/allow-list-page.view-model.ts'
+import {
   toErrorSummary,
   toItemForm,
-  toReferenceDataHref,
   toReferenceDataPage,
+  toReferenceDataTabHref,
+  toReferenceDataUnavailablePage,
   toRefusalError,
   validateItem,
   type ItemFieldError,
@@ -51,6 +56,7 @@ const changeItemPayload = Joi.object({
 const base = '/grant-ops/grants/{code}/admin/reference-data/{name}'
 const forbidden = 403
 const badRequest = 400
+const badGateway = 502
 
 /** GAS answers every refusal of access, or of a set it doesn't hold, for real. */
 const respondToFailure = (error: unknown): never => {
@@ -71,7 +77,7 @@ const respondToFailure = (error: unknown): never => {
 
 const loadSet = async ({ code, name }: SetParams) => {
   try {
-    return await getDbReferenceDataUseCase(code, name)
+    return await viewReferenceDataUseCase(code, name)
   } catch (error) {
     return respondToFailure(error)
   }
@@ -90,14 +96,16 @@ const findItem = async (params: ItemParams) => {
   return item
 }
 
+/** Every change lands back on the admin page's Reference data tab. */
 const savedAndBack = (
   request: Request,
   h: ResponseToolkit,
   { code, name }: SetParams,
   notice: string
 ) => {
-  request.yar.flash(referenceDataSavedKey, notice)
-  return h.redirect(toReferenceDataHref(code, name)).code(303)
+  request.yar.flash(allowListSavedKey, `${name}: ${notice}`)
+  request.yar.flash(allowListActiveTabKey, 'reference-data')
+  return h.redirect(toAdminHref(code)).code(303)
 }
 
 interface ItemFormPage {
@@ -133,7 +141,7 @@ const viewItemForm = (
       code,
       name,
       codeEditable: page.editableKeys.includes('code'),
-      backHref: toReferenceDataHref(code, name),
+      backHref: toReferenceDataTabHref(code),
       errorSummary: toErrorSummary(errors),
       form: toItemForm(form, errors)
     })
@@ -155,19 +163,31 @@ const refusedForm = (
     outcome.statusCode
   )
 
+const isServiceUnavailable = (error: unknown) =>
+  (error as { output?: { statusCode?: number } } | null)?.output?.statusCode ===
+  badGateway
+
+/** Read only: for an endpoint set this is where its service is called, and the only page that fails if it can't answer. */
 export const viewReferenceDataRoute: ServerRoute = {
   method: 'GET',
   path: base,
   options: { validate: { params: setParams } },
   async handler(request: Request, h: ResponseToolkit) {
-    const params = request.params as unknown as SetParams
-    const set = await loadSet(params)
-    const [saved] = request.yar.flash(referenceDataSavedKey)
+    const { code, name } = request.params as unknown as SetParams
 
-    return h.view(
-      'reference-data',
-      toReferenceDataPage(params.code, set, saved)
-    )
+    try {
+      const view = await viewReferenceDataUseCase(code, name)
+
+      return h.view('reference-data', toReferenceDataPage(code, view))
+    } catch (error) {
+      if (isServiceUnavailable(error)) {
+        return h
+          .view('reference-data', toReferenceDataUnavailablePage(code, name))
+          .code(badGateway)
+      }
+
+      return respondToFailure(error)
+    }
   }
 }
 
@@ -263,7 +283,7 @@ export const removeReferenceDataItemRoute: ServerRoute = {
       code: params.code,
       name: params.name,
       item,
-      backHref: toReferenceDataHref(params.code, params.name)
+      backHref: toReferenceDataTabHref(params.code)
     })
   }
 }

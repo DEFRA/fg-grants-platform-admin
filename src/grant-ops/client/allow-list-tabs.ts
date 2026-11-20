@@ -1,5 +1,13 @@
-const shouldSelectAllowList = (tabs: HTMLElement): boolean =>
-  !window.location.hash && tabs.dataset.activeTab === 'who-can-apply'
+const defaultTab = 'grant-setup'
+
+/** The tab the server chose, unless it's the one GOV.UK Tabs selects anyway. */
+const chosenTab = (tabs: HTMLElement): string | undefined => {
+  const { activeTab } = tabs.dataset
+
+  return !window.location.hash && activeTab && activeTab !== defaultTab
+    ? activeTab
+    : undefined
+}
 
 const selectInitialTab = (tabs: HTMLElement): void => {
   // GOV.UK Tabs reads the fragment during initialisation. Remove our temporary
@@ -14,12 +22,14 @@ const selectInitialTab = (tabs: HTMLElement): void => {
     return
   }
 
-  if (!shouldSelectAllowList(tabs)) {
+  const tab = chosenTab(tabs)
+
+  if (!tab) {
     return
   }
 
-  tabs.dataset.initialTabFragment = 'who-can-apply'
-  window.history.replaceState(null, '', '#who-can-apply')
+  tabs.dataset.initialTabFragment = tab
+  window.history.replaceState(null, '', `#${tab}`)
 }
 
 export const selectDefaultAllowListTab = (

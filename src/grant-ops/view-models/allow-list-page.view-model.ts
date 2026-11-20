@@ -5,6 +5,12 @@ export const allowListActiveTabKey = 'allowListActiveTab'
 
 type AllowListTab = 'grant-setup' | 'who-can-apply' | 'reference-data'
 
+const tabTitles: Record<AllowListTab, string> = {
+  'grant-setup': 'Grant setup',
+  'who-can-apply': 'Who can apply',
+  'reference-data': 'Reference data'
+}
+
 interface ErrorSummaryItem {
   text: string
   href?: string
@@ -50,7 +56,7 @@ const toPage = ({
 }: PageOptions): AllowListPage => ({
   activeTab,
   code,
-  pageTitle: `${errorSummary.length ? 'Error: ' : ''}${activeTab === 'grant-setup' ? 'Grant setup' : 'Who can apply'}`,
+  pageTitle: `${errorSummary.length ? 'Error: ' : ''}${tabTitles[activeTab]}`,
   formAction: toAdminHref(code),
   form: view,
   errorSummary,
@@ -59,7 +65,9 @@ const toPage = ({
 })
 
 const toActiveTab = (activeTab: string | undefined): AllowListTab =>
-  activeTab === 'who-can-apply' ? activeTab : 'grant-setup'
+  activeTab === 'who-can-apply' || activeTab === 'reference-data'
+    ? activeTab
+    : 'grant-setup'
 
 export const toAllowListPage = (
   code: string,

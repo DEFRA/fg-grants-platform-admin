@@ -177,14 +177,13 @@ describe('viewAllowListRoute', () => {
     )
   })
 
-  test('renders setup, who-can-apply and reference data tabs with setup selected on normal entry', async () => {
+  test('renders setup then who-can-apply tabs with setup selected on normal entry', async () => {
     const { $ } = await viewPage()
     const tabs = $('.govuk-tabs__list-item')
 
     expect(tabs.map((_, tab) => $(tab).text().trim()).get()).toEqual([
       'Grant setup',
-      'Who can apply',
-      'Reference data'
+      'Who can apply'
     ])
     expect(tabs.eq(0).hasClass('govuk-tabs__list-item--selected')).toBe(true)
     expect($('.govuk-tabs').attr('data-active-tab')).toBe('grant-setup')

@@ -7,9 +7,9 @@ import { getGrantSettings } from '../repositories/grant-settings.repository.ts'
 import {
   addDbReferenceDataItem,
   changeDbReferenceDataItem,
-  getDbReferenceData,
   listGrantReferenceData,
-  removeDbReferenceDataItem
+  removeDbReferenceDataItem,
+  viewReferenceData
 } from '../repositories/reference-data.repository.ts'
 import { createServer } from '../../server/index.ts'
 import { grantOps } from '../index.ts'
@@ -18,7 +18,8 @@ vi.mock(import('../repositories/reference-data.repository.ts'))
 vi.mock(import('../repositories/grant-settings.repository.ts'))
 vi.mock(import('../use-cases/get-allow-list.use-case.ts'))
 
-const base = '/grant-ops/grants/pigs-might-fly/admin/reference-data/fly-db'
+const admin = '/grant-ops/grants/pigs-might-fly/admin'
+const base = `${admin}/reference-data/landing-site`
 const auth = {
   strategy: 'session',
   credentials: {
@@ -27,11 +28,14 @@ const auth = {
   }
 }
 
-const held = {
-  name: 'fly-db',
-  items: [{ code: 'WINGS', description: 'Wings' }],
-  updatedAt: null
+const landingSite = {
+  name: 'landing-site',
+  source: 'db' as const,
+  editable: true,
+  items: [{ code: 'BARN', description: 'Barn roof' }]
 }
+
+const held = { name: 'landing-site', items: landingSite.items, updatedAt: null }
 
 /** A wreck-thrown non-2xx, matching what @hapi/wreck attaches to the error. */
 const gasError = (statusCode: number, message: string) =>
@@ -58,7 +62,34 @@ beforeAll(async () => {
 })
 
 beforeEach(() => {
-  vi.mocked(getDbReferenceData).mockResolvedValue(held)
+  vi.mocked(getAllowListUseCase).mockResolvedValue({
+    sbi: { key: 'sbi', label: 'SBIs', value: '', hint: '' },
+    crn: { key: 'crn', label: 'CRNs', value: '', hint: '' },
+    errorSummary: []
+  })
+  vi.mocked(getGrantSettings).mockResolvedValue({
+    grantCode: 'pigs-might-fly',
+    open: true
+  })
+  vi.mocked(listGrantReferenceData).mockResolvedValue({
+    grantCode: 'pigs-might-fly',
+    referenceData: [
+      {
+        name: 'fly',
+        source: 'endpoint',
+        editable: false,
+        service: 'GRANT_FUNDING_CALCULATOR'
+      },
+      {
+        name: 'pig-colour',
+        source: 'inline',
+        editable: false,
+        items: [{ code: 'PINK', description: 'Pink' }]
+      },
+      landingSite
+    ]
+  })
+  vi.mocked(viewReferenceData).mockResolvedValue(landingSite)
   vi.mocked(addDbReferenceDataItem).mockResolvedValue(held)
   vi.mocked(changeDbReferenceDataItem).mockResolvedValue(held)
   vi.mocked(removeDbReferenceDataItem).mockResolvedValue(held)
@@ -68,82 +99,115 @@ afterAll(async () => {
   await server.stop()
 })
 
-describe('grant admin page', () => {
-  test('lists the reference data and links only the set held in GAS', async () => {
-    vi.mocked(getAllowListUseCase).mockResolvedValue({
-      sbi: { key: 'sbi', label: 'SBIs', value: '', hint: '' },
-      crn: { key: 'crn', label: 'CRNs', value: '', hint: '' },
-      errorSummary: []
-    })
-    vi.mocked(getGrantSettings).mockResolvedValue({
-      grantCode: 'pigs-might-fly',
-      open: true
-    })
-    vi.mocked(listGrantReferenceData).mockResolvedValue({
-      grantCode: 'pigs-might-fly',
-      referenceData: [
-        { name: 'fly-inline', source: 'inline', editable: false },
-        { name: 'fly-db', source: 'db', editable: true, itemCount: 1 },
-        { name: 'fly-endpoint', source: 'endpoint', editable: false }
-      ]
-    })
+const section = ($: ReturnType<typeof load>, name: string) =>
+  $(`[data-testid="reference-data-set"][data-name="${name}"]`)
 
-    const { $, statusCode } = await get(
-      '/grant-ops/grants/pigs-might-fly/admin'
-    )
-    const rows = $('[data-testid="reference-data-set"]')
+describe('Reference data tab', () => {
+  test('shows every list with where it comes from', async () => {
+    const { $, statusCode } = await get(admin)
 
     expect(statusCode).toBe(200)
     expect(
-      rows.map((_, row) => $(row).find('td').first().text().trim()).get()
-    ).toEqual(['fly-inline', 'fly-db', 'fly-endpoint'])
-    expect(rows.find('a').attr('href')).toBe(base)
-    expect(rows.eq(1).text()).toContain('Held in GAS')
+      $('[data-testid="reference-data-set"] h3')
+        .map((_, heading) => $(heading).text().trim())
+        .get()
+    ).toEqual(['fly', 'pig-colour', 'landing-site'])
+    expect(section($, 'fly').text()).toContain(
+      'From the grant funding calculator service. Changes in that service, not here.'
+    )
+    expect(section($, 'pig-colour').text()).toContain(
+      'Changes when a new grant version is published.'
+    )
+  })
+
+  test('lets the operator change only the list held in GAS', async () => {
+    const { $ } = await get(admin)
+
+    expect(section($, 'landing-site').find('a[href$="/change"]')).toHaveLength(
+      1
+    )
+    expect(
+      section($, 'landing-site')
+        .find('[data-testid="reference-data-add"]')
+        .attr('href')
+    ).toBe(`${base}/new`)
+    expect(section($, 'pig-colour').text()).toContain('Pink')
+    expect(section($, 'pig-colour').find('a')).toHaveLength(0)
+  })
+
+  test('links an endpoint list without fetching its items', async () => {
+    const { $ } = await get(admin)
+
+    expect(
+      section($, 'fly').find('[data-testid="reference-data-view"]').attr('href')
+    ).toBe(`${admin}/reference-data/fly`)
+    expect(viewReferenceData).not.toHaveBeenCalled()
+  })
+
+  test('has no tab when the grant declares no lists', async () => {
+    vi.mocked(listGrantReferenceData).mockResolvedValue({
+      grantCode: 'pigs-might-fly',
+      referenceData: []
+    })
+
+    const { $ } = await get(admin)
+
+    expect($('a[href="#reference-data"]')).toHaveLength(0)
+    expect($('#reference-data')).toHaveLength(0)
   })
 })
 
-describe('reference data items', () => {
-  test('shows the items GAS holds with change and remove links', async () => {
-    const { $, statusCode } = await get(base)
+describe('viewing an endpoint list', () => {
+  const flyUrl = `${admin}/reference-data/fly`
+
+  test('fetches and shows its current items, read only', async () => {
+    vi.mocked(viewReferenceData).mockResolvedValue({
+      name: 'fly',
+      source: 'endpoint',
+      editable: false,
+      service: 'GRANT_FUNDING_CALCULATOR',
+      items: [{ code: 'WINGS', description: 'Wings' }]
+    })
+
+    const { $, statusCode } = await get(flyUrl)
 
     expect(statusCode).toBe(200)
     expect($('[data-testid="reference-data-item"]').text()).toContain('Wings')
-    expect($(`a[href="${base}/items/WINGS/change"]`)).toHaveLength(1)
-    expect($(`a[href="${base}/items/WINGS/remove"]`)).toHaveLength(1)
-    expect($('[data-testid="reference-data-add"]').attr('href')).toBe(
-      `${base}/new`
-    )
+    expect($('main a[href$="/change"]')).toHaveLength(0)
   })
 
-  test('refuses a set GAS does not hold, as GAS answered', async () => {
-    vi.mocked(getDbReferenceData).mockRejectedValue(
-      gasError(409, 'Reference data "fly-inline" comes from inline')
-    )
+  test('says so when the service cannot answer', async () => {
+    vi.mocked(viewReferenceData).mockRejectedValue(gasError(502, 'down'))
 
-    expect((await get(base)).statusCode).toBe(409)
+    const { $, statusCode } = await get(flyUrl)
+
+    expect(statusCode).toBe(502)
+    expect($('[data-testid="reference-data-unavailable"]').text()).toContain(
+      "Couldn't load these items"
+    )
   })
 
   test('forbids an operator GAS refuses administration to', async () => {
-    vi.mocked(getDbReferenceData).mockRejectedValue(gasError(403, 'Forbidden'))
+    vi.mocked(viewReferenceData).mockRejectedValue(gasError(403, 'Forbidden'))
 
-    expect((await get(base)).statusCode).toBe(403)
+    expect((await get(flyUrl)).statusCode).toBe(403)
   })
 })
 
 describe('adding an item', () => {
-  test('adds the trimmed item and goes back to the list', async () => {
+  test('adds the trimmed item and goes back to the Reference data tab', async () => {
     const response = await post(`${base}/new`, {
-      code: ' GLIDERS ',
-      description: ' Gliders '
+      code: ' WELL ',
+      description: ' Well cover '
     })
 
     expect(addDbReferenceDataItem).toHaveBeenCalledWith(
       'pigs-might-fly',
-      'fly-db',
-      { code: 'GLIDERS', description: 'Gliders' }
+      'landing-site',
+      { code: 'WELL', description: 'Well cover' }
     )
     expect(response.statusCode).toBe(303)
-    expect(response.headers.location).toBe(base)
+    expect(response.headers.location).toBe(admin)
   })
 
   test('asks for blank fields without calling GAS', async () => {
@@ -154,9 +218,6 @@ describe('adding an item', () => {
 
     expect(statusCode).toBe(400)
     expect(addDbReferenceDataItem).not.toHaveBeenCalled()
-    expect($('[data-testid="reference-data-errors"]').text()).toContain(
-      'Enter a code'
-    )
     expect($('#code-error').text()).toContain('Enter a code')
     expect($('#description-error').text()).toContain('Enter a description')
   })
@@ -165,65 +226,65 @@ describe('adding an item', () => {
     vi.mocked(addDbReferenceDataItem).mockRejectedValue(
       gasError(
         409,
-        'Reference data "fly-db" already has an item with code "WINGS"'
+        'Reference data "landing-site" already has an item with code "BARN"'
       )
     )
 
     const { $, statusCode } = await post(`${base}/new`, {
-      code: 'WINGS',
-      description: 'More wings'
+      code: 'BARN',
+      description: 'Another barn'
     })
 
     expect(statusCode).toBe(409)
     expect($('#code-error').text()).toContain('already has an item')
-    expect($('#code').val()).toBe('WINGS')
+    expect($('#code').val()).toBe('BARN')
   })
 })
 
 describe('changing an item', () => {
   test('shows the item with its code fixed', async () => {
-    const { $, statusCode } = await get(`${base}/items/WINGS/change`)
+    const { $, statusCode } = await get(`${base}/items/BARN/change`)
 
     expect(statusCode).toBe(200)
     expect($('#code')).toHaveLength(0)
-    expect($('#description').val()).toBe('Wings')
+    expect($('#description').val()).toBe('Barn roof')
   })
 
-  test('is not found for an item the set does not hold', async () => {
+  test('is not found for an item the list does not hold', async () => {
     expect((await get(`${base}/items/NOPE/change`)).statusCode).toBe(404)
   })
 
   test('saves the new description', async () => {
-    const response = await post(`${base}/items/WINGS/change`, {
-      description: 'Feathered wings'
+    const response = await post(`${base}/items/BARN/change`, {
+      description: 'Big barn roof'
     })
 
     expect(changeDbReferenceDataItem).toHaveBeenCalledWith(
       'pigs-might-fly',
-      'fly-db',
-      'WINGS',
-      'Feathered wings'
+      'landing-site',
+      'BARN',
+      'Big barn roof'
     )
-    expect(response.headers.location).toBe(base)
+    expect(response.headers.location).toBe(admin)
   })
 })
 
 describe('removing an item', () => {
   test('asks for confirmation first', async () => {
-    const { $ } = await get(`${base}/items/WINGS/remove`)
+    const { $ } = await get(`${base}/items/BARN/remove`)
 
-    expect($('h1').text()).toContain('remove WINGS')
+    expect($('h1').text()).toContain('remove BARN')
     expect(removeDbReferenceDataItem).not.toHaveBeenCalled()
   })
 
   test('removes the item once confirmed', async () => {
-    const response = await post(`${base}/items/WINGS/remove`)
+    const response = await post(`${base}/items/BARN/remove`)
 
     expect(removeDbReferenceDataItem).toHaveBeenCalledWith(
       'pigs-might-fly',
-      'fly-db',
-      'WINGS'
+      'landing-site',
+      'BARN'
     )
-    expect(response.headers.location).toBe(base)
+    expect(response.headers.location).toBe(admin)
   })
 })

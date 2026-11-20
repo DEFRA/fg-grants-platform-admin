@@ -1,11 +1,9 @@
 import type {
-  DbReferenceData,
   ReferenceDataItem,
-  ReferenceDataSummary
+  ReferenceDataSummary,
+  ReferenceDataView
 } from '../use-cases/reference-data.use-case.ts'
 import { toAdminHref } from './allow-list-page.view-model.ts'
-
-export const referenceDataSavedKey = 'referenceDataSaved' as const
 
 export type ItemFieldKey = 'code' | 'description'
 
@@ -19,13 +17,35 @@ interface ErrorSummaryItem {
   href: string
 }
 
-const sourceLabels: Record<ReferenceDataSummary['source'], string> = {
-  inline: 'Grant definition',
-  db: 'Held in GAS',
-  endpoint: 'Another service'
+const enc = encodeURIComponent
+
+/** A service as GAS names it, such as GRANT_FUNDING_CALCULATOR, read aloud. */
+const toServiceName = (service: string | undefined): string =>
+  service
+    ? `the ${service.toLowerCase().replaceAll('_', ' ')} service`
+    : 'another service'
+
+const toSourceLabel = ({ source, service }: ReferenceDataSummary): string => {
+  if (source === 'endpoint') {
+    return `From ${toServiceName(service)}`
+  }
+
+  return source === 'db' ? 'Held in GAS' : 'Set in the grant definition'
 }
 
-const enc = encodeURIComponent
+/** Where a change to a read-only set has to happen. */
+const toChangeNote = ({ source }: ReferenceDataSummary): string | undefined => {
+  if (source === 'inline') {
+    return 'Changes when a new grant version is published.'
+  }
+
+  return source === 'endpoint'
+    ? 'Changes in that service, not here.'
+    : undefined
+}
+
+export const toReferenceDataTabHref = (code: string): string =>
+  `${toAdminHref(code)}#reference-data`
 
 export const toReferenceDataHref = (code: string, name: string): string =>
   `${toAdminHref(code)}/reference-data/${enc(name)}`
@@ -48,34 +68,60 @@ export const toRemoveItemHref = (
   itemCode: string
 ): string => `${toItemHref(code, name, itemCode)}/remove`
 
-/** One row of the admin page's Reference data tab. Only a db set links anywhere. */
-export const toReferenceDataRows = (
+const toRows = (
+  code: string,
+  { name, editable }: ReferenceDataSummary,
+  items: ReferenceDataItem[]
+) =>
+  items.map((item) => ({
+    ...item,
+    ...(editable && {
+      changeHref: toChangeItemHref(code, name, item.code),
+      removeHref: toRemoveItemHref(code, name, item.code)
+    })
+  }))
+
+/**
+ * One section of the admin page's Reference data tab per set. Items GAS
+ * already has are shown in place; an endpoint set links to a page that fetches
+ * them, so the tab never waits on another service.
+ */
+export const toReferenceDataSections = (
   code: string,
   referenceData: ReferenceDataSummary[]
 ) =>
   referenceData.map((summary) => ({
     name: summary.name,
-    source: sourceLabels[summary.source],
-    itemCount: summary.itemCount,
-    href: summary.editable ? toReferenceDataHref(code, summary.name) : undefined
+    label: toSourceLabel(summary),
+    note: toChangeNote(summary),
+    editable: summary.editable,
+    rows: summary.items ? toRows(code, summary, summary.items) : undefined,
+    addHref: summary.editable ? toNewItemHref(code, summary.name) : undefined,
+    viewHref:
+      summary.source === 'endpoint'
+        ? toReferenceDataHref(code, summary.name)
+        : undefined
   }))
 
-export const toReferenceDataPage = (
-  code: string,
-  set: DbReferenceData,
-  saved: string | undefined
-) => ({
-  pageTitle: `Reference data ${set.name}`,
+export const toReferenceDataPage = (code: string, view: ReferenceDataView) => ({
+  pageTitle: `Reference data ${view.name}`,
   code,
-  name: set.name,
-  adminHref: `${toAdminHref(code)}#reference-data`,
-  newItemHref: toNewItemHref(code, set.name),
-  saved,
-  rows: set.items.map((item) => ({
-    ...item,
-    changeHref: toChangeItemHref(code, set.name, item.code),
-    removeHref: toRemoveItemHref(code, set.name, item.code)
-  }))
+  name: view.name,
+  label: toSourceLabel(view),
+  note: toChangeNote(view),
+  backHref: toReferenceDataTabHref(code),
+  rows: toRows(code, view, view.items)
+})
+
+/** The set's service didn't answer: say so on its own page, and nowhere else. */
+export const toReferenceDataUnavailablePage = (code: string, name: string) => ({
+  pageTitle: `Reference data ${name}`,
+  code,
+  name,
+  backHref: toReferenceDataTabHref(code),
+  unavailable:
+    "Couldn't load these items from the service right now. Try again later.",
+  rows: []
 })
 
 /** Blank fields are caught here; GAS decides everything else an item may hold. */

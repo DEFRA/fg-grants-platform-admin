@@ -10,11 +10,18 @@ import {
 
 export type ReferenceDataSource = 'inline' | 'db' | 'endpoint'
 
+export interface ReferenceDataItem {
+  code: string
+  description: string
+}
+
+/** One set as the admin page lists it: an endpoint set names its service but carries no items. */
 export interface ReferenceDataSummary {
   name: string
   source: ReferenceDataSource
   editable: boolean
-  itemCount?: number
+  service?: string
+  items?: ReferenceDataItem[]
 }
 
 export interface GrantReferenceData {
@@ -22,9 +29,9 @@ export interface GrantReferenceData {
   referenceData: ReferenceDataSummary[]
 }
 
-export interface ReferenceDataItem {
-  code: string
-  description: string
+/** One set's current items, fetched now from whichever source it names. */
+export interface ReferenceDataView extends ReferenceDataSummary {
+  items: ReferenceDataItem[]
 }
 
 export interface DbReferenceData {
@@ -33,34 +40,39 @@ export interface DbReferenceData {
   updatedAt: string | null
 }
 
-const source = Joi.string().valid('inline', 'db', 'endpoint').required()
+const item = Joi.object({
+  code: Joi.string().required(),
+  description: Joi.string().required()
+}).unknown(true)
+
+const summary = {
+  name: Joi.string().required(),
+  source: Joi.string().valid('inline', 'db', 'endpoint').required(),
+  editable: Joi.boolean().strict().required(),
+  service: Joi.string()
+}
 
 const grantReferenceDataSchema = Joi.object({
   grantCode: Joi.string().required(),
   referenceData: Joi.array()
     .items(
-      Joi.object({
-        name: Joi.string().required(),
-        source,
-        editable: Joi.boolean().strict().required(),
-        itemCount: Joi.number().integer().min(0)
-      }).unknown(true)
+      Joi.object({ ...summary, items: Joi.array().items(item) }).unknown(true)
     )
     .required()
 })
   .unknown(true)
   .required()
 
+const viewSchema = Joi.object({
+  ...summary,
+  items: Joi.array().items(item).required()
+})
+  .unknown(true)
+  .required()
+
 const dbReferenceDataSchema = Joi.object({
   name: Joi.string().required(),
-  items: Joi.array()
-    .items(
-      Joi.object({
-        code: Joi.string().required(),
-        description: Joi.string().required()
-      }).unknown(true)
-    )
-    .required(),
+  items: Joi.array().items(item).required(),
   updatedAt: Joi.string().allow(null).required()
 })
   .unknown(true)
@@ -83,7 +95,7 @@ const setPath = (code: string, name: string): string =>
 const itemPath = (code: string, name: string, itemCode: string): string =>
   `${setPath(code, name)}/items/${encodeURIComponent(itemCode)}`
 
-const checkedSet = (body: DbReferenceData): DbReferenceData =>
+const checkedDbSet = (body: DbReferenceData): DbReferenceData =>
   checked(dbReferenceDataSchema, body, 'reference data')
 
 export const listGrantReferenceData = async (
@@ -95,21 +107,26 @@ export const listGrantReferenceData = async (
     'reference data list'
   )
 
-export const getDbReferenceData = async (
+/** For an endpoint set, GAS fetches from the service now: a 502 means the service didn't answer. */
+export const viewReferenceData = async (
   code: string,
   name: string
-): Promise<DbReferenceData> =>
-  checkedSet(await getFromGas<DbReferenceData>(setPath(code, name)))
+): Promise<ReferenceDataView> =>
+  checked(
+    viewSchema,
+    await getFromGas<ReferenceDataView>(setPath(code, name)),
+    'reference data'
+  )
 
 /** A non-2xx rejects with wreck's Boom unchanged: callers read the status and body from it. */
 export const addDbReferenceDataItem = async (
   code: string,
   name: string,
-  item: ReferenceDataItem
+  newItem: ReferenceDataItem
 ): Promise<DbReferenceData> =>
-  checkedSet(
+  checkedDbSet(
     await postToGas<DbReferenceData>(`${setPath(code, name)}/items`, {
-      payload: item
+      payload: newItem
     })
   )
 
@@ -120,7 +137,7 @@ export const changeDbReferenceDataItem = async (
   itemCode: string,
   description: string
 ): Promise<DbReferenceData> =>
-  checkedSet(
+  checkedDbSet(
     await putToGas<DbReferenceData>(itemPath(code, name, itemCode), {
       payload: { description }
     })
@@ -132,6 +149,6 @@ export const removeDbReferenceDataItem = async (
   name: string,
   itemCode: string
 ): Promise<DbReferenceData> =>
-  checkedSet(
+  checkedDbSet(
     await deleteFromGas<DbReferenceData>(itemPath(code, name, itemCode))
   )

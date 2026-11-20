@@ -1,18 +1,18 @@
 import {
   addDbReferenceDataItem,
   changeDbReferenceDataItem,
-  getDbReferenceData,
   listGrantReferenceData,
   removeDbReferenceDataItem,
+  viewReferenceData,
   type ReferenceDataItem
 } from '../repositories/reference-data.repository.ts'
 import { toGasRefusal } from './gas-refusal.ts'
 
 export type {
-  DbReferenceData,
   GrantReferenceData,
   ReferenceDataItem,
-  ReferenceDataSummary
+  ReferenceDataSummary,
+  ReferenceDataView
 } from '../repositories/reference-data.repository.ts'
 
 /** GAS decides what an item may hold; a refusal it explains is the operator's to fix. */
@@ -50,7 +50,7 @@ const outcomeOf = async (
 /** GAS enforces admin access on each of these calls for real. */
 export const listGrantReferenceDataUseCase = listGrantReferenceData
 
-export const getDbReferenceDataUseCase = getDbReferenceData
+export const viewReferenceDataUseCase = viewReferenceData
 
 export const addReferenceDataItemUseCase = (
   code: string,
