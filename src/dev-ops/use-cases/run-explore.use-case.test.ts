@@ -377,21 +377,34 @@ describe('runExploreUseCase', () => {
   })
 
   test.each([
-    ['events/gas/outbox', 'GAS', 'outbox'],
-    ['events/gas/inbox', 'GAS', 'inbox'],
-    ['events/cw/outbox', 'CW', 'outbox'],
-    ['events/cw/inbox', 'CW', 'inbox']
-  ])('opens %s with its service and box', async (from, service, box) => {
+    ['events/gas', 'GAS', ['outbox'], ", box: 'outbox'"],
+    ['events/cw', 'CW', ['inbox'], ", box: 'inbox'"],
+    ['events/gas', 'GAS', [], ''],
+    ['events/cw', 'CW', ['outbox', 'inbox'], '']
+  ])(
+    'opens %s with its service, and its box when %j is the one queue picked',
+    async (from, service, queues, box) => {
+      expect(
+        await heldText(
+          listed(from, {
+            facts: { box: queues, eventType: 'CreateCase' },
+            search: 'id:66f000000000000000000001'
+          })
+        )
+      ).toBe(
+        `db.events.find(\n  { service: '${service}'${box}, eventType: 'CreateCase', refs: 'id:66f000000000000000000001' },\n  { publicationDate: 1, eventType: 1, status: 1, 'event.id': 1, 'lastError.message': 1 }\n).sort({ publicationDate: -1 })`
+      )
+    }
+  )
+
+  test('opens an Event picked outside the queue picked as the list reads it: that queue, that event', async () => {
     expect(
       await heldText(
-        listed(from, {
-          facts: { eventType: 'CreateCase' },
-          search: 'id:66f000000000000000000001'
+        listed('events/gas', {
+          facts: { box: ['inbox'], eventType: ['Audit'] }
         })
       )
-    ).toBe(
-      `db.events.find(\n  { service: '${service}', box: '${box}', eventType: 'CreateCase', refs: 'id:66f000000000000000000001' },\n  { publicationDate: 1, eventType: 1, status: 1, 'event.id': 1, 'lastError.message': 1 }\n).sort({ publicationDate: -1 })`
-    )
+    ).toContain("{ service: 'GAS', box: 'inbox', eventType: 'Audit' }")
   })
 
   test('asks GAS only where the list is, then reads what it shows from the list GAS named', async () => {

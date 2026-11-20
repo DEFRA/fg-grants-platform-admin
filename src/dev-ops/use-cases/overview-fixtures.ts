@@ -48,8 +48,9 @@ const topError = ({
   capped: false,
   lastAt,
   list: {
-    path: `events/${service}/${box}`,
+    path: `events/${service}`,
     query: {
+      queue: box,
       status: 'DEAD_LETTER',
       ...(errorKey === null ? {} : { error: errorKey }),
       event

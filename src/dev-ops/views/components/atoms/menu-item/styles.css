@@ -31,8 +31,9 @@
   outline: var(--focus-ring-width) solid var(--border-focus);
   outline-offset: var(--focus-ring-offset-inset);
 }
-.gpa-menuitem[aria-checked="true"] {
+.gpa-menuitem[aria-checked="true"] .gpa-menuitem-label {
   font-weight: 500;
+  letter-spacing: var(--tracking-picked);
 }
 .gpa-menuitem[disabled] {
   color: var(--fg-disabled);

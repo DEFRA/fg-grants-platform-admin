@@ -267,26 +267,29 @@ describe.each(lists)('the $name list', (list) => {
     given(answered(exact(list)))
 
     const { $ } = await view(
-      `${list.path}?status=active&definition=permanent_error&${list.param}=woodland-creation`
+      `${list.path}?status=active&status=draft&definition=permanent_error&definition=transient_error&${list.param}=woodland-creation&${list.param}=example-grant`
     )
     const chipLabels = $('[data-testid^="list-chip-"] .gpa-chip-label')
       .toArray()
       .map((label) => $(label).text().replace(':', '').trim())
 
-    expect(tags($).map((tag) => tag.split(' is ')[0])).toEqual(
+    expect([...new Set(tags($).map((tag) => tag.split(' is ')[0]))]).toEqual(
       chipLabels.filter((label) =>
         tags($).some((tag) => tag.startsWith(`${label} is`))
       )
     )
-    expect(tags($)).toHaveLength(3)
+    expect(tags($)).toHaveLength(6)
   })
 
-  test('the applied tag says Stored, as the chip does', async () => {
+  test('one Stored value: the chip says it, as the menu does, with no tag', async () => {
     given(answered(exact(list)))
 
     const { $ } = await view(`${list.path}?definition=permanent_error`)
 
-    expect(tags($)).toEqual(['Stored is Failed'])
+    expect(
+      by($, `list-chip-${list.stored}`).find('.gpa-chip-value').text()
+    ).toBe('Failed')
+    expect(tags($)).toEqual([])
   })
 
   test('two Stored values: 2 selected, a tag each in the menu’s order, and both asked for', async () => {

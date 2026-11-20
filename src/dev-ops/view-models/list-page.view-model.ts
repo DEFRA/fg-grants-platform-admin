@@ -1,7 +1,7 @@
 import { statusCodes } from '../../common/status-codes.ts'
 import { isUnanswered } from '../use-cases/gas-status.ts'
 import type { GasFailure } from '../use-cases/gas-status.ts'
-import type { ListTotal, Position } from '../use-cases/record-reads.ts'
+import type { ListTotal } from '../use-cases/record-reads.ts'
 import type {
   BucketCell,
   BucketEntry,
@@ -10,6 +10,7 @@ import type {
   BucketResult,
   BucketRow
 } from '../repositories/buckets.repository.ts'
+import { queueFact } from '../use-cases/list-bucket.use-case.ts'
 import type {
   BucketListResult,
   StoppedPage
@@ -18,7 +19,6 @@ import { toBucketHref, toRowHref } from './bucket-links.ts'
 import type { BucketFilters } from './bucket-links.ts'
 import { explorePath, toBucketPath } from './bucket-nav.ts'
 import type { CaseworkingList } from './bucket-nav.ts'
-import { pageMates, toPageHead } from './bucket-tabs.ts'
 import { toUrlQuery } from './bucket-urls.ts'
 import {
   presentationOf,
@@ -29,8 +29,21 @@ import {
   toTone,
   toVersionColumn
 } from './catalogue-presentation.ts'
-import type { ListColumn, Tone } from './catalogue-presentation.ts'
-import { isIsoInstant } from './event-formats.ts'
+import type {
+  ListColumn,
+  NarrowColumn,
+  Tone
+} from './catalogue-presentation.ts'
+import {
+  errorKeyFact,
+  errorKindLabel,
+  errorParamOf,
+  errorAtField,
+  shownErrorField,
+  toErrorKind,
+  toErrorText
+} from './error-search.ts'
+import { isIsoInstant, shortId } from './event-formats.ts'
 import { opensInExplore } from '../use-cases/explore-queries.ts'
 import { toFailureText } from './failure-text.ts'
 import { toFields } from './list-filters.ts'
@@ -64,8 +77,6 @@ export interface ListPageInput {
   /** Null when nothing was read: the address named a filter the list doesn't declare. */
   read: BucketListResult | null
   filters: BucketFilters
-  /** Every list of the catalogue, for the ones that share this one's page. */
-  buckets: BucketEntry[]
   times: Times
   /** The search the page ran, and the id its later pages name it by; none for a browse. */
   search: { q: string; id: string } | null
@@ -79,6 +90,8 @@ export interface ListPageInput {
   pageRows?: number[]
   /** A later page of those that couldn't be read. */
   stopped?: StoppedPage | null
+  /** The queue whose read failed the page, of a list over several. */
+  failedQueue?: string | null
   /** The address came from a later page of a search no longer held. */
   notice?: ListNotice
   attempt?: SearchAttempt
@@ -86,7 +99,8 @@ export interface ListPageInput {
   now?: Date
 }
 
-export type ListNotice = 'expired'
+/** The search held expired, or the list changed under the cursor of the page asked for. */
+export type ListNotice = 'expired' | 'changed'
 
 interface ChipItem {
   text: string
@@ -123,16 +137,14 @@ interface SearchModel {
   kinds: SearchKind[]
 }
 
-/** A removable tag: a link for a filter in the address, a submit for the search the session holds. */
-export type Applied = {
+/** A removable tag: one value of a filter whose chip reads a count, or that has no control. */
+export interface Applied {
   key: string
   label: string
   value: string
   mono: boolean
-} & (
-  | { removeHref: string }
-  | { removeName: string; removeValue: string; removeForm: string }
-)
+  removeHref: string
+}
 
 interface RangeModel {
   label: string
@@ -146,7 +158,7 @@ interface RangeModel {
   max: string
 }
 
-interface ClearSearchForm {
+interface HiddenForm {
   id: string
   action: string
   hidden: FilterField[]
@@ -162,6 +174,8 @@ export type Cell =
       subtitle: string | null
     }
   | { kind: 'text'; text: string; mono: boolean }
+  /** A long id by its ends, the whole for its title and for screen readers. */
+  | { kind: 'short'; text: string; full: string }
   | { kind: 'status'; text: string; tone: Tone; hint: string | null }
   | { kind: 'time'; time: TimeText }
   | { kind: 'none' }
@@ -169,11 +183,15 @@ export type Cell =
 interface RowModel {
   /** The row's place in the list, which Back from its page lands on. */
   id: string
-  /** The address that draws the row's page, which Back from its page goes to. */
-  restoreHref: string
+  /** Past the most an address draws, the row's page by its cursor; else the loader's address through every page shown. */
+  restoreHref: string | null
   href: string | null
-  cells: (Cell & { align: 'start' | 'right' })[]
+  cells: AlignedCell[]
+  /** On a phone, in place of the cells: each a cell, with others under it. */
+  narrowCells: { main: AlignedCell; under: Cell[]; align: 'start' | 'right' }[]
 }
+
+type AlignedCell = Cell & { align: 'start' | 'right' }
 
 type FooterState =
   | { state: 'more'; nextHref: string; noun: string }
@@ -201,6 +219,7 @@ interface TableModel {
   rows: RowModel[]
   empty: EmptyModel | null
   footer: Footer | null
+  narrowColumns: Pick<NarrowColumn, 'label' | 'width' | 'align'>[] | null
 }
 
 export interface ListAlert {
@@ -211,6 +230,7 @@ export interface ListAlert {
   text: string
   retryHref: string | null
   startHref: string | null
+  links: { text: string; href: string }[]
 }
 
 export interface ListPageModel {
@@ -218,24 +238,20 @@ export interface ListPageModel {
   navActive: string
   title: string
   meta: string[]
-  tabs: {
-    label: string
-    items: { text: string; href: string; current: boolean }[]
-  } | null
   filterLabel: string
   chips: FilterChipModel[]
   /** Null where no filters can be drawn. */
   range: RangeModel | null
   searchField: SearchModel | null
-  /** One tag per value a filter is set to, each removing it. */
+  /** One tag per value of a chip that reads a count, or of a filter with no control, each removing it. */
   applied: Applied[]
+  /** Only while a tag is shown: Clear all goes with the tags. */
   filtered: boolean
   /** How many records the filters find, "12,481 events"; null where the read was bounded or the list couldn't be read. */
   total: string | null
   clearAllHref: string
-  clearSearchForm: ClearSearchForm | null
   /** The form Open in Explore sends; null for a list Explore doesn't open. */
-  exploreForm: ClearSearchForm | null
+  exploreForm: HiddenForm | null
   alert: ListAlert | null
   table: TableModel | null
 }
@@ -261,9 +277,6 @@ interface Searched {
   value: string
 }
 
-/** The form a search tag clears the session's search with. */
-const clearSearchFormId = 'list-search-clear'
-
 const exploreFormId = 'list-explore'
 
 /** The address Clear all goes to while a search is held: it drops the search too. */
@@ -271,6 +284,9 @@ export const clearParam = 'clear'
 
 /** The first page, opened in place of a later page of a search no longer held. */
 export const expiredParam = 'expired'
+
+/** The first page, opened in place of a later page whose cursor no longer reads. */
+export const changedParam = 'changed'
 
 const counted = new Intl.NumberFormat('en-GB')
 
@@ -353,15 +369,8 @@ const withChosen = (
     .map((value) => ({ value, label: value }))
 ]
 
-/** GAS keys a thrown Error as `Error: <message>`; its tag shows the message, as the Overview's row does. */
-const errorKeyFact = 'errorKey'
-
-const shownValue = (fact: BucketFact, value: string): string =>
-  fact.name === errorKeyFact ? value.replace(/^Error: /, '') : value
-
 const labelOf = (fact: BucketFact, value: string): string =>
-  fact.values?.find((option) => String(option.value) === value)?.label ??
-  shownValue(fact, value)
+  fact.values?.find((option) => String(option.value) === value)?.label ?? value
 
 /** The chosen values in the order the chip's menu lists them. */
 const inMenuOrder = (
@@ -375,8 +384,11 @@ const inMenuOrder = (
         .filter((value) => chosen.includes(value))
     : chosen
 
+/** A chip with more than one value ticked reads their count, and its values show as tags. */
+const readsCount = (chosen: string[]): boolean => chosen.length > 1
+
 const chipText = (fact: BucketFact, chosen: string[]): string => {
-  if (chosen.length > 1) {
+  if (readsCount(chosen)) {
     return `${chosen.length} selected`
   }
 
@@ -448,11 +460,62 @@ const toSearched = (q: string): Searched | null => {
   return value.length === 0 ? null : { kind, value: value.join(':') }
 }
 
+/** The kinds the field searches by: the list's identifiers, then the error where the list has the fact. */
+const toKinds = (bucket: BucketEntry) => {
+  const param = errorParamOf(bucket)
+
+  return [
+    ...bucket.refs,
+    ...(param === null
+      ? []
+      : [{ kind: toErrorKind(param), label: errorKindLabel }])
+  ]
+}
+
+/** The error in the address is the field's search, shown as the message; else the search the session holds. */
+const toShownSearch = (context: Context): Searched | null => {
+  const [errorKey] = chosenOf(context, errorKeyFact)
+  const param = errorParamOf(context.bucket)
+
+  return errorKey && param !== null
+    ? { kind: toErrorKind(param), value: toErrorText(errorKey) }
+    : context.searched
+}
+
+/** The error is the field's to set, so the field doesn't carry the one in the address. */
+const withoutError = (filters: BucketFilters): BucketFilters =>
+  Object.fromEntries(
+    Object.entries(filters).filter(([key]) => key !== errorKeyFact)
+  )
+
+/** The key the list takes the error under, and the key the field shows the error of, so its text sent unchanged searches that key again. */
+const toErrorFields = (context: Context): FilterField[] => {
+  const param = errorParamOf(context.bucket)
+  const [errorKey] = chosenOf(context, errorKeyFact)
+
+  if (param === null) {
+    return []
+  }
+
+  return [
+    { name: errorAtField, value: param },
+    ...(errorKey ? [{ name: shownErrorField, value: errorKey }] : [])
+  ]
+}
+
 const toSearchField = (
-  { bucket, filters, searched }: Context,
+  context: Context,
   attempt?: SearchAttempt
 ): SearchModel | null => {
-  const shown = { kind: '', value: '', error: null, ...searched, ...attempt }
+  const { bucket, filters } = context
+  const kinds = toKinds(bucket)
+  const shown = {
+    kind: '',
+    value: '',
+    error: null,
+    ...toShownSearch(context),
+    ...attempt
+  }
 
   return bucket.refs.length === 0
     ? null
@@ -461,8 +524,11 @@ const toSearchField = (
         value: shown.value,
         error: shown.error,
         noun: bucket.noun.many,
-        hidden: toUrlFields(bucket, filters),
-        kinds: bucket.refs.map(({ kind, label }, index) => ({
+        hidden: [
+          ...toUrlFields(bucket, withoutError(filters)),
+          ...toErrorFields(context)
+        ],
+        kinds: kinds.map(({ kind, label }, index) => ({
           text: label,
           value: kind,
           checked: shown.kind ? kind === shown.kind : index === 0
@@ -470,76 +536,53 @@ const toSearchField = (
       }
 }
 
-const kindLabel = ({ refs }: BucketEntry, kind: string): string | null =>
-  refs.find((ref) => ref.kind === kind)?.label ?? null
+const kindLabel = (bucket: BucketEntry, kind: string): string | null =>
+  toKinds(bucket).find((ref) => ref.kind === kind)?.label ?? null
 
-const timeTags = (
-  { bucket, filters }: Context,
-  range: RangeModel
-): Applied[] =>
-  range.isSet
-    ? [
-        {
-          key: 'time',
-          label: range.label,
-          value: range.text,
-          mono: false,
-          removeHref: toBucketHref(bucket, withoutRange(filters))
-        }
-      ]
-    : []
+/** A filter with no control of its own, as a version page's link sets: only its tag shows it. */
+const hasNoControl = (fact: BucketFact): boolean =>
+  !hasValues(fact) && fact.name !== errorKeyFact
 
-const searchTags = ({ bucket, searched }: Context): Applied[] => {
-  const label = searched && kindLabel(bucket, searched.kind)
-
-  return searched && label
-    ? [
-        {
-          key: 'search',
-          label,
-          value: searched.value,
-          mono: true,
-          removeName: 'ref-value',
-          removeValue: '',
-          removeForm: clearSearchFormId
-        }
-      ]
-    : []
-}
-
-/** The words a summary stores for the rows that hold no value of a fact ("No error recorded"): said as words, not a code. */
-const isNoneOf = (bucket: BucketEntry, fact: string, value: string): boolean =>
-  bucket.summaries.some(({ by, none }) => by.includes(fact) && none === value)
-
-/** Every filter set, in the row's order: the time, the chosen values, the search, then the open facts. */
-const toSetFilters = (context: Context, range: RangeModel): Applied[] => {
+/**
+ * One tag per value of a chip that reads "2 selected", and for a filter with
+ * no control: a single choice, and the search, show their own.
+ */
+const toApplied = (context: Context): Applied[] => {
   const { bucket } = context
-  const valueTag =
-    (fact: BucketFact, chosen: string[]) =>
-    (value: string): Applied => ({
-      key: fact.name,
-      label: toFactLabel(bucket, fact),
-      value: labelOf(fact, value),
-      mono: !hasValues(fact) && !isNoneOf(bucket, fact.name, value),
-      removeHref: hrefWith(
-        context,
-        fact.name,
-        chosen.filter((one) => one !== value)
-      )
-    })
   const tagsOf = (fact: BucketFact) => {
     const chosen = chosenOf(context, fact.name)
 
-    return inMenuOrder(bucket, fact, chosen).map(valueTag(fact, chosen))
+    return hasValues(fact) && !readsCount(chosen)
+      ? []
+      : inMenuOrder(bucket, fact, chosen).map((value) => ({
+          key: fact.name,
+          label: toFactLabel(bucket, fact),
+          value: labelOf(fact, value),
+          mono: !hasValues(fact),
+          removeHref: hrefWith(
+            context,
+            fact.name,
+            chosen.filter((one) => one !== value)
+          )
+        }))
   }
 
   return [
-    ...timeTags(context, range),
     ...toChipOrder(bucket, bucket.facts.filter(hasValues)).flatMap(tagsOf),
-    ...searchTags(context),
-    ...bucket.facts.filter((fact) => !hasValues(fact)).flatMap(tagsOf)
+    ...bucket.facts.filter(hasNoControl).flatMap(tagsOf)
   ]
 }
+
+/** What is set, by name, for the empty table's words: the time, any fact, and the search. */
+const toSetNames = (context: Context, range: RangeModel): string[] => [
+  ...(range.isSet ? ['time'] : []),
+  ...context.bucket.facts
+    .filter(
+      ({ name }) => name !== errorKeyFact && chosenOf(context, name).length
+    )
+    .map(({ name }) => name),
+  ...(toShownSearch(context) ? ['search'] : [])
+]
 
 const toTimeOrText = (value: string, times: Times): Cell =>
   isIsoInstant(value)
@@ -583,16 +626,30 @@ const toStatus = (
   }
 }
 
-const toPositionText = (value: CellValue): Cell =>
-  typeof value === 'object'
-    ? { kind: 'text', text: toPositionLabel(value as Position), mono: false }
-    : { kind: 'text', text: String(value), mono: false }
+const toCellText = (value: CellValue): string =>
+  typeof value === 'object' ? toPositionLabel(value) : String(value)
+
+const toPositionText = (value: CellValue): Cell => ({
+  kind: 'text',
+  text: toCellText(value),
+  mono: false
+})
 
 type Draw = (context: Context, column: ListColumn, value: CellValue) => Cell
 
 /** A format this page has not heard of is drawn as text, so a new one never breaks a list. */
 const draws: Record<string, Draw> = {
   badge: toStatus,
+  label: (context, column, value) => ({
+    kind: 'text',
+    text: valueOf(context, column, value).label,
+    mono: false
+  }),
+  short: (_context, _column, value) => ({
+    kind: 'short',
+    text: shortId(toCellText(value)),
+    full: toCellText(value)
+  }),
   time: (context, _column, value) => toTimeOrText(String(value), context.times),
   position: (_context, _column, value) => toPositionText(value)
 }
@@ -670,7 +727,11 @@ type CellOf = (
 const cells: Record<ListColumn['kind'], CellOf> = {
   title: toTitleCell,
   subtitle: (context, column, row) =>
-    toCatalogueCell(context, { ...column, format: 'text' }, row.subtitle),
+    toCatalogueCell(
+      context,
+      { ...column, format: column.format === 'short' ? 'short' : 'text' },
+      row.subtitle
+    ),
   time: (context, _column, row) => toTimeOrText(row.time, context.times),
   cell: (context, column, row) =>
     toCatalogueCell(context, column, row.cells[column.key])
@@ -684,21 +745,50 @@ interface RowPlace {
 
 const toRowId = ({ page, index }: RowPlace): string => `row-${page}-${index}`
 
+const cellAt = (
+  columns: ListColumn[],
+  drawn: AlignedCell[],
+  key: string
+): AlignedCell => {
+  const at = columns.findIndex((column) => column.key === key)
+
+  return at < 0 ? { kind: 'none', align: 'start' } : drawn[at]
+}
+
+const toNarrowCells = (
+  context: Context,
+  columns: ListColumn[],
+  drawn: AlignedCell[]
+): RowModel['narrowCells'] =>
+  (presentationOf(context.bucket).narrowColumns ?? []).map(
+    ({ main, under, align }) => ({
+      main: cellAt(columns, drawn, main),
+      under: under
+        .map((key) => cellAt(columns, drawn, key))
+        .filter(({ kind }) => kind !== 'none'),
+      align
+    })
+  )
+
 const toRow =
   (context: Context, columns: ListColumn[]) =>
   (row: BucketRow, place: RowPlace): RowModel => {
     const id = toRowId(place)
-    const restoreHref = toPlaceHref(context, place.page)
-    const href = toRowHref(row.link, `${restoreHref}#${id}`)
+    const href = toRowHref(
+      row.link,
+      `${toPlaceHref(context, place.page)}#${id}`
+    )
+    const drawn = columns.map((column) => ({
+      ...cells[column.kind](context, column, row, href),
+      align: column.align
+    }))
 
     return {
       id,
-      restoreHref,
+      restoreHref: toRowRestore(context, place.page),
       href,
-      cells: columns.map((column) => ({
-        ...cells[column.kind](context, column, row, href),
-        align: column.align
-      }))
+      cells: drawn,
+      narrowCells: toNarrowCells(context, columns, drawn)
     }
   }
 
@@ -740,6 +830,12 @@ const toPlaceHref = (context: Context, through: number): string =>
   context.cursor && through > restoreMax
     ? toCursorHref(context, context.cursor, context.page)
     : toRestoreHref(context, through)
+
+/** Past the most an address draws, the row's page by its cursor; null within it, so the address keeps every page loaded. */
+const toRowRestore = (context: Context, page: number): string | null =>
+  context.cursor && page > restoreMax
+    ? toCursorHref(context, context.cursor, context.page)
+    : null
 
 const lastPageOf = ({ page, pageRows }: Context): number =>
   page + Math.max(pageRows.length, 1) - 1
@@ -821,26 +917,25 @@ const toNothingYet = ({ bucket }: Context): EmptyModel => ({
   icon: 'inbox'
 })
 
-const isOnlySearch = (applied: Applied[]): boolean =>
-  applied.length === 1 && applied[0].key === 'search'
+const isOnlySearch = (set: string[]): boolean =>
+  set.length === 1 && set[0] === 'search'
 
 /** A search on: it names what had no match, under any filters beside it. */
-const searchMiss = (
-  { bucket, searched }: Context,
-  applied: Applied[]
-): string | null => {
+const searchMiss = (context: Context, set: string[]): string | null => {
+  const { bucket } = context
+  const searched = toShownSearch(context)
   const label = searched && kindLabel(bucket, searched.kind)
-  const which = isOnlySearch(applied) ? '' : ' with these filters'
+  const which = isOnlySearch(set) ? '' : ' with these filters'
 
   return (
     label && `No ${bucket.noun.many}${which} have this ${inSentence(label)}.`
   )
 }
 
-const toNoMatch = (context: Context, applied: Applied[]): EmptyModel => ({
+const toNoMatch = (context: Context, set: string[]): EmptyModel => ({
   title: `No ${context.bucket.noun.many} match`,
   text:
-    searchMiss(context, applied) ??
+    searchMiss(context, set) ??
     presentationOf(context.bucket).noMatchText ??
     'Nothing matches these filters.',
   icon: 'search'
@@ -848,14 +943,14 @@ const toNoMatch = (context: Context, applied: Applied[]): EmptyModel => ({
 
 const toEmpty = (
   context: Context,
-  applied: Applied[],
+  set: string[],
   footer: FooterState | null
 ): EmptyModel => {
   if (footer?.state === 'searched') {
     return soFar
   }
 
-  return applied.length ? toNoMatch(context, applied) : toNothingYet(context)
+  return set.length ? toNoMatch(context, set) : toNothingYet(context)
 }
 
 const toAddressRefusal = (startHref: string): ListAlert => ({
@@ -864,7 +959,8 @@ const toAddressRefusal = (startHref: string): ListAlert => ({
   code: null,
   text: 'Nothing was read. Start again to see the list.',
   retryHref: null,
-  startHref
+  startHref,
+  links: []
 })
 
 const toRangeRefusal = (startHref: string): ListAlert => ({
@@ -873,7 +969,8 @@ const toRangeRefusal = (startHref: string): ListAlert => ({
   code: null,
   text: 'Its start and end must be dates, the start no later than the end. Nothing was read. Start again to see the list.',
   retryHref: null,
-  startHref
+  startHref,
+  links: []
 })
 
 const toSearchRefusal = (
@@ -886,7 +983,8 @@ const toSearchRefusal = (
   code: message,
   text: 'The search has been cleared.',
   retryHref: null,
-  startHref
+  startHref,
+  links: []
 })
 
 const toFilterRefusal = (
@@ -899,7 +997,8 @@ const toFilterRefusal = (
   code: message,
   text: 'Start again to clear them.',
   retryHref: null,
-  startHref
+  startHref,
+  links: []
 })
 
 /** GAS's own error is worth looking up in its logs. */
@@ -910,6 +1009,50 @@ const toUnavailableText = (failure: GasFailure, service: string): string => {
     ? `${text}; if it keeps failing, check GAS’s logs.`
     : `${text}.`
 }
+
+/** One queue of a list over several, by its value. */
+interface Queue {
+  fact: BucketFact
+  value: string
+}
+
+/** The queue an answer names, of a list over several; null for a list of one, or none named. */
+const queueOf = (
+  { bucket }: Context,
+  value: string | null | undefined
+): Queue | null => {
+  const fact = bucket.facts.find(({ name }) => name === queueFact)
+
+  return fact && value ? { fact, value } : null
+}
+
+/** "the Outbox", as a sentence names a queue. */
+const queueName = ({ fact, value }: Queue): string =>
+  `the ${labelOf(fact, value)}`
+
+/** The queues but one the page could show alone: those picked, or every one when none is. */
+const otherQueues = (
+  context: Context,
+  { fact, value: but }: Queue
+): Queue[] => {
+  const picked = chosenOf(context, fact.name)
+  const isShown = (value: string) =>
+    picked.length === 0 || picked.includes(value)
+
+  return (fact.values ?? [])
+    .map(({ value }) => String(value))
+    .filter((value) => value !== but && isShown(value))
+    .map((value) => ({ fact, value }))
+}
+
+const toShowOnly = (context: Context, queues: Queue[]) =>
+  queues.map((queue) => ({
+    text: `Show ${queueName(queue)} only`,
+    href: toBucketHref(context.bucket, {
+      ...context.filters,
+      [queue.fact.name]: [queue.value]
+    })
+  }))
 
 /** What a list that couldn't be read says, naming the service it is down to; nothing has changed. */
 const toUnavailableAlert = (
@@ -922,8 +1065,29 @@ const toUnavailableAlert = (
   code: null,
   text: toUnavailableText(failure, bucket.service),
   retryHref,
-  startHref: null
+  startHref: null,
+  links: []
 })
+
+/** One queue failed: rows from the others alone would show out of order, so the page offers to show them alone. */
+const toQueueFailedAlert = (
+  context: Context,
+  failure: GasFailure,
+  retryHref: string,
+  queue: string | null | undefined
+): ListAlert => {
+  const alert = toUnavailableAlert(context.bucket, failure, retryHref)
+  const failed = queueOf(context, queue)
+  const others = failed ? otherQueues(context, failed) : []
+
+  return failed && others.length
+    ? {
+        ...alert,
+        text: `${alert.text} ${capitalise(queueName(failed))} couldn’t be read, and both queues are needed to show ${context.bucket.noun.many} in order.`,
+        links: toShowOnly(context, others)
+      }
+    : alert
+}
 
 /** Searches are held for a while only: a later page of one gone opens the first page, saying why. */
 const expiredNotice: ListAlert = {
@@ -932,51 +1096,135 @@ const expiredNotice: ListAlert = {
   code: null,
   text: 'Search again to see its results.',
   retryHref: null,
-  startHref: null
+  startHref: null,
+  links: []
+}
+
+/** A cursor the service can no longer read: the first page instead, saying why. */
+const toChangedNotice = (bucket: BucketEntry): ListAlert => ({
+  tone: 'info',
+  title: 'This list changed since the page was loaded.',
+  code: null,
+  text: `Showing the newest ${bucket.noun.many}.`,
+  retryHref: null,
+  startHref: null,
+  links: []
+})
+
+const noQueues: NonNullable<BucketResult['queues']> = {
+  limited: [],
+  waiting: []
+}
+
+interface Limit {
+  limited: Queue
+  waiting: Queue
+  searchedTo: string
+}
+
+type MaybeLimit = { [K in keyof Limit]: Limit[K] | null }
+
+const isLimit = (limit: MaybeLimit): limit is Limit =>
+  Boolean(limit.limited && limit.waiting && limit.searchedTo)
+
+const limitOf = (context: Context, result: BucketResult): MaybeLimit => {
+  const queues = result.queues ?? noQueues
+
+  return {
+    limited: queueOf(context, queues.limited[0]),
+    waiting: queueOf(context, queues.waiting[0]),
+    searchedTo: result.page.searchedTo
+  }
+}
+
+/** A queue searched a window at a time ended the page while another has older rows waiting, which show only once it gets that far. */
+const toLimitedAlert = (
+  context: Context,
+  { limited, waiting, searchedTo }: Limit
+): ListAlert => ({
+  tone: 'info',
+  title: `${capitalise(queueName(limited))} is searched a window at a time.`,
+  code: null,
+  text: `${labelOf(waiting.fact, waiting.value)} ${context.bucket.noun.many} older than ${toTime(new Date(searchedTo), context.times).text} show once ${queueName(limited)} has been searched that far back.`,
+  retryHref: null,
+  startHref: null,
+  links: toShowOnly(
+    context,
+    otherQueues(context, limited).filter(({ value }) => value === waiting.value)
+  )
+})
+
+const toQueueLimited = (context: Context): ListAlert | null => {
+  const limit = context.result && limitOf(context, context.result)
+
+  return limit && isLimit(limit) ? toLimitedAlert(context, limit) : null
 }
 
 type AlertRule = (
   input: ListPageInput,
+  context: Context,
   startHref: string,
   retryHref: string
 ) => ListAlert | null
 
 /** The first that applies is the page's alert; a later page's failure is said in its footer instead. */
 const alertRules: AlertRule[] = [
-  ({ refusal }, start) =>
+  ({ refusal }, _context, start) =>
     refusal?.kind === 'address' ? toAddressRefusal(start) : null,
-  ({ refusal }, start) =>
+  ({ refusal }, _context, start) =>
     refusal?.kind === 'range' ? toRangeRefusal(start) : null,
-  ({ bucket, refusal }, start) =>
+  ({ bucket, refusal }, _context, start) =>
     refusal?.kind === 'search'
       ? toSearchRefusal(bucket, refusal.message, start)
       : null,
-  ({ bucket, read }, start) =>
+  ({ bucket, read }, _context, start) =>
     read?.kind === 'refused'
       ? toFilterRefusal(bucket, read.refusal, start)
       : null,
-  ({ bucket, read, cursor }, _start, retry) =>
+  ({ read, cursor, failedQueue }, context, _start, retry) =>
     read?.kind === 'failed' && !cursor
-      ? toUnavailableAlert(bucket, read.failure, retry)
+      ? toQueueFailedAlert(context, read.failure, retry, failedQueue)
       : null,
-  ({ notice }) => (notice === 'expired' ? expiredNotice : null)
+  ({ notice }) => (notice === 'expired' ? expiredNotice : null),
+  ({ bucket, notice }) =>
+    notice === 'changed' ? toChangedNotice(bucket) : null,
+  (_input, context) => toQueueLimited(context)
 ]
 
-const toAlert = (input: ListPageInput, retryHref: string): ListAlert | null =>
+const toAlert = (
+  input: ListPageInput,
+  context: Context,
+  retryHref: string
+): ListAlert | null =>
   alertRules
-    .map((rule) => rule(input, toBucketPath(input.bucket), retryHref))
+    .map((rule) => rule(input, context, toBucketPath(input.bucket), retryHref))
     .find((alert) => alert !== null) ?? null
 
+/** The queue that failed a later page, of a list over several, said after why. */
+const failedQueueText = (
+  context: Context,
+  queue: string | null | undefined
+): string => {
+  const failed = queueOf(context, queue)
+
+  return failed ? ` ${capitalise(queueName(failed))} couldn’t be read.` : ''
+}
+
 const toLoadMoreFailed = (
-  bucket: BucketEntry,
+  context: Context,
   failure: GasFailure,
-  retryHref: string
-): FooterState => ({
-  state: 'error',
-  text: `Couldn’t load more ${bucket.noun.many} — ${toFailureText(failure, bucket.service)}`,
-  retryHref,
-  noun: bucket.noun.many
-})
+  retryHref: string,
+  queue?: string | null
+): FooterState => {
+  const { bucket } = context
+
+  return {
+    state: 'error',
+    text: `Couldn’t load more ${bucket.noun.many} — ${toFailureText(failure, bucket.service)}${failedQueueText(context, queue)}`,
+    retryHref,
+    noun: bucket.noun.many
+  }
+}
 
 const toHead = (bucket: BucketEntry) => ({
   label: capitalise(bucket.noun.many),
@@ -986,7 +1234,13 @@ const toHead = (bucket: BucketEntry) => ({
     width,
     mono,
     align
-  }))
+  })),
+  narrowColumns:
+    presentationOf(bucket).narrowColumns?.map(({ label, width, align }) => ({
+      label,
+      width,
+      align
+    })) ?? null
 })
 
 /** Each row's page and place on it, the pages in the order they were read. */
@@ -1001,13 +1255,32 @@ const toPlaces = ({ page, pageRows }: Context, count: number): RowPlace[] => {
   )
 }
 
-/** A later page that couldn't be read is said in the footer, under the rows read before it. */
+const pagesText = (count: number): string =>
+  `${count} ${count === 1 ? 'page' : 'pages'}`
+
+/** The restore ran out of time itself, with no queue failing it. */
+const isOutOfTime = ({ read, queue }: StoppedPage): boolean =>
+  read.kind === 'failed' && read.failure.kind === 'timed-out' && queue === null
+
+/** A later page that couldn't be read is said in the footer, under the rows read before it; one the restore ran out of time for goes on from there. */
 const toStoppedFooter = (
   context: Context,
-  { cursor, read }: StoppedPage
-): FooterState =>
-  toLoadMoreFailed(
-    context.bucket,
+  stopped: StoppedPage
+): FooterState => {
+  const { cursor, read, queue } = stopped
+  const retryHref = toCursorHref(context, cursor, lastPageOf(context) + 1)
+
+  if (isOutOfTime(stopped)) {
+    return {
+      state: 'error',
+      text: `Stopped after ${pagesText(context.pageRows.length)} to answer in time.`,
+      retryHref,
+      noun: context.bucket.noun.many
+    }
+  }
+
+  return toLoadMoreFailed(
+    context,
     read.kind === 'failed'
       ? read.failure
       : {
@@ -1015,13 +1288,15 @@ const toStoppedFooter = (
           statusCode: statusCodes.badRequest,
           errorCode: null
         },
-    toCursorHref(context, cursor, lastPageOf(context) + 1)
+    retryHref,
+    queue
   )
+}
 
 const toRows = (
   context: Context,
   input: ListPageInput,
-  applied: Applied[],
+  set: string[],
   result: BucketResult
 ) => {
   const places = toPlaces(context, result.rows.length)
@@ -1031,7 +1306,7 @@ const toRows = (
     ? toStoppedFooter(context, input.stopped)
     : toFooterState(context, result)
   const empty =
-    rows.length || input.cursor ? null : toEmpty(context, applied, footer)
+    rows.length || input.cursor ? null : toEmpty(context, set, footer)
 
   return { rows, empty, footer: withRestore(context, footer) }
 }
@@ -1039,7 +1314,7 @@ const toRows = (
 const toTable = (
   context: Context,
   input: ListPageInput,
-  applied: Applied[],
+  set: string[],
   retryHref: string
 ): TableModel | null => {
   const head = toHead(context.bucket)
@@ -1053,7 +1328,7 @@ const toTable = (
       empty: null,
       footer: withRestore(
         context,
-        toLoadMoreFailed(context.bucket, failure, retryHref)
+        toLoadMoreFailed(context, failure, retryHref, input.failedQueue)
       )
     }
   }
@@ -1061,32 +1336,9 @@ const toTable = (
   return (
     context.result && {
       ...head,
-      ...toRows(context, input, applied, context.result)
+      ...toRows(context, input, set, context.result)
     }
   )
-}
-
-/** The page a list is drawn on: the service's events, with a tab per queue, or the list itself. */
-const tabsLabelOf = (bucket: BucketEntry): string =>
-  presentationOf(bucket).tabsLabel ?? bucket.page?.label ?? ''
-
-const toTabs = (
-  bucket: BucketEntry,
-  buckets: BucketEntry[],
-  filters: BucketFilters
-) => {
-  const { tabs } = toPageHead(bucket, pageMates(bucket, buckets), filters)
-
-  return tabs.length
-    ? {
-        label: tabsLabelOf(bucket),
-        items: tabs.map(({ label, href, active }) => ({
-          text: label,
-          href,
-          current: active
-        }))
-      }
-    : null
 }
 
 /** Every list names its service under the title. */
@@ -1100,19 +1352,6 @@ const searchOf = (search: ListPageInput['search']) => {
   return { searched, searchId: searched && search ? search.id : null }
 }
 
-const toClearSearchForm = ({
-  bucket,
-  filters,
-  searched
-}: Context): ClearSearchForm | null =>
-  searched
-    ? {
-        id: clearSearchFormId,
-        action: toBucketPath(bucket),
-        hidden: toUrlFields(bucket, filters)
-      }
-    : null
-
 const pagesOf = ({ cursor, page, pageRows }: ListPageInput) => ({
   cursor: cursor ?? null,
   page: page ?? 1,
@@ -1120,7 +1359,7 @@ const pagesOf = ({ cursor, page, pageRows }: ListPageInput) => ({
 })
 
 /** The list's own address, filters and range, sent in a form: Explore reads the search from the session, as the list does. */
-const toExploreForm = ({ bucket, filters }: Context): ClearSearchForm | null =>
+const toExploreForm = ({ bucket, filters }: Context): HiddenForm | null =>
   opensInExplore(bucket)
     ? {
         id: exploreFormId,
@@ -1159,45 +1398,44 @@ const toRetryHref = (
     : toBucketHref(context.bucket, context.filters)
 }
 
-/** A held search is dropped by Clear all too, which a bare link can't do. */
-const toClearAllHref = ({ bucket, searched }: Context): string =>
-  searched ? `${toBucketPath(bucket)}?${clearParam}=all` : toBucketPath(bucket)
+/** A held search is dropped by Clear all too, which a bare link can't do: one the error in the address set aside included. */
+const toClearAllHref = (context: Context): string =>
+  toShownSearch(context)
+    ? `${toBucketPath(context.bucket)}?${clearParam}=all`
+    : toBucketPath(context.bucket)
 
 export const toListPage = (input: ListPageInput): ListPageModel => {
-  const { bucket, buckets } = input
+  const { bucket } = input
   const context = toContext(input)
   const retryHref = toRetryHref(context, input)
   const range = toRange(context)
-  const set = toSetFilters(context, range)
-  const title = bucket.page?.shortLabel ?? bucket.shortLabel
+  const applied = toApplied(context)
 
   return {
     pageTitle: bucket.label,
     navActive: bucket.id,
-    title,
+    title: bucket.shortLabel,
     meta: toMeta(bucket),
-    tabs: toTabs(bucket, buckets, context.filters),
     filterLabel: `Filter ${bucket.noun.many}`,
     chips: toChipOrder(bucket, bucket.facts.filter(hasValues)).map(
       toChip(context)
     ),
     range,
     searchField: toSearchField(context, input.attempt),
-    applied: set,
-    filtered: set.length > 0,
+    applied,
+    filtered: applied.length > 0,
     total: toTotal(context),
     clearAllHref: toClearAllHref(context),
-    clearSearchForm: toClearSearchForm(context),
     exploreForm: toExploreForm(context),
-    alert: toAlert(input, retryHref),
-    table: toTable(context, input, set, retryHref)
+    alert: toAlert(input, context, retryHref),
+    table: toTable(context, input, toSetNames(context, range), retryHref)
   }
 }
 
 /**
  * CW's lists are missing from the catalogue because GAS couldn't reach CW:
- * the page says so in place of the list. Its tabs and filters come from the
- * missing entries, so none can be drawn.
+ * the page says so in place of the list. Its filters come from the missing
+ * entries, so none can be drawn.
  */
 export const toCaseworkingUnreachable = (
   list: CaseworkingList,
@@ -1207,7 +1445,6 @@ export const toCaseworkingUnreachable = (
   navActive: list.id,
   title: list.shortLabel,
   meta: [toServiceName('CW')],
-  tabs: null,
   filterLabel: `Filter ${list.noun}`,
   chips: [],
   range: null,
@@ -1216,7 +1453,6 @@ export const toCaseworkingUnreachable = (
   filtered: false,
   total: null,
   clearAllHref: '',
-  clearSearchForm: null,
   exploreForm: null,
   alert: {
     tone: 'danger',
@@ -1224,7 +1460,8 @@ export const toCaseworkingUnreachable = (
     code: null,
     text: `GAS is up, but its calls to CW are failing, so CW’s ${list.noun} can’t be listed. Nothing has changed.`,
     retryHref,
-    startHref: null
+    startHref: null,
+    links: []
   },
   table: null
 })

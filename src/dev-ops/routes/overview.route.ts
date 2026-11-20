@@ -2,6 +2,7 @@ import type { Request, ResponseToolkit, ServerRoute } from '@hapi/hapi'
 import Joi from 'joi'
 
 import { getOverviewUseCase } from '../use-cases/get-overview.use-case.ts'
+import { shellCatalogue } from '../use-cases/shell-catalogue.ts'
 import { listPageCache } from '../view-models/list-filters.ts'
 import {
   overviewPath,
@@ -22,7 +23,13 @@ export const viewOverviewRoute: ServerRoute = {
     const result = await getOverviewUseCase()
 
     return h
-      .view('overview', toOverviewPage(result, { times: timesOf(request) }))
+      .view(
+        'overview',
+        toOverviewPage(result, {
+          times: timesOf(request),
+          catalogue: shellCatalogue(request)
+        })
+      )
       .code(toOverviewStatusCode(result))
   }
 }

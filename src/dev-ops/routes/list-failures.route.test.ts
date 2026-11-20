@@ -120,8 +120,8 @@ describe('a CW list read through GAS, each way it can fail', () => {
 
 describe('every kind of list, when GAS answers that the service it called failed', () => {
   test.each([
-    ['/dev-ops/events/gas/outbox', 'events', 'GAS'],
-    ['/dev-ops/events/cw/outbox', 'events', 'CW'],
+    ['/dev-ops/events/gas', 'events', 'GAS'],
+    ['/dev-ops/events/cw', 'events', 'CW'],
     ['/dev-ops/applications', 'applications', 'GAS'],
     ['/dev-ops/cases', 'cases', 'CW'],
     ['/dev-ops/grants', 'grant versions', 'GAS'],

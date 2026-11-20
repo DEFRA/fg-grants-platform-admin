@@ -553,6 +553,7 @@
   --inset-dialog-close: 14px;
   --tracking-none: 0px;
   --tracking-sm: 0.12px;
+  --tracking-picked: -0.07px;
   --tracking-wide: 0.48px;
   --duration-fast: 80ms;
   --duration-normal: 120ms;

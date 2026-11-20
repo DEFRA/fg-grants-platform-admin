@@ -4,7 +4,7 @@ import type { Shell } from './shell.repository.ts'
 
 /** A list by its admin path and its URL's fact params, as typed: GAS finds the entry and checks the address. */
 export interface ListQuery {
-  /** The catalogue entry's `path`, as `events/gas/outbox`. */
+  /** The catalogue entry's `path`, as `events/gas`. */
   path: string
   params: Record<string, string | string[]>
   /** The stored `kind:value`; null for a browse. */
@@ -27,6 +27,8 @@ export interface ListStopped {
   cursor: string
   statusCode: number
   code: string | null
+  /** The queue whose read failed it, of a list over several. */
+  queue?: string
 }
 
 export interface ListPages extends BucketResult {

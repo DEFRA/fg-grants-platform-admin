@@ -15,9 +15,17 @@ import {
 import type { ListResult } from './record-reads.ts'
 import { toFailedList } from './record-reads.ts'
 
+/** The fact a list over several queues picks them by. */
+export const queueFact = 'box'
+
+const queueAddress = /^events\/[\w-]+\/[\w-]+$/
+
+/** A queue's own address below the admin's root: no list is drawn there, as a service's events are one list over its queues. */
+export const isQueueAddress = (path: string): boolean => queueAddress.test(path)
+
 /** What a list page asks: its URL's query without its place, its range as instants, where it starts, and the search held. */
 export interface ListAsk {
-  /** The catalogue entry's `path`, as `events/gas/outbox`. */
+  /** The catalogue entry's `path`, as `events/gas`. */
   path: string
   address: Record<string, string | string[] | undefined>
   /** Null when the range can't be read as instants: GAS then checks the address and reads nothing. */
@@ -86,6 +94,8 @@ export type BucketListResult = ListResult<BucketResult>
 export interface StoppedPage {
   cursor: string
   read: Exclude<BucketListResult, { kind: 'read' }>
+  /** The queue whose read failed it, of a list over several. */
+  queue: string | null
 }
 
 /** Every page read, drawn as one: how many rows each gave, and a later page that couldn't be read. */
@@ -95,6 +105,8 @@ export interface BucketListing {
   refusedSearch: { refusal: string | null } | null
   pageRows: number[]
   stopped: StoppedPage | null
+  /** The queue whose read failed the request, of a list over several. */
+  failedQueue: string | null
 }
 
 export type AddressRefusal = 'address' | 'range'
@@ -111,6 +123,8 @@ export type ListOutcome =
   | { kind: 'not-found' }
   /** No list is at the path while GAS can't reach CW, whose lists it may be. */
   | { kind: 'cw-unreachable' }
+  /** GAS can't read the cursor of the later page asked for: the list changed under it. */
+  | { kind: 'changed' }
 
 const toStoppedRead = ({
   statusCode,
@@ -129,7 +143,12 @@ const toListing = ({
   read: { kind: 'read', page },
   refusedSearch,
   pageRows,
-  stopped: stopped && { cursor: stopped.cursor, read: toStoppedRead(stopped) }
+  stopped: stopped && {
+    cursor: stopped.cursor,
+    read: toStoppedRead(stopped),
+    queue: stopped.queue ?? null
+  },
+  failedQueue: null
 })
 
 const addressRefusals: Record<string, AddressRefusal> = {
@@ -173,12 +192,24 @@ const toFailed = (error: unknown, path: string): ListOutcome => ({
     read: toFailedList(error, `list at ${path}`),
     refusedSearch: null,
     pageRows: [],
-    stopped: null
+    stopped: null,
+    failedQueue: toGasErrorField(error, 'queue')
   }
 })
 
-const toOutcome = (error: unknown, path: string): ListOutcome => {
-  const outcome = toRefused(error) ?? toMissing(error)
+const toChanged = (
+  error: unknown,
+  { cursor }: ListAsk['place']
+): ListOutcome | null =>
+  cursor !== undefined &&
+  toGasStatusCode(error) === statusCodes.badRequest &&
+  toGasErrorField(error, 'reason') === 'INVALID_CURSOR'
+    ? { kind: 'changed' }
+    : null
+
+const toOutcome = (error: unknown, { path, place }: ListAsk): ListOutcome => {
+  const outcome =
+    toRefused(error) ?? toMissing(error) ?? toChanged(error, place)
 
   if (outcome === null) {
     return toFailed(error, path)
@@ -200,6 +231,6 @@ export const listBucketUseCase = async (ask: ListAsk): Promise<ListOutcome> => {
       ? { kind: 'checked', bucket }
       : { kind: 'listed', bucket, listing: toListing(list) }
   } catch (error) {
-    return toOutcome(error, ask.path)
+    return toOutcome(error, ask)
   }
 }

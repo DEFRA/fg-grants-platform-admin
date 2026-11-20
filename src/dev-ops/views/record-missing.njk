@@ -17,7 +17,7 @@
       {%- endcall -%}
       {%- if missing.inboxSearch -%}
         {#- The search's button is in the empty state above, so its form shows nothing of its own. -#}
-        {{ gpa.Form({ id: 'record-missing-search', action: missing.inboxSearch.action, method: 'post', label: missing.inboxSearch.text, attributes: { hidden: true }, hidden: [{ name: 'ref-kind', value: 'ref' }, { name: 'ref-value', value: missing.inboxSearch.code }] }) }}
+        {{ gpa.Form({ id: 'record-missing-search', action: missing.inboxSearch.action, method: 'post', label: missing.inboxSearch.text, attributes: { hidden: true }, hidden: missing.inboxSearch.hidden }) }}
       {%- endif -%}
     {%- else -%}
       {%- set actions -%}

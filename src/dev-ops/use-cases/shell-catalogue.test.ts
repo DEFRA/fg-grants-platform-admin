@@ -1,6 +1,6 @@
 import { logger } from '../../common/logger.ts'
 import { findShell } from '../repositories/shell.repository.ts'
-import { catalogue } from './test-fixtures.ts'
+import { catalogue, queuesApartCatalogue } from './test-fixtures.ts'
 import { readShellUseCase, shellCatalogue } from './shell-catalogue.ts'
 
 vi.mock(import('../repositories/shell.repository.ts'))
@@ -10,7 +10,26 @@ describe('shellCatalogue', () => {
   test('answers the catalogue the request’s answer carried', () => {
     expect(
       shellCatalogue({ app: { upstream: { calls: 1, shell: { catalogue } } } })
-    ).toBe(catalogue)
+    ).toEqual(catalogue)
+  })
+
+  test('leaves out a queue’s own list, which no page draws', () => {
+    const listed = {
+      ...catalogue,
+      buckets: [...queuesApartCatalogue.buckets, ...catalogue.buckets]
+    }
+
+    expect(
+      shellCatalogue({
+        app: { upstream: { calls: 1, shell: { catalogue: listed } } }
+      })?.buckets.map(({ path }) => path)
+    ).toEqual([
+      'applications',
+      'grants',
+      'cases',
+      'workflows',
+      ...catalogue.buckets.map(({ path }) => path)
+    ])
   })
 
   test.each([

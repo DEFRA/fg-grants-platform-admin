@@ -1519,7 +1519,7 @@ describe('a windowed run', () => {
     expect(textOf($, 'explore-footer')).toBe('Searched everything.')
   })
 
-  test('says a later window that couldn’t be read in the footer, with Retry', async () => {
+  test('says a later window that couldn’t be read in the footer, with Try again', async () => {
     showing(
       runPage(
         failed({
@@ -1543,7 +1543,7 @@ describe('a windowed run', () => {
 
     expect(by(next.$, 'explore-alert')).toHaveLength(0)
     expect(textOf(next.$, 'explore-footer')).toBe(
-      'Couldn’t load more applications. Retry'
+      'Couldn’t load more applications. Try again'
     )
     expect(by(next.$, 'explore-footer').find('a').attr('href')).toBe(
       `${runHref}&page=2`
@@ -1771,7 +1771,7 @@ describe('drawing every window again', () => {
     )
   })
 
-  test('keeps the rows read before a window that couldn’t be read, and offers Retry of every window', async () => {
+  test('keeps the rows read before a window that couldn’t be read, and offers Try again of every window', async () => {
     restoring(
       runPage(read(threeRows()), {
         run: {
@@ -1908,22 +1908,22 @@ describe('drawing every window again', () => {
     by($, 'explore-row').eq(n).attr('data-restore-href')
 
   test.each([
-    [1, runHref],
-    [50, `${runHref}&through=50`],
-    [51, `${runHref}&page=51`]
+    [1, runHref, undefined],
+    [50, `${runHref}&through=50`, undefined],
+    [51, `${runHref}&page=51`, `${runHref}&page=51`]
   ])(
-    'puts on each row of window %i the address its Back goes to, less the row',
-    async (page, href) => {
+    'a row of window %i goes back to its window; it has an address of its own only past the most a restore draws',
+    async (page, href, own) => {
       showing(runPage(read(threeRows()), { run: { id, page } }))
 
       const { $ } = await view(`${runHref}&page=${page}`)
 
-      expect(restoreOfRow($, 2)).toBe(href)
+      expect(restoreOfRow($, 2)).toBe(own)
       expect(backOf($, 2)).toBe(`${href}#row-${page}-3`)
     }
   )
 
-  test('keeps a first window row’s own address once window 51 is put in after it, so Back past window 50 finds either', async () => {
+  test('a first window row has no address of its own once window 51 is put in after it, so the loader’s address holds it', async () => {
     showing(runPage(read(threeRows())))
     const first = await view(runHref)
 
@@ -1939,7 +1939,7 @@ describe('drawing every window again', () => {
 
     first.$('#explore-rows').append(later.$('#explore-rows').children())
 
-    expect(restoreOfRow(first.$, 0)).toBe(runHref)
+    expect(restoreOfRow(first.$, 0)).toBeUndefined()
     expect(restoreOfRow(first.$, 3)).toBe(`${runHref}&page=51`)
     expect(restoreOf(later.$)).toBe(`${runHref}&page=51`)
   })
@@ -1975,7 +1975,7 @@ describe('drawing every window again', () => {
     ).toBe(false)
   })
 
-  test('offers Retry of every window when one of them couldn’t be read', async () => {
+  test('offers Try again of every window when one of them couldn’t be read', async () => {
     restoring(
       runPage(failed({ kind: 'errored', service: 'GAS' }), {
         run: { id, page: 2, through: 3 },
@@ -2280,14 +2280,14 @@ describe('a run while another query is still running', () => {
     expect(by($, 'status-error')).toHaveLength(0)
   })
 
-  test('says so in the footer of a later window without script, with Retry of that window', async () => {
+  test('says so in the footer of a later window without script, with Try again of that window', async () => {
     showing(laterWindow)
 
     const { $, statusCode } = await view(`${runHref}&page=2`)
 
     expect(statusCode).toBe(statusCodes.tooManyRequests)
     expect(by($, 'explore-alert')).toHaveLength(0)
-    expect(textOf($, 'explore-footer')).toBe(`${saying} Retry`)
+    expect(textOf($, 'explore-footer')).toBe(`${saying} Try again`)
     expect(by($, 'explore-footer').find('a').attr('href')).toBe(
       `${runHref}&page=2`
     )
@@ -2301,7 +2301,7 @@ describe('a run while another query is still running', () => {
       'The Grant Application Service is running as many queries as it can. Try again in a moment.'
     ]
   ] as [string, ExploreFailure, string][])(
-    'answers Keep looking in place with a footer saying it waits for %s, for the loader to show under the rows it has, with Retry of every window',
+    'answers Keep looking in place with a footer saying it waits for %s, for the loader to show under the rows it has, with Try again of every window',
     async (_, failure, text) => {
       answering({ ...laterWindow, result: failed(failure) })
 
@@ -2316,7 +2316,7 @@ describe('a run while another query is still running', () => {
       expect(by($, 'explore-alert')).toHaveLength(0)
       expect($('#explore-rows')).toHaveLength(1)
       expect(rowsOf($)).toHaveLength(0)
-      expect(textOf($, 'explore-footer')).toBe(`${text} Retry`)
+      expect(textOf($, 'explore-footer')).toBe(`${text} Try again`)
       expect(by($, 'explore-footer').attr('role')).toBe('alert')
       expect(by($, 'explore-footer').find('a').attr('href')).toBe(
         `${runHref}&through=2`
@@ -2324,7 +2324,7 @@ describe('a run while another query is still running', () => {
     }
   )
 
-  test('in place past what a restore of the run draws, Retry is that window alone', async () => {
+  test('in place past what a restore of the run draws, Try again is that window alone', async () => {
     answering({
       ...laterWindow,
       run: { id, page: 3, restorable: 2 },
@@ -2355,7 +2355,7 @@ describe('a run while another query is still running', () => {
       `${runHref}&page=60`
     ]
   ])(
-    'answers Keep looking in place into a window %s with Retry that draws it',
+    'answers Keep looking in place into a window %s with Try again that draws it',
     async (_, result, text, page, href) => {
       answering({ ...laterWindow, result, run: { id, page } })
 
@@ -2367,12 +2367,12 @@ describe('a run while another query is still running', () => {
       )
 
       expect(statusCode).toBe(statusCodes.ok)
-      expect(textOf($, 'explore-footer')).toBe(`${text} Retry`)
+      expect(textOf($, 'explore-footer')).toBe(`${text} Try again`)
       expect(by($, 'explore-footer').find('a').attr('href')).toBe(href)
     }
   )
 
-  test('keeps a service that couldn’t answer Keep looking in place an outage, for the loader’s own Retry', async () => {
+  test('keeps a service that couldn’t answer Keep looking in place an outage, for the loader’s own Try again', async () => {
     answering({
       ...laterWindow,
       result: failed({ kind: 'errored', service: 'GAS' })
@@ -2625,6 +2625,20 @@ describe('Open in Explore', () => {
         to: '2026-10-31T23:59:59.999Z'
       },
       search: 'ref:wmp-aa1-bb2'
+    })
+  })
+
+  test('reads an error in the address as the list’s search, so the search held is not read with it', async () => {
+    const cookie = await searchedIn('events/gas', 'ref', 'abc-123')
+
+    expect(
+      await lookOf('events/gas', 'error=Error%3A+Boom', cookie)
+    ).toMatchObject({
+      facts: { errorKey: 'Error: Boom' },
+      search: ''
+    })
+    expect(await lookOf('events/gas', '', cookie)).toMatchObject({
+      search: 'ref:abc-123'
     })
   })
 

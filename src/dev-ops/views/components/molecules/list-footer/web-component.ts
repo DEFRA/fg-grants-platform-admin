@@ -10,7 +10,9 @@ const keepRow = (body: HTMLElement) => {
     (e) => {
       if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey) return;
       const t = e.target as Element;
-      const row = t.closest?.<HTMLElement>("tr[id], .gpa-tr[id]");
+      const row = t.closest?.<HTMLElement>(
+        "tr[id], .gpa-tr[id], .gpa-doc-item[id]",
+      );
       const own = row?.getAttribute("data-restore-href");
       const at = own
         ? new URL(own, location.href).href
@@ -24,6 +26,38 @@ const keepRow = (body: HTMLElement) => {
     true,
   );
 };
+
+class LoadError extends Error {
+  said: Node[] | null;
+  constructor(said: Node[] | null) {
+    super("load failed");
+    this.said = said;
+  }
+}
+
+async function serverError(
+  res: Response,
+  body: HTMLElement,
+): Promise<Node[] | null> {
+  if (!(res.headers.get("Content-Type") ?? "").includes("html")) return null;
+  let page: DocumentFragment;
+  try {
+    page = parsePage(await res.text());
+  } catch {
+    return null;
+  }
+  const theirs =
+    (body.id && page.getElementById(body.id)) ||
+    page.querySelector(
+      ".gpa-table tbody, .gpa-table .gpa-table-body, .gpa-table .gpa-docs",
+    );
+  const said = theirs
+    ?.closest(".gpa-table")
+    ?.querySelector(".gpa-listfoot .gpa-text-danger");
+  return said && said.textContent?.trim()
+    ? [...said.childNodes].map((n) => document.importNode(n, true))
+    : null;
+}
 
 export class GpaLoadMore extends HTMLElement {
   #observer: IntersectionObserver | null = null;
@@ -86,7 +120,7 @@ export class GpaLoadMore extends HTMLElement {
   get #body(): HTMLElement | null {
     return (
       this.closest(".gpa-table")?.querySelector<HTMLElement>(
-        "tbody, .gpa-table-body",
+        "tbody, .gpa-table-body, .gpa-docs",
       ) ?? null
     );
   }
@@ -156,11 +190,13 @@ export class GpaLoadMore extends HTMLElement {
         location.assign(new URL(away, href).href);
         return;
       }
-      if (!res.ok) throw new Error(String(res.status));
+      if (!res.ok) throw new LoadError(await serverError(res, body));
       const page = parsePage(await res.text());
       const theirs =
         (body.id && page.getElementById(body.id)) ||
-        page.querySelector(".gpa-table tbody, .gpa-table .gpa-table-body");
+        page.querySelector(
+          ".gpa-table tbody, .gpa-table .gpa-table-body, .gpa-table .gpa-docs",
+        );
       if (!theirs) {
         location.assign(res.url || href);
         return;
@@ -214,21 +250,24 @@ export class GpaLoadMore extends HTMLElement {
       body.dispatchEvent(
         new CustomEvent("gpa-load", { bubbles: true, detail: { rows } }),
       );
-    } catch {
+    } catch (e) {
       this.#busy = false;
+      const said = e instanceof LoadError ? e.said : null;
       const retry = el(
         "button",
         { type: "button", className: "gpa-btn gpa-btn-default gpa-btn-sm" },
-        el("span", {}, "Retry"),
+        el("span", {}, "Try again"),
       );
       retry.addEventListener("click", () => this.load(true));
       this.#footer(
         [
-          el(
-            "span",
-            { className: "gpa-text-danger" },
-            `Couldn’t load more ${noun}.`,
-          ),
+          said
+            ? el("span", { className: "gpa-text-danger" }, ...said)
+            : el(
+                "span",
+                { className: "gpa-text-danger" },
+                `Couldn’t load more ${noun}.`,
+              ),
           retry,
         ],
         { role: "alert" },

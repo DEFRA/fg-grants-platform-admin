@@ -1,6 +1,8 @@
 import { randomUUID } from 'node:crypto'
 import type { Request } from '@hapi/hapi'
 
+import { isErrorSet } from './error-search.ts'
+
 /** The first page last shown, a browse or a search: the ref lives here, not in a URL, and a render of it again is a repeat. */
 export interface StoredSearch {
   /** Empty for a browse. */
@@ -11,6 +13,8 @@ export interface StoredSearch {
   listHref: string
   storedAt: number
   fresh: boolean
+  /** The key the list it was last shown on takes the error under, as GAS declared it then. */
+  errorParam?: string | null
 }
 
 export type StoredSearchKey = `bucketSearch:${string}`
@@ -32,14 +36,16 @@ export const storeSearch = (
   request: Request,
   key: StoredSearchKey,
   q: string,
-  listHref: string
+  listHref: string,
+  errorParam: string | null = null
 ): void => {
   request.yar.set(key, {
     q,
     id: randomUUID(),
     listHref,
     storedAt: Date.now(),
-    fresh: true
+    fresh: true,
+    errorParam
   })
 }
 
@@ -99,6 +105,30 @@ export const peekSearch = (
   return isLive(stored) && stored.q !== '' && stored.id === id
     ? { q: stored.q, repeat: false, id }
     : null
+}
+
+/** The field holds one search, so a search held waits, untouched, while the address sets the error of the list it was shown on. */
+export const isSetAside = (
+  request: Request,
+  key: StoredSearchKey,
+  address: Record<string, string | string[] | undefined>
+): boolean => {
+  const stored: StoredSearch | null = request.yar.get(key)
+
+  return isLive(stored) && isErrorSet(address, stored.errorParam ?? null)
+}
+
+/** The search shown is kept with the key its list takes the error under, as the answer declared it. */
+export const noteErrorParam = (
+  request: Request,
+  key: StoredSearchKey,
+  errorParam: string | null
+): void => {
+  const stored: StoredSearch | null = request.yar.get(key)
+
+  if (isLive(stored) && stored.errorParam !== errorParam) {
+    request.yar.set(key, { ...stored, errorParam })
+  }
 }
 
 const searchable = /^[A-Za-z0-9._:@-]{1,200}$/

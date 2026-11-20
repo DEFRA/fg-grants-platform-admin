@@ -105,7 +105,7 @@
                 {%- if way.tasks.badge %}{{ gpa.Badge({ text: way.tasks.badge, tone: 'warning', size: 'sm' }) }}{% endif -%}
               {%- endcall -%}
               {%- if way.tasks.note -%}
-                {%- set blocked %}{{ way.tasks.note.text }} {{ gpa.Link(way.tasks.note.link) }}{% endset -%}
+                {%- set blocked %}{{ way.tasks.note.text }}{% if way.tasks.note.link %} {{ gpa.Link(way.tasks.note.link) }}{% endif %}{% endset -%}
                 {{ gpa.Text({ html: blocked, tone: 'subtle', testId: 'workflow-status-gas-blocked' }) }}
               {%- endif -%}
             {%- endfor -%}

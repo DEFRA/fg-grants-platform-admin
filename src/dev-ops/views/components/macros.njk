@@ -221,6 +221,10 @@
   {%- set __html %}{% include "./organisms/row-link/template.njk" %}{% endset -%}
   {{- __html | trim | safe -}}
 {%- endmacro %}
+{% macro PathHead(p) -%}
+  {%- set __html %}{% include "./organisms/path-head/template.njk" %}{% endset -%}
+  {{- __html | trim | safe -}}
+{%- endmacro %}
 {% macro RowChevron(p) -%}
   {%- set __html %}{% include "./organisms/row-chevron/template.njk" %}{% endset -%}
   {{- __html | trim | safe -}}
@@ -231,6 +235,14 @@
 {%- endmacro %}
 {% macro TableRow(p) -%}
   {%- set __html %}{% include "./organisms/table-row/template.njk" %}{% endset -%}
+  {{- __html | trim | safe -}}
+{%- endmacro %}
+{% macro DocList(p) -%}
+  {%- set __html %}{% include "./organisms/doc-list/template.njk" %}{% endset -%}
+  {{- __html | trim | safe -}}
+{%- endmacro %}
+{% macro DocItem(p) -%}
+  {%- set __html %}{% include "./organisms/doc-item/template.njk" %}{% endset -%}
   {{- __html | trim | safe -}}
 {%- endmacro %}
 {% macro Card(p) -%}

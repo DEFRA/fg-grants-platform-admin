@@ -1,5 +1,6 @@
 import type { QueryError } from '../repositories/explore.repository.ts'
 import type { BucketEntry } from '../repositories/buckets.repository.ts'
+import { queueFact } from './list-bucket.use-case.ts'
 
 /** Shown in the editor, not run, when the page opens on nothing else. */
 export const defaultQuery = 'db.applications.find()'
@@ -153,16 +154,28 @@ interface ListSource {
   /** The path its records are timed by. */
   time: string
   projection: string
-  /** Events name their service and box: one list is one box. */
-  fixed: (bucket: BucketEntry) => string[]
+  /** Events name their service, and their box when one queue is picked. */
+  fixed: (bucket: BucketEntry, facts: ListLook['facts']) => string[]
 }
 
-const boxOf = (bucket: BucketEntry): string[] => {
-  const [, service, box] = bucket.path.split('/')
+const queuesOf = (facts: ListLook['facts']): string[] =>
+  [facts[queueFact] ?? []].flat().filter(Boolean)
+
+const serviceOf = (bucket: BucketEntry): string => {
+  const [, service] = bucket.path.split('/')
+
+  return `service: ${toQuoted(service.toUpperCase())}`
+}
+
+const serviceAndBox = (
+  bucket: BucketEntry,
+  facts: ListLook['facts']
+): string[] => {
+  const queues = queuesOf(facts)
 
   return [
-    `service: ${toQuoted(service.toUpperCase())}`,
-    `box: ${toQuoted(box)}`
+    serviceOf(bucket),
+    ...(queues.length === 1 ? [`box: ${toQuoted(queues[0])}`] : [])
   ]
 }
 
@@ -171,7 +184,7 @@ const events: ListSource = {
   time: 'publicationDate',
   projection:
     "{ publicationDate: 1, eventType: 1, status: 1, 'event.id': 1, 'lastError.message': 1 }",
-  fixed: boxOf
+  fixed: serviceAndBox
 }
 
 const listSources: Record<string, ListSource> = {
@@ -202,10 +215,8 @@ const listSources: Record<string, ListSource> = {
       '{ grantCode: 1, version: 1, status: 1, fetchStatus: 1, receivedAt: 1 }',
     fixed: () => []
   },
-  'gas.outbox': events,
-  'gas.inbox': events,
-  'cw.outbox': events,
-  'cw.inbox': events
+  'gas.events': events,
+  'cw.events': events
 }
 
 /** Whether a list has an "Open in Explore". */
@@ -219,7 +230,7 @@ export interface ListLook {
   search: string
 }
 
-/** A fact is stored under its name, which is its path, with the values as stored. */
+/** A fact is stored under its name, which is its path, with the values as stored; the queue is the source's to say. */
 const toFilterTests = (
   bucket: BucketEntry,
   facts: ListLook['facts']
@@ -227,7 +238,9 @@ const toFilterTests = (
   bucket.facts.flatMap((fact) => {
     const value = facts[fact.name]
 
-    return value?.length ? [toTest(fact.name, [value].flat())] : []
+    return value?.length && fact.name !== queueFact
+      ? [toTest(fact.name, [value].flat())]
+      : []
   })
 
 /** A list search is stored as `kind:value`, and found by the record's refs, which hold it trimmed and lower case. */
@@ -266,7 +279,7 @@ export const toListQuery = (
     ? toFind({
         from: source.from,
         filter: [
-          ...source.fixed(bucket),
+          ...source.fixed(bucket, facts),
           ...toFilterTests(bucket, facts),
           ...toRangeTests(source.time, window),
           ...toSearchTest(search)

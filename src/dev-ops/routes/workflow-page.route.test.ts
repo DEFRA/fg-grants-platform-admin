@@ -12,8 +12,10 @@ import type {
   WorkflowVersionPage
 } from '../use-cases/get-workflow-page.use-case.ts'
 import { getWorkflowPageUseCase } from '../use-cases/get-workflow-page.use-case.ts'
+import { shellCatalogue } from '../use-cases/shell-catalogue.ts'
 import {
   configEvent,
+  fullCatalogue,
   pendingFile,
   workflowVersionHeader as header,
   workflowVersionOverview as overview
@@ -126,6 +128,7 @@ beforeAll(async () => {
 })
 
 beforeEach(() => {
+  vi.mocked(shellCatalogue).mockReturnValue(null)
   givenWorkflow()
 })
 
@@ -492,13 +495,27 @@ describe('the workflow Raw tab', () => {
 })
 
 describe('a workflow version that could not be shown', () => {
-  test('is not found, with a search of CW’s inbox for the code', async () => {
+  test('is not found, with a search of CW’s inbox for the code, on CW’s Events with Inbox picked', async () => {
+    vi.mocked(shellCatalogue).mockReturnValue(fullCatalogue)
     vi.mocked(getWorkflowPageUseCase).mockResolvedValue({
       outcome: 'not-found',
       page: null
     })
 
     const { $, statusCode } = await viewPage()
+    const form = $('#record-missing-search')
+
+    expect(form.attr('action')).toBe('/dev-ops/events/cw')
+    expect(
+      form
+        .find('input[type="hidden"]')
+        .toArray()
+        .map((input) => [$(input).attr('name'), $(input).attr('value')])
+    ).toEqual([
+      ['ref-kind', 'ref'],
+      ['ref-value', 'woodland-creation'],
+      ['queue', 'inbox']
+    ])
 
     expect(statusCode).toBe(statusCodes.notFound)
     expect(textOf($, 'record-missing-not-found')).toContain(

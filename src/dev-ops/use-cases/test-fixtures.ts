@@ -79,9 +79,7 @@ export const outboxBucket: BucketEntry = {
   ],
   audited: false,
   timeline: true,
-  summaries: [],
-  page: null,
-  tab: null
+  summaries: []
 }
 
 /** The same list with audit events among its event types. */
@@ -95,27 +93,6 @@ export const auditedOutbox: BucketEntry = {
         }
       : fact
   )
-}
-
-const eventsPage = { id: 'events', label: 'GAS events', shortLabel: 'Events' }
-
-/** The outbox and the inbox as the two tabs of one page; the inbox searches by fewer kinds and hides nothing. */
-export const pagedOutbox: BucketEntry = {
-  ...auditedOutbox,
-  page: eventsPage,
-  tab: 'Outbox'
-}
-
-export const pagedInbox: BucketEntry = {
-  ...outboxBucket,
-  id: 'gas.inbox',
-  path: 'events/gas/inbox',
-  label: 'GAS inbox',
-  shortLabel: 'Inbox',
-  time: { label: 'Received' },
-  refs: [{ kind: 'trace', label: 'Trace ID' }],
-  page: eventsPage,
-  tab: 'Inbox'
 }
 
 /** Every status GAS and CW give an event, as both declare them. */
@@ -153,8 +130,8 @@ const errorFacts: BucketFact[] = [
 ]
 
 const queueFacts: Record<'outbox' | 'inbox', Partial<BucketEntry>> = {
-  outbox: { shortLabel: 'Outbox', time: { label: 'Created' }, tab: 'Outbox' },
-  inbox: { shortLabel: 'Inbox', time: { label: 'Received' }, tab: 'Inbox' }
+  outbox: { shortLabel: 'Outbox', time: { label: 'Created' } },
+  inbox: { shortLabel: 'Inbox', time: { label: 'Received' } }
 }
 
 const eventTypes: Record<'outbox' | 'inbox', BucketFact> = {
@@ -188,7 +165,7 @@ const queueOrder: Record<string, number> = {
   'CW inbox': 40
 }
 
-/** An event queue as GAS and CW declare theirs on main: the outbox hides audit events behind a switch. */
+/** An event queue's own list, as GAS and CW list it while a service's queues aren't one Events page. */
 const eventQueue = (
   service: 'GAS' | 'CW',
   box: 'outbox' | 'inbox'
@@ -220,8 +197,6 @@ const eventQueue = (
     audited: false,
     timeline: true,
     summaries: [],
-    page: { id: 'events', label: `${service} events`, shortLabel: 'Events' },
-    tab: null,
     ...queueFacts[box]
   }
 }
@@ -230,6 +205,73 @@ export const gasOutbox = eventQueue('GAS', 'outbox')
 export const gasInbox = eventQueue('GAS', 'inbox')
 export const cwOutbox = eventQueue('CW', 'outbox')
 export const cwInbox = eventQueue('CW', 'inbox')
+
+const queueFact: BucketFact = {
+  name: 'box',
+  param: 'queue',
+  label: 'Queue',
+  values: [
+    { value: 'outbox', label: 'Outbox' },
+    { value: 'inbox', label: 'Inbox' }
+  ],
+  within: null
+}
+
+const errorsSummary = {
+  id: 'errors',
+  label: 'Top errors',
+  by: ['errorKey', 'eventType'],
+  among: { status: 'DEAD_LETTER' },
+  top: 20,
+  none: 'No error recorded'
+}
+
+/** A service's Events page as GAS builds it over both queues: the queue first, then the facts both declare, the event types joined. */
+const eventsGroup = (service: 'GAS' | 'CW'): BucketEntry => {
+  const svc = service.toLowerCase()
+
+  return {
+    id: `${svc}.events`,
+    path: `events/${svc}`,
+    label: `${service} events`,
+    service,
+    shortLabel: 'Events',
+    icon: 'activity',
+    order: queueOrder[`${service} outbox`],
+    noun: { one: 'event', many: 'events' },
+    time: { label: 'Created' },
+    facts: [
+      queueFact,
+      eventStatusFact,
+      {
+        ...eventTypes.outbox,
+        values: [
+          ...(eventTypes.inbox.values ?? []),
+          ...(eventTypes.outbox.values ?? [])
+        ].sort((a, b) => a.value.localeCompare(b.value))
+      },
+      ...errorFacts
+    ],
+    refs: [
+      { kind: 'ref', label: 'Reference' },
+      { kind: 'trace', label: 'Trace ID' },
+      { kind: 'id', label: 'Event ID' }
+    ],
+    indexes: [],
+    groupings: [],
+    title: { label: 'Event', format: 'eventType' },
+    columns: [
+      { key: 'box', label: 'Queue', format: 'label', fact: 'box' },
+      { key: 'status', label: 'Status', format: 'badge', fact: 'status' }
+    ],
+    audited: false,
+    timeline: false,
+    summaries: [errorsSummary]
+  }
+}
+
+export const gasEvents = eventsGroup('GAS')
+export const cwEvents = eventsGroup('CW')
 
 export const applicationsBucket: BucketEntry = {
   id: 'gas.applications',
@@ -277,9 +319,7 @@ export const applicationsBucket: BucketEntry = {
   ],
   audited: true,
   timeline: false,
-  summaries: [],
-  page: null,
-  tab: null
+  summaries: []
 }
 
 const versionStatusFact: BucketFact = {
@@ -382,9 +422,7 @@ export const grantsBucket: BucketEntry = {
   ],
   audited: false,
   timeline: false,
-  summaries: [],
-  page: null,
-  tab: null
+  summaries: []
 }
 
 export const casesBucket: BucketEntry = {
@@ -495,7 +533,7 @@ export const workflowsBucket: BucketEntry = {
 
 export const catalogue: Catalogue = {
   buckets: [
-    outboxBucket,
+    gasEvents,
     applicationsBucket,
     grantsBucket,
     casesBucket,
@@ -878,6 +916,19 @@ export const agreementDefinition: AgreementDefinition = {
 
 /** Every list both services declare, in their catalogue order. */
 export const fullCatalogue: Catalogue = {
+  buckets: [
+    gasEvents,
+    { ...applicationsBucket, facts: applicationsBucket.facts.slice(0, 2) },
+    grantsBucket,
+    cwEvents,
+    casesBucket,
+    workflowsBucket
+  ],
+  sourceErrors: []
+}
+
+/** The same lists while GAS lists each queue apart: before it groups them, or when it can't. */
+export const queuesApartCatalogue: Catalogue = {
   buckets: [
     gasOutbox,
     gasInbox,

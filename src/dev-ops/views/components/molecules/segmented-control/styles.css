@@ -30,7 +30,7 @@
 .gpa-segmented button[aria-checked="true"] {
   background: var(--bg-surface-raised);
   color: var(--fg-default);
-  box-shadow: var(--elevation-raised);
+  box-shadow: 0 0 0 var(--border-width-hairline) var(--border-subtle);
 }
 .gpa-segmented .gpa-count {
   margin-inline-start: 0;
@@ -58,5 +58,5 @@
 .gpa-segmented a[aria-checked="true"] {
   background: var(--bg-surface-raised);
   color: var(--fg-default);
-  box-shadow: var(--elevation-raised);
+  box-shadow: 0 0 0 var(--border-width-hairline) var(--border-subtle);
 }

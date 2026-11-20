@@ -1,0 +1,15 @@
+.gpa-docs {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.gpa-doc-item {
+  padding: var(--inset-cell-y) var(--inset-card);
+  border-bottom: var(--border-width-hairline) solid var(--table-divider);
+}
+.gpa-docs > .gpa-doc-item:last-child {
+  border-bottom: 0;
+}
+.gpa-doclist > .gpa-docs + * {
+  border-top: var(--border-width-hairline) solid var(--table-divider);
+}

@@ -40,12 +40,12 @@ export interface DeadLetters extends OverviewCount {
 }
 
 export interface TopError extends OverviewCount {
-  /** The error as GAS groups it; `No error recorded` for the dead letters that recorded none, null for a row neither service has keyed. */
+  /** The error as GAS groups it; the no-error key for the dead letters that recorded none, null for a row neither service has keyed. */
   errorKey: string | null
   event: { value: string; label: string } | null
   lastAt: string | null
-  /** The list this group's dead letters are in, filtered to them, with no time range. */
-  list: ListLink
+  /** The list this group's dead letters are in, filtered to them, with no time range; null while GAS lists none. */
+  list: ListLink | null
 }
 
 /** The service's outbox and inbox errors summaries of the dead letters there are now, merged, most first: no time window. */

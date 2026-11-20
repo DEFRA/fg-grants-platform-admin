@@ -1,3 +1,6 @@
+/** The longest value GAS takes for one of a list's filters. */
+export const filterValueMax = 200
+
 export interface FilterField {
   name: string
   value: string

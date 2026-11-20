@@ -6,13 +6,16 @@ import type {
   EventService
 } from '../use-cases/get-event.use-case.ts'
 
-const urlServices: Record<EventService, string> = {
+/** A service as the admin's addresses spell it. */
+export type UrlService = 'gas' | 'cw'
+
+const urlServices: Record<EventService, UrlService> = {
   gas: 'gas',
   caseworking: 'cw'
 }
 
 /** A service as an event's URL spells it: CW's events are under `cw`, as its lists are. */
-export const toUrlService = (service: EventService): string =>
+export const toUrlService = (service: EventService): UrlService =>
   urlServices[service]
 
 /** The event an address checked by `eventAddress` names, with the service as fg-gas-backend spells it. */

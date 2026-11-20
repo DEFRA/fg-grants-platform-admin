@@ -34,6 +34,7 @@ import {
   toExploreStatusCode,
   toRunHref
 } from '../view-models/explore-page.view-model.ts'
+import { errorParamOf, isErrorSet } from '../view-models/error-search.ts'
 import { seeOther } from '../view-models/see-other.ts'
 import { heldSearch, toSearchKey } from '../view-models/stored-search.ts'
 import { toListWindow } from '../view-models/time-range.view-model.ts'
@@ -204,7 +205,7 @@ const toListAt = (
   }
 }
 
-/** The list GAS found, from the shell its answer carried: its filters from the address, and its search from the session. */
+/** The list GAS found, from the shell its answer carried: its filters from the address, and its search from the session unless the address sets the error, which is the list's search then. */
 const toExploredList = (
   request: Request,
   { params, from, to }: ListAddress,
@@ -220,7 +221,9 @@ const toExploredList = (
         look: {
           facts: fromUrlQuery(bucket, params),
           window: { from, to },
-          search: heldSearch(request, toSearchKey(bucket.path))
+          search: isErrorSet(params, errorParamOf(bucket))
+            ? ''
+            : heldSearch(request, toSearchKey(bucket.path))
         }
       }
     : null

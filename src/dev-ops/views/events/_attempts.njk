@@ -2,7 +2,7 @@
 {#- The attempts: the one error they failed with and its stack, then each attempt on asking. -#}
 {%- if attempts -%}
   {%- set errorsAction -%}
-    {%- if attempts.errorsHref %}{{ gpa.Button({ text: 'Events with this error', size: 'sm', variant: 'tertiary', iconEnd: 'arrow-right', href: attempts.errorsHref, testId: 'event-errors-link' }) }}{% endif -%}
+    {%- if attempts.errors %}{{ gpa.Button({ text: attempts.errors.text, size: 'sm', variant: 'tertiary', iconEnd: 'arrow-right', href: attempts.errors.href, testId: 'event-errors-link' }) }}{% endif -%}
   {%- endset -%}
   {%- call gpa.Card({ padded: true, title: 'Attempts', count: attempts.count, actions: errorsAction, testId: 'event-attempts', countTestId: 'event-attempts-count' }) -%}
     {%- call gpa.Stack({ gap: 'md' }) -%}

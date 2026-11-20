@@ -37,7 +37,7 @@ const credentials = {
 const id = '665f1c2e9a1b2c3d4e5f6a7b'
 const path = `/dev-ops/events/gas/outbox/${id}`
 const key = { service: 'gas', box: 'outbox', id }
-const listPath = '/dev-ops/events/gas/outbox'
+const listPath = '/dev-ops/events/gas'
 
 const responseError = (statusCode: number, body: object = {}) =>
   Object.assign(new Error(`Response Error: ${statusCode}`), {
@@ -1521,7 +1521,7 @@ describe('the page to go back to', () => {
       `${path}?back=${encodeURIComponent(back)}`
     )
 
-    expect(by($, 'event-back').attr('href')).toBe(listPath)
+    expect(by($, 'event-back').attr('href')).toBe('/dev-ops/events/gas')
   })
 })
 

@@ -1,0 +1,6 @@
+{%- set t = p.text | string -%}
+  {%- set parts = t.split('.') -%}
+  {%- if parts | length > 1 -%}
+    {%- set key = parts | last -%}
+    <span class="gpa-pathhead gpa-mono" title="{{ t }}"><span class="gpa-pathhead-up"><bdi>{{ t.slice(0, t.length - key.length) }}</bdi></span><span class="gpa-pathhead-key">{{ key }}</span></span>
+  {%- else %}{{ t }}{% endif -%}

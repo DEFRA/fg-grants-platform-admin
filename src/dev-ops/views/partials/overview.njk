@@ -25,6 +25,7 @@
           columns: [
             { key: 'error', label: 'Error', width: 'minmax(180px, 3fr)', mono: true },
             { key: 'service', label: 'Service', width: 'auto' },
+            { key: 'queue', label: 'Queue', width: 'auto' },
             { key: 'event', label: 'Event', width: 'auto' },
             { key: 'count', label: 'Dead letters', width: 'auto', align: 'right' },
             { key: 'last', label: 'Last seen', width: 'max-content', align: 'right' }
@@ -32,16 +33,21 @@
         }) -%}
           {%- for row in section.rows -%}
             {%- call gpa.TableRow({ link: true, testId: 'overview-top-error-row' }) -%}
-              {%- if row.error -%}
+              {%- if row.error and row.href -%}
                 <td role="cell" class="gpa-cell-mono">{{ gpa.RowLink({ text: row.error, href: row.href, mono: true }) }}</td>
-              {%- else -%}
+              {%- elif row.error -%}
+                <td role="cell" class="gpa-cell-mono">{{ gpa.Text({ text: row.error, mono: true }) }}</td>
+              {%- elif row.href -%}
                 <td role="cell">{{ gpa.RowLink({ text: 'No error recorded', href: row.href }) }}</td>
+              {%- else -%}
+                <td role="cell">{{ gpa.Text({ text: 'No error recorded' }) }}</td>
               {%- endif -%}
               <td role="cell">{{ gpa.Text({ text: row.service }) }}</td>
+              <td role="cell">{% if row.queue %}{{ gpa.Text({ text: row.queue }) }}{% else %}{{ gpa.NoValue() }}{% endif %}</td>
               <td role="cell">{% if row.event %}{{ gpa.Text({ text: row.event }) }}{% else %}{{ gpa.NoValue() }}{% endif %}</td>
               <td role="cell" class="gpa-right"><span class="gpa-num">{{ row.count }}</span></td>
               <td role="cell" class="gpa-right">{{ timeCell(row.lastSeen) }}</td>
-              {{ gpa.RowChevron() }}
+              {%- if row.href %}{{ gpa.RowChevron() }}{% else %}<td role="cell"></td>{% endif -%}
             {%- endcall -%}
           {%- endfor -%}
         {%- endcall -%}

@@ -11,7 +11,7 @@
 .gpa-segment:has(:checked) {
   background: var(--bg-surface-raised);
   color: var(--fg-default);
-  box-shadow: var(--elevation-raised);
+  box-shadow: 0 0 0 var(--border-width-hairline) var(--border-subtle);
 }
 .gpa-segment:has(:focus-visible) {
   outline: var(--focus-ring-width) solid var(--border-focus);

@@ -1,9 +1,13 @@
 import {
   applicationsBucket,
   catalogue,
-  outboxBucket,
-  pagedInbox,
-  pagedOutbox
+  cwEvents,
+  cwInbox,
+  cwOutbox as cwOutboxQueue,
+  gasEvents,
+  gasInbox,
+  gasOutbox,
+  outboxBucket
 } from '../use-cases/test-fixtures.ts'
 import {
   toBackBucket,
@@ -21,7 +25,6 @@ describe('toBucketPath', () => {
 describe('toNavSections', () => {
   const gasTokens = {
     id: 'clients-gas',
-    ids: ['clients-gas'],
     label: 'Access tokens',
     perService: true,
     href: '/dev-ops/clients/gas',
@@ -29,7 +32,6 @@ describe('toNavSections', () => {
   }
   const cwTokens = {
     id: 'clients-cw',
-    ids: ['clients-cw'],
     label: 'Access tokens',
     perService: true,
     href: '/dev-ops/clients/cw',
@@ -48,16 +50,14 @@ describe('toNavSections', () => {
         title: 'GAS',
         items: [
           {
-            id: 'gas.outbox',
-            ids: ['gas.outbox'],
-            label: 'Outbox',
+            id: 'gas.events',
+            label: 'Events',
             perService: true,
-            href: '/dev-ops/events/gas/outbox',
+            href: '/dev-ops/events/gas',
             icon: 'activity'
           },
           {
             id: 'gas.applications',
-            ids: ['gas.applications'],
             label: 'Applications',
             perService: false,
             href: '/dev-ops/applications',
@@ -65,7 +65,6 @@ describe('toNavSections', () => {
           },
           {
             id: 'gas.grants',
-            ids: ['gas.grants'],
             label: 'Grants',
             perService: false,
             href: '/dev-ops/grants',
@@ -79,7 +78,6 @@ describe('toNavSections', () => {
         items: [
           {
             id: 'cw.cases',
-            ids: ['cw.cases'],
             label: 'Cases',
             perService: false,
             href: '/dev-ops/cases',
@@ -87,7 +85,6 @@ describe('toNavSections', () => {
           },
           {
             id: 'cw.workflows',
-            ids: ['cw.workflows'],
             label: 'Workflows',
             perService: false,
             href: '/dev-ops/workflows',
@@ -99,39 +96,57 @@ describe('toNavSections', () => {
     ])
   })
 
-  test('draws one link for the lists that share a page, named by the page, opening on the first and standing for each', () => {
-    const cwPaged = [pagedOutbox, pagedInbox].map((bucket) => ({
-      ...bucket,
-      id: bucket.id.replace('gas.', 'cw.'),
-      service: 'CW'
-    }))
-    const sections = toNavSections({
-      buckets: [pagedOutbox, pagedInbox, applicationsBucket, ...cwPaged],
+  test('draws one link per list: a service’s Events page, or each queue’s own list while GAS lists them apart', () => {
+    const grouped = toNavSections({
+      buckets: [gasEvents, applicationsBucket, cwEvents],
+      sourceErrors: []
+    })
+    const apart = toNavSections({
+      buckets: [gasOutbox, gasInbox, cwOutboxQueue, cwInbox],
       sourceErrors: []
     })
 
-    expect(sections[0].items).toEqual([
+    expect(grouped[0].items[0]).toEqual({
+      id: 'gas.events',
+      label: 'Events',
+      perService: true,
+      href: '/dev-ops/events/gas',
+      icon: 'activity'
+    })
+    expect(grouped[1].items.map(({ id }) => id)).toEqual([
+      'cw.events',
+      'clients-cw'
+    ])
+    expect(
+      apart.flatMap(({ items }) =>
+        items.map(({ label, href }) => [label, href])
+      )
+    ).toEqual([
+      ['Outbox', '/dev-ops/events/gas/outbox'],
+      ['Inbox', '/dev-ops/events/gas/inbox'],
+      ['Access tokens', '/dev-ops/clients/gas'],
+      ['Outbox', '/dev-ops/events/cw/outbox'],
+      ['Inbox', '/dev-ops/events/cw/inbox'],
+      ['Access tokens', '/dev-ops/clients/cw']
+    ])
+  })
+
+  test('keeps CW’s Events, Cases and Workflows in reach while GAS can’t reach CW', () => {
+    const sections = toNavSections({
+      buckets: [gasEvents],
+      sourceErrors: [{ hop: 'CW-BE' }]
+    })
+
+    expect(sections[1].items.slice(0, 3)).toEqual([
       {
-        id: 'gas.outbox',
-        ids: ['gas.outbox', 'gas.inbox'],
+        id: 'cw.events',
         label: 'Events',
         perService: true,
-        href: '/dev-ops/events/gas/outbox',
+        href: '/dev-ops/events/cw',
         icon: 'activity'
       },
-      {
-        id: 'gas.applications',
-        ids: ['gas.applications'],
-        label: 'Applications',
-        perService: false,
-        href: '/dev-ops/applications',
-        icon: 'file-text'
-      },
-      gasTokens
-    ])
-    expect(sections[1].items.map(({ ids }) => ids)).toEqual([
-      ['cw.outbox', 'cw.inbox'],
-      ['clients-cw']
+      expect.objectContaining({ id: 'cw.cases' }),
+      expect.objectContaining({ id: 'cw.workflows' })
     ])
   })
 
@@ -210,13 +225,13 @@ describe('toNavSections', () => {
 
 describe('toBackBucket', () => {
   const buckets = {
-    buckets: [pagedOutbox, pagedInbox, applicationsBucket],
+    buckets: [gasEvents, applicationsBucket],
     sourceErrors: []
   }
 
   test.each([
-    ['/dev-ops/events/gas/outbox', 'gas.outbox'],
-    ['/dev-ops/events/gas/inbox?status=DEAD_LETTER', 'gas.inbox'],
+    ['/dev-ops/events/gas', 'gas.events'],
+    ['/dev-ops/events/gas?queue=inbox&status=DEAD_LETTER', 'gas.events'],
     [
       '/dev-ops/applications?from=2026-10-08T12%3A00%3A00.000Z',
       'gas.applications'
@@ -250,7 +265,6 @@ describe('toShellNav', () => {
     items: [
       {
         id: 'overview',
-        ids: ['overview'],
         label: 'Overview',
         perService: false,
         href: '/dev-ops',
@@ -258,7 +272,6 @@ describe('toShellNav', () => {
       },
       {
         id: 'explore',
-        ids: ['explore'],
         label: 'Explore',
         perService: false,
         href: '/dev-ops/explore',

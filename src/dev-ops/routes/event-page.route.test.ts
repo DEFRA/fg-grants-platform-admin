@@ -26,7 +26,7 @@ const credentials = {
 
 const id = '665f1c2e9a1b2c3d4e5f6a7b'
 const path = `/dev-ops/events/gas/outbox/${id}`
-const listPath = '/dev-ops/events/gas/outbox'
+const listPath = '/dev-ops/events/gas'
 const fromList = `${path}?back=${encodeURIComponent(listPath)}`
 
 const message = 'Application with clientRef "ref-e2e-005" not found'
@@ -66,6 +66,7 @@ const detail = (overrides: Partial<EventDetail> = {}): EventDetail => ({
   expiresAt: '2027-02-02T00:00:00.000Z',
   purgeDeletionDate: '2027-02-02T00:00:00.000Z',
   lastError: { name: 'Error', message, at: '2026-10-13T14:53:24.011Z' },
+  errorKey: 'Error: Application with clientRef <v> not found',
   attemptHistory: attempts,
   payload: { id: 'abc', data: { clientRef: 'ref-e2e-005', status: 'offered' } },
   payloadRevision: 0,
@@ -183,6 +184,23 @@ test('a list address too long to go back to: the event still shows, and goes bac
   )
 })
 
+test.each([
+  '/dev-ops/events/gas/outbox',
+  '/dev-ops/events/gas/inbox',
+  '/dev-ops/events/cw/outbox',
+  '/dev-ops/events/cw/inbox',
+  '/dev-ops/events/gas/inbox?status=DEAD_LETTER&through=2#row-2-3',
+  '/dev-ops/events/cw/outbox/?event=CreateCase'
+])(
+  'Back from %s, a queue’s own address, which is no page: the event’s own service’s Events instead',
+  async (back) => {
+    const { $ } = await view(`${path}?back=${encodeURIComponent(back)}`)
+
+    expect(by($, 'event-back').attr('href')).toBe('/dev-ops/events/gas')
+    expect(by($, 'event-redrive').attr('href')).toBe(`${path}?confirm=redrive`)
+  }
+)
+
 test('Back from a row goes to every page of the list through the row’s, landing on the row', async () => {
   const back = `${listPath}?through=3&status=DEAD_LETTER#row-3-7`
   const { $ } = await view(`${path}?back=${encodeURIComponent(back)}`)
@@ -261,11 +279,59 @@ describe('Loaded: a dead letter, every attempt the same', () => {
     expect(by($, 'event-last-error').attr('class')).toContain('gpa-code-plain')
   })
 
-  test('Events with this error: the queue’s dead letters with this error’s name', async () => {
+  test('Events with this error: its queue’s dead letters with this error’s key, as Top errors counts them, any search held cleared', async () => {
     const { $ } = await view()
 
+    expect(textOf($, 'event-errors-link')).toBe('Events with this error')
     expect(by($, 'event-errors-link').attr('href')).toBe(
-      `${listPath}?status=DEAD_LETTER&errorname=Error`
+      '/dev-ops/events/gas?queue=outbox&status=DEAD_LETTER&error=Error%3A+Application+with+clientRef+%3Cv%3E+not+found&clear=all'
+    )
+  })
+
+  test('a dead letter that recorded no error: its own words, opening its queue’s dead letters with none', async () => {
+    given(detail({ lastError: null, errorKey: 'No error recorded' }))
+
+    const { $ } = await view()
+
+    expect(textOf($, 'event-errors-link')).toBe(
+      'Dead letters with no recorded error'
+    )
+    expect(by($, 'event-errors-link').attr('href')).toBe(
+      '/dev-ops/events/gas?queue=outbox&status=DEAD_LETTER&error=No+error+recorded&clear=all'
+    )
+  })
+
+  test('no error key from GAS: no link, as the name alone can’t match the dead letters exactly', async () => {
+    given(detail({ errorKey: undefined }))
+
+    const { $ } = await view()
+
+    expect(by($, 'event-errors-link')).toHaveLength(0)
+  })
+
+  test('with no back, it goes back to its service’s Events, whether or not the catalogue lists it', async () => {
+    const listed = await view(path)
+
+    vi.mocked(shellCatalogue).mockReturnValue({ buckets: [], sourceErrors: [] })
+    const unlisted = await view(path)
+
+    expect(listed.$('[data-testid="event-back"]').attr('href')).toBe(
+      '/dev-ops/events/gas'
+    )
+    expect(unlisted.$('[data-testid="event-back"]').attr('href')).toBe(
+      '/dev-ops/events/gas'
+    )
+  })
+
+  test('its status is toned as on its Events page: Queued info, Failed danger', async () => {
+    given(
+      detail({ status: 'FAILED', statusLabel: 'Failed', statusRole: 'warning' })
+    )
+
+    const { $ } = await view()
+
+    expect(by($, 'event-status').find('.gpa-dot').attr('class')).toContain(
+      'gpa-dot-danger'
     )
   })
 
@@ -674,7 +740,7 @@ describe('Unavailable, timed out, not found', () => {
       'It may have passed its deletion date, or the ID may be from the other service. Check the ID, or search for it from Events.'
     )
     expect(by($, 'event-not-found').find('a').attr('href')).toBe(
-      '/dev-ops/events/cw/outbox'
+      '/dev-ops/events/cw'
     )
   })
 })

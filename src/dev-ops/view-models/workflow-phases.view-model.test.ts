@@ -15,7 +15,8 @@ const links = {
   grantStatus: (position: string, selected: string) =>
     `grant:${position}<${selected}`,
   grant: (selected: string) => `grant-page<${selected}`,
-  tasks: (phase: string, stage: string) => `tasks#stage-${phase}:${stage}`
+  tasks: (phase: string, stage: string) => `tasks#stage-${phase}:${stage}`,
+  deadLetters: 'cw-dead-letters' as string | null
 }
 
 const cwMapping = (
@@ -435,11 +436,33 @@ describe('toWorkflowPhases', () => {
           text: 'CW rejects GAS’s message while mandatory tasks in S (the case’s current stage) are open. After its retries the message goes to CW’s inbox as a dead letter, and nothing re-applies it:',
           link: {
             text: 'redrive it once the tasks are done',
-            href: '/dev-ops/events/cw/inbox?status=DEAD_LETTER'
+            href: 'cw-dead-letters'
           }
         }
       }
     ])
+  })
+
+  test('says the dead letters wait for a redrive, with no link, when CW’s events aren’t listed', () => {
+    const phases = onePhase([
+      'S',
+      [status('A', [gas('P:S:B', true)]), status('B', [], { closes: true })],
+      tasksOf(true)
+    ])
+    const { panels, selected } = toWorkflowPhases(
+      phases,
+      found,
+      'A',
+      { ...links, deadLetters: null },
+      { code: 'woodland-creation', version: '1.2.0' },
+      { href: '/dev-ops/workflows/woodland-creation/1.2.0', from: '' }
+    )
+    const [way] = panels.find(({ id }) => id === selected)!.waysOut
+
+    expect(way.tasks?.note).toEqual({
+      text: 'CW rejects GAS’s message while mandatory tasks in S (the case’s current stage) are open. After its retries the message goes to CW’s inbox as a dead letter, and nothing re-applies it.',
+      link: null
+    })
   })
 
   test('says a move that checks tasks never blocks in a stage with no mandatory task', () => {

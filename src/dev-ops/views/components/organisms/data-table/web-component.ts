@@ -7,11 +7,13 @@ export class GpaDataTable extends HTMLElement {
     const cols = this.dataset.cols;
     if (cols) {
       scroll.style.setProperty("--gpa-cols", cols);
-      const narrow = cols
-        .split(/\s+(?![^(]*\))/)
-        .filter((t) => t !== "var(--size-column-chevron)")
-        .map((t) => (t === "var(--size-column-check)" ? t : "auto"))
-        .join(" ");
+      const narrow =
+        scroll.dataset.gpaColsNarrow ??
+        cols
+          .split(/\s+(?![^(]*\))/)
+          .filter((t) => t !== "var(--size-column-chevron)")
+          .map((t) => (t === "var(--size-column-check)" ? t : "auto"))
+          .join(" ");
       scroll.style.setProperty("--gpa-cols-narrow", narrow);
     }
     if (this.hasAttribute("data-sticky")) {

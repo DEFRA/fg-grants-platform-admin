@@ -15,7 +15,6 @@ import {
 import type { AttemptCount } from './attempt-count.ts'
 import { backKey } from './bucket-links.ts'
 import { caseType, toCaseHref } from './cases-page.view-model.ts'
-import { toUrlService } from './event-address.ts'
 import { toEventHref, toValidDate } from './event-formats.ts'
 import type { EventState } from '../use-cases/event-state.ts'
 import { toFittingBack } from './record-filters.ts'
@@ -34,6 +33,8 @@ export interface EventContext {
   /** The page it was opened from, checked; empty for none. */
   from: string
   eventHref: string
+  catalogue: Catalogue | null
+  /** The list the event's queue is on. */
   ownList: BucketEntry | null
 }
 
@@ -74,15 +75,6 @@ export const timeOf = (
 
   return date && format(date, times)
 }
-
-export const ownListPath = (key: EventKey): string =>
-  `events/${toUrlService(key.service)}/${key.box}`
-
-export const toOwnList = (
-  catalogue: Catalogue | null,
-  key: EventKey
-): BucketEntry | null =>
-  catalogue?.buckets.find(({ path }) => path === ownListPath(key)) ?? null
 
 const recordLinks: Record<
   EventRecord['kind'],

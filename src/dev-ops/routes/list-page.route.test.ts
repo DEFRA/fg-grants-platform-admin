@@ -24,8 +24,9 @@ import {
 } from '../test-utils.ts'
 import {
   fullCatalogue,
+  gasEvents,
   outboxBucket,
-  pagedInbox
+  queuesApartCatalogue
 } from '../use-cases/test-fixtures.ts'
 import { shellCatalogue } from '../use-cases/shell-catalogue.ts'
 import type { Catalogue } from '../use-cases/shell-catalogue.ts'
@@ -42,14 +43,17 @@ const credentials = {
 
 const now = new Date('2026-10-13T15:20:00.000Z')
 
-const outboxPath = '/dev-ops/events/gas/outbox'
+const outboxPath = '/dev-ops/events/gas'
+
+/** Where the GAS outbox's events have their own pages. */
+const eventsOf = '/dev-ops/events/gas/outbox'
 
 const eventRow = (overrides: Partial<BucketRow> = {}): BucketRow => ({
   id: '66f000000000000000000001',
   time: '2026-10-13T14:53:00.000Z',
   title: 'UpdateCaseStatus',
   subtitle: '5208709c-e2d5-4870-b6ae-ff168bf65726',
-  cells: { status: 'DEAD_LETTER', completedAt: null },
+  cells: { box: 'outbox', status: 'DEAD_LETTER', completedAt: null },
   link: {
     kind: 'event',
     service: 'gas',
@@ -60,7 +64,7 @@ const eventRow = (overrides: Partial<BucketRow> = {}): BucketRow => ({
 })
 
 const exact = (overrides: Partial<BucketResult> = {}): BucketResult => ({
-  bucket: 'gas.outbox',
+  bucket: 'gas.events',
   plan: {
     kind: 'exact',
     index: ['status'],
@@ -268,6 +272,12 @@ const post = async (
   }
 }
 
+/** Posts from the list as drawn, so the session holds what its answer declared. */
+const postFromPage = async (
+  payload: Record<string, string>,
+  url = outboxPath
+) => post(payload, (await view(url)).cookie, url)
+
 /** Searches, then opens the list it redirects to, with the session the search set. */
 const searched = async (kind: string, value: string) => {
   const posted = await post({ 'ref-kind': kind, 'ref-value': value })
@@ -281,16 +291,19 @@ const by = ($: CheerioAPI, testId: string) => $(`[data-testid="${testId}"]`)
 
 const textOf = ($: CheerioAPI, testId: string) => flat(by($, testId).text())
 
-const headers = ($: CheerioAPI) =>
+const wide = ':not(.gpa-narrow-only)'
+const narrow = '.gpa-narrow-only'
+
+const headers = ($: CheerioAPI, which = wide) =>
   by($, 'list-table')
-    .find('th')
+    .find(`th${which}`)
     .toArray()
     .map((th) => flat($(th).text()))
 
-const firstRowCells = ($: CheerioAPI) =>
+const firstRowCells = ($: CheerioAPI, which = wide) =>
   by($, 'list-row')
     .first()
-    .find('td')
+    .find(`td${which}`)
     .toArray()
     .map((td) => flat($(td).text()))
 
@@ -345,6 +358,15 @@ const tags = ($: CheerioAPI) =>
     .toArray()
     .map((tag) => flat($(tag).find('.gpa-tag-label').text()))
 
+const chipValue = ($: CheerioAPI, fact: string) =>
+  by($, `list-chip-${fact}`).find('.gpa-chip-value').text()
+
+/** The kind picked and the value the search field shows. */
+const searchOf = ($: CheerioAPI) => ({
+  kind: flat(by($, 'list-search').find('option[selected]').text()),
+  value: by($, 'list-search-input').find('input').attr('value') ?? ''
+})
+
 const alertOf = ($: CheerioAPI) => ({
   tone: (by($, 'list-alert').attr('class') ?? '').match(/gpa-alert-(\w+)/)?.[1],
   title: flat(by($, 'list-alert').find('.gpa-alert-title').text()),
@@ -377,7 +399,7 @@ afterAll(async () => {
 })
 
 describe('Loaded', () => {
-  test('GAS outbox: title, service, the Outbox tab, the prototype’s columns and a row that opens the event', async () => {
+  test('GAS events: title, service, no tabs, the prototype’s columns and a row that opens the event', async () => {
     const { $, statusCode } = await view()
 
     expect(statusCode).toBe(statusCodes.ok)
@@ -385,33 +407,27 @@ describe('Loaded', () => {
     expect(flat($('.gpa-pageheader-meta').text())).toBe(
       'Grant Application Service'
     )
-    expect(
-      by($, 'list-tabs')
-        .find('a')
-        .toArray()
-        .map((a) => [
-          flat($(a).text()),
-          $(a).attr('href'),
-          $(a).attr('aria-current')
-        ])
-    ).toEqual([
-      ['Outbox', outboxPath, 'page'],
-      ['Inbox', '/dev-ops/events/gas/inbox', undefined]
+    expect(by($, 'list-tabs')).toHaveLength(0)
+    expect(headers($)).toEqual([
+      'Event',
+      'Event ID',
+      'Queue',
+      'Status',
+      'Created'
     ])
-    expect(by($, 'list-tabs').attr('aria-label')).toBe('Queue')
-    expect(headers($)).toEqual(['Event', 'Event ID', 'Status', 'Created'])
     expect(firstRowCells($)).toEqual([
       'UpdateCaseStatus',
-      '5208709c-e2d5-4870-b6ae-ff168bf65726',
+      '5208709c…57265208709c-e2d5-4870-b6ae-ff168bf65726',
+      'Outbox',
       'Dead letter',
       '13 Oct 2026 14:53',
       ''
     ])
     expect(by($, 'list-row').find('.gpa-rowlink').attr('href')).toBe(
-      '/dev-ops/events/gas/outbox/66f000000000000000000001?back=%2Fdev-ops%2Fevents%2Fgas%2Foutbox%3Fthrough%3D1%23row-1-1'
+      '/dev-ops/events/gas/outbox/66f000000000000000000001?back=%2Fdev-ops%2Fevents%2Fgas%3Fthrough%3D1%23row-1-1'
     )
     expect(by($, 'list-row').find('td').eq(1).attr('class')).toBe(
-      'gpa-cell-mono'
+      'gpa-cell-mono gpa-wide-only'
     )
     expect(by($, 'list-row').find('.gpa-dot').attr('class')).toContain(
       'gpa-dot-danger'
@@ -422,13 +438,43 @@ describe('Loaded', () => {
     expect(by($, 'list-footer')).toHaveLength(0)
   })
 
-  test('the columns keep the prototype’s widths, and the time sits on the right', async () => {
+  test('the columns are equal shares, at least 160px each, Created on the right, and nothing is pinned', async () => {
     const { $ } = await view()
 
     expect($('gpa-data-table').attr('data-cols')).toBe(
-      'minmax(220px, 1fr) 336px 128px var(--size-column-date) var(--size-column-chevron)'
+      'minmax(160px, 1fr) minmax(160px, 1fr) minmax(160px, 1fr) minmax(160px, 1fr) minmax(160px, 1fr) var(--size-column-chevron)'
     )
-    expect(by($, 'list-row').find('td').eq(3).attr('class')).toBe('gpa-right')
+    expect($('gpa-data-table').is('[data-sticky]')).toBe(false)
+    expect(by($, 'list-row').find('td').eq(4).attr('class')).toBe(
+      'gpa-right gpa-wide-only'
+    )
+  })
+
+  test('on a phone, two columns: the event with its short ID and queue, then its status with when it was created', async () => {
+    const { $ } = await view()
+    const cells = by($, 'list-row').first().find(`td${narrow}`)
+
+    expect(headers($, narrow)).toEqual(['Event', 'Status'])
+    expect(firstRowCells($, narrow)).toEqual([
+      'UpdateCaseStatus5208709c…57265208709c-e2d5-4870-b6ae-ff168bf65726 · Outbox',
+      'Dead letter13 Oct 2026 14:53'
+    ])
+    expect(cells.eq(0).find('[aria-hidden="true"]').attr('title')).toBe(
+      '5208709c-e2d5-4870-b6ae-ff168bf65726'
+    )
+    expect(cells.eq(0).find('.gpa-rowlink').attr('href')).toBe(
+      by($, 'list-row').find('.gpa-rowlink').first().attr('href')
+    )
+    expect(cells.eq(1).attr('class')).toBe('gpa-right gpa-narrow-only')
+    expect(cells.eq(1).find('.gpa-dot').attr('class')).toContain(
+      'gpa-dot-danger'
+    )
+    expect(cells.eq(1).find('time').attr('datetime')).toBe(
+      '2026-10-13T14:53:00Z'
+    )
+    expect($('style[nonce]').text()).toContain(
+      '--gpa-cols-narrow:minmax(0, 1fr) max-content}'
+    )
   })
 
   test('the widths are in a <style> the response’s policy allows, so every browser draws them on load', async () => {
@@ -439,11 +485,22 @@ describe('Loaded', () => {
       { label: 'Events', nonced: true, widths: true }
     ])
     expect(first.$('style[nonce]').text()).toContain(
-      '--gpa-cols:minmax(220px, 1fr) 336px 128px var(--size-column-date) var(--size-column-chevron);'
+      '--gpa-cols:minmax(160px, 1fr) minmax(160px, 1fr) minmax(160px, 1fr) minmax(160px, 1fr) minmax(160px, 1fr) var(--size-column-chevron);'
     )
     expect(styleNonceOf(second.csp)).not.toBe(styleNonceOf(first.csp))
     expect(second.$('style[nonce]').attr('nonce')).toBe(
       styleNonceOf(second.csp)
+    )
+  })
+
+  test('the Event ID is drawn short, by its ends, with the whole ID its title and what a screen reader reads', async () => {
+    const { $ } = await view()
+    const cell = by($, 'list-row').find('td').eq(1)
+
+    expect(flat(cell.find('[aria-hidden="true"]').text())).toBe('5208709c…5726')
+    expect(cell.attr('title')).toBe('5208709c-e2d5-4870-b6ae-ff168bf65726')
+    expect(flat(cell.find('.gpa-vh').text())).toBe(
+      '5208709c-e2d5-4870-b6ae-ff168bf65726'
     )
   })
 
@@ -464,7 +521,7 @@ describe('Loaded', () => {
 
     expect(
       by($, 'list-row')
-        .find('.gpa-dot')
+        .find(`td${wide} .gpa-dot`)
         .toArray()
         .map((dot) => $(dot).attr('class'))
     ).toEqual([
@@ -474,50 +531,77 @@ describe('Loaded', () => {
     ])
   })
 
-  test('Inbox: the inbox is current, its time is Created as on the outbox, and it has no audit switch', async () => {
-    given(answered(exact({ bucket: 'gas.inbox' })))
-
-    const { $ } = await view('/dev-ops/events/gas/inbox')
-
-    expect(by($, 'list-tabs').find('[aria-current="page"]').text()).toBe(
-      'Inbox'
+  test('the Queue is drawn by its label, and a value the catalogue doesn’t label as it comes', async () => {
+    given(
+      answered(
+        exact({
+          rows: [
+            eventRow({ cells: { box: 'inbox', status: 'PUBLISHED' } }),
+            eventRow({ cells: { box: 'elsewhere', status: 'PUBLISHED' } })
+          ]
+        })
+      )
     )
-    expect(headers($).at(-1)).toBe('Created')
-    expect(by($, 'list-range').find('.gpa-chip-label').text()).toBe('Created:')
-    expect(chipItems($, 'eventType').map(({ text }) => text)).toEqual([
-      'AgreementStatusUpdated',
-      'CaseStatusUpdated'
-    ])
-  })
 
-  test('Outbox dead letters: the Inbox tab opens the inbox on the same filter', async () => {
-    const { $ } = await view(`${outboxPath}?status=DEAD_LETTER`)
+    const { $ } = await view()
 
     expect(
-      by($, 'list-tabs')
-        .find('a')
+      by($, 'list-row')
         .toArray()
-        .map((a) => $(a).attr('href'))
-    ).toEqual([
-      `${outboxPath}?status=DEAD_LETTER`,
-      '/dev-ops/events/gas/inbox?status=DEAD_LETTER'
+        .map((row) => flat($(row).find('td').eq(2).text()))
+    ).toEqual(['Inbox', 'elsewhere'])
+  })
+
+  test('Queue is a chip before Event and Status, offering both queues; a picked queue is named on its chip, with no tag', async () => {
+    const { $ } = await view(`${outboxPath}?queue=inbox`)
+
+    expect(chipValue($, 'box')).toBe('Inbox')
+    expect(tags($)).toEqual([])
+    expect(
+      $('[data-testid^="list-chip-"]')
+        .toArray()
+        .map((chip) => $(chip).attr('data-testid'))
+    ).toEqual(['list-chip-box', 'list-chip-eventType', 'list-chip-status'])
+    expect(chipItems($, 'box')).toEqual([
+      { text: 'Outbox', value: 'outbox', checked: false },
+      { text: 'Inbox', value: 'inbox', checked: true }
+    ])
+    expect(asked()?.params).toEqual({ queue: 'inbox' })
+  })
+
+  test('both queues picked: "2 selected" and a tag each; the Event menu is every type of both, whatever is picked', async () => {
+    const both = await view(`${outboxPath}?queue=outbox&queue=inbox`)
+    const none = await view(outboxPath)
+    const inbox = await view(`${outboxPath}?queue=inbox`)
+
+    expect(by(both.$, 'list-chip-box').find('.gpa-chip-value').text()).toBe(
+      '2 selected'
+    )
+    expect(tags(both.$)).toEqual(['Queue is Outbox', 'Queue is Inbox'])
+    expect(chipItems(inbox.$, 'eventType')).toEqual(
+      chipItems(none.$, 'eventType')
+    )
+    expect(chipItems(none.$, 'eventType').map(({ text }) => text)).toEqual([
+      'AgreementStatusUpdated',
+      'CaseStatusUpdated',
+      'CreateCase',
+      'UpdateCaseStatus',
+      'Audit'
     ])
   })
 
   test('CW: the service is Caseworking', async () => {
-    const { $ } = await view('/dev-ops/events/cw/outbox')
+    const { $ } = await view('/dev-ops/events/cw')
 
     expect(flat($('.gpa-pageheader-meta').text())).toBe('Caseworking')
-    expect(by($, 'list-tabs').find('a').first().attr('href')).toBe(
-      '/dev-ops/events/cw/outbox'
-    )
+    expect(textOf($, 'list-title')).toBe('Events')
   })
 
-  test('the browser tab names the queue, and the sidebar marks Events', async () => {
+  test('the browser tab names the service’s events, and the sidebar marks Events', async () => {
     const { $ } = await view()
 
-    expect($('title').text()).toBe('GAS outbox – Grants Platform')
-    expect($('[data-testid="shell-nav-gas.outbox"]').attr('aria-current')).toBe(
+    expect($('title').text()).toBe('GAS events – Grants Platform')
+    expect($('[data-testid="shell-nav-gas.events"]').attr('aria-current')).toBe(
       'page'
     )
   })
@@ -572,7 +656,7 @@ describe('filters', () => {
     ).toBe('true')
   })
 
-  test('a chosen value: the chip names it and ticks it, the other chip’s Apply keeps it, and its tag removes it', async () => {
+  test('a chosen value: the chip names it and ticks it, the other chip’s Apply keeps it, and no tag repeats it', async () => {
     const { $ } = await view(`${outboxPath}?status=DEAD_LETTER`)
 
     expect(by($, 'list-chip-status').find('.gpa-chip-value').text()).toBe(
@@ -586,12 +670,9 @@ describe('filters', () => {
     expect(keptBy($, 'status')).toEqual([])
     expect(keptBy($, 'eventType')).toEqual(['status=DEAD_LETTER'])
     expect(clearOf($, 'status')).toBe(outboxPath)
-    expect(tags($)).toEqual(['Status is Dead letter'])
-    expect(by($, 'list-applied').find('.gpa-tag a').attr('href')).toBe(
-      outboxPath
-    )
+    expect(tags($)).toEqual([])
     expect($('.gpa-chip-clear')).toHaveLength(0)
-    expect(by($, 'list-clear-all').attr('href')).toBe(outboxPath)
+    expect(by($, 'list-clear-all')).toHaveLength(0)
     expect(asked()?.params).toEqual({ status: 'DEAD_LETTER' })
   })
 
@@ -666,19 +747,27 @@ describe('filters', () => {
     )
   })
 
-  test('two filters: a tag for each value, and Clear all goes to the bare list', async () => {
+  test('two filters of one value each: each chip names its own, so no tag and no Clear all', async () => {
     const { $ } = await view(
       `${outboxPath}?status=DEAD_LETTER&event=UpdateCaseStatus`
     )
 
-    expect(tags($)).toEqual([
-      'Event is UpdateCaseStatus',
-      'Status is Dead letter'
-    ])
+    expect(chipValue($, 'eventType')).toBe('UpdateCaseStatus')
+    expect(chipValue($, 'status')).toBe('Dead letter')
+    expect(tags($)).toEqual([])
+    expect(by($, 'list-clear-all')).toHaveLength(0)
+  })
+
+  test('a chip of two values beside one of one: tags for the two only, and Clear all goes to the bare list', async () => {
+    const { $ } = await view(
+      `${outboxPath}?status=DEAD_LETTER&status=FAILED&event=UpdateCaseStatus&from=2026-11-03&to=2026-11-09`
+    )
+
+    expect(tags($)).toEqual(['Status is Failed', 'Status is Dead letter'])
     expect(by($, 'list-clear-all').attr('href')).toBe(outboxPath)
   })
 
-  test('the row goes Created, Event, Status, then the search', async () => {
+  test('the row goes Created, Queue, Event, Status, then the search', async () => {
     const { $ } = await view()
 
     expect(
@@ -691,7 +780,7 @@ describe('filters', () => {
             : flat($(child).find('.gpa-chip-label').first().text())
         )
         .filter(Boolean)
-    ).toEqual(['Created:', 'Event:', 'Status:', 'search'])
+    ).toEqual(['Created:', 'Queue:', 'Event:', 'Status:', 'search'])
   })
 
   test('no filter set: no tag and no Clear all', async () => {
@@ -705,6 +794,8 @@ describe('filters', () => {
     const { $ } = await view()
 
     expect(chipItems($, 'eventType').map(({ text }) => text)).toEqual([
+      'AgreementStatusUpdated',
+      'CaseStatusUpdated',
       'CreateCase',
       'UpdateCaseStatus',
       'Audit'
@@ -715,7 +806,7 @@ describe('filters', () => {
   test('Event is Audit: picked as any type is', async () => {
     const { $ } = await view(`${outboxPath}?event=Audit`)
 
-    expect(tags($)).toEqual(['Event is Audit'])
+    expect(chipValue($, 'eventType')).toBe('Audit')
     expect(asked()?.params).toEqual({ event: 'Audit' })
   })
 
@@ -745,19 +836,16 @@ describe('filters', () => {
     expect(asked()?.params).toEqual({ nope: '1' })
   })
 
-  test('the interim error filter: Error name is …, in code, with its remove link', async () => {
+  test('the interim error filter, which has no control: Error name is …, in code, with its remove link', async () => {
     const { $ } = await view(
       `${outboxPath}?status=DEAD_LETTER&errorname=MongoServerError`
     )
 
-    expect(tags($)).toEqual([
-      'Status is Dead letter',
-      'Error name is MongoServerError'
-    ])
+    expect(tags($)).toEqual(['Error name is MongoServerError'])
     expect(
-      by($, 'list-applied').find('.gpa-tag').eq(1).find('strong').attr('class')
+      by($, 'list-applied').find('.gpa-tag').find('strong').attr('class')
     ).toBe('gpa-mono')
-    expect(by($, 'list-applied').find('.gpa-tag a').eq(1).attr('href')).toBe(
+    expect(by($, 'list-applied').find('.gpa-tag a').attr('href')).toBe(
       `${outboxPath}?status=DEAD_LETTER`
     )
     expect(asked()?.params).toEqual({
@@ -766,21 +854,47 @@ describe('filters', () => {
     })
   })
 
-  test('the Overview error filter: Error is …, in code', async () => {
+  test('the error in the address is the search: Error picked, the key shown, no tag', async () => {
     const { $ } = await view(`${outboxPath}?error=abc123`)
 
-    expect(tags($)).toEqual(['Error is abc123'])
+    expect(searchOf($)).toEqual({ kind: 'Error', value: 'abc123' })
+    expect(tags($)).toEqual([])
+    expect(by($, 'list-clear-all')).toHaveLength(0)
   })
 
-  test('the Overview error filter on a thrown Error: the message, as the Overview row shows it', async () => {
+  test('the error of a thrown Error: the search shows the message, as the Overview row does, and GAS is sent the key', async () => {
     const { $ } = await view(
       `${outboxPath}?error=${encodeURIComponent('Error: Invalid status transition')}`
     )
 
-    expect(tags($)).toEqual(['Error is Invalid status transition'])
+    expect(searchOf($)).toEqual({
+      kind: 'Error',
+      value: 'Invalid status transition'
+    })
     expect(asked()?.params).toEqual({
       error: 'Error: Invalid status transition'
     })
+  })
+
+  test('the search field doesn’t carry the error, which it sets; every chip’s Apply keeps it', async () => {
+    const { $ } = await view(
+      `${outboxPath}?status=DEAD_LETTER&error=${encodeURIComponent('Error: Boom')}`
+    )
+
+    expect(
+      by($, 'list-search')
+        .find('input[type="hidden"]')
+        .toArray()
+        .map((input) => [$(input).attr('name'), $(input).attr('value')])
+    ).toEqual([
+      ['status', 'DEAD_LETTER'],
+      ['ref-error-at', 'error'],
+      ['ref-error', 'Error: Boom']
+    ])
+    expect(keptBy($, 'eventType')).toEqual([
+      'status=DEAD_LETTER',
+      'error=Error: Boom'
+    ])
   })
 
   test('Created: quick ranges are links that keep the other filters, and Any time is first', async () => {
@@ -819,7 +933,7 @@ describe('filters', () => {
     expect(by($, 'list-range').attr('data-max')).toBe('2026-10-13')
   })
 
-  test('Created, a quick range: the chip and its tag name it', async () => {
+  test('Created, a quick range: the chip names it, with no tag', async () => {
     const { $ } = await view(
       `${outboxPath}?from=2026-10-12T15%3A20%3A00.000Z&range=24h`
     )
@@ -827,10 +941,7 @@ describe('filters', () => {
     expect(by($, 'list-range').find('.gpa-chip-value').text()).toBe(
       'Last 24 hours'
     )
-    expect(tags($)).toEqual(['Created is Last 24 hours'])
-    expect(by($, 'list-applied').find('.gpa-tag a').attr('href')).toBe(
-      outboxPath
-    )
+    expect(tags($)).toEqual([])
     expect(asked()?.from).toBe('2026-10-12T15:20:00.000Z')
   })
 
@@ -870,13 +981,13 @@ describe('filters', () => {
     )
   })
 
-  test('Created, from the calendar: whole days in the chosen zone, "Created is 3–9 Nov 2026"', async () => {
+  test('Created, from the calendar: whole days in the chosen zone, "3–9 Nov 2026" on the chip', async () => {
     const { $ } = await view(`${outboxPath}?from=2026-11-03&to=2026-11-09`)
 
     expect(by($, 'list-range').find('.gpa-chip-value').text()).toBe(
       '3–9 Nov 2026'
     )
-    expect(tags($)).toEqual(['Created is 3–9 Nov 2026'])
+    expect(tags($)).toEqual([])
     expect(by($, 'list-range').find('input[name="from"]').attr('value')).toBe(
       '2026-11-03'
     )
@@ -988,7 +1099,7 @@ describe('a chip’s Apply, with no script', () => {
 describe('the time range in links', () => {
   test('every chip’s Apply, a set chip’s Clear and every tag link carry the range as days, as the range chip does', async () => {
     const { $ } = await view(
-      `${outboxPath}?status=DEAD_LETTER&from=2026-10-01&to=2026-10-31`
+      `${outboxPath}?status=DEAD_LETTER&status=FAILED&from=2026-10-01&to=2026-10-31`
     )
     const range = 'from=2026-10-01&to=2026-10-31'
     const links = [
@@ -1000,6 +1111,7 @@ describe('the time range in links', () => {
     expect(keptBy($, 'status')).toEqual(['from=2026-10-01', 'to=2026-10-31'])
     expect(keptBy($, 'eventType')).toEqual([
       'status=DEAD_LETTER',
+      'status=FAILED',
       'from=2026-10-01',
       'to=2026-10-31'
     ])
@@ -1030,7 +1142,10 @@ describe('a value its fact doesn’t offer', () => {
 
   test.each([
     ['status=BOGUS', []],
-    ['status=FAILED&status=BOGUS', ['Status is Failed']]
+    [
+      'status=FAILED&status=DEAD_LETTER&status=BOGUS',
+      ['Status is Failed', 'Status is Dead letter']
+    ]
   ])(
     '%s: the value it doesn’t offer is never shown as chosen',
     async (query, shown) => {
@@ -1077,7 +1192,7 @@ describe('a time range the list can’t read', () => {
       expect(by($, 'list-range').find('.gpa-chip-value').text()).toBe(
         'Any time'
       )
-      expect(tags($)).toEqual(['Status is Dead letter'])
+      expect(chipValue($, 'status')).toBe('Dead letter')
       expect(queryList).toHaveBeenCalledTimes(1)
       expect(asked()).toMatchObject({ read: false })
       expect(asked()).not.toHaveProperty('from')
@@ -1169,7 +1284,7 @@ describe('the total', () => {
 
     const { $ } = await searched('id', 'abc-123')
 
-    expect(tags($)).toEqual(['Event ID is abc-123'])
+    expect(searchOf($)).toEqual({ kind: 'Event ID', value: 'abc-123' })
     expect(flat(totalOf($).text())).toBe('1 event')
   })
 
@@ -1213,7 +1328,7 @@ describe('the total', () => {
 })
 
 describe('search', () => {
-  test('the kinds are the catalogue’s, in its order, posted to the list with the other filters', async () => {
+  test('the kinds are the catalogue’s, in its order, then Error; posted to the list with the other filters', async () => {
     const { $ } = await view(`${outboxPath}?status=DEAD_LETTER`)
 
     const form = by($, 'list-search').find('form')
@@ -1228,7 +1343,8 @@ describe('search', () => {
     ).toEqual([
       ['ref', 'Reference'],
       ['trace', 'Trace ID'],
-      ['id', 'Event ID']
+      ['id', 'Event ID'],
+      ['error:error', 'Error']
     ])
     expect(form.find('input[type="hidden"][name="status"]').val()).toBe(
       'DEAD_LETTER'
@@ -1237,9 +1353,18 @@ describe('search', () => {
   })
 
   test('one kind only: no picker, and the form carries its kind, so posting it as drawn searches by it', async () => {
-    withCatalogue({ buckets: [pagedInbox], sourceErrors: [] })
+    withCatalogue({
+      buckets: [
+        {
+          ...gasEvents,
+          facts: gasEvents.facts.filter(({ name }) => name !== 'errorKey'),
+          refs: [{ kind: 'trace', label: 'Trace ID' }]
+        }
+      ],
+      sourceErrors: []
+    })
 
-    const { $ } = await view('/dev-ops/events/gas/inbox')
+    const { $ } = await view()
     const form = by($, 'list-search').find('form')
     const fields = Object.fromEntries(
       form
@@ -1252,11 +1377,7 @@ describe('search', () => {
     expect(fields).toEqual({ 'ref-kind': 'trace' })
     expect(form.find('input[name="ref-kind"]')).toHaveLength(1)
 
-    const posted = await post(
-      { ...fields, 'ref-value': '0b7c1d1e' },
-      '',
-      '/dev-ops/events/gas/inbox'
-    )
+    const posted = await post({ ...fields, 'ref-value': '0b7c1d1e' })
 
     expect(posted.statusCode).toBe(statusCodes.seeOther)
 
@@ -1282,11 +1403,12 @@ describe('search', () => {
     ).toEqual([
       ['ref', 'Reference'],
       ['trace', 'Trace ID'],
-      ['id', 'Event ID']
+      ['id', 'Event ID'],
+      ['error:error', 'Error']
     ])
   })
 
-  test('a search is kept out of the address: the list reads it back and tags it, in code', async () => {
+  test('a search is kept out of the address: the list reads it back into the field, with no tag', async () => {
     const posted = await post({ 'ref-kind': 'id', 'ref-value': 'abc-123' })
 
     expect(posted.statusCode).toBe(statusCodes.seeOther)
@@ -1295,10 +1417,8 @@ describe('search', () => {
     const { $ } = await view(posted.location, posted.cookie)
 
     expect(asked()?.search).toBe('id:abc-123')
-    expect(tags($)).toEqual(['Event ID is abc-123'])
-    expect(by($, 'list-search-input').find('input').attr('value')).toBe(
-      'abc-123'
-    )
+    expect(tags($)).toEqual([])
+    expect(searchOf($)).toEqual({ kind: 'Event ID', value: 'abc-123' })
   })
 
   test('a search posted as a form keeps two statuses, sent as two fields', async () => {
@@ -1319,26 +1439,287 @@ describe('search', () => {
     )
   })
 
-  test('the search tag clears it with a post, as it was set', async () => {
-    const { $ } = await searched('id', 'abc-123')
+  test('an empty box clears the search, as it was set', async () => {
+    const { cookie } = await searched('id', 'abc-123')
+    const posted = await post({ 'ref-kind': 'id', 'ref-value': '' }, cookie)
 
-    const remove = by($, 'list-applied').find('.gpa-tag button')
-    const form = $(`#${remove.attr('form')}`)
+    await view(posted.location, posted.cookie)
 
-    expect(remove.attr('name')).toBe('ref-value')
-    expect(remove.attr('value')).toBe('')
-    expect(form.attr('method')).toBe('post')
-    expect(form.attr('action')).toBe(outboxPath)
-    expect(form.find('input[name="ref-value"]')).toHaveLength(0)
+    expect(asked()?.search).toBeNull()
+  })
+
+  test('Error, typed: the key of a thrown Error goes in the address, and the search held goes', async () => {
+    const { cookie } = await searched('id', 'abc-123')
+    const posted = await post(
+      {
+        status: 'DEAD_LETTER',
+        'ref-kind': 'error:error',
+        'ref-value': ' Boom '
+      },
+      cookie
+    )
+
+    expect(posted.statusCode).toBe(statusCodes.seeOther)
+    expect(posted.location).toBe(
+      `${outboxPath}?status=DEAD_LETTER&error=Error%3A+Boom`
+    )
+
+    const { $ } = await view(posted.location, posted.cookie)
+
+    expect(asked()).toMatchObject({
+      search: null,
+      params: { status: 'DEAD_LETTER', error: 'Error: Boom' }
+    })
+    expect(searchOf($)).toEqual({ kind: 'Error', value: 'Boom' })
+  })
+
+  test.each([
+    ['naming its error', 'TypeError: Cannot read properties'],
+    ['naming a thrown Error', 'Error: Boom'],
+    ['for the dead letters with none', 'No error recorded']
+  ])('Error, typed %s: sent as typed', async (_name, typed) => {
+    const posted = await postFromPage({
+      'ref-kind': 'error:error',
+      'ref-value': typed
+    })
+
+    expect(
+      new URL(String(posted.location), 'http://x').searchParams.get('error')
+    ).toBe(typed)
+  })
+
+  test('Error, posted with no catalogue held, as the search asks GAS nothing: the kind names its key', async () => {
+    vi.mocked(shellCatalogue).mockReturnValue(null)
+
+    const posted = await post({
+      'ref-kind': 'error:error',
+      'ref-value': 'Boom'
+    })
+
+    expect(posted.location).toBe(`${outboxPath}?error=Error%3A+Boom`)
+  })
+
+  test.each([
+    [
+      'a thrown Error’s whose message names a word',
+      'Error: ETIMEDOUT: connect'
+    ],
+    ['one named alone', 'TypeError'],
+    ['a bare Error', 'Error']
+  ])(
+    'Error, searched again unchanged from the key it was shown for, %s: the same key',
+    async (_name, errorKey) => {
+      const { $, cookie } = await view(
+        `${outboxPath}?error=${encodeURIComponent(errorKey)}`
+      )
+      const shown = searchOf($).value
+      const posted = await post(
+        {
+          'ref-kind': 'error:error',
+          'ref-value': shown,
+          'ref-error': errorKey
+        },
+        cookie
+      )
+
+      expect(
+        new URL(String(posted.location), 'http://x').searchParams.get('error')
+      ).toBe(errorKey)
+    }
+  )
+
+  test('Error, edited from the key it was shown for: the key the new text stands for', async () => {
+    const { cookie } = await view(
+      `${outboxPath}?error=${encodeURIComponent('Error: Foo: bar')}`
+    )
+    const posted = await post(
+      {
+        'ref-kind': 'error:error',
+        'ref-value': 'Boom',
+        'ref-error': 'Error: Foo: bar'
+      },
+      cookie
+    )
+
+    expect(posted.location).toBe(`${outboxPath}?error=Error%3A+Boom`)
+  })
+
+  test('Error, emptied: the error leaves the address', async () => {
+    const posted = await post({
+      status: 'DEAD_LETTER',
+      'ref-kind': 'error:error',
+      'ref-value': ''
+    })
+
+    expect(posted.location).toBe(`${outboxPath}?status=DEAD_LETTER`)
+  })
+
+  test('Error as long as GAS’s longest key, with Error: put back: set', async () => {
+    const typed = 'x'.repeat(113)
+    const posted = await postFromPage({
+      'ref-kind': 'error:error',
+      'ref-value': typed
+    })
+    const { statusCode } = await view(posted.location, posted.cookie)
+
+    expect(statusCode).toBe(statusCodes.ok)
+    expect(asked()?.params).toEqual({ error: `Error: ${typed}` })
+  })
+
+  test('Back to an error after another search: the error is the search, and the search held waits for the list without it', async () => {
+    const errorHref = `${outboxPath}?error=${encodeURIComponent('Error: Boom')}`
+    const first = await view(errorHref)
+    const posted = await post(
+      { 'ref-kind': 'ref', 'ref-value': 'abc-123' },
+      first.cookie
+    )
+    const searchedPage = await view(posted.location, posted.cookie)
+
+    expect(asked()).toMatchObject({ search: 'ref:abc-123', params: {} })
+
+    const back = await view(errorHref, searchedPage.cookie)
+
+    expect(asked()).toMatchObject({
+      search: null,
+      params: { error: 'Error: Boom' }
+    })
+    expect(searchOf(back.$)).toEqual({ kind: 'Error', value: 'Boom' })
+    expect(tags(back.$)).toEqual([])
+
+    const { $ } = await view(outboxPath, back.cookie)
+
+    expect(asked()).toMatchObject({ search: 'ref:abc-123', params: {} })
+    expect(searchOf($)).toEqual({ kind: 'Reference', value: 'abc-123' })
+  })
+
+  test('a search stored, then an error in the address before the list is drawn again: the error alone is read, as the form said where the list takes it', async () => {
+    const { $, cookie } = await view()
+    const hidden = Object.fromEntries(
+      by($, 'list-search')
+        .find('input[type="hidden"]')
+        .toArray()
+        .map((input) => [$(input).attr('name'), $(input).attr('value')])
+    )
+
+    expect(hidden).toEqual({ 'ref-error-at': 'error' })
+
+    const posted = await post(
+      { ...hidden, 'ref-kind': 'ref', 'ref-value': 'abc-123' },
+      cookie
+    )
+    const errorPage = await view(
+      `${outboxPath}?error=${encodeURIComponent('Error: Boom')}`,
+      posted.cookie
+    )
+
+    expect(asked()).toMatchObject({
+      search: null,
+      params: { error: 'Error: Boom' }
+    })
+    expect(searchOf(errorPage.$)).toEqual({ kind: 'Error', value: 'Boom' })
+
+    await view(outboxPath, errorPage.cookie)
+
+    expect(asked()).toMatchObject({ search: 'ref:abc-123' })
+  })
+
+  test('a search posted naming no key a filter could have: stored knowing none, so an error in the address runs with it', async () => {
+    const posted = await post({
+      'ref-error-at': 'not a key',
+      'ref-kind': 'ref',
+      'ref-value': 'abc-123'
+    })
+
+    await view(
+      `${outboxPath}?error=${encodeURIComponent('Error: Boom')}`,
+      posted.cookie
+    )
+
+    expect(asked()).toMatchObject({
+      search: 'ref:abc-123',
+      params: { error: 'Error: Boom' }
+    })
+  })
+
+  test('Error longer than GAS’s longest key: the box says why, with what was typed, and nothing is set', async () => {
+    const typed = 'x'.repeat(114)
+    const { $, statusCode } = await postFromPage({
+      'ref-kind': 'error:error',
+      'ref-value': typed
+    })
+
+    expect(statusCode).toBe(statusCodes.badRequest)
+    expect(textOf($, 'list-search-error')).toBe(
+      'Enter an error of up to 113 characters'
+    )
+    expect(searchOf($)).toEqual({ kind: 'Error', value: typed })
+    expect(asked()).toMatchObject({ search: null, params: {} })
+  })
+
+  test('Error naming its error, longer than GAS’s longest key: the most it can have is all of it', async () => {
+    const fits = `TypeError: ${'x'.repeat(109)}`
+    const set = await postFromPage({
+      'ref-kind': 'error:error',
+      'ref-value': fits
+    })
+
+    expect(
+      new URL(String(set.location), 'http://x').searchParams.get('error')
+    ).toBe(fits)
+
+    const { $, statusCode } = await postFromPage({
+      'ref-kind': 'error:error',
+      'ref-value': `${fits}x`
+    })
+
+    expect(statusCode).toBe(statusCodes.badRequest)
+    expect(textOf($, 'list-search-error')).toBe(
+      'Enter an error of up to 120 characters'
+    )
+  })
+
+  test('Error of wide characters: GAS’s longest key lists, past the longest other value, and one more says why', async () => {
+    const fits = '😀'.repeat(113)
+    const set = await postFromPage({
+      'ref-kind': 'error:error',
+      'ref-value': fits
+    })
+    const listed = await view(String(set.location), set.cookie)
+
+    expect(listed.statusCode).toBe(statusCodes.ok)
+    expect(asked()).toMatchObject({ params: { error: `Error: ${fits}` } })
+    expect(
+      by(listed.$, 'list-search').find('input[name="ref-error"]').attr('value')
+    ).toBe(`Error: ${fits}`)
+
+    const again = await postFromPage({
+      'ref-kind': 'error:error',
+      'ref-value': fits,
+      'ref-error': `Error: ${fits}`
+    })
+
+    expect(again.statusCode).toBe(statusCodes.seeOther)
+
+    const { $, statusCode } = await postFromPage({
+      'ref-kind': 'error:error',
+      'ref-value': `${fits}😀`
+    })
+
+    expect(statusCode).toBe(statusCodes.badRequest)
+    expect(textOf($, 'list-search-error')).toBe(
+      'Enter an error of up to 113 characters'
+    )
   })
 
   test('Clear all drops the stored search too', async () => {
     const { $, cookie } = await searched('id', 'abc-123')
-    const clearAll = by($, 'list-clear-all')
 
-    expect(clearAll.attr('href')).toBe(`${outboxPath}?clear=all`)
+    expect(by($, 'list-clear-all')).toHaveLength(0)
 
-    const withStatus = await view(`${outboxPath}?status=DEAD_LETTER`, cookie)
+    const withStatus = await view(
+      `${outboxPath}?status=DEAD_LETTER&status=FAILED`,
+      cookie
+    )
     const href = by(withStatus.$, 'list-clear-all').attr('href')
 
     expect(href).toBe(`${outboxPath}?clear=all`)
@@ -1347,6 +1728,23 @@ describe('search', () => {
 
     expect(cleared.statusCode).toBe(statusCodes.found)
     expect(cleared.location).toBe(outboxPath)
+
+    await view(cleared.location, cleared.cookie)
+
+    expect(asked()?.search).toBeNull()
+  })
+
+  test('Clear all drops a stored search the error in the address set aside', async () => {
+    const { cookie } = await searched('id', 'abc-123')
+    const withError = await view(
+      `${outboxPath}?status=DEAD_LETTER&status=FAILED&error=${encodeURIComponent('Error: Boom')}`,
+      cookie
+    )
+    const href = by(withError.$, 'list-clear-all').attr('href')
+
+    expect(href).toBe(`${outboxPath}?clear=all`)
+
+    const cleared = await view(href, withError.cookie)
 
     await view(cleared.location, cleared.cookie)
 
@@ -1417,7 +1815,7 @@ describe('a search posted', () => {
     await view(outboxPath, posted.cookie)
 
     expect(asked()).toMatchObject({
-      path: 'events/gas/outbox',
+      path: 'events/gas',
       search: 'id:abc-123'
     })
   })
@@ -1472,7 +1870,6 @@ describe('a search posted', () => {
     '/dev-ops/clients/gas/nothing',
     '/dev-ops/times/zone',
     '/dev-ops/events',
-    '/dev-ops/events/gas',
     '/dev-ops/events/gas/outbox/abc',
     '/dev-ops/events/gas/outbox/abc/nothing',
     '/dev-ops/applications/APP-1',
@@ -1495,7 +1892,7 @@ describe('a search posted', () => {
     '/dev-ops/cases',
     '/dev-ops/grants',
     '/dev-ops/workflows',
-    '/dev-ops/events/cw/inbox'
+    '/dev-ops/events/cw'
   ])('to the list at %s is still a list’s search', async (url) => {
     const posted = await post(
       { 'ref-kind': 'id', 'ref-value': 'abc-123' },
@@ -1557,7 +1954,7 @@ describe('the stored search', () => {
   test('keeps each list’s search apart from another list’s', async () => {
     const posted = await post({ 'ref-kind': 'ref', 'ref-value': 'abc-123' })
 
-    await view('/dev-ops/events/gas/inbox', posted.cookie)
+    await view('/dev-ops/events/cw', posted.cookie)
 
     expect(asked()?.search).toBeNull()
 
@@ -1614,7 +2011,7 @@ describe('the stored search', () => {
 })
 
 describe('No matches', () => {
-  test('filters on: the prototype’s empty state, and the tags stay', async () => {
+  test('filters on: the prototype’s empty state, and the chips keep their values', async () => {
     given(answered(exact({ rows: [] })))
 
     const { $ } = await view(
@@ -1623,9 +2020,10 @@ describe('No matches', () => {
 
     expect(flat($('.gpa-empty-title').text())).toBe('No events match')
     expect(flat($('.gpa-empty-body').text())).toBe(
-      'Nothing created in this time range has this status and event.'
+      'Nothing created in this time range matches these filters.'
     )
-    expect(tags($)).toHaveLength(2)
+    expect(chipValue($, 'status')).toBe('Dead letter')
+    expect(chipValue($, 'eventType')).toBe('CreateCase')
   })
 
   test('only a search on: the search names what had no match', async () => {
@@ -1657,7 +2055,7 @@ describe('No matches', () => {
 
     expect(flat($('.gpa-empty-title').text())).toBe('No events yet')
     expect(flat($('.gpa-empty-body').text())).toBe(
-      'Events GAS sends appear here.'
+      'Events GAS sends and receives appear here.'
     )
   })
 })
@@ -1699,7 +2097,7 @@ describe('paging', () => {
         .map((row) => $(row).attr('id'))
     ).toEqual(['row-3-1', 'row-3-2'])
     expect(by($, 'list-row').eq(1).find('a').first().attr('href')).toBe(
-      `${outboxPath}/66f000000000000000000001?back=${encodeURIComponent(
+      `${eventsOf}/66f000000000000000000001?back=${encodeURIComponent(
         `${outboxPath}?through=3&status=DEAD_LETTER#row-3-2`
       )}`
     )
@@ -1723,7 +2121,7 @@ describe('paging', () => {
     )
     expect(flat(by($, 'list-footer').find('a').text())).toBe('Keep looking')
     expect(by($, 'list-footer').find('a').attr('href')).toMatch(
-      /^\/dev-ops\/events\/gas\/outbox\?cursor=k1&searched=[0-9a-f-]{36}&page=2$/
+      /^\/dev-ops\/events\/gas\?cursor=k1&searched=[0-9a-f-]{36}&page=2$/
     )
   })
 
@@ -1765,7 +2163,7 @@ describe('paging', () => {
     expect(flat(by($, 'list-footer').find('.gpa-text-danger').text())).toBe(
       'Couldn’t load more events — GAS answered with an error.'
     )
-    expect(flat(by($, 'list-footer').find('a').text())).toBe('Retry')
+    expect(flat(by($, 'list-footer').find('a').text())).toBe('Try again')
     expect(by($, 'list-footer').find('a').attr('href')).toBe(
       `${outboxPath}?cursor=c2&page=2`
     )
@@ -1788,7 +2186,7 @@ describe('paging', () => {
       body: 'Search again to see its results.'
     })
     expect(asked()?.cursor).toBeUndefined()
-    expect(by($, 'list-clear-all').attr('href')).toBe(outboxPath)
+    expect(chipValue($, 'status')).toBe('Dead letter')
   })
 
   test('the first page draws no notice of its own', async () => {
@@ -1884,7 +2282,7 @@ describe('restoring every row shown', () => {
     const { $ } = await view(`${outboxPath}?through=2`)
 
     expect(by($, 'list-row').eq(1).find('a').first().attr('href')).toBe(
-      `${outboxPath}/66f000000000000000000001?back=${encodeURIComponent(
+      `${eventsOf}/66f000000000000000000001?back=${encodeURIComponent(
         `${outboxPath}?through=2#row-2-1`
       )}`
     )
@@ -1893,7 +2291,7 @@ describe('restoring every row shown', () => {
     )
   })
 
-  test('each row carries the address that draws its own page, on either side of the most an address draws', async () => {
+  test('a row carries an address of its own only past the most an address draws, so the loader’s address keeps every page within it', async () => {
     given(
       restored(
         Array.from({ length: 50 }, (_, at) => page([`r${at}`], `c${at + 2}`))
@@ -1903,8 +2301,8 @@ describe('restoring every row shown', () => {
     const restoreOfRow = ($: CheerioAPI, id: string) =>
       $(`#${id}`).attr('data-restore-href')
 
-    expect(restoreOfRow(first.$, 'row-1-1')).toBe(`${outboxPath}?through=1`)
-    expect(restoreOfRow(first.$, 'row-50-1')).toBe(`${outboxPath}?through=50`)
+    expect(restoreOfRow(first.$, 'row-1-1')).toBeUndefined()
+    expect(restoreOfRow(first.$, 'row-50-1')).toBeUndefined()
 
     given(answered(page(['z'], 'c52')))
     const later = await view(
@@ -1918,7 +2316,7 @@ describe('restoring every row shown', () => {
 
     first.$('#list-rows').append(later.$('#list-rows').children())
 
-    expect(restoreOfRow(first.$, 'row-1-1')).toBe(`${outboxPath}?through=1`)
+    expect(restoreOfRow(first.$, 'row-1-1')).toBeUndefined()
     expect(restoreOfRow(first.$, 'row-51-1')).toBe(pageAt)
   })
 
@@ -1944,14 +2342,14 @@ describe('restoring every row shown', () => {
     const restore = String(restoreOf(first.$)).replace('through=1', 'through=2')
 
     expect(restore).toMatch(
-      /^\/dev-ops\/events\/gas\/outbox\?searched=[0-9a-f-]{36}&through=2$/
+      /^\/dev-ops\/events\/gas\?searched=[0-9a-f-]{36}&through=2$/
     )
 
     const { $ } = await view(restore, first.cookie)
 
     expect(asked()).toMatchObject({ search: 'ref:abc-123', pages: 2 })
     expect(rowIds($)).toEqual(['row-1-1', 'row-2-1'])
-    expect(tags($)).toEqual(['Reference is abc-123'])
+    expect(searchOf($)).toEqual({ kind: 'Reference', value: 'abc-123' })
     expect(
       $('a[href], [data-restore-href], form[action]')
         .toArray()
@@ -1984,10 +2382,31 @@ describe('restoring every row shown', () => {
     expect(queryList).not.toHaveBeenCalled()
   })
 
+  test('a restore out of time: the rows before it, how many pages it read, and a retry going on from there', async () => {
+    given(
+      restored([page(['a'], 'c2'), page(['b'], 'c3')], {
+        stopped: { cursor: 'c3', statusCode: 504, code: 'TIMED_OUT' }
+      })
+    )
+
+    const { $, statusCode } = await view(`${outboxPath}?through=5`)
+
+    expect(statusCode).toBe(statusCodes.ok)
+    expect(rowIds($)).toEqual(['row-1-1', 'row-2-1'])
+    expect(by($, 'list-alert')).toHaveLength(0)
+    expect(flat(by($, 'list-footer').find('.gpa-text-danger').text())).toBe(
+      'Stopped after 2 pages to answer in time.'
+    )
+    expect(by($, 'list-footer').find('a').attr('href')).toBe(
+      `${outboxPath}?cursor=c3&page=3`
+    )
+    expect(restoreOf($)).toBe(`${outboxPath}?through=2`)
+  })
+
   test('a later page that can’t be read: the rows before it, and a retry of that page', async () => {
     given(
       answered(page(['a'], 'c2'), {
-        stopped: { cursor: 'c2', statusCode: 504, code: 'TIMED_OUT' }
+        stopped: { cursor: 'c2', statusCode: 503, code: null }
       })
     )
 
@@ -1997,7 +2416,7 @@ describe('restoring every row shown', () => {
     expect(rowIds($)).toEqual(['row-1-1'])
     expect(by($, 'list-alert')).toHaveLength(0)
     expect(flat(by($, 'list-footer').find('.gpa-text-danger').text())).toBe(
-      'Couldn’t load more events — GAS didn’t answer in time.'
+      'Couldn’t load more events — GAS answered with an error.'
     )
     expect(by($, 'list-footer').find('a').attr('href')).toBe(
       `${outboxPath}?cursor=c2&page=2`
@@ -2016,6 +2435,46 @@ describe('restoring every row shown', () => {
 
     expect(flat(by($, 'list-footer').find('.gpa-text-danger').text())).toBe(
       'Couldn’t load more events — GAS answered with an error.'
+    )
+  })
+
+  test('a queue that failed a restore: named in the footer, under the rows read before it', async () => {
+    given(
+      answered(page(['a'], 'c2'), {
+        stopped: { cursor: 'c2', statusCode: 503, code: null, queue: 'outbox' }
+      })
+    )
+
+    const { $ } = await view(`${outboxPath}?through=3`)
+
+    expect(rowIds($)).toEqual(['row-1-1'])
+    expect(flat(by($, 'list-footer').find('.gpa-text-danger').text())).toBe(
+      'Couldn’t load more events — GAS answered with an error. The Outbox couldn’t be read.'
+    )
+    expect(by($, 'list-footer').find('a').attr('href')).toBe(
+      `${outboxPath}?cursor=c2&page=2`
+    )
+  })
+
+  test('a queue that timed out a restore: named in the footer, as a failed Load more', async () => {
+    given(
+      answered(page(['a'], 'c2'), {
+        stopped: {
+          cursor: 'c2',
+          statusCode: 504,
+          code: 'TIMED_OUT',
+          queue: 'inbox'
+        }
+      })
+    )
+
+    const { $ } = await view(`${outboxPath}?through=3`)
+
+    expect(flat(by($, 'list-footer').find('.gpa-text-danger').text())).toBe(
+      'Couldn’t load more events — GAS didn’t answer in time. The Inbox couldn’t be read.'
+    )
+    expect(by($, 'list-footer').find('a').attr('href')).toBe(
+      `${outboxPath}?cursor=c2&page=2`
     )
   })
 
@@ -2189,7 +2648,7 @@ describe('Unavailable', () => {
     async (kind) => {
       given(failed({ kind } as GasFailure))
 
-      const { $, statusCode } = await view('/dev-ops/events/cw/outbox')
+      const { $, statusCode } = await view('/dev-ops/events/cw')
 
       expect(statusCode).toBe(statusCodes.serviceUnavailable)
       expect(flat($('h1').text())).toBe('Dev Ops couldn’t read its lists')
@@ -2224,8 +2683,8 @@ describe('a CW list names the service its failure is down to', () => {
     async (failure, text) => {
       given(failed(failure), failed(failure))
 
-      const first = await view('/dev-ops/events/cw/outbox')
-      const later = await view('/dev-ops/events/cw/outbox?cursor=c2')
+      const first = await view('/dev-ops/events/cw')
+      const later = await view('/dev-ops/events/cw?cursor=c2')
 
       expect(alertOf(first.$).body).toBe(
         `${text} Nothing has changed — try again in a moment.`
@@ -2243,10 +2702,10 @@ describe('Caseworking unreachable', () => {
     sourceErrors: [{ hop: 'CW-BE' }]
   }
 
-  test('a CW events address with CW missing from the catalogue says why, and isn’t a 404', async () => {
+  test('CW’s Events with CW missing from the catalogue says why, and isn’t a 404', async () => {
     withCatalogue(cwDown)
 
-    const { $, statusCode } = await view('/dev-ops/events/cw/inbox')
+    const { $, statusCode } = await view('/dev-ops/events/cw')
 
     expect(statusCode).toBe(statusCodes.serviceUnavailable)
     expect(textOf($, 'list-title')).toBe('Events')
@@ -2256,7 +2715,7 @@ describe('Caseworking unreachable', () => {
       title: 'Caseworking can’t be reached.',
       body: 'GAS is up, but its calls to CW are failing, so CW’s events can’t be listed. Nothing has changed.'
     })
-    expect(by($, 'list-retry').attr('href')).toBe('/dev-ops/events/cw/inbox')
+    expect(by($, 'list-retry').attr('href')).toBe('/dev-ops/events/cw')
     expect(by($, 'list-table')).toHaveLength(0)
     expect(by($, 'list-range')).toHaveLength(0)
     expect($('.gpa-filterbar')).toHaveLength(0)
@@ -2266,10 +2725,13 @@ describe('Caseworking unreachable', () => {
   test('the sidebar keeps CW’s Events', async () => {
     withCatalogue(cwDown)
 
-    const { $ } = await view('/dev-ops/events/cw/inbox')
+    const { $ } = await view('/dev-ops/events/cw')
 
-    expect($('[data-testid="shell-nav-cw.outbox"]').attr('href')).toBe(
-      '/dev-ops/events/cw/outbox'
+    expect($('[data-testid="shell-nav-cw.events"]').attr('href')).toBe(
+      '/dev-ops/events/cw'
+    )
+    expect($('[data-testid="shell-nav-cw.events"]').attr('aria-current')).toBe(
+      'page'
     )
   })
 
@@ -2308,10 +2770,36 @@ describe('Caseworking unreachable', () => {
     expect(flat($('h1').text())).toBe('Dev Ops couldn’t read its lists')
   })
 
+  test.each([
+    '/dev-ops/events/cw?status=DEAD_LETTER',
+    '/dev-ops/events/cw?cursor=c2'
+  ])(
+    'while GAS still lists CW, its 503 CW_UNREACHABLE says CW can’t be reached on %s',
+    async (url) => {
+      given(
+        rejecting(() =>
+          gasAnswer(statusCodes.serviceUnavailable, { code: 'CW_UNREACHABLE' })
+        )
+      )
+
+      const { $, statusCode } = await view(url)
+
+      expect(statusCode).toBe(statusCodes.serviceUnavailable)
+      expect(alertOf($)).toEqual({
+        tone: 'danger',
+        title: 'Caseworking can’t be reached.',
+        body: 'GAS is up, but its calls to CW are failing, so CW’s events can’t be listed. Nothing has changed.'
+      })
+      expect(by($, 'list-alert-link')).toHaveLength(0)
+      expect($('.gpa-filterbar')).toHaveLength(0)
+      expect(queryList).toHaveBeenCalledTimes(1)
+    }
+  )
+
   test('without the CW-BE source error, a missing list is not found', async () => {
     withCatalogue({ ...cwDown, sourceErrors: [] })
 
-    const { statusCode } = await view('/dev-ops/events/cw/inbox')
+    const { statusCode } = await view('/dev-ops/events/cw')
 
     expect(statusCode).toBe(statusCodes.notFound)
   })
@@ -2533,7 +3021,7 @@ describe('Open in Explore', () => {
 
   test('posts the list and its filters to Explore, never in Explore’s address', async () => {
     const { $ } = await view(
-      `${outboxPath}?status=DEAD_LETTER&event=CreateCase`
+      `${outboxPath}?queue=outbox&status=DEAD_LETTER&event=CreateCase`
     )
 
     expect(textOf($, 'list-explore')).toBe('Open in Explore')
@@ -2545,8 +3033,8 @@ describe('Open in Explore', () => {
       method: 'post',
       action: '/dev-ops/explore',
       hidden: [
-        ['from', 'events/gas/outbox'],
-        ['list', 'status=DEAD_LETTER&event=CreateCase']
+        ['from', 'events/gas'],
+        ['list', 'queue=outbox&status=DEAD_LETTER&event=CreateCase']
       ]
     })
   })
@@ -2556,9 +3044,8 @@ describe('Open in Explore', () => {
     'grants',
     'cases',
     'workflows',
-    'events/gas/inbox',
-    'events/cw/outbox',
-    'events/cw/inbox'
+    'events/gas',
+    'events/cw'
   ])('is on %s', async (path) => {
     const { $ } = await view(`/dev-ops/${path}`)
 
@@ -2577,5 +3064,172 @@ describe('Open in Explore', () => {
     const { $ } = await view('/dev-ops/other')
 
     expect(by($, 'list-explore')).toHaveLength(0)
+  })
+})
+
+describe('a queue’s own address', () => {
+  test.each([
+    ['gas', 'outbox', ''],
+    ['gas', 'inbox', ''],
+    ['cw', 'outbox', ''],
+    ['cw', 'inbox', ''],
+    ['gas', 'inbox', '?status=DEAD_LETTER&error=Error%3A+Boom'],
+    ['cw', 'outbox', '?cursor=c2&page=2'],
+    ['gas', 'outbox', '?page=1'],
+    ['cw', 'inbox', '?through=3&expired=1']
+  ])(
+    '/dev-ops/events/%s/%s%s is not found, with no redirect, and GAS isn’t asked for a list',
+    async (service, box, query) => {
+      const { statusCode, location } = await view(
+        `/dev-ops/events/${service}/${box}${query}`
+      )
+
+      expect(statusCode).toBe(statusCodes.notFound)
+      expect(location).toBeUndefined()
+      expect(queryList).not.toHaveBeenCalled()
+    }
+  )
+
+  test('is not found even while GAS lists the queue on its own', async () => {
+    withCatalogue(queuesApartCatalogue)
+
+    const { statusCode } = await view('/dev-ops/events/gas/inbox')
+
+    expect(statusCode).toBe(statusCodes.notFound)
+    expect(queryList).not.toHaveBeenCalled()
+  })
+
+  test('a search posted to it is not found, and nothing is stored', async () => {
+    const posted = await post(
+      { 'ref-kind': 'ref', 'ref-value': 'abc-123' },
+      '',
+      '/dev-ops/events/gas/inbox'
+    )
+
+    expect(posted.statusCode).toBe(statusCodes.notFound)
+    expect(posted.location).toBeUndefined()
+  })
+})
+
+describe('a cursor GAS can no longer read', () => {
+  const invalidCursor = rejecting(() =>
+    gasAnswer(statusCodes.badRequest, {
+      reason: 'INVALID_CURSOR',
+      message: 'The cursor cannot be read'
+    })
+  )
+
+  test('opens the first page on the same filters, saying the list changed', async () => {
+    given(invalidCursor)
+
+    const { statusCode, location } = await view(
+      `${outboxPath}?cursor=c2&page=2&status=DEAD_LETTER`
+    )
+
+    expect(statusCode).toBe(statusCodes.found)
+    expect(location).toBe(`${outboxPath}?changed=1&status=DEAD_LETTER`)
+
+    const { $ } = await view(location)
+
+    expect(alertOf($)).toEqual({
+      tone: 'info',
+      title: 'This list changed since the page was loaded.',
+      body: 'Showing the newest events.'
+    })
+    expect(asked()).toMatchObject({ params: { status: 'DEAD_LETTER' } })
+    expect(asked()).not.toHaveProperty('cursor')
+  })
+
+  test('to the in-place loader: a conflict naming that first page', async () => {
+    given(invalidCursor)
+
+    const { statusCode, headers } = await server.inject({
+      method: 'GET',
+      url: `${outboxPath}?cursor=c2&page=2`,
+      auth: { strategy: 'session', credentials },
+      headers: {
+        cookie: 'dev-ops-times=utc',
+        'x-requested-with': 'gpa-load-more'
+      }
+    })
+
+    expect(statusCode).toBe(statusCodes.conflict)
+    expect(headers.location).toBe(`${outboxPath}?changed=1`)
+  })
+})
+
+describe('the Events page’s own states', () => {
+  const queueFailed = (queue: string) =>
+    rejecting(() =>
+      gasAnswer(statusCodes.gatewayTimeout, { reason: 'TIMED_OUT', queue })
+    )
+
+  test('a queue that failed: which, why both are needed, and the other alone as a button', async () => {
+    given(queueFailed('outbox'))
+
+    const { $, statusCode } = await view(`${outboxPath}?status=DEAD_LETTER`)
+
+    expect(statusCode).toBe(statusCodes.gatewayTimeout)
+    expect(alertOf($)).toEqual({
+      tone: 'danger',
+      title: 'The events list couldn’t be loaded.',
+      body: 'GAS didn’t answer in time. Nothing has changed — try again in a moment. The Outbox couldn’t be read, and both queues are needed to show events in order.'
+    })
+    expect(
+      by($, 'list-alert-link')
+        .toArray()
+        .map((link) => [flat($(link).text()), $(link).attr('href')])
+    ).toEqual([
+      ['Show the Inbox only', `${outboxPath}?queue=inbox&status=DEAD_LETTER`]
+    ])
+    expect(by($, 'list-retry')).toHaveLength(1)
+  })
+
+  test('a queue that failed with only it picked: Try again alone', async () => {
+    given(queueFailed('outbox'))
+
+    const { $ } = await view(`${outboxPath}?queue=outbox`)
+
+    expect(alertOf($).body).toBe(
+      'GAS didn’t answer in time. Nothing has changed — try again in a moment.'
+    )
+    expect(by($, 'list-alert-link')).toHaveLength(0)
+  })
+
+  test('a queue that failed Load more: named in the footer', async () => {
+    given(queueFailed('inbox'))
+
+    const { $ } = await view(`${outboxPath}?cursor=c2&page=2`)
+
+    expect(flat(by($, 'list-footer').find('.gpa-text-danger').text())).toBe(
+      'Couldn’t load more events — GAS didn’t answer in time. The Inbox couldn’t be read.'
+    )
+  })
+
+  test('a queue searched a window at a time ends the page while the other has older rows: says so, with the other alone', async () => {
+    given(
+      answered({
+        ...bounded(
+          { keepLooking: 'k1', searchedTo: '2026-10-06T14:00:00.000Z' },
+          [eventRow()]
+        ),
+        queues: { limited: ['outbox'], waiting: ['inbox'] }
+      })
+    )
+
+    const { $ } = await view(
+      `${outboxPath}?event=AgreementStatusUpdated&errorname=Error`
+    )
+
+    expect(alertOf($)).toEqual({
+      tone: 'info',
+      title: 'The Outbox is searched a window at a time.',
+      body: 'Inbox events older than 6 Oct 2026 14:00 show once the Outbox has been searched that far back.'
+    })
+    expect(by($, 'list-alert-link').attr('href')).toBe(
+      `${outboxPath}?queue=inbox&event=AgreementStatusUpdated&errorname=Error`
+    )
+    expect(flat(by($, 'list-footer').find('a').text())).toBe('Keep looking')
+    expect(totalOf($)).toHaveLength(0)
   })
 })

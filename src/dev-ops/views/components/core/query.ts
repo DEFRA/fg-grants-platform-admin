@@ -6,7 +6,7 @@ export type QueryValue = {
 export type QueryField = {
   name: string;
   detail?: string;
-  type?: "text" | "number" | "date" | "list" | "flag";
+  type?: "text" | "number" | "date" | "list" | "flag" | "objectId";
   values?: QueryValue[];
 };
 export type QuerySource = {
@@ -419,6 +419,20 @@ export function qeCheck(
       else calls++;
     } else if (
       t.k === "word" &&
+      t.v === "ObjectId" &&
+      !(
+        toks[i + 1]?.k === "(" &&
+        toks[i + 2]?.k === "str" &&
+        /^[0-9a-fA-F]{24}$/.test(String(toks[i + 2].v)) &&
+        toks[i + 3]?.k === ")"
+      )
+    )
+      problem = at(
+        t,
+        "ObjectId takes 24 hex characters in quotes: ObjectId('6741a0c2e4b0f1a2b3c4d5e6')",
+      );
+    else if (
+      t.k === "word" &&
       String(t.v)[0] === "$" &&
       !qeOperators[String(t.v)]
     )
@@ -429,7 +443,9 @@ export function qeCheck(
       qeRefers(top) &&
       String(t.v)[0] === "$" &&
       String(t.v).length > 1 &&
-      !qeField(src, String(t.v).slice(1))
+      String(t.v) !== "$_id" &&
+      !qeField(src, String(t.v).slice(1)) &&
+      !qeField(src, String(t.v).slice(1).split(".")[0])
     )
       problem = at(t, `${src.name} has no field ${String(t.v).slice(1)}`);
   });
@@ -512,6 +528,8 @@ export function qePaint(
       cls =
         vocab.open ||
         qeField(src, String(t.v)) ||
+        qeField(src, String(t.v).split(".")[0]) ||
+        t.v === "_id" ||
         aliases.has(i) ||
         aliasNames.has(String(t.v))
           ? "name"
@@ -521,7 +539,10 @@ export function qePaint(
     else if (t.k === "comment") cls = "comment";
     else if (t.k === "word") {
       const w = String(t.v);
-      if (w[0] === "$" || /^(db|true|false|null|ISODate|Date|new)$/.test(w))
+      if (
+        w[0] === "$" ||
+        /^(db|true|false|null|ISODate|ObjectId|Date|new)$/.test(w)
+      )
         cls = "kw";
       else if (prev?.k === "." && (qeMethods[w] || qeChained[w])) cls = "fn";
       else if (prev?.k === "." && qeSource(vocab, w)) cls = "name";
@@ -607,6 +628,15 @@ export function qeSuggest(
       return [
         { insert: "true", label: "true", detail: "yes", kind: "value" },
         { insert: "false", label: "false", detail: "no", kind: "value" },
+      ];
+    if (f.type === "objectId")
+      return [
+        {
+          insert: "ObjectId('')",
+          label: "ObjectId('')",
+          detail: "24 hex characters",
+          kind: "value",
+        },
       ];
     values = { source: src.name, field: f.name, q: partial, inList };
     if (f.type === "date")

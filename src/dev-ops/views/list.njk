@@ -1,14 +1,55 @@
 {% extends 'layouts/page.njk' %}
 {% import "components/macros.njk" as gpa %}
 
+{% macro statusHtml(cell) -%}
+  {%- if cell.hint -%}
+    {%- call gpa.Tooltip({ text: cell.hint, focusable: true }) %}{{ gpa.StatusDot({ text: cell.text, tone: cell.tone }) }}{% endcall -%}
+  {%- else -%}
+    {{ gpa.StatusDot({ text: cell.text, tone: cell.tone }) }}
+  {%- endif -%}
+{%- endmacro %}
 
-{#- Every catalogue list: the page's tabs and filters, a message when there is one, then the rows. -#}
+{#- The Event ID as drawn short, with the whole ID for its title and for screen readers. -#}
+{% macro shortHtml(cell) -%}
+  <span aria-hidden="true" title="{{ cell.full }}">{{ cell.text }}</span>{{ gpa.VisuallyHidden({ text: cell.full }) }}
+{%- endmacro %}
+
+{#- A phone column's second line: its cells as short text, one after another. -#}
+{% macro underHtml(cells) -%}
+  {%- call gpa.Text({ tone: 'subtle', variant: 'body-sm' }) -%}
+    {%- for cell in cells -%}
+      {%- if not loop.first %} · {% endif -%}
+      {%- if cell.kind == 'time' %}{{ gpa.Time(cell.time) }}{% elif cell.kind == 'short' %}{{ shortHtml(cell) }}{% else %}{{ cell.text }}{% endif -%}
+    {%- endfor -%}
+  {%- endcall -%}
+{%- endmacro %}
+
+{% macro narrowLines(narrow) -%}
+  {%- set main = narrow.main -%}
+  {%- if main.kind == 'status' %}{{ statusHtml(main) }}{% elif main.kind == 'time' %}{{ gpa.Time(main.time) }}{% elif main.kind == 'none' %}{{ gpa.NoValue() }}{% else %}{{ gpa.Text({ text: main.text, variant: 'label-md', mono: main.mono }) }}{% endif -%}
+  {%- if narrow.under | length %}{{ underHtml(narrow.under) }}{% endif -%}
+{%- endmacro %}
+
+{% macro narrowStack(narrow) -%}
+  {%- call gpa.Stack({ gap: 'xs', classes: 'gpa-align-end' if narrow.align == 'right' }) %}{{ narrowLines(narrow) }}{% endcall -%}
+{%- endmacro %}
+
+{% macro narrowHtml(narrow) -%}
+  {%- if narrow.main.kind == 'link' -%}
+    {%- call gpa.RowLink({ href: narrow.main.href }) %}{{ narrowStack(narrow) }}{% endcall -%}
+  {%- else -%}
+    {{ narrowStack(narrow) }}
+  {%- endif -%}
+{%- endmacro %}
+
+{#- Every catalogue list: its filters, a message when there is one, then the rows. -#}
 {% block content %}
   {%- set alertHtml -%}
     {%- if alert -%}
       {%- set alertActions -%}
         {%- if alert.retryHref %}{{ gpa.Button({ text: 'Try again', size: 'sm', iconStart: 'refresh-cw', href: alert.retryHref, testId: 'list-retry' }) }}{% endif -%}
         {%- if alert.startHref %}{{ gpa.Button({ text: 'Start again', size: 'sm', href: alert.startHref, testId: 'list-start-again' }) }}{% endif -%}
+        {%- for link in alert.links %}{{ gpa.Button({ text: link.text, size: 'sm', href: link.href, testId: 'list-alert-link' }) }}{% endfor -%}
       {%- endset -%}
       {%- set alertBody -%}
         {%- if alert.code %}{{ gpa.Code({ text: alert.code }) }} {% endif %}{{ alert.text }}
@@ -20,17 +61,14 @@
   {%- set filtersHtml -%}
     {#- A view drops a null value, which leaves Nunjucks's own `range` function under the name. -#}
     {%- if range is mapping -%}
-      {%- call gpa.Stack({ gap: 'lg' }) -%}
-        {%- if tabs %}{{ gpa.Tabs({ label: tabs.label, items: tabs.items, testId: 'list-tabs' }) }}{% endif -%}
-        {%- call gpa.FilterBar({ label: filterLabel, total: total, applied: applied, filtered: filtered, clearAllHref: clearAllHref, appliedTestId: 'list-applied', clearAllTestId: 'list-clear-all' }) -%}
-          {{ gpa.DateRangeChip({ label: range.label, value: range.text if range.isSet else null, start: range.start, end: range.end, presets: range.presets, startName: 'from', endName: 'to', action: range.action, hidden: range.hidden, max: range.max, testId: 'list-range' }) }}
-          {%- for chip in chips -%}
-            {{ gpa.FilterChip({ label: chip.label, value: chip.value, multiple: true, name: chip.name, items: chip.items, action: chip.action, keep: chip.keep, clearHref: chip.clearHref, testId: 'list-chip-' ~ chip.fact }) }}
-          {%- endfor -%}
-          {%- if searchField -%}
-            {{ gpa.SearchField({ id: 'list-search', action: searchField.action, method: 'post', name: 'ref-value', value: searchField.value, noun: searchField.noun, error: searchField.error, hidden: searchField.hidden, kinds: { name: 'ref-kind', items: searchField.kinds }, testId: 'list-search', inputTestId: 'list-search-input', errorTestId: 'list-search-error' }) }}
-          {%- endif -%}
-        {%- endcall -%}
+      {%- call gpa.FilterBar({ label: filterLabel, total: total, applied: applied, filtered: filtered, clearAllHref: clearAllHref, appliedTestId: 'list-applied', clearAllTestId: 'list-clear-all' }) -%}
+        {{ gpa.DateRangeChip({ label: range.label, value: range.text if range.isSet else null, start: range.start, end: range.end, presets: range.presets, startName: 'from', endName: 'to', action: range.action, hidden: range.hidden, max: range.max, testId: 'list-range' }) }}
+        {%- for chip in chips -%}
+          {{ gpa.FilterChip({ label: chip.label, value: chip.value, multiple: true, name: chip.name, items: chip.items, action: chip.action, keep: chip.keep, clearHref: chip.clearHref, testId: 'list-chip-' ~ chip.fact }) }}
+        {%- endfor -%}
+        {%- if searchField -%}
+          {{ gpa.SearchField({ id: 'list-search', action: searchField.action, method: 'post', name: 'ref-value', value: searchField.value, noun: searchField.noun, error: searchField.error, hidden: searchField.hidden, kinds: { name: 'ref-kind', items: searchField.kinds }, testId: 'list-search', inputTestId: 'list-search-input', errorTestId: 'list-search-error' }) }}
+        {%- endif -%}
       {%- endcall -%}
     {%- endif -%}
   {%- endset -%}
@@ -46,32 +84,35 @@
           {{ gpa.ListFooter({ state: table.footer.state, text: table.footer.text, nextHref: table.footer.nextHref, retryHref: table.footer.retryHref, searchedTo: table.footer.searchedTo, keepLookingHref: table.footer.keepLookingHref, restoreHref: table.footer.restoreHref, noun: table.footer.noun, testId: 'list-footer' }) }}
         {%- endif -%}
       {%- endset -%}
-      {%- call gpa.DataTable({ styleNonce: styleNonce, label: table.label, link: true, columns: table.columns, empty: table.empty, after: footer, bodyId: 'list-rows', testId: 'list-table' }) -%}
+      {%- call gpa.DataTable({ styleNonce: styleNonce, label: table.label, link: true, columns: table.columns, narrowColumns: table.narrowColumns, empty: table.empty, after: footer, bodyId: 'list-rows', testId: 'list-table' }) -%}
         {%- for row in table.rows -%}
           {%- call gpa.TableRow({ link: true, restoreHref: row.restoreHref, attributes: { id: row.id }, testId: 'list-row' }) -%}
             {%- for cell in row.cells -%}
-              {%- set cellClass = ['gpa-right' if cell.align == 'right', 'gpa-cell-mono' if cell.kind == 'text' and cell.mono] | select | join(' ') -%}
-              <td role="cell"{% if cellClass %} class="{{ cellClass }}"{% endif %}>
+              {%- set cellClass = ['gpa-right' if cell.align == 'right', 'gpa-cell-mono' if (cell.kind == 'text' and cell.mono) or cell.kind == 'short', 'gpa-wide-only' if table.narrowColumns] | select | join(' ') -%}
+              <td role="cell"{% if cellClass %} class="{{ cellClass }}"{% endif %}{% if cell.kind == 'short' %} title="{{ cell.full }}"{% endif %}>
                 {%- if cell.kind == 'link' and cell.subtitle -%}
                   {%- call gpa.Stack({ gap: '2xs' }) -%}
                     {{ gpa.RowLink({ text: cell.text, href: cell.href, mono: cell.mono }) }}{{ gpa.Text({ text: cell.subtitle, tone: 'subtle', variant: 'body-sm' }) }}
                   {%- endcall -%}
                 {%- elif cell.kind == 'link' -%}
                   {{ gpa.RowLink({ text: cell.text, href: cell.href, mono: cell.mono }) }}
+                {%- elif cell.kind == 'short' -%}
+                  <span aria-hidden="true">{{ cell.text }}</span>{{ gpa.VisuallyHidden({ text: cell.full }) }}
                 {%- elif cell.kind == 'text' and cell.mono -%}
                   {{ cell.text }}
                 {%- elif cell.kind == 'text' -%}
                   {{ gpa.Text({ text: cell.text }) }}
-                {%- elif cell.kind == 'status' and cell.hint -%}
-                  {%- call gpa.Tooltip({ text: cell.hint, focusable: true }) %}{{ gpa.StatusDot({ text: cell.text, tone: cell.tone }) }}{% endcall -%}
                 {%- elif cell.kind == 'status' -%}
-                  {{ gpa.StatusDot({ text: cell.text, tone: cell.tone }) }}
+                  {{ statusHtml(cell) }}
                 {%- elif cell.kind == 'time' -%}
                   {{ gpa.Time(cell.time) }}
                 {%- else -%}
                   {{ gpa.NoValue() }}
                 {%- endif -%}
               </td>
+            {%- endfor -%}
+            {%- for narrow in row.narrowCells -%}
+              <td role="cell" class="{{ ['gpa-right' if narrow.align == 'right', 'gpa-narrow-only'] | select | join(' ') }}">{{ narrowHtml(narrow) }}</td>
             {%- endfor -%}
             {%- if row.href %}{{ gpa.RowChevron() }}{% else %}<td role="cell"></td>{% endif -%}
           {%- endcall -%}
@@ -80,10 +121,6 @@
     {%- endif -%}
   {%- endcall -%}
 
-  {%- if clearSearchForm -%}
-    {#- The search tag's remove button sends this form: the search lives in the session, so clearing it is a post, as setting it was. -#}
-    {{ gpa.Form({ id: clearSearchForm.id, action: clearSearchForm.action, method: 'post', label: 'Clear the search', hidden: clearSearchForm.hidden, attributes: { hidden: true } }) }}
-  {%- endif -%}
   {%- if exploreForm -%}
     {#- Open in Explore sends this form: the list's filters go in its body, never in Explore's address. -#}
     {{ gpa.Form({ id: exploreForm.id, action: exploreForm.action, method: 'post', label: 'Open in Explore', hidden: exploreForm.hidden, attributes: { hidden: true } }) }}

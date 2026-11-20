@@ -1,0 +1,6 @@
+{%- from "../../core/macros.njk" import attrs, cls -%}
+<div class="gpa-cq"><div class="{{ cls('gpa-table gpa-doclist', p) }}"{{ attrs(p) }}>
+    {%- if p.toolbar %}<div class="gpa-table-toolbar">{{ p.toolbar | safe }}</div>{% endif -%}
+    <ol class="gpa-docs"{% if p.label %} aria-label="{{ p.label }}"{% endif %}{% if p.bodyId %} id="{{ p.bodyId }}"{% endif %}>{{ caller() if caller }}</ol>
+    {%- if p.after %}{{ p.after | safe }}{% endif -%}
+  </div></div>

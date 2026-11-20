@@ -553,7 +553,7 @@ describe('restoreExploreUseCase', () => {
     expect(await findLiveRun(owner, id)).toBeNull()
   })
 
-  test('says the first window couldn’t be read, with the vocabulary its refusal carried, coming back to every window on Retry', async () => {
+  test('says the first window couldn’t be read, with the vocabulary its refusal carried, coming back to every window on Try again', async () => {
     const id = await readThrough(3)
 
     vi.mocked(queryExplore).mockRejectedValueOnce(
