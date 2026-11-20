@@ -16,6 +16,7 @@ declare module '@hapi/yar' {
     claimableItemUpdated: string
     claimableItemRefused: { text: string }
     allowListSaved: string
+    referenceDataSaved: string
     allowListActiveTab: 'grant-setup' | 'who-can-apply' | 'reference-data'
     /** Both event writes: `action` says which one this was. */
     redriveOutcome: EventNotice

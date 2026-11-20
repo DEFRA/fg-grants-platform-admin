@@ -12,15 +12,11 @@ import {
   type ReferenceDataItem
 } from '../use-cases/reference-data.use-case.ts'
 import {
-  allowListActiveTabKey,
-  allowListSavedKey,
-  toAdminHref
-} from '../view-models/allow-list-page.view-model.ts'
-import {
+  referenceDataSavedKey,
   toErrorSummary,
   toItemForm,
+  toReferenceDataHref,
   toReferenceDataPage,
-  toReferenceDataTabHref,
   toReferenceDataUnavailablePage,
   toRefusalError,
   validateItem,
@@ -96,16 +92,15 @@ const findItem = async (params: ItemParams) => {
   return item
 }
 
-/** Every change lands back on the admin page's Reference data tab. */
+/** Every change lands back on the list's own page. */
 const savedAndBack = (
   request: Request,
   h: ResponseToolkit,
   { code, name }: SetParams,
   notice: string
 ) => {
-  request.yar.flash(allowListSavedKey, `${name}: ${notice}`)
-  request.yar.flash(allowListActiveTabKey, 'reference-data')
-  return h.redirect(toAdminHref(code)).code(303)
+  request.yar.flash(referenceDataSavedKey, notice)
+  return h.redirect(toReferenceDataHref(code, name)).code(303)
 }
 
 interface ItemFormPage {
@@ -141,7 +136,7 @@ const viewItemForm = (
       code,
       name,
       codeEditable: page.editableKeys.includes('code'),
-      backHref: toReferenceDataTabHref(code),
+      backHref: toReferenceDataHref(code, name),
       errorSummary: toErrorSummary(errors),
       form: toItemForm(form, errors)
     })
@@ -167,7 +162,7 @@ const isServiceUnavailable = (error: unknown) =>
   (error as { output?: { statusCode?: number } } | null)?.output?.statusCode ===
   badGateway
 
-/** Read only: for an endpoint set this is where its service is called, and the only page that fails if it can't answer. */
+/** One list's items, editable when GAS holds them. For an endpoint set this is where its service is called, and the only page that fails if it can't answer. */
 export const viewReferenceDataRoute: ServerRoute = {
   method: 'GET',
   path: base,
@@ -177,8 +172,9 @@ export const viewReferenceDataRoute: ServerRoute = {
 
     try {
       const view = await viewReferenceDataUseCase(code, name)
+      const [saved] = request.yar.flash(referenceDataSavedKey)
 
-      return h.view('reference-data', toReferenceDataPage(code, view))
+      return h.view('reference-data', toReferenceDataPage(code, view, saved))
     } catch (error) {
       if (isServiceUnavailable(error)) {
         return h
@@ -283,7 +279,7 @@ export const removeReferenceDataItemRoute: ServerRoute = {
       code: params.code,
       name: params.name,
       item,
-      backHref: toReferenceDataTabHref(params.code)
+      backHref: toReferenceDataHref(params.code, params.name)
     })
   }
 }

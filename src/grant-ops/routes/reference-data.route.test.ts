@@ -99,48 +99,37 @@ afterAll(async () => {
   await server.stop()
 })
 
-const section = ($: ReturnType<typeof load>, name: string) =>
+const row = ($: ReturnType<typeof load>, name: string) =>
   $(`[data-testid="reference-data-set"][data-name="${name}"]`)
 
 describe('Reference data tab', () => {
-  test('shows every list with where it comes from', async () => {
+  test('lists every list in one table, linking each to its own page', async () => {
     const { $, statusCode } = await get(admin)
 
     expect(statusCode).toBe(200)
     expect(
-      $('[data-testid="reference-data-set"] h3')
-        .map((_, heading) => $(heading).text().trim())
+      $('[data-testid="reference-data-set"] a')
+        .map((_, link) => $(link).attr('href'))
         .get()
-    ).toEqual(['fly', 'pig-colour', 'landing-site'])
-    expect(section($, 'fly').text()).toContain(
-      'From the grant funding calculator service. Changes in that service, not here.'
+    ).toEqual([
+      `${admin}/reference-data/fly`,
+      `${admin}/reference-data/pig-colour`,
+      base
+    ])
+    expect(row($, 'fly').text()).toContain(
+      'From the grant funding calculator service'
     )
-    expect(section($, 'pig-colour').text()).toContain(
-      'Changes when a new grant version is published.'
-    )
+    expect(row($, 'pig-colour').text()).toContain('Set in the grant definition')
+    expect(row($, 'landing-site').text()).toContain('Held in GAS')
   })
 
-  test('lets the operator change only the list held in GAS', async () => {
+  test('counts the items GAS has, and fetches no endpoint list', async () => {
     const { $ } = await get(admin)
+    const count = (name: string) => row($, name).find('td').last().text().trim()
 
-    expect(section($, 'landing-site').find('a[href$="/change"]')).toHaveLength(
-      1
-    )
-    expect(
-      section($, 'landing-site')
-        .find('[data-testid="reference-data-add"]')
-        .attr('href')
-    ).toBe(`${base}/new`)
-    expect(section($, 'pig-colour').text()).toContain('Pink')
-    expect(section($, 'pig-colour').find('a')).toHaveLength(0)
-  })
-
-  test('links an endpoint list without fetching its items', async () => {
-    const { $ } = await get(admin)
-
-    expect(
-      section($, 'fly').find('[data-testid="reference-data-view"]').attr('href')
-    ).toBe(`${admin}/reference-data/fly`)
+    expect(count('pig-colour')).toBe('1')
+    expect(count('landing-site')).toBe('1')
+    expect(count('fly')).toBe('')
     expect(viewReferenceData).not.toHaveBeenCalled()
   })
 
@@ -157,10 +146,26 @@ describe('Reference data tab', () => {
   })
 })
 
-describe('viewing an endpoint list', () => {
+describe('a list held in GAS', () => {
+  test('shows its items with change, remove and add', async () => {
+    const { $, statusCode } = await get(base)
+
+    expect(statusCode).toBe(200)
+    expect($('[data-testid="reference-data-item"]').text()).toContain(
+      'Barn roof'
+    )
+    expect($(`a[href="${base}/items/BARN/change"]`)).toHaveLength(1)
+    expect($(`a[href="${base}/items/BARN/remove"]`)).toHaveLength(1)
+    expect($('[data-testid="reference-data-add"]').attr('href')).toBe(
+      `${base}/new`
+    )
+  })
+})
+
+describe('a read-only list', () => {
   const flyUrl = `${admin}/reference-data/fly`
 
-  test('fetches and shows its current items, read only', async () => {
+  test('fetches an endpoint list now and offers no changes', async () => {
     vi.mocked(viewReferenceData).mockResolvedValue({
       name: 'fly',
       source: 'endpoint',
@@ -173,7 +178,11 @@ describe('viewing an endpoint list', () => {
 
     expect(statusCode).toBe(200)
     expect($('[data-testid="reference-data-item"]').text()).toContain('Wings')
-    expect($('main a[href$="/change"]')).toHaveLength(0)
+    expect($('[data-testid="reference-data-source"]').text()).toContain(
+      'Changes in that service, not here.'
+    )
+    expect($('a[href$="/change"]')).toHaveLength(0)
+    expect($('[data-testid="reference-data-add"]')).toHaveLength(0)
   })
 
   test('says so when the service cannot answer', async () => {
@@ -195,7 +204,7 @@ describe('viewing an endpoint list', () => {
 })
 
 describe('adding an item', () => {
-  test('adds the trimmed item and goes back to the Reference data tab', async () => {
+  test('adds the trimmed item and goes back to the list', async () => {
     const response = await post(`${base}/new`, {
       code: ' WELL ',
       description: ' Well cover '
@@ -207,7 +216,7 @@ describe('adding an item', () => {
       { code: 'WELL', description: 'Well cover' }
     )
     expect(response.statusCode).toBe(303)
-    expect(response.headers.location).toBe(admin)
+    expect(response.headers.location).toBe(base)
   })
 
   test('asks for blank fields without calling GAS', async () => {
@@ -265,7 +274,7 @@ describe('changing an item', () => {
       'BARN',
       'Big barn roof'
     )
-    expect(response.headers.location).toBe(admin)
+    expect(response.headers.location).toBe(base)
   })
 })
 
@@ -285,6 +294,6 @@ describe('removing an item', () => {
       'landing-site',
       'BARN'
     )
-    expect(response.headers.location).toBe(admin)
+    expect(response.headers.location).toBe(base)
   })
 })

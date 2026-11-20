@@ -22,7 +22,7 @@ import {
   toAllowListPage,
   toAllowListRefusalPage
 } from '../view-models/allow-list-page.view-model.ts'
-import { toReferenceDataSections } from '../view-models/reference-data.view-model.ts'
+import { toReferenceDataRows } from '../view-models/reference-data.view-model.ts'
 
 interface AllowListParams {
   code: string
@@ -77,7 +77,7 @@ const renderAllowListPage = async (
       ...page,
       settings: await getGrantSettingsUseCase(code),
       settingsFormAction: `${toAdminHref(code)}/settings`,
-      referenceData: toReferenceDataSections(
+      referenceData: toReferenceDataRows(
         code,
         (await listGrantReferenceDataUseCase(code)).referenceData
       )

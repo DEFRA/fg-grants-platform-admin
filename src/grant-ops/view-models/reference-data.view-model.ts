@@ -17,6 +17,8 @@ interface ErrorSummaryItem {
   href: string
 }
 
+export const referenceDataSavedKey = 'referenceDataSaved' as const
+
 const enc = encodeURIComponent
 
 /** A service as GAS names it, such as GRANT_FUNDING_CALCULATOR, read aloud. */
@@ -82,34 +84,35 @@ const toRows = (
   }))
 
 /**
- * One section of the admin page's Reference data tab per set. Items GAS
- * already has are shown in place; an endpoint set links to a page that fetches
- * them, so the tab never waits on another service.
+ * One row of the admin page's Reference data tab per set, each linking to its
+ * own page. Item counts are only for sets GAS already has: an endpoint set is
+ * fetched only when its page is opened, so the tab never waits on a service.
  */
-export const toReferenceDataSections = (
+export const toReferenceDataRows = (
   code: string,
   referenceData: ReferenceDataSummary[]
 ) =>
   referenceData.map((summary) => ({
     name: summary.name,
+    href: toReferenceDataHref(code, summary.name),
     label: toSourceLabel(summary),
-    note: toChangeNote(summary),
-    editable: summary.editable,
-    rows: summary.items ? toRows(code, summary, summary.items) : undefined,
-    addHref: summary.editable ? toNewItemHref(code, summary.name) : undefined,
-    viewHref:
-      summary.source === 'endpoint'
-        ? toReferenceDataHref(code, summary.name)
-        : undefined
+    itemCount: summary.items?.length
   }))
 
-export const toReferenceDataPage = (code: string, view: ReferenceDataView) => ({
+export const toReferenceDataPage = (
+  code: string,
+  view: ReferenceDataView,
+  saved: string | undefined
+) => ({
   pageTitle: `Reference data ${view.name}`,
   code,
   name: view.name,
   label: toSourceLabel(view),
   note: toChangeNote(view),
+  editable: view.editable,
+  addHref: view.editable ? toNewItemHref(code, view.name) : undefined,
   backHref: toReferenceDataTabHref(code),
+  saved,
   rows: toRows(code, view, view.items)
 })
 
