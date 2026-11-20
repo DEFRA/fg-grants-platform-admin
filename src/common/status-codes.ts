@@ -14,6 +14,7 @@ export const statusCodes = {
   notFound: 404,
   requestTimeout: 408,
   conflict: 409,
+  gone: 410,
   preconditionFailed: 412,
   imATeapot: 418,
   unprocessableEntity: 422,

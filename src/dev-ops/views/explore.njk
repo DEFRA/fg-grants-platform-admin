@@ -1,5 +1,6 @@
 {% extends 'layouts/page.njk' %}
 {% import "components/macros.njk" as gpa %}
+{% from "partials/explore/document.njk" import exploreDocument %}
 
 
 {#- A value on one line, cut at its cell's width; past the most a cell holds, its start and size. -#}
@@ -7,7 +8,7 @@
   {%- if cell.kind == 'time' -%}
     {{ gpa.Time(cell.time) }}
   {%- elif cell.kind == 'text' -%}
-    {{ gpa.CutText({ text: cell.text, mono: cell.mono, size: cell.size, href: cell.href }) }}
+    {{ gpa.CutText({ text: cell.text, mono: cell.mono, size: cell.size }) }}
   {%- else -%}
     {{ gpa.NoValue() }}
   {%- endif -%}
@@ -24,7 +25,7 @@
   {%- endif -%}
 {%- endmacro %}
 
-{#- Records too large to search, every one by its _id, with a link to it where it has a page. -#}
+{#- Records too large to search, every one by its _id, with a link to it where the Table has one. -#}
 {% macro skippedHtml(note) -%}
   {{ note.text }}{% for record in note.records %} <span data-testid="explore-skipped">{{ record.id }}{% if record.open %} {{ gpa.Link({ text: record.open.text, href: record.open.href, size: 'sm', attributes: { 'aria-label': record.open.label } }) }}{% endif %}</span>{% if not loop.last %};{% endif %}{% endfor %}
 {%- endmacro %}
@@ -61,7 +62,7 @@
     {%- endif -%}
 
     {%- call gpa.Card({ padded: true, testId: 'explore-editor' }) -%}
-      {%- call gpa.Form({ id: 'explore-form', action: action, label: 'Query', wide: true, testId: 'explore-form' }) -%}
+      {%- call gpa.Form({ id: 'explore-form', action: action, label: 'Query', wide: true, hidden: editor.hidden, testId: 'explore-form' }) -%}
         {%- call gpa.Stack({ gap: 'md' }) -%}
           {{ gpa.QueryEditor({ id: 'q', name: 'q', label: 'Query', value: editor.value, vocabulary: editor.vocabulary, error: editor.error, clear: true, runHint: true, testId: 'explore-editor-field' }) }}
           {%- call gpa.Inline({ gap: 'sm', align: 'center' }) -%}
@@ -74,12 +75,17 @@
     {%- if results -%}
       {%- call gpa.Stack({ gap: 'sm', testId: 'explore-results' }) -%}
         {#- The unseen paths stay over the frame: the toolbar holds only what sticks with the header. -#}
+        {%- if results.shown %}{{ gpa.Text({ text: results.shown, tone: 'muted', variant: 'body-sm', focusOnArrival: results.arrived, attributes: { role: 'status' }, testId: 'explore-shown' }) }}{% endif -%}
+        {%- if results.shownNote %}{{ gpa.Text({ text: results.shownNote, tone: 'muted', variant: 'body-sm', testId: 'explore-shown-note' }) }}{% endif -%}
         {%- if results.unseen %}{{ gpa.Text({ text: results.unseen, tone: 'muted', variant: 'body-sm', testId: 'explore-unseen' }) }}{% endif -%}
         {%- set toolbar -%}
           {%- call gpa.Inline({ gap: 'sm', align: 'center', justify: 'between' if results.count else 'end', testId: 'explore-bar' }) -%}
             {%- if results.count %}{{ gpa.Text({ text: results.count, tone: 'muted', variant: 'body-sm', focusOnArrival: results.arrived, attributes: { id: 'explore-count', role: 'status', 'data-load-more-count': true }, testId: 'explore-count' }) }}{% endif -%}
-            {%- call gpa.ButtonSlot({ width: 'lg', testId: 'explore-csv-slot' }) -%}
-              {{ gpa.Button({ text: 'Download CSV', variant: 'tertiary', size: 'sm', iconStart: 'download', type: 'submit', form: 'explore-csv-form', testId: 'explore-csv' }) }}
+            {%- call gpa.Inline({ gap: 'sm', align: 'center', testId: 'explore-bar-end' }) -%}
+              {{ gpa.SegmentedControl({ label: 'Show results as', size: 'sm', value: results.view, options: results.views, testId: 'explore-view' }) }}
+              {%- call gpa.ButtonSlot({ width: 'lg', testId: 'explore-download-slot' }) -%}
+                {{ gpa.Button({ text: results.download.label, variant: 'tertiary', size: 'sm', iconStart: 'download', type: 'submit', form: results.download.id, testId: results.download.testId }) }}
+              {%- endcall -%}
             {%- endcall -%}
           {%- endcall -%}
         {%- endset -%}
@@ -96,6 +102,15 @@
             {{ gpa.ListFooter({ state: results.footer.state, text: results.footer.text, html: endHtml if results.footer.state == 'end' else null, searchedTo: results.footer.searchedTo, form: results.footer.form, note: skippedNote, retryHref: results.footer.retryHref, restoreHref: results.footer.restoreHref, noun: results.noun, testId: 'explore-footer', countId: 'explore-count' }) }}
           {%- endif -%}
         {%- endset -%}
+        {%- if results.view == 'documents' -%}
+        {%- call gpa.DocList({ label: results.label, toolbar: toolbar, after: footer, bodyId: 'explore-rows', testId: 'explore-documents' }) -%}
+          {%- for document in results.documents -%}
+            {%- call gpa.DocItem({ id: document.id, restoreHref: document.restoreHref, testId: 'explore-row' }) -%}
+              {{ exploreDocument(document) }}
+            {%- endcall -%}
+          {%- endfor -%}
+        {%- endcall -%}
+        {%- else -%}
         {%- call gpa.DataTable({ styleNonce: styleNonce, label: results.label, link: true, stickyFirstColumn: not results.idFirst, narrow: 'scroll', toolbar: toolbar, columns: results.columns, after: footer, bodyId: 'explore-rows', testId: 'explore-table' }) -%}
           {%- for row in results.rows -%}
             {%- call gpa.TableRow({ link: row.href != null, restoreHref: row.restoreHref, attributes: { id: row.id }, testId: 'explore-row' }) -%}
@@ -114,13 +129,18 @@
             {%- endcall -%}
           {%- endfor -%}
         {%- endcall -%}
+        {%- endif -%}
       {%- endcall -%}
     {%- endif -%}
   {%- endcall -%}
 
   {%- if results -%}
-    {%- if results.empty and results.empty.keepLooking %}{{ gpa.Form({ id: 'explore-keep-looking-form', action: results.empty.keepLooking.action, method: 'post', label: 'Keep looking', hidden: [{ name: 'run', value: results.empty.keepLooking.fields.run }, { name: 'page', value: results.empty.keepLooking.fields.page }], attributes: { hidden: true } }) }}{% endif -%}
-    {#- Download CSV sends this form: only the run, as the session knows how far it has been read. -#}
-    {{ gpa.Form({ id: 'explore-csv-form', action: results.csv.action, method: 'post', label: 'Download CSV', hidden: [{ name: 'run', value: results.csv.run }], attributes: { hidden: true } }) }}
+    {%- if results.empty and results.empty.keepLooking -%}
+      {{ gpa.Form({ id: 'explore-keep-looking-form', action: results.empty.keepLooking.action, method: 'post', label: 'Keep looking', hidden: results.empty.keepLooking.hidden, attributes: { hidden: true } }) }}
+    {%- endif -%}
+    {#- Each download sends its form: only the run, as the session knows how far it has been read. -#}
+    {%- for form in results.forms -%}
+      {{ gpa.Form({ id: form.id, action: form.action, method: 'post', label: form.label, hidden: [{ name: 'run', value: form.run }], attributes: { hidden: true } }) }}
+    {%- endfor -%}
   {%- endif -%}
 {% endblock %}

@@ -7,7 +7,8 @@ import type {
 import Joi from 'joi'
 
 import { config } from '../../common/config.ts'
-import type { ExplorePageData } from '../use-cases/explore-page.ts'
+import type { EventBox, EventService } from '../use-cases/explore-calls.ts'
+import type { ExplorePageData, ExploreView } from '../use-cases/explore-page.ts'
 import { shellCatalogue } from '../use-cases/shell-catalogue.ts'
 import type { ExploreOwner } from '../use-cases/held-runs.ts'
 import { pageMax } from '../use-cases/held-runs.ts'
@@ -30,8 +31,12 @@ import {
   explorePath,
   goneStatusCode,
   postedMax,
+  toCheckedInput,
+  toCheckedOpened,
   toExplorePage,
   toExploreStatusCode,
+  toOpenedPage,
+  toOpenedStatusCode,
   toRunHref
 } from '../view-models/explore-page.view-model.ts'
 import { errorParamOf, isErrorSet } from '../view-models/error-search.ts'
@@ -55,36 +60,46 @@ const ownerOf = (request: Request): ExploreOwner => {
 const takeArrival = (request: Request): string | null =>
   request.yar.flash(exploreArrivalKey).at(-1) ?? null
 
+/** Keep looking's loader appends the window it posts for; an open in place shows the one result it posts for. */
+const requestedWith = (request: Request, by: string): boolean =>
+  request.headers['x-requested-with'] === by
+
+const isLoadingMore = (request: Request): boolean =>
+  requestedWith(request, 'gpa-load-more')
+
+const isOpening = (request: Request): boolean =>
+  requestedWith(request, 'gpa-doc-line')
+
 const draw = (
   request: Request,
   h: ResponseToolkit,
   page: ExplorePageData,
   arrived = false
 ) => {
-  const input = {
+  const input = toCheckedInput({
     ...page,
     times: timesOf(request),
     now: new Date(),
     arrived,
-    inPlace: request.headers['x-requested-with'] === 'gpa-load-more'
-  }
+    inPlace: isLoadingMore(request)
+  })
 
   return h
     .view('explore', toExplorePage(input))
     .code(toExploreStatusCode(input))
 }
 
-/** A new run lands on its first window; Keep looking without script, on the window it names. */
+/** A new run lands on its first window; Keep looking without script, on the window it names, in its view. */
 const toHeldRedirect = (
   request: Request,
   h: ResponseToolkit,
-  { id, page }: { id: string; page?: number }
+  { id, page, view }: { id: string; page?: number; view?: ExploreView }
 ) => {
   if (page === undefined) {
     request.yar.flash(exploreArrivalKey, id)
   }
 
-  return h.redirect(toRunHref(id, page)).code(seeOther)
+  return h.redirect(toRunHref(id, page, view)).code(seeOther)
 }
 
 type Responder<K extends ExploreRunOutcome['kind']> = (
@@ -96,11 +111,25 @@ type Responder<K extends ExploreRunOutcome['kind']> = (
 
 const responders: { [K in ExploreRunOutcome['kind']]: Responder<K> } = {
   held: (request, h, outcome) => toHeldRedirect(request, h, outcome),
-  restart: (_, h, { id }) => h.redirect(toRunHref(id)).code(seeOther),
-  apart: (_, h, { id, page }) => h.redirect(toRunHref(id, page)).code(seeOther),
-  gone: (_, h, { id }) =>
-    h.response().code(goneStatusCode).header('location', toRunHref(id)),
-  page: (request, h, { page }, arrived) => draw(request, h, page, arrived)
+  restart: (_, h, { id, view }) =>
+    h.redirect(toRunHref(id, 1, view)).code(seeOther),
+  apart: (_, h, { id, page, view }) =>
+    h.redirect(toRunHref(id, page, view)).code(seeOther),
+  gone: (_, h, { id, view }) =>
+    h
+      .response()
+      .code(goneStatusCode)
+      .header('location', toRunHref(id, 1, view)),
+  page: (request, h, { page }, arrived) => draw(request, h, page, arrived),
+  opened: (request, h, outcome) => {
+    const opened = toCheckedOpened(outcome)
+
+    request.app.part = true
+
+    return h
+      .view('explore-document', toOpenedPage(opened))
+      .code(toOpenedStatusCode(opened))
+  }
 }
 
 const respond = (
@@ -120,15 +149,25 @@ interface PageQuery {
   run?: string
   page?: number
   through?: number
+  view?: NamedView
 }
 
-const viewOrRestore = (request: Request, { run, page, through }: PageQuery) => {
-  const asker = { owner: ownerOf(request) }
+/** The one view an address names: the Table is named by none. */
+type NamedView = Exclude<ExploreView, 'table'>
+
+const viewOf = ({ view }: { view?: NamedView }): ExploreView => view ?? 'table'
+
+const viewOrRestore = (request: Request, query: PageQuery) => {
+  const { run, page, through } = query
+  const asker = { owner: ownerOf(request), view: viewOf(query) }
 
   return through === undefined
     ? viewExploreUseCase({ ...asker, run: run ?? null, page: page ?? 1 })
     : restoreExploreUseCase({ ...asker, run: run!, through })
 }
+
+/** `view` says how to show results, never what was searched: only Documents is named. */
+const viewParam = Joi.string().valid('documents')
 
 /** The first window of the run a Run just held: not a reload, another run, a later window or every window again. */
 const isLanding = (arrival: string | null, query: PageQuery): boolean =>
@@ -152,6 +191,7 @@ export const viewExploreRoute: ServerRoute = {
         run: Joi.string().max(64),
         page: Joi.number().integer().min(1).max(pageMax),
         through: Joi.number().integer().min(2).max(pageMax),
+        view: viewParam,
         ...shellQuery
       })
         .with('through', 'run')
@@ -176,6 +216,12 @@ interface RunPayload {
   list: string
   find?: string
   record?: string
+  view?: NamedView
+  show?: string
+  result?: number
+  at?: string
+  service?: EventService
+  box?: EventBox
 }
 
 /** A list's own query string, a key with several values as a list of them. */
@@ -230,22 +276,52 @@ const toExploredList = (
 }
 
 /** The fields a way in names are there: the payload's schema says which go together. */
-type WayInPayload = Required<RunPayload>
+type Optional = 'view' | 'at' | 'service' | 'box' | 'result'
+
+type WayInPayload = Required<Omit<RunPayload, Optional>> &
+  Pick<RunPayload, Optional>
+
+/** Show it: the row's record's `_id`, the places `$unwind` took it from (none for a row not unwound), an event's service and box, and the row's number among the run's results. */
+const toShown = (
+  { run, show, result, at, service, box }: WayInPayload,
+  kind: 'show' | 'open'
+): ExploreWayIn => ({
+  kind,
+  run,
+  result: result!,
+  show: {
+    id: show,
+    at: at ? at.split(',').map(toPlace) : [],
+    service: service ?? null,
+    box: box ?? null
+  }
+})
 
 /** Each way in by the field that names it, `pick` first: it wins over the `q` that comes with it. */
 const waysIn: [
   keyof RunPayload,
   (request: Request, payload: WayInPayload) => ExploreWayIn
 ][] = [
-  ['pick', (_, { pick }) => ({ kind: 'pick', pick })],
+  [
+    'pick',
+    (_, payload) => ({
+      kind: 'pick',
+      pick: payload.pick,
+      view: viewOf(payload)
+    })
+  ],
   [
     'run',
-    (request, { run, page }) => ({
-      kind: 'window',
-      run,
-      page,
-      inPlace: request.headers['x-requested-with'] === 'gpa-load-more'
-    })
+    (request, payload) =>
+      payload.show === undefined
+        ? {
+            kind: 'window',
+            run: payload.run,
+            page: payload.page,
+            inPlace: isLoadingMore(request),
+            view: viewOf(payload)
+          }
+        : toShown(payload, isOpening(request) ? 'open' : 'show')
   ],
   [
     'from',
@@ -260,7 +336,10 @@ const waysIn: [
     }
   ],
   ['find', (_, { find, record }) => ({ kind: 'find', find, record })],
-  ['q', (_, { q }) => ({ kind: 'typed', q })]
+  [
+    'q',
+    (_, payload) => ({ kind: 'typed', q: payload.q, view: viewOf(payload) })
+  ]
 ]
 
 const toWayIn = (request: Request, payload: RunPayload): ExploreWayIn => {
@@ -272,13 +351,28 @@ const toWayIn = (request: Request, payload: RunPayload): ExploreWayIn => {
 /** A list's bucket id, as Open in Explore posts it. */
 const bucketIdMax = 200
 
+/** Base64 of a one-key BSON document: an `_id` within a document's 16 MiB is longer, but no source's is. */
+const shownMax = 2048
+
+/** The most results a run numbers: its most windows of an answer's most rows. */
+const resultMax = pageMax * 5000
+
+/** A row's place in each list `$unwind` took it from, at most 4, `null` where one kept a record with none. */
+const unwoundPlaces = /^(\d{1,9}|null)(,(\d{1,9}|null)){0,3}$/
+
+const toPlace = (place: string): number | null =>
+  place === 'null' ? null : Number(place)
+
 /** A post names exactly one way in, but for `pick`, which may come with the editor's `q`. */
 const wayInFields = ['q', 'run', 'from', 'find']
 
 /**
  * Every way into a run: the editor's Run, the Queries menu (whose items post
- * the editor's form, so `pick` wins over the `q` that comes with it), Keep
- * looking, a list's Open in Explore and a record's Find others.
+ * the editor's form, so `pick` wins over the `q` that comes with it), both in
+ * the view the editor was in, Keep looking (in its view), a list's Open in Explore, a record's Find others,
+ * and Show it, which posts a row's `_id` with its run: held to show on its
+ * own page, or with `X-Requested-With: gpa-doc-line` read now and answered as
+ * that one result.
  */
 export const runExploreRoute: ServerRoute = {
   method: 'POST',
@@ -294,9 +388,25 @@ export const runExploreRoute: ServerRoute = {
         from: Joi.string().max(bucketIdMax),
         list: Joi.string().allow('').max(postedMax).default(''),
         find: Joi.string().max(100),
-        record: Joi.string().max(2048)
+        record: Joi.string().max(2048),
+        view: viewParam,
+        show: Joi.string().base64().max(shownMax),
+        at: Joi.string().pattern(unwoundPlaces),
+        result: Joi.number().integer().min(1).max(resultMax),
+        service: Joi.string().valid('GAS', 'CW'),
+        box: Joi.string().valid('outbox', 'inbox')
       })
-        .and('run', 'page')
+        .with('page', 'run')
+        .without('view', ['show', 'from', 'find'])
+        .with('show', ['run', 'result'])
+        .with('result', 'show')
+        .and('service', 'box')
+        .with('service', 'show')
+        .with('at', 'show')
+        .without('show', 'page')
+        .when(Joi.object({ show: Joi.exist() }).unknown(), {
+          otherwise: Joi.object().with('run', 'page')
+        })
         .with('find', 'record')
         .when(Joi.object({ pick: Joi.exist() }).unknown(), {
           otherwise: Joi.object().xor(...wayInFields)

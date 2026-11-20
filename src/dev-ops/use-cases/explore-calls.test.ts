@@ -117,6 +117,19 @@ describe('runExplore', () => {
       }
     ],
     [
+      'Show it’s places not fitting the query’s $unwind',
+      responseError(400, {
+        reason: 'QUERY_REFUSED',
+        message: 'Show it’s row positions don’t fit this query’s $unwind',
+        service: 'GAS'
+      }),
+      {
+        kind: 'refused',
+        service: 'GAS',
+        message: 'Show it’s row positions don’t fit this query’s $unwind'
+      }
+    ],
+    [
       'a refusal',
       responseError(400, { reason: 'QUERY_REFUSED', message: 'Too big' }),
       { kind: 'refused', service: 'GAS', message: 'Too big' }

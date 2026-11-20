@@ -9,7 +9,7 @@ import {
   findVocabulary,
   queryExplore
 } from '../repositories/explore.repository.ts'
-import { findLiveRun, holdRun, keepPage } from './held-runs.ts'
+import { findLiveRun, holdRun, holdShown, keepPage } from './held-runs.ts'
 import { provideMemoryExploreStore } from './test-fixtures.ts'
 import {
   restoreExploreUseCase,
@@ -93,12 +93,20 @@ describe('viewExploreUseCase', () => {
         result: null,
         previous: null,
         notice: null,
+        view: 'table',
         recent: [{ id: expect.any(String), q: typed }],
         vocabulary
       }
     })
     expect(queryExplore).not.toHaveBeenCalled()
     expect(findVocabulary).toHaveBeenCalledExactlyOnceWith()
+  })
+
+  test('opens the editor in Documents when its address says so, reading nothing', async () => {
+    expect(
+      await viewExploreUseCase({ owner, run: null, page: 1, view: 'documents' })
+    ).toMatchObject({ kind: 'page', page: { run: null, view: 'documents' } })
+    expect(queryExplore).not.toHaveBeenCalled()
   })
 
   test('carries no vocabulary when GAS can’t give it', async () => {
@@ -119,7 +127,7 @@ describe('viewExploreUseCase', () => {
       kind: 'page',
       page: {
         q: typed,
-        run: { id, page: 1 },
+        run: { id, page: 1, view: 'table' },
         result: { outcome: 'read', answer: shown(answer()) },
         previous: null,
         notice: null,
@@ -179,7 +187,7 @@ describe('viewExploreUseCase', () => {
     expect(next).toMatchObject({
       kind: 'page',
       page: {
-        run: { id, page: 2 },
+        run: { id, page: 2, view: 'table' },
         previous: {
           positions: 'after-first',
           end: false,
@@ -227,7 +235,11 @@ describe('viewExploreUseCase', () => {
 
       await before(id)
 
-      expect(await view(id, page)).toEqual({ kind: 'restart', id })
+      expect(await view(id, page)).toEqual({
+        kind: 'restart',
+        id,
+        view: 'table'
+      })
       expect(queryExplore).not.toHaveBeenCalled()
     }
   )
@@ -242,7 +254,7 @@ describe('viewExploreUseCase', () => {
       kind: 'page',
       page: { result: { outcome: 'failed' } }
     })
-    expect(await view(id, 2)).toEqual({ kind: 'restart', id })
+    expect(await view(id, 2)).toEqual({ kind: 'restart', id, view: 'table' })
   })
 
   test('says a run never held has expired, with the editor empty, reading nothing', async () => {
@@ -341,7 +353,7 @@ describe('viewWindowUseCase', () => {
     await view(id)
 
     expect(
-      await viewWindowUseCase({ owner }, { run: id, page: 2 })
+      await viewWindowUseCase({ owner }, { run: id, page: 2, view: 'table' })
     ).toMatchObject({ kind: 'page', page: { run: { id, page: 2 } } })
     expect(sent()[1]).toEqual({ query: typed, positions: 'after-first' })
   })
@@ -349,9 +361,12 @@ describe('viewWindowUseCase', () => {
   test('says a run no longer held is gone, reading nothing', async () => {
     const id = '0b6f3e2a-5c1d-4e8f-9a7b-2c3d4e5f6a7b'
 
-    expect(await viewWindowUseCase({ owner }, { run: id, page: 2 })).toEqual({
+    expect(
+      await viewWindowUseCase({ owner }, { run: id, page: 2, view: 'table' })
+    ).toEqual({
       kind: 'gone',
-      id
+      id,
+      view: 'table'
     })
     expect(queryExplore).not.toHaveBeenCalled()
   })
@@ -359,9 +374,12 @@ describe('viewWindowUseCase', () => {
   test('goes back to the first window for one it can’t start', async () => {
     const id = await holdRun(owner, typed)
 
-    expect(await viewWindowUseCase({ owner }, { run: id, page: 3 })).toEqual({
+    expect(
+      await viewWindowUseCase({ owner }, { run: id, page: 3, view: 'table' })
+    ).toEqual({
       kind: 'restart',
-      id
+      id,
+      view: 'table'
     })
   })
 })
@@ -422,7 +440,14 @@ describe('restoreExploreUseCase', () => {
       kind: 'page',
       page: {
         q: typed,
-        run: { id, page: 3, through: 3, windowRows: [1, 2, 1], stopped: null },
+        run: {
+          id,
+          page: 3,
+          through: 3,
+          windowRows: [1, 2, 1],
+          stopped: null,
+          view: 'table'
+        },
         result: {
           outcome: 'read',
           answer: shown(
@@ -464,7 +489,14 @@ describe('restoreExploreUseCase', () => {
 
     expect(await restore(id, 3)).toMatchObject({
       page: {
-        run: { id, page: 2, through: 3, windowRows: [1, 1], stopped: null },
+        run: {
+          id,
+          page: 2,
+          through: 3,
+          windowRows: [1, 1],
+          stopped: null,
+          view: 'table'
+        },
         result: { answer: { rows: ['ref-1', 'ref-2'].map(rowOf) } }
       }
     })
@@ -511,7 +543,12 @@ describe('restoreExploreUseCase', () => {
       )
     )
 
-    expect(await restore(id, 5)).toEqual({ kind: 'apart', id, page: 5 })
+    expect(await restore(id, 5)).toEqual({
+      kind: 'apart',
+      id,
+      page: 5,
+      view: 'table'
+    })
     expect(await findLiveRun(owner, id)).toMatchObject({ restorable: 3 })
     expect(await view(id, 5)).toMatchObject({
       page: {
@@ -532,7 +569,12 @@ describe('restoreExploreUseCase', () => {
       })
     )
 
-    expect(await restore(id, 3)).toEqual({ kind: 'apart', id, page: 3 })
+    expect(await restore(id, 3)).toEqual({
+      kind: 'apart',
+      id,
+      page: 3,
+      view: 'table'
+    })
     expect(await view(id, 3)).toMatchObject({
       page: {
         run: { id, page: 3, restorable: 2 },
@@ -600,7 +642,7 @@ describe('restoreExploreUseCase', () => {
   test('goes back to the first window for one not yet reached, reading nothing', async () => {
     const id = await readThrough(2)
 
-    expect(await restore(id, 4)).toEqual({ kind: 'restart', id })
+    expect(await restore(id, 4)).toEqual({ kind: 'restart', id, view: 'table' })
     expect(queryExplore).not.toHaveBeenCalled()
   })
 
@@ -610,5 +652,77 @@ describe('restoreExploreUseCase', () => {
     ).toMatchObject({ page: { notice: { kind: 'expired' }, vocabulary } })
     expect(queryExplore).not.toHaveBeenCalled()
     expect(findVocabulary).toHaveBeenCalledExactlyOnceWith()
+  })
+})
+
+describe('in Documents', () => {
+  test('asks GAS for each record’s start, for a window and the one after it, never its document', async () => {
+    vi.mocked(queryExplore).mockResolvedValue(windowed('p1'))
+    const id = await holdRun(owner, typed)
+
+    expect(
+      await viewExploreUseCase({ owner, run: id, page: 1, view: 'documents' })
+    ).toMatchObject({ page: { run: { id, page: 1, view: 'documents' } } })
+    await viewWindowUseCase({ owner }, { run: id, page: 2, view: 'documents' })
+
+    expect(sent()).toEqual([
+      { query: typed, starts: true },
+      { query: typed, positions: 'p1', starts: true }
+    ])
+  })
+
+  test('asks for every window’s starts again on a restore, in one call', async () => {
+    vi.mocked(queryExplore).mockResolvedValue(windowed('p1'))
+    const id = await holdRun(owner, typed)
+
+    await view(id)
+    await view(id, 2)
+    vi.mocked(queryExplore).mockClear()
+    vi.mocked(queryExplore).mockResolvedValue({
+      ...windowed('p2', false, 2),
+      windowRows: [1, 1]
+    })
+
+    expect(
+      await restoreExploreUseCase({
+        owner,
+        run: id,
+        through: 2,
+        view: 'documents'
+      })
+    ).toMatchObject({ page: { run: { through: 2, view: 'documents' } } })
+    expect(sent()).toEqual([{ query: typed, windows: 2, starts: true }])
+  })
+
+  test('asks for a Show it run’s one document whole, to draw it open', async () => {
+    const source = (await findLiveRun(owner, await holdRun(owner, typed)))!
+    const show = {
+      id: 'FgAAAAdfaWQAZ0GgwuSw8aKzxNXmAA==',
+      at: [],
+      service: null,
+      box: null
+    }
+    const id = await holdShown(owner, source, { show, result: 4 })
+
+    expect(
+      await viewExploreUseCase({ owner, run: id, page: 1, view: 'documents' })
+    ).toMatchObject({ page: { run: { id, shown: 4, view: 'documents' } } })
+    expect(sent()).toEqual([{ query: typed, show, documents: true }])
+  })
+
+  test('keeps Documents when it goes back to the first window', async () => {
+    const id = await holdRun(owner, typed)
+
+    expect(
+      await viewExploreUseCase({ owner, run: id, page: 3, view: 'documents' })
+    ).toEqual({ kind: 'restart', id, view: 'documents' })
+  })
+
+  test('never asks for documents in the Table', async () => {
+    const id = await holdRun(owner, typed)
+
+    await view(id)
+
+    expect(sent()).toEqual([{ query: typed }])
   })
 })

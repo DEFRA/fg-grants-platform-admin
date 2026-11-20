@@ -2,6 +2,9 @@ import { createHash, randomUUID } from 'node:crypto'
 
 import {
   dropHeldRun,
+  dropShownId,
+  findShownId,
+  saveShownId,
   findHeldPage,
   findHeldRun,
   findRecentQuery,
@@ -26,6 +29,7 @@ export type {
   HeldRun,
   RecentQuery
 } from '../repositories/explore-runs.repository.ts'
+import type { ExploreShow } from '../repositories/explore.repository.ts'
 
 const runsMax = 10
 
@@ -69,7 +73,7 @@ export const holdRun = async (
       ...index.recent.filter(({ id }) => id !== recent.id)
     ].slice(0, recentMax)
   })
-  await Promise.all(runs.slice(runsMax).map((id) => dropHeldRun(owner, id)))
+  await Promise.all(runs.slice(runsMax).map((id) => dropWithShown(owner, id)))
 
   return run.id
 }
@@ -104,6 +108,74 @@ export const keepRestorable = async (
   run: HeldRun,
   windows: number
 ): Promise<void> => saveRestorable(owner, run, windows)
+
+/** A Show it run's id: one row of one run, so an address always shows the same row. */
+const toShownId = (source: string, show: ExploreShow): string => {
+  const hex = createHash('sha256')
+    .update(JSON.stringify(['show', source, show]))
+    .digest('hex')
+
+  return [
+    hex.slice(0, 8),
+    hex.slice(8, 12),
+    hex.slice(12, 16),
+    hex.slice(16, 20),
+    hex.slice(20, 32)
+  ].join('-')
+}
+
+/** A run and the Show it held under it go together. */
+const dropWithShown = async (owner: ExploreOwner, id: string) => {
+  const shown = await findShownId(owner, id)
+
+  await dropHeldRun(owner, id)
+
+  if (shown) {
+    await dropHeldRun(owner, shown)
+    await dropShownId(owner, id)
+  }
+}
+
+/**
+ * Show it holds one row of a run as a run of its own, under the run it is a
+ * row of: at most one a run, the newest replacing the last, whose address
+ * then reads as expired; kept as long as any run, but never counted among
+ * the runs an owner holds, nor in Recent, and let go with its run. Its query
+ * is its run's, unchanged.
+ */
+export const holdShown = async (
+  owner: ExploreOwner,
+  source: HeldRun,
+  { show, result }: { show: ExploreShow; result: number }
+): Promise<string> => {
+  const id = toShownId(source.id, show)
+  const last = await findShownId(owner, source.id)
+
+  if (last && last !== id) {
+    await dropHeldRun(owner, last)
+  }
+
+  await saveHeldRun(owner, {
+    id,
+    q: source.q,
+    heldAt: Date.now(),
+    show,
+    result
+  })
+  await saveShownId(owner, source.id, id)
+
+  return id
+}
+
+/** What every read of a run asks GAS: its query, and for a Show it run the row it shows. */
+export const toAsked = ({ q, show }: HeldRun) => ({
+  query: q,
+  ...(show ? { show } : {})
+})
+
+/** A Show it run's page says which row of its run's query it shows. */
+export const toShown = ({ show, result }: HeldRun) =>
+  show ? { shown: result ?? 1 } : {}
 
 const furthestFrom = async (
   owner: ExploreOwner,

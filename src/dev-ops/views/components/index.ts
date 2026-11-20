@@ -17,6 +17,7 @@ import { GpaDropdown } from "./molecules/dropdown/web-component.ts";
 import { GpaErrorSummary } from "./molecules/error-summary/web-component.ts";
 import { GpaListPage } from "./templates/list-page/web-component.ts";
 import { GpaLoadMore } from "./molecules/list-footer/web-component.ts";
+import { GpaDocLine } from "./molecules/doc-line/web-component.ts";
 import { GpaPopover } from "./molecules/popover/web-component.ts";
 import { GpaSearchKind } from "./molecules/search-field/web-component.ts";
 import { GpaSegmented } from "./molecules/segmented-control/web-component.ts";
@@ -46,6 +47,7 @@ const elements: [string, CustomElementConstructor][] = [
   ["gpa-error-summary", GpaErrorSummary],
   ["gpa-list-page", GpaListPage],
   ["gpa-load-more", GpaLoadMore],
+  ["gpa-doc-line", GpaDocLine],
   ["gpa-popover", GpaPopover],
   ["gpa-search-kind", GpaSearchKind],
   ["gpa-segmented", GpaSegmented],

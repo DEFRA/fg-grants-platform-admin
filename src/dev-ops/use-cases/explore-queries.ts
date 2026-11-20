@@ -1,6 +1,5 @@
 import type { QueryError } from '../repositories/explore.repository.ts'
 import type { BucketEntry } from '../repositories/buckets.repository.ts'
-import { toBsonText } from './explore-bson-text.ts'
 import { queueFact } from './list-bucket.use-case.ts'
 
 /** Shown in the editor, not run, when the page opens on nothing else. */
@@ -108,6 +107,21 @@ export const toExamples = (now: Date): Example[] => {
       slug: 'business-any-version',
       label: 'A business, in any version',
       q: "db.applications.find(\n  { 'phases.answers.applicant.business.name': /hilltop/i },\n  { clientRef: 1, code: 1, 'phases.answers.applicant.business.name': 1, currentStatus: 1 }\n)"
+    },
+    {
+      slug: 'woodland-stored-paths',
+      label: 'Woodland applications: _id, SBI and agreements',
+      q: "db.applications.find(\n  { code: 'woodland' },\n  { _id: 1, 'identifiers.sbi': 1, 'phases.answers.payments.agreement.quantity': 1, agreements: 1 }\n)"
+    },
+    {
+      slug: 'woodland-answers',
+      label: 'Woodland applications, whole answers',
+      q: "db.applications.find(\n  { code: 'woodland' },\n  { clientRef: 1, 'phases.answers': 1 }\n)"
+    },
+    {
+      slug: 'frps-parcels',
+      label: 'FRPS applications’ parcels, through lists',
+      q: "db.applications.find(\n  { code: 'frps-private-beta' },\n  { clientRef: 1, 'phases.answers.payments.parcel.parcelId': 1 }\n)"
     },
     {
       slug: 'frps-cases-by-status',
@@ -432,7 +446,3 @@ export const toLookup = ({
   })}.limit(1)`,
   columns: lookedUp
 })
-
-/** A record's `_id`, sent as base64 BSON of `{ _id }`, as a query writes its type: `ObjectId('…')`, text in quotes, `Long('…')`, `ISODate('…')`. */
-export const toIdText = (id: string): string =>
-  toBsonText(Buffer.from(id, 'base64'), toQuoted)

@@ -28,14 +28,15 @@ const isPageBelow500 = (request: Request): boolean => {
 const isOperator = ({ auth }: Request): boolean =>
   [auth.credentials?.scope ?? []].flat().includes(roles.grantOperationsAdmin)
 
+/** A whole page: a part of one already shown draws no shell. */
+const isWholePage = (request: Request): boolean =>
+  !request.app.part && isPageBelow500(request)
+
 const needsShell = (request: Request): boolean => {
   const { calls, shell } = upstreamOf(request)
 
   return (
-    calls === 0 &&
-    shell === null &&
-    isOperator(request) &&
-    isPageBelow500(request)
+    calls === 0 && shell === null && isOperator(request) && isWholePage(request)
   )
 }
 

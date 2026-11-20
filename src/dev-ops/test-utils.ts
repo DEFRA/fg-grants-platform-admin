@@ -1,6 +1,8 @@
 import Boom from '@hapi/boom'
 import type { Server, ServerInjectOptions } from '@hapi/hapi'
-import type { CheerioAPI } from 'cheerio'
+import type { Cheerio, CheerioAPI } from 'cheerio'
+import type { AnyNode } from 'domhandler'
+import { Readable } from 'node:stream'
 
 import { config } from '../common/config.ts'
 import { wreck } from '../common/wreck.ts'
@@ -19,6 +21,51 @@ export const isOpenWithoutScript = ($: CheerioAPI, id: string): boolean => {
 
   return dialog.is('[open]') && dialog.parent('gpa-dialog').is('[data-open]')
 }
+
+const printedText = (
+  $: CheerioAPI,
+  nodes: Cheerio<AnyNode>,
+  opened: boolean
+): string =>
+  nodes
+    .map((_i, node) =>
+      $(node).is('details') ? objectText($, $(node), opened) : $(node).text()
+    )
+    .get()
+    .join('')
+
+const objectText = (
+  $: CheerioAPI,
+  object: Cheerio<AnyNode>,
+  opened: boolean
+): string => {
+  const summary = object.children('summary')
+
+  return opened || object.is('[open]')
+    ? `\n${summary.text()}\n${printedText($, object.contents().not('summary'), opened)}\n`
+    : `\n${summary.text()}${summary.attr('data-shut') ?? ''}\n`
+}
+
+/**
+ * A printout's lines as first shown, indented as printed: a closed object or
+ * list is its one line, and "… N more" its one line. With `opened`, every
+ * object and list is drawn open. Given a printout's object or list, its lines.
+ */
+export const linesOf = (
+  $: CheerioAPI,
+  printout: Cheerio<AnyNode>,
+  { opened = false } = {}
+) =>
+  (printout.is('details')
+    ? objectText($, printout, opened)
+    : printedText(
+        $,
+        printout.find('.gpa-doc-code > code').first().contents(),
+        opened
+      )
+  )
+    .split('\n')
+    .filter(Boolean)
 
 /**
  * Where a dialog's × goes: the page without a script, and, with one, the
@@ -102,12 +149,13 @@ const toAnswer = (answer: GasAnswer | undefined) => {
     : toReply(answer)
 }
 
-const answerFor = (verb: string) => (url: string) => {
+/** The fake's answer to a call, counted against the request it is made in. */
+const fakeAnswerOf = (verb: string, url: string) => {
   const upstream = currentUpstream()
   const fake = upstream && fakes.get(upstream)
 
   if (!fake) {
-    return Promise.reject(new Error('GAS was called outside a counted request'))
+    throw new Error('GAS was called outside a counted request')
   }
 
   const path = new URL(url).pathname.replace(
@@ -117,7 +165,39 @@ const answerFor = (verb: string) => (url: string) => {
   const call = toCall(fake.gas, verb.toUpperCase(), path)
   fake.calls.push(call)
 
-  return toAnswer(fake.gas[`${call.method} ${call.path}`])
+  return fake.gas[`${call.method} ${call.path}`]
+}
+
+const answerFor = (verb: string) => async (url: string) =>
+  toAnswer(fakeAnswerOf(verb, url))
+
+/** As wreck's request answers, whatever the status: the response, its body read as it comes; text as it is, else its JSON. */
+const toResponse = ({
+  status = 200,
+  body
+}: {
+  status?: number
+  body?: unknown
+}) =>
+  Object.assign(
+    Readable.from([
+      typeof body === 'string' ? body : JSON.stringify(body ?? {})
+    ]),
+    { statusCode: status, headers: {}, setTimeout: () => undefined }
+  )
+
+const requestFor = async (method: string, url: string) => {
+  const answer = fakeAnswerOf(method, url)
+
+  if (answer === undefined) {
+    throw Boom.notImplemented('No fake answer')
+  }
+
+  if ('fail' in answer) {
+    throw failures[answer.fail]()
+  }
+
+  return toResponse(answer)
 }
 
 /**
@@ -137,6 +217,8 @@ export const injectCounted = async (
   for (const verb of methods) {
     vi.spyOn(wreck, verb).mockImplementation(answerFor(verb) as never)
   }
+
+  vi.spyOn(wreck, 'request').mockImplementation(requestFor as never)
 
   const response = await server.inject({
     ...options,

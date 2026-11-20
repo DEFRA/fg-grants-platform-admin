@@ -1,9 +1,12 @@
+import { logger } from '../../common/logger.ts'
 import { statusCodes } from '../../common/status-codes.ts'
 import type {
   ExploreAnswer,
   ExploreColumn,
+  Explored,
   ExploreFailure,
   ExploreOpen,
+  ExploreRow,
   ExploreService,
   ExploreSkipped,
   ExploreSource,
@@ -11,9 +14,12 @@ import type {
 } from '../use-cases/explore-calls.ts'
 import type {
   ExploreNotice,
-  ExplorePageData
+  ExplorePageData,
+  ExploreView
 } from '../use-cases/explore-page.ts'
-import { queryMax, toExamples, toIdText } from '../use-cases/explore-queries.ts'
+import type { ExploreOpened } from '../use-cases/run-explore.use-case.ts'
+import { queryMax, toExamples } from '../use-cases/explore-queries.ts'
+import { toIdText } from './explore-bson.ts'
 import { pageMax, restoreMax, toFound } from '../use-cases/held-runs.ts'
 import type { HeldPage, RecentQuery } from '../use-cases/held-runs.ts'
 import type { BucketLink } from '../repositories/buckets.repository.ts'
@@ -21,6 +27,23 @@ import { toRowHref } from './bucket-links.ts'
 import { devOpsPath, exploreNavId, explorePath } from './bucket-nav.ts'
 import { recordsOf, toCell, toNumberText } from './explore-cells.ts'
 import type { ExploreCellModel } from './explore-cells.ts'
+import {
+  goneText,
+  toDocument,
+  toMalformedList,
+  toMalformedShown,
+  toIdDoc,
+  toLineId,
+  toNotedDocument,
+  toShowForm,
+  toShownNote
+} from './explore-documents.view-model.ts'
+import type {
+  ExploreDocumentModel,
+  HiddenField,
+  ShowForm
+} from './explore-documents.view-model.ts'
+import type { BsonValue } from './explore-bson.ts'
 import { toRecentLabel } from './explore-queries.view-model.ts'
 import { toFailureText } from './failure-text.ts'
 import {
@@ -41,16 +64,34 @@ export const explorePageCache = { otherwise: 'no-store' }
 /** Long enough for any query the editor takes, so a longer one is said at the field rather than refused unread. */
 export const postedMax = queryMax * 4
 
-export const toRunHref = (id: string, page = 1): string =>
-  page > 1
-    ? `${explorePath}?run=${encodeURIComponent(id)}&page=${page}`
-    : `${explorePath}?run=${encodeURIComponent(id)}`
+export const exploreJsonPath = `${devOpsPath}/explore.json`
 
-/** The address that draws every window of a run from the first through `through`, at most `restoreMax`: only the run's id and a window's number. */
-export const toRestoreHref = (id: string, through: number): string =>
+/** How the results are shown, said in the address only when it isn't the Table. */
+const toViewParam = (view: ExploreView = 'table'): string =>
+  view === 'documents' ? '&view=documents' : ''
+
+export const toRunHref = (
+  id: string,
+  page = 1,
+  view: ExploreView = 'table'
+): string =>
+  page > 1
+    ? `${explorePath}?run=${encodeURIComponent(id)}&page=${page}${toViewParam(view)}`
+    : `${explorePath}?run=${encodeURIComponent(id)}${toViewParam(view)}`
+
+/** The address that draws every window of a run from the first through `through`, at most `restoreMax`: only the run's id, a window's number and the view. */
+export const toRestoreHref = (
+  id: string,
+  through: number,
+  view: ExploreView = 'table'
+): string =>
   through > 1
-    ? `${explorePath}?run=${encodeURIComponent(id)}&through=${Math.min(through, restoreMax)}`
-    : toRunHref(id)
+    ? `${explorePath}?run=${encodeURIComponent(id)}&through=${Math.min(through, restoreMax)}${toViewParam(view)}`
+    : toRunHref(id, 1, view)
+
+/** The editor with nothing run, in the view it was left in. */
+const toStartHref = (view: ExploreView = 'table'): string =>
+  view === 'documents' ? `${explorePath}?view=documents` : explorePath
 
 /** Set when a way in holds a new run, and taken by the next GET: only the Run's own landing has it, not a reload. */
 export const exploreArrivalKey = 'exploreArrival'
@@ -108,7 +149,7 @@ export interface ExploreColumnModel {
   mono?: true
 }
 
-/** A record too large to search: its `_id` as a query writes it, and the link that opens it, where it has a page. */
+/** A record too large to search: its `_id` as a query writes it, and in the Table the link that opens it, where it has a page. */
 export interface SkippedRecord {
   id: string
   open: { text: string; label: string; href: string } | null
@@ -123,7 +164,9 @@ export interface SkippedNote {
 /** Keep looking posts the run and the window it reads; nothing of the query goes with it. */
 export interface KeepLookingForm {
   action: string
-  fields: { run: string; page: string }
+  fields: { run: string; page: string; view?: Exclude<ExploreView, 'table'> }
+  /** The same fields, as a form's hidden fields. */
+  hidden: HiddenField[]
 }
 
 /** `restoreHref` draws every row shown through this window, for the loader to put in the address bar. */
@@ -161,20 +204,46 @@ export interface ExploreEmpty {
 
 export interface ExploreResults {
   label: string
-  /** Null for a count, whose one cell says it. */
+  /** Null for a count, whose one cell says it, and for a Show it run, whose shown line says it. */
   count: string | null
-  /** The count takes focus: the page answers a Run. */
+  /** The count, or a Show it run's shown line, takes focus: the page answers a Run. */
   arrived: boolean
-  csv: { action: string; run: string }
+  /** How the results are shown, and the switch's two addresses, each this page's own. */
+  view: ExploreView
+  views: ExploreViewOption[]
+  download: Omit<DownloadForm, 'run'>
+  /** Both downloads post only the run, in a form each. */
+  forms: DownloadForm[]
+  /** In Documents, each row's document. */
+  documents: ExploreDocumentModel[]
   /** A listed `_id` leads, a column like the others: nothing sticks, and its row link is at the text's weight. */
   idFirst: boolean
   columns: ExploreColumnModel[]
   rows: ExploreRowModel[]
   /** The paths the query reads that no definition names, said above the table; null when it names none. */
   unseen: string | null
+  /** A Show it run's page shows one row of the query in the editor. */
+  shown: string | null
+  /** In the Table, what a Show it row's document would say of its record: changed since it was found, or gone. */
+  shownNote: string | null
   empty: ExploreEmpty | null
   footer: ExploreFooter | null
   noun: string
+}
+
+/** A segment of the switch: a link to this page in its view. */
+export interface ExploreViewOption {
+  text: string
+  value: ExploreView
+  href: string
+}
+
+export interface DownloadForm {
+  id: string
+  action: string
+  label: string
+  testId: string
+  run: string
 }
 
 export interface ExplorePage {
@@ -188,6 +257,8 @@ export interface ExplorePage {
     value: string
     error: QueryError | null
     vocabulary: EditorVocabulary
+    /** The view a Run lands in: the run's shown, or the one the editor was opened in. */
+    hidden: HiddenField[]
   }
   alert: ExploreAlert | null
   results: ExploreResults | null
@@ -210,12 +281,22 @@ const tryAgain = (title: string, href: string): ExploreAlert => ({
   startHref: null
 })
 
-const refusedBy = (service: ExploreService, text: string | null) => ({
+/** Where an alert's Try again and Start again go: the page's own address, and the editor in its view. */
+interface AlertHrefs {
+  self: string
+  start: string
+}
+
+const refusedBy = (
+  service: ExploreService,
+  text: string | null,
+  { start }: AlertHrefs
+) => ({
   tone: 'warning' as const,
   title: `${serviceNames[service]} refused this query.`,
   text,
   retryHref: null,
-  startHref: explorePath
+  startHref: start
 })
 
 /** GAS names the source's indexed paths when it says why; without that, the editor marks them. */
@@ -228,8 +309,8 @@ type ByKind<U extends { kind: string }, A extends unknown[], R> = {
 }
 
 /** What each way a run fails says; a failure a person can retry links back to the run. */
-const failureAlerts: ByKind<AlertFailure, [string], ExploreAlert> = {
-  refused: ({ service, message }) => refusedBy(service, message),
+const failureAlerts: ByKind<AlertFailure, [AlertHrefs], ExploreAlert> = {
+  refused: ({ service, message }, hrefs) => refusedBy(service, message, hrefs),
   'too-large': ({ message }) => ({
     tone: 'warning',
     title: 'This answer is too large to show.',
@@ -237,31 +318,32 @@ const failureAlerts: ByKind<AlertFailure, [string], ExploreAlert> = {
     retryHref: null,
     startHref: null
   }),
-  'too-slow': ({ service, message }) => refusedBy(service, message ?? tooSlow),
-  busy: (_, selfHref) => ({
+  'too-slow': ({ service, message }, hrefs) =>
+    refusedBy(service, message ?? tooSlow, hrefs),
+  busy: (_, { self: selfHref }) => ({
     tone: 'warning',
     title: 'You already have a query running.',
     text: 'Wait for it to finish, then try again.',
     retryHref: selfHref,
     startHref: null
   }),
-  full: ({ service }, selfHref) => ({
+  full: ({ service }, { self: selfHref }) => ({
     tone: 'warning',
     title: `${serviceNames[service]} is running as many queries as it can.`,
     text: 'Try again in a moment.',
     retryHref: selfHref,
     startHref: null
   }),
-  errored: ({ service }, selfHref) =>
+  errored: ({ service }, { self: selfHref }) =>
     tryAgain(`${serviceNames[service]} answered with an error.`, selfHref),
-  unavailable: ({ service }, selfHref) => ({
+  unavailable: ({ service }, { self: selfHref }) => ({
     tone: 'warning',
     title: `${serviceNames[service]} can’t run queries at the moment.`,
     text: 'Nothing was read. Try again later.',
     retryHref: selfHref,
     startHref: null
   }),
-  'no-answer': ({ service, failure }, selfHref) =>
+  'no-answer': ({ service, failure }, { self: selfHref }) =>
     tryAgain(
       toFailureText(
         failure,
@@ -272,11 +354,13 @@ const failureAlerts: ByKind<AlertFailure, [string], ExploreAlert> = {
     )
 }
 
-const toFailureAlert = (failure: AlertFailure, selfHref: string) =>
-  (failureAlerts[failure.kind] as (f: AlertFailure, h: string) => ExploreAlert)(
-    failure,
-    selfHref
-  )
+const toFailureAlert = (failure: AlertFailure, hrefs: AlertHrefs) =>
+  (
+    failureAlerts[failure.kind] as (
+      f: AlertFailure,
+      h: AlertHrefs
+    ) => ExploreAlert
+  )(failure, hrefs)
 
 const notFound: Record<'business' | 'sbi', string> = {
   business: 'business name',
@@ -467,12 +551,12 @@ const toCount = (answer: ExploreAnswer, found: number): string | null =>
 
 type Window = NonNullable<ExploreAnswer['window']>
 
-/** Its `_id` as a query writes it, and a link to its page where it has one. */
+/** Its `_id` as a query writes it, and a link to its page where it has one: none in Documents, which links no record. */
 const toSkippedRecord = (
   { open, id }: ExploreSkipped,
-  back: string
+  back: string | null
 ): SkippedRecord => {
-  const href = toRowsHref(open, back)
+  const href = back === null ? null : toRowsHref(open, back)
 
   if (open === null || href === null) {
     return { id: toIdText(id), open: null }
@@ -492,7 +576,7 @@ const toNote = ({ skipped }: Window, run: Run): SkippedNote | null => {
     return null
   }
 
-  const back = toWindowRestore(run, run.page)
+  const back = run.view === 'documents' ? null : toWindowRestore(run, run.page)
   const they = skipped.length === 1 ? 'it' : 'they'
 
   return {
@@ -501,10 +585,20 @@ const toNote = ({ skipped }: Window, run: Run): SkippedNote | null => {
   }
 }
 
-const toKeepLooking = ({ id, page }: Run): KeepLookingForm => ({
-  action: explorePath,
-  fields: { run: id, page: String(page + 1) }
-})
+/** In Documents, the next window is drawn as documents too. */
+const toKeepLooking = ({ id, page, view }: Run): KeepLookingForm => {
+  const fields = {
+    run: id,
+    page: String(page + 1),
+    ...(view === 'documents' ? { view } : {})
+  }
+
+  return {
+    action: explorePath,
+    fields,
+    hidden: Object.entries(fields).map(([name, value]) => ({ name, value }))
+  }
+}
 
 const atLimit = (window: Window | null, run: Run): boolean =>
   window !== null && !window.end && run.page >= pageMax
@@ -529,8 +623,8 @@ const restorableOf = ({ restorable }: Run): number => restorable ?? restoreMax
 /** Every window through this one; past the most a restore of the run draws, this window alone. */
 const toWindowRestore = (run: Run, page: number): string =>
   page > restorableOf(run)
-    ? toRunHref(run.id, page)
-    : toRestoreHref(run.id, page)
+    ? toRunHref(run.id, page, run.view)
+    : toRestoreHref(run.id, page, run.view)
 
 /** The way on from a window that didn't reach the end: a form that posts the run and the next window, never the query. */
 const toKeepLookingFooter = (
@@ -596,7 +690,43 @@ const toRestoredFooter = (
 
 const nothingMatches = 'Nothing matches'
 
-const toEmpty = ({ source, window }: ExploreAnswer, run: Run) => {
+/** Which row of its run's query a Show it run shows; a record gone is said where its row or document would be. */
+const toShownText = ({ shown }: Run): string | null =>
+  shown
+    ? `Result ${toNumberText(shown)} of the query in the editor, read again by its _id: Run the query for all of them.`
+    : null
+
+const toTableShownNote = (
+  { rows: [row], source }: ExploreAnswer,
+  { shown, view }: Run
+): string | null =>
+  shown && view !== 'documents' && row ? toShownNote(row, source.noun) : null
+
+/** Show it reads one record by its `_id`: none back means it was deleted since the query found it. */
+const toGone = ({ noun }: ExploreSource) => ({
+  title: `This ${noun} no longer exists`,
+  text: 'Run the query again.',
+  icon: 'search'
+})
+
+/** A Show it read cut by the run's limit before it reached the row: not gone, only not readable on its own. */
+const notAlone = {
+  title: 'This result can’t be shown on its own',
+  text: 'Run the query to see it among the others.',
+  icon: 'search'
+}
+
+/** Show it's one row missing: gone when GAS says so, else its read was cut before it. */
+const isShownGone = ({ documents }: ExploreAnswer): boolean =>
+  documents?.gone !== false
+
+const toShownMissing = (answer: ExploreAnswer) =>
+  isShownGone(answer) ? toGone(answer.source) : notAlone
+
+const toEmpty = (answer: ExploreAnswer, run: Run) =>
+  run.shown ? toShownMissing(answer) : toNotFound(answer, run)
+
+const toNotFound = ({ source, window }: ExploreAnswer, run: Run) => {
   if (atLimit(window, run)) {
     return { title: nothingMatches, text: noFurther, icon: 'search' }
   }
@@ -654,8 +784,58 @@ const toNothingShown = (
 const capitalise = (text: string): string =>
   text.charAt(0).toUpperCase() + text.slice(1)
 
-/** Download CSV posts only the run: the session knows how far it has been read. */
-const toCsv = ({ id }: Run) => ({ action: exploreCsvPath, run: id })
+/** Each view's download: a form posting only the run, as the session knows how far it has been read. */
+const downloadForms: Record<ExploreView, Omit<DownloadForm, 'run'>> = {
+  table: {
+    id: 'explore-csv-form',
+    action: exploreCsvPath,
+    label: 'Download CSV',
+    testId: 'explore-csv'
+  },
+  documents: {
+    id: 'explore-json-form',
+    action: exploreJsonPath,
+    label: 'Download JSON',
+    testId: 'explore-json'
+  }
+}
+
+/** The results bar's switch and download, and both downloads' forms, a Documents note offering Download JSON too. */
+const toBar = (run: Run) => {
+  const view = run.view ?? 'table'
+
+  return {
+    view,
+    views: toViews(run),
+    download: downloadForms[view],
+    forms: Object.values(downloadForms).map((form) => ({
+      ...form,
+      run: run.id
+    }))
+  }
+}
+
+/** The switch: this page's own address, the window or windows it shows, in each view. */
+const toViews = (run: Run): ExploreViewOption[] => [
+  {
+    text: 'Table',
+    value: 'table',
+    href: toSelfHref({ ...run, view: 'table' })
+  },
+  {
+    text: 'Documents',
+    value: 'documents',
+    href: toSelfHref({ ...run, view: 'documents' })
+  }
+]
+
+/** A Show it run's one row keeps its number among its run's results. */
+const toFirstNumber = (run: Run, previous: HeldPage | null): number =>
+  run.shown ?? toWindowsFirst(run, previous)
+
+/** Results are numbered across every window shown: a restore's from the first, a later window's after those before it. */
+const toWindowsFirst = (run: Run, previous: HeldPage | null): number =>
+  run.windowRows ? 1 : (previous?.found ?? 0) + 1
 
 /** A mistyped path reads every window and finds nothing, so a path no definition names is said. */
 const toUnseen = (paths: string[]): string | null => {
@@ -675,8 +855,8 @@ const toSelfHref = (run: Run | null): string => {
   }
 
   return run.through
-    ? toRestoreHref(run.id, run.through)
-    : toRunHref(run.id, run.page)
+    ? toRestoreHref(run.id, run.through, run.view)
+    : toRunHref(run.id, run.page, run.view)
 }
 
 /** Where a row falls: its window, and its place in that window, from 1. */
@@ -689,7 +869,7 @@ const toRowId = ({ page, index }: RowPlace): string => `row-${page}-${index}`
 
 /** Past the most a restore draws, the row's own window; null within it, so the address keeps every window loaded. */
 const toRowRestore = (run: Run, { page }: RowPlace): string | null =>
-  page > restorableOf(run) ? toRunHref(run.id, page) : null
+  page > restorableOf(run) ? toRunHref(run.id, page, run.view) : null
 
 /** Each row's window and place in it: a restore's windows from the first, else every row in the window shown. */
 const toPlaces = ({ page, windowRows }: Run, count: number): RowPlace[] => {
@@ -703,44 +883,121 @@ const toPlaces = ({ page, windowRows }: Run, count: number): RowPlace[] => {
   )
 }
 
+/** A Show it run has no count: its shown line says which result it is. */
+const toRunCount = (
+  answer: ExploreAnswer,
+  run: Run,
+  previous: HeldPage | null
+): string | null =>
+  run.shown ? null : toCount(answer, toFound(previous, answer.rows.length))
+
 const toResults = (
   answer: ExploreAnswer,
   { run, previous, times, arrived, inPlace }: ExplorePageInput & { run: Run }
 ): ExploreResults => {
   const places = toPlaces(run, answer.rows.length)
+  const first = toFirstNumber(run, previous)
   const footer = toRestoredFooter(answer, run, times)
+  const shownRows = toShownRows(answer, run, { places, first, times })
   const { columns } = answer
 
   return {
     label: capitalise(answer.source.name),
-    count: toCount(answer, toFound(previous, answer.rows.length)),
+    count: toRunCount(answer, run, previous),
     arrived,
-    csv: toCsv(run),
+    ...toBar(run),
     idFirst: isId(columns[0]),
     columns: toColumns(columns),
     unseen: toUnseen(answer.unseen),
-    rows: answer.rows.map((row, n) => {
-      const id = toRowId(places[n])
-
-      return {
-        id,
-        restoreHref: toRowRestore(run, places[n]),
-        href:
-          answer.mode === 'rows'
-            ? toRowsHref(
-                row.open,
-                `${toWindowRestore(run, places[n].page)}#${id}`
-              )
-            : null,
-        cells: columns.map((column) =>
-          toCell(row.cells[column.key], column, times, isId(column))
-        )
-      }
-    }),
-    ...(answer.rows.length || inPlace
+    shown: toShownText(run),
+    shownNote: toTableShownNote(answer, run),
+    ...shownRows,
+    ...(shownRows.rows.length || shownRows.documents.length || inPlace
       ? { empty: null, footer }
       : toNothingShown(answer, run, footer)),
     noun: answer.source.name
+  }
+}
+
+interface RowsAbout {
+  places: RowPlace[]
+  first: number
+  times: Times
+}
+
+/** In Documents, each row's document; in the Table, its cells. */
+const toShownRows = (
+  answer: ExploreAnswer,
+  run: Run,
+  about: RowsAbout
+): Pick<ExploreResults, 'rows' | 'documents'> => {
+  const rows = answer.rows.map((row, n) =>
+    toRowModel(answer, run, row, n, about)
+  )
+
+  if (run.view !== 'documents') {
+    return { rows: rows.map(({ model }) => model), documents: [] }
+  }
+
+  return {
+    rows: [],
+    documents: rows.length
+      ? rows.map(({ row, place }) =>
+          toDocument(answer, row, place, {
+            run: run.id,
+            where: run.shown ? 'shown' : 'list'
+          })
+        )
+      : toGoneDocuments(answer, run, about.first)
+  }
+}
+
+/** In Documents, a Show it's record gone with no row is said where its document would be, under its number. */
+const toGoneDocuments = (
+  answer: ExploreAnswer,
+  run: Run,
+  number: number
+): ExploreDocumentModel[] => {
+  if (!run.shown || !isShownGone(answer)) {
+    return []
+  }
+
+  const place = { page: run.page, index: 1 }
+
+  return [
+    toNotedDocument(
+      { id: toRowId(place), restoreHref: toRowRestore(run, place), number },
+      { text: goneText(answer.source.noun), action: null }
+    )
+  ]
+}
+
+const toRowModel = (
+  answer: ExploreAnswer,
+  run: Run,
+  row: ExploreRow,
+  n: number,
+  { places, first, times }: RowsAbout
+) => {
+  const id = toRowId(places[n])
+  const number = first + n
+  const restoreHref = toRowRestore(run, places[n])
+  const href =
+    answer.mode === 'rows'
+      ? toRowsHref(row.open, `${toWindowRestore(run, places[n].page)}#${id}`)
+      : null
+
+  return {
+    row,
+    place: { id, restoreHref, number },
+    model: {
+      id,
+      restoreHref,
+      href,
+      cells: answer.columns.map((column) =>
+        toCell(row.cells[column.key], column, times, isId(column))
+      )
+    }
   }
 }
 
@@ -775,9 +1032,12 @@ const toLaterWindowFooter = (
 
   const retryHref =
     inPlace && run.page <= restorableOf(run)
-      ? toRestoreHref(run.id, run.page)
+      ? toRestoreHref(run.id, run.page, run.view)
       : toSelfHref(run)
-  const { title, text } = toFailureAlert(failure as AlertFailure, retryHref)
+  const { title, text } = toFailureAlert(failure as AlertFailure, {
+    self: retryHref,
+    start: toStartHref(run.view)
+  })
 
   return toLoadFailed(source, run, `${title} ${text}`, retryHref)
 }
@@ -791,11 +1051,14 @@ const toLaterWindowFailure = (
   label: capitalise(source.name),
   count: null,
   arrived: false,
-  csv: toCsv(run),
+  ...toBar(run),
+  documents: [],
   idFirst: false,
   columns: [],
   rows: [],
   unseen: null,
+  shown: toShownText(run),
+  shownNote: null,
   empty: null,
   footer,
   noun: source.name
@@ -841,7 +1104,13 @@ const toFailed = (
 
   return later
     ? { ...none, results: later }
-    : { ...none, alert: toFailureAlert(failure, toSelfHref(input.run)) }
+    : {
+        ...none,
+        alert: toFailureAlert(failure, {
+          self: toSelfHref(input.run),
+          start: toStartHref(input.run?.view)
+        })
+      }
 }
 
 const toRead = (input: ExplorePageInput, answer: ExploreAnswer): Outcome =>
@@ -865,6 +1134,9 @@ const toOutcome = (input: ExplorePageInput): Outcome => {
     : toFailed(input, result.failure)
 }
 
+const toEditorHidden = (view: ExploreView = 'table'): HiddenField[] =>
+  view === 'documents' ? [{ name: 'view', value: view }] : []
+
 export const toExplorePage = (input: ExplorePageInput): ExplorePage => {
   const { alert, results, error } = toOutcome(input)
 
@@ -879,7 +1151,8 @@ export const toExplorePage = (input: ExplorePageInput): ExplorePage => {
       error,
       vocabulary: input.vocabulary
         ? toEditorVocabulary(input.vocabulary)
-        : noVocabulary
+        : noVocabulary,
+      hidden: toEditorHidden(input.run?.view ?? input.view)
     },
     alert,
     results
@@ -904,6 +1177,57 @@ const isSaidInPlace = (input: ExplorePageInput, failure: ExploreFailure) =>
   isTooBusy(failure) &&
   toLaterWindow(input, failure) !== null
 
+const readAnswerOf = ({ result }: ExplorePageInput): ExploreAnswer | null =>
+  result?.outcome === 'read' ? result.answer : null
+
+const isDocumentsRun = (run: Run | null): run is Run =>
+  run?.view === 'documents'
+
+const checkOf = (run: Run) => (run.shown ? toMalformedShown : toMalformedList)
+
+/** A Documents answer is checked as a list's or a Show it run's; none for the Table or a failure. */
+const malformedOf = (input: ExplorePageInput): string | null => {
+  const answer = readAnswerOf(input)
+
+  return answer && isDocumentsRun(input.run) ? checkOf(input.run)(answer) : null
+}
+
+const erroredRead: Explored<ExploreAnswer> = {
+  outcome: 'failed',
+  failure: { kind: 'errored', service: 'GAS' }
+}
+
+const logMalformed = (malformed: string) => {
+  logger.error(`fg-gas-backend answered Explore's Documents with ${malformed}`)
+}
+
+/** A Documents page GAS answered with rows it can't have sent is GAS answering with an error: said and logged by what was wrong, never its values. */
+export const toCheckedInput = (input: ExplorePageInput): ExplorePageInput => {
+  const malformed = malformedOf(input)
+
+  if (!malformed) {
+    return input
+  }
+
+  logMalformed(malformed)
+
+  return { ...input, result: erroredRead }
+}
+
+/** An open's answer is checked as its own page's would be. */
+export const toCheckedOpened = (opened: ExploreOpened): ExploreOpened => {
+  const malformed =
+    opened.read?.outcome === 'read' && toMalformedShown(opened.read.answer)
+
+  if (!malformed) {
+    return opened
+  }
+
+  logMalformed(malformed)
+
+  return { ...opened, read: erroredRead }
+}
+
 /** 503 for a query a service couldn't answer, as a list that couldn't be read; 400 for one it wouldn't run. */
 export const toExploreStatusCode = (input: ExplorePageInput): number => {
   const { result } = input
@@ -913,4 +1237,106 @@ export const toExploreStatusCode = (input: ExplorePageInput): number => {
   }
 
   return failureCodes[result.failure.kind]
+}
+
+/** An open that couldn't be read: its line drawn open on the alert the result's own page would draw, Try again posting the open to that page. */
+export interface ExploreOpenFailed {
+  label: string
+  lineId: string
+  doc: BsonValue | null
+  alert: Pick<ExploreAlert, 'tone' | 'title' | 'text'>
+  retry: ShowForm | null
+}
+
+/** An open's answer: its one result drawn open, or why it couldn't be read. */
+export interface ExploreOpenedPage {
+  document: ExploreDocumentModel | null
+  failed: ExploreOpenFailed | null
+}
+
+/** A query once checked is never invalid on a read again, but if GAS says so, it says so as a refusal. */
+const toAlertFailure = (failure: ExploreFailure): AlertFailure =>
+  failure.kind === 'invalid'
+    ? { kind: 'refused', service: 'GAS', message: failure.error.message }
+    : failure
+
+const openedPlace = (result: number) => ({
+  id: '',
+  restoreHref: null,
+  number: result
+})
+
+/** A Show it read cut by the run's limit before it reached the row, said on the result. */
+const toCutOpen = (noun: string): string =>
+  `This ${noun} can’t be shown on its own: the query’s limit cuts it. Download JSON holds it.`
+
+const toOpenedRead = (
+  answer: ExploreAnswer,
+  { run, show, result }: ExploreOpened
+): ExploreDocumentModel => {
+  const [row] = answer.rows
+  const place = openedPlace(result)
+
+  if (row) {
+    return toDocument(answer, row, place, { run, where: 'opened', show })
+  }
+
+  return toNotedDocument(place, {
+    text: isShownGone(answer)
+      ? goneText(answer.source.noun)
+      : toCutOpen(answer.source.noun),
+    action: null
+  })
+}
+
+const toOpenFailedLine = (
+  { run, show, result }: ExploreOpened,
+  { tone, title, text, retryHref }: ExploreAlert
+): ExploreOpenFailed => {
+  return {
+    label: `Result ${result}`,
+    lineId: toLineId(result),
+    doc: toIdDoc(show),
+    alert: { tone, title, text },
+    retry: retryHref === null ? null : toShowForm(run, show, result)
+  }
+}
+
+const toOpenFailed = (
+  opened: ExploreOpened,
+  failure: ExploreFailure
+): ExploreOpenFailed =>
+  toOpenFailedLine(
+    opened,
+    toFailureAlert(toAlertFailure(failure), {
+      self: explorePath,
+      start: toStartHref('documents')
+    })
+  )
+
+const toOpenExpired = (opened: ExploreOpened): ExploreOpenFailed =>
+  toOpenFailedLine(opened, toNoticeAlert({ kind: 'expired' }))
+
+/** An open answered in place: the row read again, drawn open as its own page draws it, or the alert that page would draw. */
+export const toOpenedPage = (opened: ExploreOpened): ExploreOpenedPage => {
+  const { read } = opened
+
+  if (read === null) {
+    return { document: null, failed: toOpenExpired(opened) }
+  }
+
+  return read.outcome === 'read'
+    ? { document: toOpenedRead(read.answer, opened), failed: null }
+    : { document: null, failed: toOpenFailed(opened, read.failure) }
+}
+
+/** What the result's own page would answer: gone for a run no longer held. */
+export const toOpenedStatusCode = ({ read }: ExploreOpened): number => {
+  if (read === null) {
+    return statusCodes.gone
+  }
+
+  return read.outcome === 'read'
+    ? statusCodes.ok
+    : failureCodes[toAlertFailure(read.failure).kind]
 }

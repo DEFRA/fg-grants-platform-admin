@@ -2,15 +2,27 @@ import { runExplore } from './explore-calls.ts'
 import type { ExploreAnswer } from './explore-calls.ts'
 import type { ExploreStop } from '../repositories/explore.repository.ts'
 import { defaultQuery } from './explore-queries.ts'
-import { expired, readPage, toEditor, toPage } from './explore-page.ts'
-import type { ExploreAsker, ExplorePageOutcome } from './explore-page.ts'
+import {
+  expired,
+  readPage,
+  toDocumentsAsked,
+  toEditor,
+  toPage
+} from './explore-page.ts'
+import type {
+  ExploreAsker,
+  ExplorePageOutcome,
+  ExploreView
+} from './explore-page.ts'
 import {
   findLiveRun,
   findPage,
   keepPage,
   keepRestorable,
   restoreMax,
-  toFound
+  toAsked,
+  toFound,
+  toShown
 } from './held-runs.ts'
 import type { HeldPage, HeldRun } from './held-runs.ts'
 
@@ -18,6 +30,7 @@ import type { HeldPage, HeldRun } from './held-runs.ts'
 export interface ExploreRestart {
   kind: 'restart'
   id: string
+  view: ExploreView
 }
 
 /** A restore cut before the window its address asked for: that window on its own page, the one before it held. */
@@ -25,20 +38,23 @@ export interface ExploreApart {
   kind: 'apart'
   id: string
   page: number
+  view: ExploreView
 }
 
 /** Keep looking in place on a run no longer held: the loader goes to the run's page, which says so. */
 export interface ExploreGone {
   kind: 'gone'
   id: string
+  view: ExploreView
 }
 
 /** A window this owner can start: the first, or one after a window read that didn't reach the end. */
 const canStart = (page: number, previous: HeldPage | null): boolean =>
   page === 1 || Boolean(previous?.positions)
 
-const toStart = (previous: HeldPage | null) =>
-  previous?.positions ? { positions: previous.positions } : {}
+/** Where a window starts: a Show it run reads its one row by itself, never from where a window stopped. */
+const toStart = (previous: HeldPage | null, { show }: HeldRun) =>
+  !show && previous?.positions ? { positions: previous.positions } : {}
 
 /** Where the next window starts: null once this one reached the end. */
 const toNextStart = ({ window }: ExploreAnswer) =>
@@ -61,14 +77,24 @@ const keepRead = async (
     source: answer.source
   })
 
+/** Which window of which run, shown how. */
+interface Shown {
+  held: HeldRun
+  page: number
+  view: ExploreView
+}
+
 /** Reads one window from the window before it, and keeps where it stopped. */
 const readWindow = async (
   asker: ExploreAsker,
-  held: HeldRun,
-  page: number,
+  { held, page, view }: Shown,
   previous: HeldPage | null
 ) => {
-  const reply = await runExplore({ query: held.q, ...toStart(previous) })
+  const reply = await runExplore({
+    ...toAsked(held),
+    ...toStart(previous, held),
+    ...toDocumentsAsked(view, Boolean(held.show))
+  })
 
   if (reply.result.outcome === 'read') {
     const { answer } = reply.result
@@ -84,17 +110,23 @@ const readWindow = async (
 
 const showRun = async (
   asker: ExploreAsker,
-  held: HeldRun,
-  page: number,
+  shown: Shown,
   previous: HeldPage | null
 ): Promise<ExplorePageOutcome> => {
-  const { result, vocabulary } = await readWindow(asker, held, page, previous)
+  const { held, page, view } = shown
+  const { result, vocabulary } = await readWindow(asker, shown, previous)
 
   return toPage(
     asker,
     {
       q: held.q,
-      run: { id: held.id, page, restorable: held.restorable },
+      run: {
+        id: held.id,
+        page,
+        restorable: held.restorable,
+        view,
+        ...toShown(held)
+      },
       result,
       previous,
       notice: null
@@ -105,51 +137,52 @@ const showRun = async (
 
 const startWindow = async (
   asker: ExploreAsker,
-  held: HeldRun,
-  page: number
+  shown: Shown
 ): Promise<ExplorePageOutcome | ExploreRestart> => {
+  const { held, page, view } = shown
   const previous = await findPrevious(asker, held.id, page)
 
   return canStart(page, previous)
-    ? showRun(asker, held, page, previous)
-    : { kind: 'restart', id: held.id }
+    ? showRun(asker, shown, previous)
+    : { kind: 'restart', id: held.id, view }
 }
 
 const viewRun = async (
   asker: ExploreAsker,
-  id: string,
-  page: number
+  { run, page, view }: { run: string; page: number; view: ExploreView }
 ): Promise<ExplorePageOutcome | ExploreRestart> => {
-  const held = await findLiveRun(asker.owner, id)
+  const held = await findLiveRun(asker.owner, run)
 
   return held === null
     ? readPage(asker, expired)
-    : startWindow(asker, held, page)
+    : startWindow(asker, { held, page, view })
 }
 
 /** The editor holding the default query, unrun; or one window of a run this owner holds: the first, or the next after one read. */
 export const viewExploreUseCase = async ({
   owner,
   run,
-  page
+  page,
+  view = 'table'
 }: ExploreAsker & {
   run: string | null
   page: number
+  view?: ExploreView
 }): Promise<ExplorePageOutcome | ExploreRestart> =>
   run === null
-    ? readPage({ owner }, toEditor(defaultQuery))
-    : viewRun({ owner }, run, page)
+    ? readPage({ owner }, toEditor(defaultQuery, null, view))
+    : viewRun({ owner }, { run, page, view })
 
 /** Keep looking in place: the run's next window, or gone when the run is no longer held. */
 export const viewWindowUseCase = async (
   asker: ExploreAsker,
-  { run, page }: { run: string; page: number }
+  { run, page, view }: { run: string; page: number; view: ExploreView }
 ): Promise<ExplorePageOutcome | ExploreRestart | ExploreGone> => {
   const held = await findLiveRun(asker.owner, run)
 
   return held === null
-    ? { kind: 'gone', id: run }
-    : startWindow(asker, held, page)
+    ? { kind: 'gone', id: run, view }
+    : startWindow(asker, { held, page, view })
 }
 
 /** The rows each window read, and why the window after the last read failed; the answer without them. */
@@ -166,15 +199,20 @@ const isTooLarge = (stopped: ExploreStop | null): boolean =>
 /** Windows 1 to `windows` in one call: the page shows every row read, the last window read keeps where it stopped. Cut short for too many cells, the window the address asked for opens on its own page instead. */
 const restore = async (
   asker: ExploreAsker,
-  held: HeldRun,
-  windows: number
+  { held, page: windows, view }: Shown
 ): Promise<ExplorePageOutcome | ExploreApart> => {
-  const { result, vocabulary } = await runExplore({ query: held.q, windows })
+  const { result, vocabulary } = await runExplore({
+    ...toAsked(held),
+    windows,
+    ...toDocumentsAsked(view, Boolean(held.show))
+  })
   const run = {
     id: held.id,
     page: 1,
     through: windows,
-    restorable: held.restorable
+    restorable: held.restorable,
+    view,
+    ...toShown(held)
   }
 
   if (result.outcome === 'failed') {
@@ -193,7 +231,7 @@ const restore = async (
   if (isTooLarge(stopped)) {
     await keepRestorable(asker.owner, held, page)
 
-    return { kind: 'apart', id: held.id, page: windows }
+    return { kind: 'apart', id: held.id, page: windows, view }
   }
 
   return toPage(
@@ -218,10 +256,12 @@ const restore = async (
 export const restoreExploreUseCase = async ({
   owner,
   run,
-  through
+  through,
+  view = 'table'
 }: ExploreAsker & {
   run: string
   through: number
+  view?: ExploreView
 }): Promise<ExplorePageOutcome | ExploreRestart | ExploreApart> => {
   const asker = { owner }
   const held = await findLiveRun(owner, run)
@@ -232,6 +272,6 @@ export const restoreExploreUseCase = async ({
   }
 
   return canStart(windows, await findPrevious(asker, run, windows))
-    ? restore(asker, held, windows)
-    : { kind: 'restart', id: run }
+    ? restore(asker, { held, page: windows, view })
+    : { kind: 'restart', id: run, view }
 }

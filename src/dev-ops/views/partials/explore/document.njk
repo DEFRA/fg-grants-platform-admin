@@ -1,0 +1,56 @@
+{% import "components/macros.njk" as gpa %}
+{#- What a run's page and an open's answer draw alike: a result, and an open that couldn't be read. -#}
+
+{#- Why the document isn't printed here, beside Show it's post into a new tab: the run and the row it shows, by a button that names the result. -#}
+{% macro showInNewTab(opens, testId) -%}
+  {%- call gpa.Inline({ gap: 'sm', align: 'center', testId: testId ~ '-beside' }) -%}
+    {{ gpa.Text({ text: opens.text, variant: 'body-sm', tone: 'muted', testId: testId ~ '-text' }) }}
+    {%- call gpa.Form({ action: opens.form.action, method: 'post', label: opens.form.label, hidden: opens.form.fields, inline: true, testId: testId ~ '-form' }) -%}
+      {{ gpa.Button({ text: 'Show in new tab', variant: 'link', size: 'sm', type: 'submit', attributes: { 'aria-label': opens.buttonLabel, formtarget: '_blank' }, testId: testId }) }}
+    {%- endcall -%}
+  {%- endcall -%}
+{%- endmacro %}
+
+{% macro noteAction(note) -%}
+  {%- if note.action == 'download' -%}
+    {{ gpa.Button({ text: note.label, size: 'sm', iconStart: 'download', type: 'submit', form: 'explore-json-form', testId: 'explore-document-download' }) }}
+  {%- endif -%}
+{%- endmacro %}
+
+{#- A result as the page holds it: its document as stored and what it sits beside, or why it isn't printed. -#}
+{% macro printoutHtml(document, printout) -%}
+  {%- set contextHtml %}{% if printout.context %}{{ gpa.Text({ text: printout.context, variant: 'body-sm', tone: 'muted', testId: 'explore-document-context' }) }}{% endif %}{% if printout.changed %}{{ gpa.Text({ text: printout.changed, variant: 'body-sm', tone: 'muted', testId: 'explore-document-changed' }) }}{% endif %}{% endset -%}
+  {%- if printout.note -%}
+    {{ gpa.DocPrintout({ label: document.label, note: { text: printout.note.text, action: noteAction(printout.note) }, testId: 'explore-printout' }) }}
+  {%- else -%}
+    {{ gpa.DocPrintout({ doc: printout.doc, label: document.label, context: contextHtml if (printout.context or printout.changed) else null, related: printout.related, testId: 'explore-printout' }) }}
+  {%- endif -%}
+{%- endmacro %}
+
+{#- A result: its line, opened by a post in place, into what the page holds, or onto Show it to its own page; or why its document isn't there, in place of the line. -#}
+{% macro exploreDocument(document) -%}
+  {%- set line = document.line -%}
+  {%- set opens = document.opens -%}
+  {%- if line.kind == 'note' and line.note.action -%}
+    {{ gpa.DocPrintout({ label: document.label, note: { text: line.note.text, action: noteAction(line.note) }, testId: 'explore-document' }) }}
+  {%- elif line.kind == 'note' -%}
+    {{ gpa.DocLine({ id: document.lineId, label: document.label, note: line.note.text, testId: 'explore-document' }) }}
+  {%- elif opens.kind == 'form' -%}
+    {{ gpa.DocLine({ id: document.lineId, label: document.label, doc: line.doc, quotedKey: line.quotedKey, sub: document.aside, form: { action: opens.form.action, method: 'post', fields: opens.fields }, testId: 'explore-document' }) }}
+  {%- elif opens.kind == 'show' -%}
+    {%- set act = showInNewTab(opens, 'explore-show') -%}
+    {{ gpa.DocLine({ id: document.lineId, label: document.label, doc: line.doc, quotedKey: line.quotedKey, sub: document.aside, open: opens.open, keepLine: true, action: act, testId: 'explore-document' }) }}
+  {%- else -%}
+    {%- call gpa.DocLine({ id: document.lineId, label: document.label, doc: line.doc, quotedKey: line.quotedKey, sub: document.aside, open: opens.open, testId: 'explore-document' }) -%}
+      {{ printoutHtml(document, opens.printout) }}
+    {%- endcall -%}
+  {%- endif -%}
+{%- endmacro %}
+
+{#- An open that couldn't be read: its line drawn open on the alert its page would draw, Try again posting the open to that page. -#}
+{% macro openFailed(failed) -%}
+  {%- set retryHtml %}{% if failed.retry %}{% call gpa.Form({ action: failed.retry.action, method: 'post', hidden: failed.retry.fields, testId: 'explore-retry-form' }) %}{{ gpa.Button({ text: 'Try again', size: 'sm', iconStart: 'refresh-cw', type: 'submit', testId: 'explore-retry' }) }}{% endcall %}{% endif %}{% endset -%}
+  {%- call gpa.DocLine({ id: failed.lineId, label: failed.label, doc: failed.doc, open: true, testId: 'explore-open-failed' }) -%}
+    {{ gpa.Alert({ tone: failed.alert.tone, title: failed.alert.title, text: failed.alert.text, actions: retryHtml if failed.retry else null, testId: 'explore-alert' }) }}
+  {%- endcall -%}
+{%- endmacro %}

@@ -1,0 +1,18 @@
+{%- from "../../core/macros.njk" import attrs, cls -%}
+{%- from "../../molecules/doc-line-row/macro.njk" import DocLineRow -%}
+{%- set body = (p.action | safe) if (p.keepLine and p.action) else (caller() if caller else '') -%}
+  {%- set row = DocLineRow(p) -%}
+  {%- if p.form and not p.note and not p.action and not p.keepLine -%}<gpa-doc-line>{%- endif -%}
+  <div class="{{ cls('gpa-docline', p) }}" role="group"{% if p.label %} aria-label="{{ p.label }}"{% endif %}{% if p.id %} id="{{ p.id }}"{% endif %}{{ attrs(p) }}>
+    {%- if p.note -%}
+      <p class="gpa-docline-note">{{ p.note }}</p>
+    {%- elif p.action and not p.keepLine -%}
+      <div class="gpa-docline-row is-static">{{ row }}</div><div class="gpa-docline-action">{{ p.action | safe }}</div>
+    {%- elif p.form and not p.keepLine and not (p.open and body) -%}
+      <form class="gpa-docline-form" method="{{ p.form.method or 'post' }}" action="{{ p.form.action }}">{% for k, v in p.form.fields or {} %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endfor %}<button type="submit" class="gpa-docline-row">{{ row }}</button></form>
+    {%- else -%}
+      <details class="gpa-docline-d{% if p.keepLine %} is-keep{% endif %}"{% if p.open %} open{% endif %}><summary class="gpa-docline-row">{{ row }}</summary><div class="gpa-docline-body">{{ body }}</div></details>
+    {%- endif -%}
+    {%- if p.sub %}<p class="gpa-docline-sub">{{ p.sub }}</p>{% endif -%}
+  </div>
+  {%- if p.form and not p.note and not p.action and not p.keepLine -%}</gpa-doc-line>{%- endif -%}

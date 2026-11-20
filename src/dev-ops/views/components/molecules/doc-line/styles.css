@@ -1,0 +1,131 @@
+.gpa-docline {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-stack-xs);
+  min-width: 0;
+}
+.gpa-docline-form {
+  display: contents;
+}
+.gpa-docline-row {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-inline-md);
+  width: 100%;
+  min-width: 0;
+  min-height: 24px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-xs);
+  background: none;
+  color: var(--fg-muted);
+  font: var(--text-code-block);
+  font-variant-ligatures: none;
+  text-align: start;
+  list-style: none;
+  cursor: pointer;
+}
+.gpa-docline-row.is-static {
+  cursor: default;
+}
+.gpa-docline-row.is-static > .gpa-docline-caret {
+  visibility: hidden;
+}
+.gpa-docline-action {
+  display: flex;
+  align-items: center;
+  padding-inline-start: calc(24px + var(--gap-inline-md));
+}
+.gpa-docline-row::-webkit-details-marker {
+  display: none;
+}
+.gpa-docline-row:focus-visible {
+  outline: var(--focus-ring-width) solid var(--border-focus);
+  outline-offset: var(--focus-ring-offset);
+}
+.gpa-docline-caret {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: var(--radius-xs);
+  color: var(--fg-muted);
+}
+.gpa-docline-caret > * {
+  transition: transform var(--duration-normal) ease;
+}
+.gpa-docline-row:hover .gpa-docline-caret {
+  background: var(--bg-hover);
+  color: var(--fg-default);
+}
+.gpa-docline-d[open] > .gpa-docline-row .gpa-docline-caret > * {
+  transform: rotate(90deg);
+}
+:dir(rtl) .gpa-docline-d:not([open]) > .gpa-docline-row .gpa-docline-caret > * {
+  transform: scaleX(-1);
+}
+.gpa-docline-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.gpa-docline-body {
+  padding-inline-start: calc(24px + var(--gap-inline-md));
+  padding-block-start: var(--gap-stack-xs);
+}
+.gpa-docline-d[open]:not(.is-keep) > .gpa-docline-row {
+  position: relative;
+  z-index: 1;
+  width: 24px;
+}
+.gpa-docline-d[open]:not(.is-keep) > .gpa-docline-row > .gpa-docline-text {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.gpa-docline-d[open]:not(.is-keep) > .gpa-docline-body {
+  margin-block-start: calc(-24px + 2px);
+  padding-block-start: 0;
+}
+.gpa-docline-note,
+.gpa-docline-sub {
+  margin: 0;
+  color: var(--fg-muted);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-sm);
+}
+.gpa-docline-sub {
+  padding-inline-start: calc(24px + var(--gap-inline-md));
+}
+.gpa-docline[aria-busy="true"] .gpa-docline-caret > * {
+  display: none;
+}
+.gpa-docline[aria-busy="true"] .gpa-docline-caret::after {
+  content: "";
+  width: 12px;
+  height: 12px;
+  border: 2px solid var(--border-default);
+  border-top-color: var(--fg-muted);
+  border-radius: 50%;
+  animation: gpa-spin 0.8s linear infinite;
+}
+.gpa-docline-said {
+  margin: 0;
+  padding-inline-start: calc(24px + var(--gap-inline-md));
+  color: var(--fg-danger);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-sm);
+}
+@media (prefers-reduced-motion: reduce) {
+  .gpa-docline-caret > * {
+    transition: none;
+  }
+}
