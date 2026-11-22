@@ -152,8 +152,8 @@
 {#- The document as stored, or why it isn't shown. -#}
 {% macro rawTab(raw) -%}
   {%- if raw.kind == 'document' -%}
-    {%- call gpa.Card({ title: 'Stored document', actions: gpa.CopyButton({ value: raw.json, text: 'Copy' }), testId: 'record-raw' }) -%}
-      {{ gpa.Code({ block: true, code: raw.json, label: 'Stored document' }) }}
+    {%- call gpa.Card({ title: 'Stored document', actions: gpa.CopyButton({ value: raw.ejson, text: 'Copy' }), padded: true, testId: 'record-raw' }) -%}
+      {{ gpa.DocPrintout({ doc: raw.doc, label: 'Stored document', testId: 'record-raw-document' }) }}
     {%- endcall -%}
   {%- elif raw.kind == 'too-large' -%}
     {%- call gpa.Card({ testId: 'record-raw' }) -%}

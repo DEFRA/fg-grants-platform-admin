@@ -50,8 +50,8 @@ export interface CasePage {
   header: CaseHeader
   overview?: CaseOverview | null
   events?: RecordEvents | null
-  /** The stored case, less its caseworker notes, which never leave Caseworking. */
-  raw?: object | null
+  /** Base64 of the stored case's own BSON, whole, comments and timeline included. */
+  document?: string | null
   storedBytes?: number | null
   sourceErrors: SourceError[]
   sectionErrors: RecordSectionError[]

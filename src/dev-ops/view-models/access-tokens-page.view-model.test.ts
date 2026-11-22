@@ -1,7 +1,5 @@
-import type {
-  ListResult,
-  ListedToken
-} from '../use-cases/access-tokens.use-case.ts'
+import type { ListedToken } from '../use-cases/access-tokens.use-case.ts'
+import type { ReadList, ReadToken } from './access-token-rows.ts'
 import type {
   AccessTokensPageInput,
   TokenView
@@ -10,10 +8,12 @@ import {
   toAccessTokensPage,
   toListStatus
 } from './access-tokens-page.view-model.ts'
+import { readBase64 } from './explore-bson.ts'
+import { storedTokenDocument } from '../use-cases/test-fixtures.ts'
 
 const now = new Date('2026-11-10T15:00:00.000Z')
 
-const token = (fields: Partial<ListedToken> = {}): ListedToken => ({
+const listedToken = (fields: Partial<ListedToken> = {}): ListedToken => ({
   tokenId: '6650c1f2a9e4b1d07c20bd91',
   clientId: 'grants-ui',
   tokenHint: 'x7Qa',
@@ -25,9 +25,15 @@ const token = (fields: Partial<ListedToken> = {}): ListedToken => ({
   revokedBy: null,
   inUse: false,
   expiringSoon: false,
-  stored: {},
+  document: storedTokenDocument(),
   ...fields
 })
+
+const token = (fields: Partial<ListedToken> = {}): ReadToken => {
+  const listed = listedToken(fields)
+
+  return { ...listed, stored: readBase64(listed.document) }
+}
 
 const active = token()
 const inUse = token({
@@ -301,8 +307,13 @@ describe('toListStatus', () => {
     [{ outcome: 'unlisted' }, 200],
     [{ outcome: 'unknown' }, 503],
     [{ outcome: 'unreachable' }, 503],
-    [{ outcome: 'refused', statusCode: 403, errorCode: null }, 503]
-  ] as [ListResult, number][])('%j: %i', (list, status) => {
+    [{ outcome: 'refused', statusCode: 403, errorCode: null }, 503],
+    [{ outcome: 'unreadable' }, 503]
+  ] as [ReadList, number][])('%j: %i', (list, status) => {
     expect(toListStatus(list)).toBe(status)
+  })
+
+  test('a token issued beside a list it can’t draw is 200', () => {
+    expect(toListStatus({ outcome: 'unreadable' }, true)).toBe(200)
   })
 })

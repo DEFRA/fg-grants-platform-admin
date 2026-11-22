@@ -27,8 +27,8 @@
         {{ gpa.Fact({ label: 'Token', text: ('…' ~ t.hint) if t.hint, mono: true }) }}
         {{ gpa.Fact({ label: 'Expires', html: expires }) }}
       {%- endcall -%}
-      {%- call gpa.Card({ title: 'Stored document' }) -%}
-        {{ gpa.Code({ block: true, code: t.document, label: 'Stored document', lineNumbers: false }) }}
+      {%- call gpa.Card({ title: 'Stored document', actions: gpa.CopyButton({ value: t.ejson, text: 'Copy' }), padded: true, testId: 'token-stored' }) -%}
+        {{ gpa.DocPrintout({ doc: t.doc, label: 'Stored document', testId: 'token-document' }) }}
       {%- endcall -%}
     {%- endcall -%}
   {%- endcall -%}
