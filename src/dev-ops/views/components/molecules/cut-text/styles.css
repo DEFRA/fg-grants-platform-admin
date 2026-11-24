@@ -1,0 +1,56 @@
+.gpa-cut {
+  display: flex;
+  align-items: baseline;
+  gap: var(--gap-inline-md);
+  min-width: 0;
+}
+.gpa-cut-max-20 {
+  max-width: 20ch;
+}
+.gpa-cut-max-30 {
+  max-width: 30ch;
+}
+.gpa-cut-max-40 {
+  max-width: 40ch;
+}
+.gpa-cut-max-60 {
+  max-width: 60ch;
+}
+.gpa-cut-text {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  overflow-wrap: normal;
+  word-break: normal;
+  border-radius: var(--radius-xs);
+}
+.gpa-cut-text:focus-visible {
+  outline: var(--focus-ring-width) solid var(--border-focus);
+  outline-offset: var(--focus-ring-offset);
+}
+.gpa-cut-link {
+  flex: none;
+  white-space: nowrap;
+}
+.gpa-cut-text {
+  position: relative;
+  z-index: 1;
+}
+:is(.gpa-tr, tr).is-link .gpa-cut-text {
+  cursor: pointer;
+}
+.gpa-rowlink .gpa-cut-text {
+  position: static;
+  z-index: auto;
+}
+.gpa-cut-size {
+  flex: none;
+  color: var(--fg-subtle);
+  white-space: nowrap;
+}
+.gpa-tooltip.gpa-cut-tip {
+  max-width: min(60ch, calc(100vw - 2 * var(--gap-inline-xl)));
+  overflow-wrap: anywhere;
+}

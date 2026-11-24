@@ -1,0 +1,2 @@
+{%- from "../../core/macros.njk" import attrs, cls -%}
+<span class="{{ cls('gpa-btnslot gpa-btnslot-' ~ (p.width or 'md') ~ (' gpa-btnslot-start' if p.align == 'start' else ''), p) }}"{{ attrs(p) }}>{{ caller() }}</span>

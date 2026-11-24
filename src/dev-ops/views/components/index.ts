@@ -26,6 +26,7 @@ import { GpaThemeToggle } from "./molecules/theme-toggle/web-component.ts";
 import { GpaToastRegion } from "./molecules/toast-region/web-component.ts";
 import { GpaToast } from "./molecules/toast/web-component.ts";
 import { GpaTooltip } from "./atoms/tooltip/web-component.ts";
+import { GpaCutText } from "./molecules/cut-text/web-component.ts";
 
 const elements: [string, CustomElementConstructor][] = [
   ["gpa-accordion", GpaAccordion],
@@ -34,6 +35,7 @@ const elements: [string, CustomElementConstructor][] = [
   ["gpa-query-editor", GpaQueryEditor],
   ["gpa-confirm", GpaConfirm],
   ["gpa-copy", GpaCopy],
+  ["gpa-cut-text", GpaCutText],
   ["gpa-data-table", GpaDataTable],
   ["gpa-date-picker", GpaDatePicker],
   ["gpa-date-range-chip", GpaDateRangeChip],
@@ -165,4 +167,5 @@ export {
   GpaToastRegion,
   GpaToast,
   GpaTooltip,
+  GpaCutText,
 };

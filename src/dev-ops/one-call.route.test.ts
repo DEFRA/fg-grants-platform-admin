@@ -1471,8 +1471,14 @@ const explored = {
   mode: 'rows',
   read: 'windowed',
   columns: [
-    { key: 'c0', label: 'business', kind: 'text', aggregate: false },
-    { key: 'c1', label: 'sbi', kind: 'text', aggregate: false }
+    {
+      key: 'c0',
+      label: 'phases.answers.business',
+      kind: 'text',
+      aggregate: false,
+      path: 'phases.answers.business'
+    },
+    { key: 'c1', label: 'sbi', kind: 'text', aggregate: false, path: null }
   ],
   rows: [{ open: null, cells: { c0: 'Hilltop Farm', c1: '200000002' } }],
   count: null,
@@ -1480,7 +1486,12 @@ const explored = {
   unwound: false,
   partial: false,
   unseen: [],
-  window: { to: '2026-10-01T00:00:00.000Z', end: false, positions: 'p' }
+  window: {
+    to: '2026-10-01T00:00:00.000Z',
+    end: false,
+    positions: 'p',
+    skipped: []
+  }
 }
 
 const typedQuery = 'db.applications.find()'

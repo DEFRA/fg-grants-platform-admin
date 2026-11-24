@@ -36,6 +36,7 @@ export class GpaDataTable extends HTMLElement {
         const row = t.closest(".gpa-tr.is-link");
         if (!row || t.closest("a, button, input, label, select, textarea"))
           return;
+        if (String(window.getSelection?.() ?? "")) return;
         const link = row.querySelector<HTMLAnchorElement>("a.gpa-rowlink");
         if (!link) return;
         if (
@@ -62,7 +63,7 @@ export class GpaDataTable extends HTMLElement {
       const link = (event.target as Element).closest<HTMLElement>(
         ".gpa-rowlink",
       );
-      if (!link) return;
+      if (!link || link.querySelector(".gpa-cut")) return;
       if (link.scrollWidth > link.clientWidth + 1)
         link.title ||= link.textContent?.trim() ?? "";
     });

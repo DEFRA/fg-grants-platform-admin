@@ -12,7 +12,15 @@ const applications = (overrides: Partial<ExploreAnswer>): ExploreAnswer => ({
   source: { name: 'applications', noun: 'application' },
   mode: 'rows',
   read: 'exact',
-  columns: [{ key: 'c0', label: 'Reference', kind: 'text', aggregate: false }],
+  columns: [
+    {
+      key: 'c0',
+      label: 'Reference',
+      kind: 'text',
+      aggregate: false,
+      path: null
+    }
+  ],
   rows: [row],
   count: { n: 1, capped: false },
   groups: false,
@@ -88,7 +96,7 @@ describe('toExplorePage’s footer after a restore GAS stopped', () => {
           read: 'windowed',
           count: null,
           rows: rows(2),
-          window: { to: null, end: false, positions: 'p' }
+          window: { to: null, end: false, positions: 'p', skipped: [] }
         })
       },
       previous: null,
@@ -120,7 +128,7 @@ describe('toExplorePage’s addresses past what a restore draws', () => {
           read: 'windowed',
           count: null,
           rows: rows(1),
-          window: { to: null, end: false, positions: 'p' }
+          window: { to: null, end: false, positions: 'p', skipped: [] }
         })
       },
       previous: null,

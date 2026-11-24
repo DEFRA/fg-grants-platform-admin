@@ -2,16 +2,31 @@
 {% import "components/macros.njk" as gpa %}
 
 
+{#- A value on one line, cut at its cell's width; past the most a cell holds, its start and size. -#}
 {% macro cellHtml(cell) -%}
   {%- if cell.kind == 'time' -%}
     {{ gpa.Time(cell.time) }}
   {%- elif cell.kind == 'text' -%}
-    {{ cell.text }}{% if cell.more %} {{ gpa.Text({ text: '+' ~ cell.more, tone: 'muted' }) }}{% endif %}
-  {%- elif cell.kind == 'object' -%}
-    {{ gpa.Code({ text: cell.text, attributes: { title: cell.title } }) }}
+    {{ gpa.CutText({ text: cell.text, mono: cell.mono, size: cell.size, href: cell.href }) }}
   {%- else -%}
     {{ gpa.NoValue() }}
   {%- endif -%}
+{%- endmacro %}
+
+{#- A row's link holds its first value as CutText drawn as the link's text: past the most a cell holds, its start and size. -#}
+{% macro linkHtml(cell) -%}
+  {%- if cell.kind == 'time' -%}
+    {{ gpa.Time(cell.time) }}
+  {%- elif cell.kind == 'text' -%}
+    {{ gpa.CutText({ text: cell.text, mono: cell.mono, size: cell.size, inRowLink: true }) }}
+  {%- else -%}
+    {{ gpa.NoValue() }}
+  {%- endif -%}
+{%- endmacro %}
+
+{#- Records too large to search, every one by its _id, with a link to it where it has a page. -#}
+{% macro skippedHtml(note) -%}
+  {{ note.text }}{% for record in note.records %} <span data-testid="explore-skipped">{{ record.id }}{% if record.open %} {{ gpa.Link({ text: record.open.text, href: record.open.href, size: 'sm', attributes: { 'aria-label': record.open.label } }) }}{% endif %}</span>{% if not loop.last %};{% endif %}{% endfor %}
 {%- endmacro %}
 
 {#- Explore: a query, the Queries menu to start one from, and what the run held in the session found. Every way in is a form post; no query is ever in an address. -#}
@@ -63,27 +78,33 @@
         {%- set toolbar -%}
           {%- call gpa.Inline({ gap: 'sm', align: 'center', justify: 'between' if results.count else 'end', testId: 'explore-bar' }) -%}
             {%- if results.count %}{{ gpa.Text({ text: results.count, tone: 'muted', variant: 'body-sm', focusOnArrival: results.arrived, attributes: { id: 'explore-count', role: 'status', 'data-load-more-count': true }, testId: 'explore-count' }) }}{% endif -%}
-            {{ gpa.Button({ text: 'Download CSV', variant: 'tertiary', size: 'sm', iconStart: 'download', type: 'submit', form: 'explore-csv-form', testId: 'explore-csv' }) }}
+            {%- call gpa.ButtonSlot({ width: 'lg', testId: 'explore-csv-slot' }) -%}
+              {{ gpa.Button({ text: 'Download CSV', variant: 'tertiary', size: 'sm', iconStart: 'download', type: 'submit', form: 'explore-csv-form', testId: 'explore-csv' }) }}
+            {%- endcall -%}
           {%- endcall -%}
         {%- endset -%}
         {#- With no row shown, the empty state is drawn here, so Keep looking from it is a plain post and the page after says what it found. -#}
         {%- set footer -%}
           {%- if results.empty -%}
             {%- set keepLooking %}{{ gpa.Button({ text: 'Keep looking', size: 'sm', type: 'submit', form: 'explore-keep-looking-form', testId: 'explore-keep-looking' }) }}{% endset -%}
-            {{ gpa.EmptyState({ compact: true, icon: results.empty.icon, title: results.empty.title, text: results.empty.text, actions: keepLooking if results.empty.keepLooking else null, testId: 'explore-empty' }) }}
+            {%- set emptyHtml %}{{ results.empty.text }}{% if results.empty.note %} {{ skippedHtml(results.empty.note) }}{% endif %}{% endset -%}
+            {{ gpa.EmptyState({ compact: true, icon: results.empty.icon, title: results.empty.title, html: emptyHtml, actions: keepLooking if results.empty.keepLooking else null, testId: 'explore-empty' }) }}
           {%- endif -%}
           {%- if results.footer -%}
-            {{ gpa.ListFooter({ state: results.footer.state, text: results.footer.text, searchedTo: results.footer.searchedTo, form: results.footer.form, note: results.footer.note, retryHref: results.footer.retryHref, restoreHref: results.footer.restoreHref, noun: results.noun, testId: 'explore-footer', countId: 'explore-count' }) }}
+            {%- set skippedNote = skippedHtml(results.footer.note) if results.footer.note else null -%}
+            {%- set endHtml %}{{ results.footer.text }}{% if skippedNote %} {{ skippedNote }}{% endif %}{% endset -%}
+            {{ gpa.ListFooter({ state: results.footer.state, text: results.footer.text, html: endHtml if results.footer.state == 'end' else null, searchedTo: results.footer.searchedTo, form: results.footer.form, note: skippedNote, retryHref: results.footer.retryHref, restoreHref: results.footer.restoreHref, noun: results.noun, testId: 'explore-footer', countId: 'explore-count' }) }}
           {%- endif -%}
         {%- endset -%}
-        {%- call gpa.DataTable({ styleNonce: styleNonce, label: results.label, link: true, stickyFirstColumn: true, toolbar: toolbar, columns: results.columns, after: footer, bodyId: 'explore-rows', testId: 'explore-table' }) -%}
+        {%- call gpa.DataTable({ styleNonce: styleNonce, label: results.label, link: true, stickyFirstColumn: not results.idFirst, narrow: 'scroll', toolbar: toolbar, columns: results.columns, after: footer, bodyId: 'explore-rows', testId: 'explore-table' }) -%}
           {%- for row in results.rows -%}
             {%- call gpa.TableRow({ link: row.href != null, restoreHref: row.restoreHref, attributes: { id: row.id }, testId: 'explore-row' }) -%}
               {%- for cell in row.cells -%}
                 {%- set column = results.columns[loop.index0] -%}
-                <td role="cell"{% if column.align == 'right' %} class="gpa-right"{% endif %}>
+                {%- set cellClass = ['gpa-right' if column.align == 'right', 'gpa-cell-max-' ~ column.max if column.max] | select | join(' ') -%}
+                <td role="cell"{% if cellClass %} class="{{ cellClass }}"{% endif %}>
                   {%- if loop.first and row.href -%}
-                    {{ gpa.RowLink({ html: cellHtml(cell), href: row.href }) }}
+                    {{ gpa.RowLink({ html: linkHtml(cell), href: row.href, plain: results.idFirst, mono: results.idFirst }) }}
                   {%- else -%}
                     {{ cellHtml(cell) }}
                   {%- endif -%}

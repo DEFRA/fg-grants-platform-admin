@@ -20,8 +20,11 @@ export type {
   ExploreAnswer,
   ExploreCell,
   ExploreColumn,
+  ExploreDownload,
+  ExploreDownloadStop,
   ExploreObject,
   ExploreOpen,
+  ExploreSkipped,
   ExploreSource,
   ExploreValue,
   QueryError,
@@ -34,6 +37,7 @@ export type ExploreService = 'GAS' | 'CW'
 /**
  * - `invalid`: the query broke a rule of the language, at a place in its text.
  * - `refused`: a service would not run it, with its reason when it gave one.
+ * - `too-large`: what it found is more than one answer holds, with what to change.
  * - `too-slow`: a service stopped it at its deadline.
  * - `busy`: this person already has a query running.
  * - `full`: a service is running as many queries as it can.
@@ -44,6 +48,7 @@ export type ExploreService = 'GAS' | 'CW'
 export type ExploreFailure =
   | { kind: 'invalid'; error: QueryError }
   | { kind: 'refused'; service: ExploreService; message: string | null }
+  | { kind: 'too-large'; service: ExploreService; message: string | null }
   | { kind: 'too-slow'; service: ExploreService; message: string | null }
   | { kind: 'busy'; service: ExploreService }
   | { kind: 'full'; service: ExploreService }
@@ -125,16 +130,33 @@ const toBadGateway = (body: Body): ExploreFailure => {
 const serviceOf = (body: Body): ExploreService =>
   body.service === 'CW' ? 'CW' : 'GAS'
 
-const toRefused = (body: Body): ExploreFailure => ({
-  kind: 'refused',
+const toRefused = (
+  body: Body,
+  kind: 'refused' | 'too-large' = 'refused'
+): ExploreFailure => ({
+  kind,
   service: serviceOf(body),
   message: textOf(body.message)
 })
 
-const toBadRequest = (body: Body): ExploreFailure => {
-  const error = body.reason === 'QUERY_INVALID' && toQueryError(body.error)
+/** A rule of the language, or mongod failing on a stored value as it would in mongosh: both said at their place in the query. */
+const isAtItsPlace = (body: Body): boolean =>
+  body.reason === 'QUERY_INVALID' || body.refusal === 'MONGOD_ERROR'
 
-  return error ? { kind: 'invalid', error } : toRefused(body)
+/** The query ran, but what it found doesn't fit one answer: its cells, or Caseworking's answer. */
+const tooLargeRefusals = new Set(['CELLS_TOO_LARGE', 'ANSWER_TOO_LARGE'])
+
+const toBadRequest = (body: Body): ExploreFailure => {
+  const error = isAtItsPlace(body) && toQueryError(body.error)
+
+  if (error) {
+    return { kind: 'invalid', error }
+  }
+
+  return toRefused(
+    body,
+    tooLargeRefusals.has(String(body.refusal)) ? 'too-large' : 'refused'
+  )
 }
 
 /** What each status GAS answered with means; any other is GAS failing. */

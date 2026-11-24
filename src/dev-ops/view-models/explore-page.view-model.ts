@@ -1,27 +1,26 @@
 import { statusCodes } from '../../common/status-codes.ts'
 import type {
   ExploreAnswer,
-  ExploreCell,
   ExploreColumn,
   ExploreFailure,
-  ExploreObject,
   ExploreOpen,
   ExploreService,
+  ExploreSkipped,
   ExploreSource,
-  ExploreValue,
   QueryError
 } from '../use-cases/explore-calls.ts'
 import type {
   ExploreNotice,
   ExplorePageData
 } from '../use-cases/explore-page.ts'
-import { queryMax, toExamples } from '../use-cases/explore-queries.ts'
+import { queryMax, toExamples, toIdText } from '../use-cases/explore-queries.ts'
 import { pageMax, restoreMax, toFound } from '../use-cases/held-runs.ts'
 import type { HeldPage, RecentQuery } from '../use-cases/held-runs.ts'
 import type { BucketLink } from '../repositories/buckets.repository.ts'
 import { toRowHref } from './bucket-links.ts'
 import { devOpsPath, exploreNavId, explorePath } from './bucket-nav.ts'
-import { isIsoInstant } from './event-formats.ts'
+import { recordsOf, toCell, toNumberText } from './explore-cells.ts'
+import type { ExploreCellModel } from './explore-cells.ts'
 import { toRecentLabel } from './explore-queries.view-model.ts'
 import { toFailureText } from './failure-text.ts'
 import {
@@ -29,7 +28,7 @@ import {
   toEditorVocabulary
 } from './explore-vocabulary.view-model.ts'
 import type { EditorVocabulary } from './explore-vocabulary.view-model.ts'
-import { toDayTime, toTime } from './times.ts'
+import { toTime } from './times.ts'
 import type { Times, TimeText } from './times.ts'
 
 export { explorePath }
@@ -89,13 +88,6 @@ export interface ExploreMenuItem {
   value: string
 }
 
-export type ExploreCellModel =
-  | { kind: 'none' }
-  | { kind: 'text'; text: string; more: number | null }
-  /** Cut short past 80 characters, with the whole object in `title`. */
-  | { kind: 'object'; text: string; title: string | null }
-  | { kind: 'time'; time: TimeText }
-
 export interface ExploreRowModel {
   /** Its window and place in it, which Back from its record lands on. */
   id: string
@@ -105,10 +97,27 @@ export interface ExploreRowModel {
   cells: ExploreCellModel[]
 }
 
+/** `path`: the label is a dotted stored path, drawn as one. `max`: a sticky first column's cells are cut at 40ch. */
 export interface ExploreColumnModel {
   key: string
   label: string
+  width: 'minmax(160px, 1fr)'
+  max?: 40
   align?: 'right'
+  path?: true
+  mono?: true
+}
+
+/** A record too large to search: its `_id` as a query writes it, and the link that opens it, where it has a page. */
+export interface SkippedRecord {
+  id: string
+  open: { text: string; label: string; href: string } | null
+}
+
+/** Records a window skipped as too large to search, which may or may not match. */
+export interface SkippedNote {
+  text: string
+  records: SkippedRecord[]
 }
 
 /** Keep looking posts the run and the window it reads; nothing of the query goes with it. */
@@ -123,17 +132,22 @@ export type ExploreFooter =
       state: 'searched'
       searchedTo: TimeText
       form: KeepLookingForm | null
-      note: string | null
+      note: SkippedNote | null
       restoreHref: string
     }
   | {
       state: 'more'
       text: string
       form: KeepLookingForm
-      note: string | null
+      note: SkippedNote | null
       restoreHref: string
     }
-  | { state: 'end'; text: string; restoreHref: string }
+  | {
+      state: 'end'
+      text: string
+      note: SkippedNote | null
+      restoreHref: string
+    }
   | { state: 'error'; text: string; retryHref: string }
 
 /** With no row shown, Keep looking is here rather than in the footer, so it draws the next window's own page and nothing goes stale. */
@@ -141,6 +155,7 @@ export interface ExploreEmpty {
   title: string
   text: string
   icon: string
+  note: SkippedNote | null
   keepLooking: KeepLookingForm | null
 }
 
@@ -151,6 +166,8 @@ export interface ExploreResults {
   /** The count takes focus: the page answers a Run. */
   arrived: boolean
   csv: { action: string; run: string }
+  /** A listed `_id` leads, a column like the others: nothing sticks, and its row link is at the text's weight. */
+  idFirst: boolean
   columns: ExploreColumnModel[]
   rows: ExploreRowModel[]
   /** The paths the query reads that no definition names, said above the table; null when it names none. */
@@ -213,6 +230,13 @@ type ByKind<U extends { kind: string }, A extends unknown[], R> = {
 /** What each way a run fails says; a failure a person can retry links back to the run. */
 const failureAlerts: ByKind<AlertFailure, [string], ExploreAlert> = {
   refused: ({ service, message }) => refusedBy(service, message),
+  'too-large': ({ message }) => ({
+    tone: 'warning',
+    title: 'This answer is too large to show.',
+    text: message ?? 'Set a lower .limit() or name fewer paths.',
+    retryHref: null,
+    startHref: null
+  }),
   'too-slow': ({ service, message }) => refusedBy(service, message ?? tooSlow),
   busy: (_, selfHref) => ({
     tone: 'warning',
@@ -282,177 +306,47 @@ const toNoticeAlert = (notice: ExploreNotice): ExploreAlert => ({
   startHref: null
 })
 
-const numberFormat = new Intl.NumberFormat('en-GB', {
-  maximumFractionDigits: 2
-})
-
-const isoDay = /^\d{4}-\d{2}-\d{2}$/
-
-const isIsoDay = (value: string): boolean =>
-  isoDay.test(value) && isIsoInstant(`${value}T00:00:00Z`)
-
-const isInstant = (value: string, column: ExploreColumn): boolean =>
-  column.kind === 'date' && isIsoInstant(value)
-
-/** A day, wherever it is, as a day; an instant in a date column as the person reads times. */
-const toDate = (
-  value: string,
-  column: ExploreColumn,
-  times: Times
-): TimeText | null => {
-  if (isIsoDay(value)) {
-    return toDayTime(new Date(`${value}T00:00:00Z`), times)
-  }
-
-  return isInstant(value, column) ? toTime(new Date(value), times) : null
-}
-
-const toStringText = (
-  value: string,
-  column: ExploreColumn,
-  times: Times
-): string => toDate(value, column, times)?.text ?? value
-
-const toValueText = (
-  value: ExploreValue | null,
-  column: ExploreColumn,
-  times: Times
-): string => {
-  if (typeof value === 'number') {
-    return numberFormat.format(value)
-  }
-
-  return value === null ? 'null' : toStringText(value, column, times)
-}
-
-const isObject = (value: ExploreCell | undefined): value is ExploreObject =>
-  typeof value === 'object' && value !== null && !Array.isArray(value)
-
-/** A list inside a list shows in brackets, as mongosh shows it. */
-const toText = (
-  value: ExploreCell,
-  column: ExploreColumn,
-  times: Times
-): string => {
-  if (Array.isArray(value)) {
-    return `[${value.map((item) => toText(item, column, times)).join(', ')}]`
-  }
-
-  return isObject(value) ? value.text : toValueText(value, column, times)
-}
-
-const objectMax = 80
-
-/** Counted in characters, so a cut never splits one. */
-const toObjectCell = ({ text }: ExploreObject): ExploreCellModel => {
-  const characters = Array.from(text)
-
-  return characters.length > objectMax
-    ? {
-        kind: 'object',
-        text: `${characters.slice(0, objectMax).join('')}…`,
-        title: text
-      }
-    : { kind: 'object', text, title: null }
-}
-
-const shownMax = 3
-
-/** A cell's one date, as a time; null for anything else. */
-const toOneDate = (
-  values: ExploreCell[],
-  column: ExploreColumn,
-  times: Times
-): TimeText | null => {
-  const [value] = values
-
-  return values.length === 1 && typeof value === 'string'
-    ? toDate(value, column, times)
-    : null
-}
-
-const toListText = (
-  values: ExploreCell[],
-  column: ExploreColumn,
-  times: Times
-): ExploreCellModel => ({
-  kind: 'text',
-  text: values
-    .slice(0, shownMax)
-    .map((value) => toText(value, column, times))
-    .join(', '),
-  more: values.length > shownMax ? values.length - shownMax : null
-})
-
-const toTimeCell = (
-  values: ExploreCell[],
-  column: ExploreColumn,
-  times: Times
-): ExploreCellModel | null => {
-  const date = toOneDate(values, column, times)
-
-  return date ? { kind: 'time', time: date } : null
-}
-
-const toListCell = (
-  values: ExploreCell[],
-  column: ExploreColumn,
-  times: Times
-): ExploreCellModel =>
-  values.length ? toListText(values, column, times) : { kind: 'none' }
-
-/** An object alone, or a list of just one, shows as that object; objects in a longer list read inline in it. */
-const toValuesCell = (
-  values: ExploreCell[],
-  column: ExploreColumn,
-  times: Times
-): ExploreCellModel => {
-  const [only] = values
-
-  if (values.length === 1 && isObject(only)) {
-    return toObjectCell(only)
-  }
-
-  return toTimeCell(values, column, times) ?? toListCell(values, column, times)
-}
-
-const isEmptyList = (cell: ExploreCell | undefined): boolean =>
-  Array.isArray(cell) && cell.length === 0
-
-const toCell = (
-  cell: ExploreCell | undefined,
-  column: ExploreColumn,
-  times: Times
-): ExploreCellModel => {
-  if (isEmptyList(cell)) {
-    return { kind: 'text', text: '[]', more: null }
-  }
-
-  return toValuesCell([cell ?? []].flat(), column, times)
-}
-
 const eventServices = { GAS: 'gas', CW: 'caseworking' }
 
-/** Each record a row can name, as the link its page is found by. */
-const links: ByKind<ExploreOpen, [], BucketLink> = {
+/** Each record a row can name: the link its page is found by, what opening it says, and which record it is. */
+interface Opening {
+  link: BucketLink
+  text: string
+  which: string
+}
+
+const openings: ByKind<ExploreOpen, [], Opening> = {
   application: ({ code, ref }) => ({
-    kind: 'application',
-    code,
-    clientRef: ref
+    link: { kind: 'application', code, clientRef: ref },
+    text: 'Open application',
+    which: ref
   }),
-  case: ({ code, ref }) => ({ kind: 'case', workflowCode: code, caseRef: ref }),
-  grant: ({ code, version }) => ({ kind: 'grant', code, version }),
-  workflow: ({ code, version }) => ({ kind: 'workflow', code, version }),
+  case: ({ code, ref }) => ({
+    link: { kind: 'case', workflowCode: code, caseRef: ref },
+    text: 'Open case',
+    which: ref
+  }),
+  grant: ({ code, version }) => ({
+    link: { kind: 'grant', code, version },
+    text: 'Open grant version',
+    which: `${code} ${version}`
+  }),
+  workflow: ({ code, version }) => ({
+    link: { kind: 'workflow', code, version },
+    text: 'Open workflow version',
+    which: `${code} ${version}`
+  }),
   event: ({ service, box, id }) => ({
-    kind: 'event',
-    service: eventServices[service],
-    box,
-    id
+    link: { kind: 'event', service: eventServices[service], box, id },
+    text: 'Open event',
+    which: id
   })
 }
 
-const toLink = (open: ExploreOpen): BucketLink =>
-  (links[open.kind] as (o: ExploreOpen) => BucketLink)(open)
+const toOpening = (open: ExploreOpen): Opening =>
+  (openings[open.kind] as (o: ExploreOpen) => Opening)(open)
+
+const toLink = (open: ExploreOpen): BucketLink => toOpening(open).link
 
 const toRowsHref = (open: ExploreOpen | null, back: string): string | null =>
   open ? toRowHref(toLink(open), back) : null
@@ -460,11 +354,31 @@ const toRowsHref = (open: ExploreOpen | null, back: string): string | null =>
 const isRight = ({ kind, aggregate }: ExploreColumn): boolean =>
   kind === 'number' || aggregate
 
+const idPath = '_id'
+
+const isId = (column: ExploreColumn | undefined): boolean =>
+  column?.path === idPath
+
+const isDotted = (path: string | null): path is string =>
+  path?.includes('.') ?? false
+
+/** A dotted stored path heads its column as a path; any other heading is its label. */
+const toHeading = ({ label, path }: ExploreColumn) =>
+  isDotted(path) ? { label: path, path: true as const } : { label }
+
+/** A first column sticks unless it is a listed `_id`, which is one value among others. */
+const isSticky = (column: ExploreColumn, n: number): boolean =>
+  n === 0 && !isId(column)
+
+/** Every column an equal share, as the Events list's, an `_id` too, so the columns stay still as Keep looking adds rows; narrower than 160px each, the table scrolls sideways and CutText cuts what doesn't fit. */
 const toColumns = (columns: ExploreColumn[]): ExploreColumnModel[] =>
-  columns.map((column) => ({
+  columns.map((column, n) => ({
     key: column.key,
-    label: column.label,
-    ...(isRight(column) ? { align: 'right' as const } : {})
+    ...toHeading(column),
+    width: 'minmax(160px, 1fr)' as const,
+    ...(isSticky(column, n) ? { max: 40 as const } : {}),
+    ...(isRight(column) ? { align: 'right' as const } : {}),
+    ...(isId(column) ? { mono: true as const } : {})
   }))
 
 const toNoun = (source: ExploreSource, n: number): string =>
@@ -479,14 +393,31 @@ const toRowNoun = ({ source, unwound }: ExploreAnswer, n: number): string => {
   return toNoun(source, n)
 }
 
+type Count = NonNullable<ExploreAnswer['count']>
+
+/** How many rows the count says there are: records past the most it counts have no end. */
+const counteds: Record<ExploreAnswer['mode'], (count: Count) => number> = {
+  rows: ({ n, capped }) => (capped ? Infinity : n),
+  groups: ({ groups }) => groups ?? 0,
+  distinct: ({ groups }) => groups ?? 0,
+  count: () => 0
+}
+
+const countedOf = ({ mode, count }: ExploreAnswer): number =>
+  count === null ? 0 : counteds[mode](count)
+
+/** The rows are only the first of what the count counts. */
+const isCut = (answer: ExploreAnswer): boolean =>
+  answer.rows.length < countedOf(answer)
+
 const counted = (n: number, capped: boolean): string =>
-  `${numberFormat.format(n)}${capped ? '+' : ''}`
+  `${toNumberText(n)}${capped ? '+' : ''}`
 
 /** The count, then, when the rows are only the first of what it counts, how many they are. */
-const withFirst = (
-  total: string,
-  { shown, cut }: { shown: number; cut: boolean }
-): string => (cut ? `${total}, the first ${numberFormat.format(shown)}` : total)
+const withFirst = (total: string, answer: ExploreAnswer): string =>
+  isCut(answer)
+    ? `${total}, the first ${toNumberText(answer.rows.length)}`
+    : total
 
 const groupNouns = {
   groups: ['group', 'groups'],
@@ -494,29 +425,26 @@ const groupNouns = {
 }
 
 /** How many groups, or distinct values, there are in all, and when the rows are only the first. */
-const toGroups = (
-  { rows, count }: ExploreAnswer,
-  [one, many]: string[]
-): string => {
-  const groups = count?.groups ?? rows.length
+const toGroups = (answer: ExploreAnswer, [one, many]: string[]): string => {
+  const groups = answer.count?.groups ?? answer.rows.length
 
   return withFirst(
-    `${numberFormat.format(groups)} ${groups === 1 ? one : many}`,
-    { shown: rows.length, cut: rows.length < groups }
+    `${toNumberText(groups)} ${groups === 1 ? one : many}`,
+    answer
   )
 }
 
 const toSoFar = (source: ExploreSource, found: number): string =>
-  `${numberFormat.format(found)} ${toNoun(source, found)} found so far`
+  `${toNumberText(found)} ${toNoun(source, found)} found so far`
 
 const toTotal = (
   answer: ExploreAnswer,
   { n, capped }: { n: number; capped: boolean }
 ): string =>
-  withFirst(`${counted(n, capped)} ${toRowNoun(answer, capped ? 2 : n)}`, {
-    shown: answer.rows.length,
-    cut: answer.rows.length < n || capped
-  })
+  withFirst(
+    `${counted(n, capped)} ${toRowNoun(answer, capped ? 2 : n)}`,
+    answer
+  )
 
 const toRowsCount = (answer: ExploreAnswer, found: number): string =>
   answer.count === null
@@ -539,11 +467,39 @@ const toCount = (answer: ExploreAnswer, found: number): string | null =>
 
 type Window = NonNullable<ExploreAnswer['window']>
 
-const recordsOf = (n: number): string =>
-  `${numberFormat.format(n)} ${n === 1 ? 'record' : 'records'}`
+/** Its `_id` as a query writes it, and a link to its page where it has one. */
+const toSkippedRecord = (
+  { open, id }: ExploreSkipped,
+  back: string
+): SkippedRecord => {
+  const href = toRowsHref(open, back)
 
-const toNote = ({ skipped }: Window) =>
-  skipped ? `${recordsOf(skipped)} too large to search.` : null
+  if (open === null || href === null) {
+    return { id: toIdText(id), open: null }
+  }
+
+  const { text, which } = toOpening(open)
+
+  return {
+    id: toIdText(id),
+    open: { text, label: `${text} ${which}`, href }
+  }
+}
+
+/** Not searched, so not known to match: every one, by its `_id`. */
+const toNote = ({ skipped }: Window, run: Run): SkippedNote | null => {
+  if (!skipped.length) {
+    return null
+  }
+
+  const back = toWindowRestore(run, run.page)
+  const they = skipped.length === 1 ? 'it' : 'they'
+
+  return {
+    text: `${recordsOf(skipped.length)} too large to search, so ${they} may or may not match:`,
+    records: skipped.map((record) => toSkippedRecord(record, back))
+  }
+}
 
 const toKeepLooking = ({ id, page }: Run): KeepLookingForm => ({
   action: explorePath,
@@ -562,7 +518,6 @@ const toLimit = (window: Window, times: Times): string =>
     window.to === null
       ? null
       : `Searched back to ${toTime(new Date(window.to), times).text}.`,
-    toNote(window),
     noFurther
   ]
     .filter((part) => part !== null)
@@ -581,11 +536,12 @@ const toWindowRestore = (run: Run, page: number): string =>
 const toKeepLookingFooter = (
   window: Window,
   run: Run,
-  times: Times
+  times: Times,
+  note: SkippedNote | null
 ): ExploreFooter => {
   const way = {
     form: toKeepLooking(run),
-    note: toNote(window),
+    note,
     restoreHref: toWindowRestore(run, run.page)
   }
 
@@ -598,13 +554,18 @@ const toKeepLookingFooter = (
       }
 }
 
-const toEnd = (text: string, run: Run): ExploreFooter => ({
+const toEnd = (
+  text: string,
+  run: Run,
+  note: SkippedNote | null
+): ExploreFooter => ({
   state: 'end',
   text,
+  note,
   restoreHref: toWindowRestore(run, run.page)
 })
 
-/** Where a window stopped, and the way on, unless it reached the end or the last window a run reads. */
+/** Where a window stopped, and the way on, unless it reached the end or the last window a run reads; every state says the records it skipped. */
 const toFooter = (
   { window }: ExploreAnswer,
   run: Run,
@@ -614,13 +575,15 @@ const toFooter = (
     return null
   }
 
+  const note = toNote(window, run)
+
   if (window.end) {
-    return toEnd('Searched everything.', run)
+    return toEnd('Searched everything.', run, note)
   }
 
   return atLimit(window, run)
-    ? toEnd(toLimit(window, times), run)
-    : toKeepLookingFooter(window, run, times)
+    ? toEnd(toLimit(window, times), run, note)
+    : toKeepLookingFooter(window, run, times, note)
 }
 
 /** A restore GAS stopped before the window its address asked for may pass, so Retry. */
@@ -652,7 +615,7 @@ const toEmpty = ({ source, window }: ExploreAnswer, run: Run) => {
 }
 
 type NothingShown = Pick<ExploreResults, 'empty' | 'footer'>
-type Empty = Omit<ExploreEmpty, 'keepLooking'>
+type Empty = Omit<ExploreEmpty, 'keepLooking' | 'note'>
 
 /** How a footer's Keep looking moves to the empty state: the footer keeps how far back it searched, if it says it. */
 const keepLookingMoves: {
@@ -662,15 +625,11 @@ const keepLookingMoves: {
   ) => NothingShown
 } = {
   searched: (empty, footer) => ({
-    empty: { ...empty, keepLooking: footer.form },
+    empty: { ...empty, note: null, keepLooking: footer.form },
     footer: { ...footer, form: null }
   }),
   more: (empty, { form, note }) => ({
-    empty: {
-      ...empty,
-      text: [empty.text, note].filter(Boolean).join(' '),
-      keepLooking: form
-    },
+    empty: { ...empty, note, keepLooking: form },
     footer: null
   })
 }
@@ -689,7 +648,7 @@ const toNothingShown = (
         empty,
         footer
       )
-    : { empty: { ...empty, keepLooking: null }, footer }
+    : { empty: { ...empty, note: null, keepLooking: null }, footer }
 }
 
 const capitalise = (text: string): string =>
@@ -750,13 +709,15 @@ const toResults = (
 ): ExploreResults => {
   const places = toPlaces(run, answer.rows.length)
   const footer = toRestoredFooter(answer, run, times)
+  const { columns } = answer
 
   return {
     label: capitalise(answer.source.name),
     count: toCount(answer, toFound(previous, answer.rows.length)),
     arrived,
     csv: toCsv(run),
-    columns: toColumns(answer.columns),
+    idFirst: isId(columns[0]),
+    columns: toColumns(columns),
     unseen: toUnseen(answer.unseen),
     rows: answer.rows.map((row, n) => {
       const id = toRowId(places[n])
@@ -771,8 +732,8 @@ const toResults = (
                 `${toWindowRestore(run, places[n].page)}#${id}`
               )
             : null,
-        cells: answer.columns.map((column) =>
-          toCell(row.cells[column.key], column, times)
+        cells: columns.map((column) =>
+          toCell(row.cells[column.key], column, times, isId(column))
         )
       }
     }),
@@ -831,6 +792,7 @@ const toLaterWindowFailure = (
   count: null,
   arrived: false,
   csv: toCsv(run),
+  idFirst: false,
   columns: [],
   rows: [],
   unseen: null,
@@ -927,6 +889,7 @@ export const toExplorePage = (input: ExplorePageInput): ExplorePage => {
 const failureCodes: Record<ExploreFailure['kind'], number> = {
   invalid: statusCodes.badRequest,
   refused: statusCodes.badRequest,
+  'too-large': statusCodes.badRequest,
   'too-slow': statusCodes.serviceUnavailable,
   busy: statusCodes.tooManyRequests,
   full: statusCodes.tooManyRequests,

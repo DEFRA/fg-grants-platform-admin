@@ -50,7 +50,11 @@ export const watchScroll = (scroll: HTMLElement) => {
   const ro = new ResizeObserver(check);
   ro.observe(scroll);
   const first = scroll.firstElementChild;
-  if (first) ro.observe(first);
+  if (first)
+    for (const el of getComputedStyle(first).display === "contents"
+      ? Array.from(first.children)
+      : [first])
+      ro.observe(el);
   check();
   const follow = () => followHeader(scroll);
   addEventListener("scroll", follow, { capture: true, passive: true });

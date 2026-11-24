@@ -7,6 +7,7 @@ export type Placement = {
   align?: Align;
   gap?: number;
   minRows?: number;
+  fit?: boolean;
 };
 
 const margin = 8;
@@ -108,7 +109,7 @@ const correct = (panel: HTMLElement, left: number, top: number) => {
   }
 };
 
-const defaults: Required<Omit<Placement, "minRows">> = {
+const defaults: Required<Omit<Placement, "minRows" | "fit">> = {
   side: "bottom",
   align: "start",
   gap: 4,
@@ -120,6 +121,7 @@ export const place = (
   placement: Placement = {},
 ) => {
   const { side, align, gap, minRows } = { ...defaults, ...placement };
+  const fit = placement.fit !== false;
   const rect = anchor.getBoundingClientRect();
 
   panel.classList.add("is-placed");
@@ -130,7 +132,7 @@ export const place = (
   const room = roomBeside(rect, gap);
   const least = shortest(panel, minRows);
   const at = toSide(side, minRows ? least : panel.offsetHeight, room);
-  const height = fitHeight(panel, room[at], least);
+  const height = fit ? fitHeight(panel, room[at], least) : panel.offsetHeight;
   const left = toLeft(rect, panel.offsetWidth, toEdge(anchor, align));
   const top = toTop(rect, height, at, gap);
 

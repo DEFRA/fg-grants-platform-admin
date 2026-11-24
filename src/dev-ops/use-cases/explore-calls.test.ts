@@ -30,6 +30,9 @@ const connectionError = () =>
 
 const vocabulary = { sources: [] }
 
+const mongodSays =
+  'The argument to $size must be an array, but was of type: missing'
+
 describe('runExplore', () => {
   test('asks GAS to run the query', async () => {
     vi.mocked(queryExplore).mockResolvedValue({} as never)
@@ -60,6 +63,58 @@ describe('runExplore', () => {
         error: { message: 'x', at: -1 }
       }),
       { kind: 'refused', service: 'GAS', message: null }
+    ],
+    [
+      'mongod failing on a stored value, at the expression it failed on',
+      responseError(400, {
+        reason: 'QUERY_REFUSED',
+        refusal: 'MONGOD_ERROR',
+        service: 'CW',
+        message: mongodSays,
+        error: { message: mongodSays, at: 40, end: 60 }
+      }),
+      { kind: 'invalid', error: { message: mongodSays, at: 40, end: 60 } }
+    ],
+    [
+      'mongod failing with no place',
+      responseError(400, {
+        reason: 'QUERY_REFUSED',
+        refusal: 'MONGOD_ERROR',
+        message: mongodSays
+      }),
+      { kind: 'refused', service: 'GAS', message: mongodSays }
+    ],
+    [
+      'cells too large to show together',
+      responseError(400, {
+        reason: 'QUERY_REFUSED',
+        refusal: 'CELLS_TOO_LARGE',
+        service: 'GAS',
+        message:
+          'These cells are too large to show together. Name fewer paths or set a lower .limit()'
+      }),
+      {
+        kind: 'too-large',
+        service: 'GAS',
+        message:
+          'These cells are too large to show together. Name fewer paths or set a lower .limit()'
+      }
+    ],
+    [
+      'Caseworking’s answer too large to read',
+      responseError(400, {
+        reason: 'QUERY_REFUSED',
+        refusal: 'ANSWER_TOO_LARGE',
+        service: 'CW',
+        message:
+          'This answer is too large: set a lower .limit() or name fewer paths'
+      }),
+      {
+        kind: 'too-large',
+        service: 'CW',
+        message:
+          'This answer is too large: set a lower .limit() or name fewer paths'
+      }
     ],
     [
       'a refusal',

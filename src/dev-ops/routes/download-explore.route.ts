@@ -45,7 +45,7 @@ const draw = (request: Request, h: ResponseToolkit, page: ExplorePageData) => {
     .code(toExploreStatusCode(input))
 }
 
-/** The run's rows from the top to the furthest window read, read again as their own query, as a file; GAS marks one partial when a window ended early. */
+/** The run's rows from the top to the furthest window read, read again as their own query, as a file that says which limit, if any, stopped it. */
 export const downloadExploreRoute: ServerRoute = {
   method: 'POST',
   path: exploreCsvPath,

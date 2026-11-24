@@ -14,11 +14,13 @@ export interface ExploreColumn {
   label: string
   kind: ExploreKind
   aggregate: boolean
+  /** The stored path of a plain-path column, `_id` among them; null for a name the query gives or a worked-out value. */
+  path: string | null
 }
 
 export type ExploreValue = string | number
 
-/** An object, written inline as mongosh prints it; GAS sends a name object as its name instead. */
+/** An object, written inline as mongosh prints it, whole. */
 export interface ExploreObject {
   text: string
 }
@@ -44,6 +46,12 @@ export interface ExploreRow {
 /** Opaque to this app: held in the session and sent back as it came. */
 export type ExplorePositions = string
 
+/** A record too large to search: the record it opens, and its `_id` as base64 BSON of `{ _id }`. */
+export interface ExploreSkipped {
+  open: ExploreOpen | null
+  id: string
+}
+
 export interface ExploreWindow {
   /** The ISO time searched back to; null when the window read nothing. */
   to: string | null
@@ -51,7 +59,7 @@ export interface ExploreWindow {
   end: boolean
   positions: ExplorePositions | null
   /** Records the window passed over as too large to search. */
-  skipped?: number
+  skipped: ExploreSkipped[]
 }
 
 /** `name` is the source as FROM names it, `noun` one of its records. */
@@ -82,6 +90,27 @@ export interface ExploreAnswer {
   windowRows?: number[]
   /** With `windows`: the window after the last read, which failed; the rows before it stand. */
   stopped?: ExploreStop | null
+  /** With `csv`: where the download stopped short, if it did. */
+  download?: ExploreDownload | null
+}
+
+/**
+ * Why a download holds less than its query found: its row limit, its
+ * deadline, its windows, its size, or a later window that couldn't be read.
+ */
+export type ExploreDownloadStop =
+  | 'rows'
+  | 'time'
+  | 'windows'
+  | 'bytes'
+  | 'error'
+
+/** `rows`: the row limit the download ran with, a limit the query typed included. */
+export interface ExploreDownload {
+  rows: number
+  stopped: ExploreDownloadStop | null
+  /** The ISO time it searched back to, when known. */
+  searchedTo: string | null
 }
 
 /** Why GAS read no further windows: `TOO_MANY_CELLS` when the next wouldn't fit in one answer. */
@@ -116,7 +145,7 @@ export interface VocabularyValue {
 /** A stored path a query may name, as the definitions type it. */
 export interface VocabularyPath {
   path: string
-  type?: 'text' | 'number' | 'boolean' | 'date'
+  type?: 'text' | 'number' | 'boolean' | 'date' | 'objectId'
   indexed: boolean
   /** A closed path's values, most used first. */
   values?: VocabularyValue[]
