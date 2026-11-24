@@ -485,9 +485,17 @@ describe('the workflow Raw tab', () => {
 
     const { $ } = await viewPage(`${path}?tab=raw`)
 
-    expect(flatten(part($, 'version-raw').find('.gpa-card-head').text())).toBe(
-      'workflow.json'
+    const card = part($, 'version-raw')
+
+    expect(flatten(card.find('.gpa-card-head h2').text())).toBe('workflow.json')
+    expect(card.find('.gpa-card-head gpa-copy').attr('data-value')).toBe(
+      JSON.stringify(raw, null, 2)
     )
+    expect(flatten(card.find('.gpa-card-head gpa-copy').text())).toBe('Copy')
+    expect(card.find('pre.gpa-code-pre').hasClass('gpa-code-coloured')).toBe(
+      true
+    )
+    expect(card.find('.gpa-code-key').first().text()).toBe('"code"')
     expect(part($, 'version-raw').find('pre.gpa-code-pre > div')).toHaveLength(
       JSON.stringify(raw, null, 2).split('\n').length
     )

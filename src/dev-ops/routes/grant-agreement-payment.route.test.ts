@@ -267,6 +267,13 @@ describe('the grant Agreement tab', () => {
     expect(raw.find('.gpa-code.gpa-code-framed pre').text()).toContain(
       '"agreementNumberPrefix": "WC"'
     )
+    expect(raw.find('pre').hasClass('gpa-code-coloured')).toBe(true)
+    expect(
+      raw
+        .find('.gpa-code-key')
+        .toArray()
+        .map((key) => $(key).text())
+    ).toContain('"agreementNumberPrefix"')
   })
 
   test('warns when a service it names has no URL, and marks the endpoint', async () => {
@@ -334,6 +341,9 @@ describe('the grant Agreement tab', () => {
     expect(
       part($, 'agreement-raw-card').find('.gpa-card-head').text()
     ).toContain('Raw agreement definition (JSON)')
+    expect(
+      part($, 'agreement-raw-card').find('pre').hasClass('gpa-code-coloured')
+    ).toBe(true)
     expect(part($, 'agreement-facts')).toHaveLength(0)
   })
 
@@ -404,6 +414,12 @@ describe('the grant Payment tab', () => {
     )
     expect(part($, 'payment-raw').find('pre').text()).toContain(
       '"code": "woodland"'
+    )
+    expect(
+      part($, 'payment-raw').find('pre').hasClass('gpa-code-coloured')
+    ).toBe(true)
+    expect(part($, 'payment-raw').find('.gpa-code-str').text()).toContain(
+      '"woodland"'
     )
   })
 

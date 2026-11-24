@@ -662,8 +662,17 @@ describe('the grant Raw tab', () => {
     const { $ } = await viewPage(`${path}?tab=raw`)
     const raw = part($, 'version-raw')
 
-    expect(flatten(raw.find('.gpa-card-head').text())).toBe('grant.json')
+    expect(flatten(raw.find('.gpa-card-head h2').text())).toBe('grant.json')
+    expect(raw.find('.gpa-card-head gpa-copy').attr('data-value')).toBe(
+      JSON.stringify(definition, null, 2)
+    )
+    expect(flatten(raw.find('.gpa-card-head gpa-copy').text())).toBe('Copy')
     expect(raw.find('pre.gpa-code-pre').attr('aria-label')).toBe('grant.json')
+    expect(raw.find('pre.gpa-code-pre').hasClass('gpa-code-coloured')).toBe(
+      true
+    )
+    expect(raw.find('.gpa-code-key').first().text()).toBe('"code"')
+    expect(raw.find('.gpa-code-str').first().text()).toBe('"woodland-creation"')
     expect(
       raw
         .find('pre.gpa-code-pre > div')

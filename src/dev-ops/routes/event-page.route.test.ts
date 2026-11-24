@@ -390,6 +390,15 @@ describe('Loaded: a dead letter, every attempt the same', () => {
     expect(by($, 'event-payload').find('pre').text()).toContain(
       '"clientRef": "ref-e2e-005"'
     )
+    expect(
+      by($, 'event-payload').find('pre').hasClass('gpa-code-coloured')
+    ).toBe(true)
+    expect(
+      by($, 'event-payload')
+        .find('.gpa-code-key')
+        .toArray()
+        .map((key) => $(key).text())
+    ).toContain('"clientRef"')
     expect(by($, 'event-edit').attr('href')).toBe(`${fromList}&edit=payload`)
     expect(by($, 'event-edited')).toHaveLength(0)
     expect(by($, 'event-original-toggle')).toHaveLength(0)
@@ -515,6 +524,9 @@ describe('Edited and previously purged', () => {
     expect(by($, 'event-original').find('pre').text()).toContain(
       '"ref-e2e-005"'
     )
+    expect(
+      by($, 'event-original').find('pre').hasClass('gpa-code-coloured')
+    ).toBe(true)
   })
 })
 

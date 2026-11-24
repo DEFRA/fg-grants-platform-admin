@@ -628,6 +628,9 @@ describe('Review', () => {
     expect(by($, 'event-current-payload').attr('class')).toContain(
       'gpa-maxh-240'
     )
+    expect(
+      by($, 'event-current-payload').find('pre').hasClass('gpa-code-coloured')
+    ).toBe(true)
   })
 
   test('a one-line edit to a long payload: the diff compares only what changed', async () => {
@@ -1152,6 +1155,8 @@ describe('Save', () => {
 
     expect(statusCode).toBe(statusCodes.serviceUnavailable)
     expect(kept.find('pre').text()).toContain('ref-e2e-005-r2')
+    expect(kept.find('pre').hasClass('gpa-code-coloured')).toBe(true)
+    expect(kept.find('.gpa-code-str').text()).toContain('"ref-e2e-005-r2"')
     expect(flat(kept.find('dd').text())).toBe('Pointed at the resubmission')
     expect(flat(by($, 'event-kept-held').find('.gpa-alert-title').text())).toBe(
       'Save status unknown — GAS timed out.'
