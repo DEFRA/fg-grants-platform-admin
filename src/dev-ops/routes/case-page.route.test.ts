@@ -1,3 +1,4 @@
+import { EJSON } from 'bson'
 import { load, type CheerioAPI } from 'cheerio'
 import type { Element } from 'domhandler'
 import type { Server } from '@hapi/hapi'
@@ -8,8 +9,12 @@ import { devOps } from '../index.ts'
 import type { CasePage } from '../use-cases/get-case-page.use-case.ts'
 import { getCasePageUseCase } from '../use-cases/get-case-page.use-case.ts'
 import { shellCatalogue } from '../use-cases/shell-catalogue.ts'
-import { catalogue } from '../use-cases/test-fixtures.ts'
-import { expectTablesStyled } from '../test-utils.ts'
+import {
+  catalogue,
+  storedCase,
+  toStoredBase64
+} from '../use-cases/test-fixtures.ts'
+import { expectTablesStyled, linesOf } from '../test-utils.ts'
 
 vi.mock(import('../use-cases/shell-catalogue.ts'))
 vi.mock(import('../use-cases/get-case-page.use-case.ts'), async () => ({
@@ -717,19 +722,49 @@ describe('the Events tab', () => {
 describe('the Raw tab', () => {
   const rawPath = `${path}?tab=raw`
 
-  test('shows the stored case', async () => {
-    givenTab({ raw: { caseRef: 'gld-ssp-x9v' }, storedBytes: 4096 })
+  test('prints the stored case as stored, every object closed, with Copy', async () => {
+    givenTab({ document: toStoredBase64(storedCase), storedBytes: 4096 })
+
+    const { $ } = await viewPage(rawPath)
+    const card = part($, 'record-raw')
+    const printout = part($, 'record-raw-document')
+    const copied = card.find('.gpa-card-head gpa-copy')
+
+    expect(flatten(copied.text())).toBe('Copy')
+    expect(copied.attr('data-value')).toBe(
+      EJSON.stringify(storedCase, { relaxed: false })
+    )
+    expect(
+      EJSON.parse(copied.attr('data-value') ?? '', { relaxed: false })
+    ).toEqual(storedCase)
+    expect(linesOf($, printout)).toEqual([
+      '{',
+      "  _id: ObjectId('6650c1f2a9e4b1d07c20bd92'),",
+      "  caseRef: 'gld-ssp-x9v',",
+      "  workflowCode: 'woodland',",
+      "  createdAt: ISODate('2026-10-02T10:30:00.000Z'),",
+      "  currentPhase: 'PRE_AWARD',",
+      '  payload: { … 2 fields }',
+      '}'
+    ])
+    expect(printout.find('.gpa-doc-code details:not(.m)')).toHaveLength(2)
+    expect(printout.find('details[open]')).toHaveLength(0)
+  })
+
+  test('says the tab could not be read when the bytes GAS sent are not BSON', async () => {
+    givenTab({ document: Buffer.from('not bson').toString('base64') })
 
     const { $ } = await viewPage(rawPath)
 
-    expect(part($, 'record-raw').find('gpa-copy').attr('data-value')).toBe(
-      JSON.stringify({ caseRef: 'gld-ssp-x9v' }, null, 2)
+    expect(alertOf($, 'record-tab-error').title).toBe(
+      'This tab couldn’t be read.'
     )
+    expect(part($, 'record-raw-document')).toHaveLength(0)
   })
 
   test('says the stored case is too large, with its size (C11)', async () => {
     givenTab({
-      raw: null,
+      document: null,
       storedBytes: 1887437,
       sectionErrors: [{ section: 'raw', message: 'too large to show' }]
     })
@@ -741,9 +776,23 @@ describe('the Raw tab', () => {
     )
   })
 
+  test('says a stored case within the cap has too many values to print', async () => {
+    givenTab({
+      document: null,
+      storedBytes: 784179,
+      sectionErrors: [{ section: 'raw', message: 'too large to show' }]
+    })
+
+    const { $ } = await viewPage(rawPath)
+
+    expect(flatten(part($, 'record-raw').find('.gpa-empty-body').text())).toBe(
+      'The stored case is 765.8 KiB, with too many values to print on a page.'
+    )
+  })
+
   test('says the stored case is too large without a size when GAS sent none (R8)', async () => {
     givenTab({
-      raw: null,
+      document: null,
       storedBytes: null,
       sectionErrors: [{ section: 'raw', message: 'too large to show' }]
     })
@@ -757,7 +806,7 @@ describe('the Raw tab', () => {
 
   test('says the tab could not be read when GAS failed it (R4)', async () => {
     givenTab({
-      raw: null,
+      document: null,
       sectionErrors: [{ section: 'raw', message: 'GAS timed out' }]
     })
 
@@ -807,7 +856,7 @@ describe('the status in the header, on every tab', () => {
     [
       'Raw',
       `${path}?tab=raw`,
-      { overview: undefined, raw: { caseRef: 'gld-ssp-x9v' } }
+      { overview: undefined, document: toStoredBase64(storedCase) }
     ]
   ]
 

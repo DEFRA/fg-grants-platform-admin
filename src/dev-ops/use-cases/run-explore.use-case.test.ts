@@ -1,4 +1,5 @@
 import Boom from '@hapi/boom'
+import { BSON, ObjectId } from 'bson'
 
 import type {
   ExploreAnswer,
@@ -12,7 +13,7 @@ import {
 } from '../repositories/explore.repository.ts'
 import { queryList } from '../repositories/lists.repository.ts'
 import type { ListLook } from './explore-queries.ts'
-import { recentQueries } from './held-runs.ts'
+import { findLiveRun, recentQueries } from './held-runs.ts'
 import { runExploreUseCase } from './run-explore.use-case.ts'
 import type { ExploreWayIn } from './run-explore.use-case.ts'
 import { fullCatalogue, provideMemoryExploreStore } from './test-fixtures.ts'
@@ -45,7 +46,15 @@ const answer = (
   source: { name: 'applications', noun: 'application' },
   mode: 'rows',
   read: 'exact',
-  columns: [{ key: 'c0', label: 'Reference', kind: 'text', aggregate: false }],
+  columns: [
+    {
+      key: 'c0',
+      label: 'Reference',
+      kind: 'text',
+      aggregate: false,
+      path: null
+    }
+  ],
   rows: [{ open: null, cells: { c0: 'wmp-aa1-bb2' } }],
   count: { n: 1, capped: false },
   groups: false,
@@ -61,7 +70,8 @@ const column = (key: string, label: string): ExploreColumn => ({
   key,
   label,
   kind: 'text',
-  aggregate: false
+  aggregate: false,
+  path: null
 })
 
 /** The one row a lookup reads, keyed as GAS keys columns: by their place. */
@@ -132,13 +142,38 @@ describe('runExploreUseCase', () => {
   test('checks a typed query, then holds it, reading nothing yet', async () => {
     expect(await run({ kind: 'typed', q: typed })).toEqual({
       kind: 'held',
-      id: expect.stringMatching(/^[0-9a-f-]{36}$/)
+      id: expect.stringMatching(/^[0-9a-f-]{36}$/),
+      view: 'table'
     })
     expect(checkExplore).toHaveBeenCalledExactlyOnceWith(typed)
     expect(queryExplore).not.toHaveBeenCalled()
     expect(await recentQueries(owner)).toEqual([
       { id: expect.any(String), q: typed }
     ])
+  })
+
+  test.each([
+    ['typed', { kind: 'typed' as const, q: typed, view: 'documents' as const }],
+    [
+      'picked',
+      {
+        kind: 'pick' as const,
+        pick: 'applications',
+        view: 'documents' as const
+      }
+    ]
+  ])('lands a %s run in the view the editor was in', async (_, wayIn) => {
+    expect(await run(wayIn)).toMatchObject({ kind: 'held', view: 'documents' })
+  })
+
+  test('keeps the editor’s view on a query it says is too long', async () => {
+    const outcome = await run({
+      kind: 'typed',
+      q: 'x'.repeat(5000),
+      view: 'documents'
+    })
+
+    expect(outcome).toMatchObject({ kind: 'page', page: { view: 'documents' } })
   })
 
   test('holds the typed query its run reads', async () => {
@@ -278,11 +313,18 @@ describe('runExploreUseCase', () => {
     vi.mocked(queryExplore).mockClear()
 
     expect(
-      await run({ kind: 'window', run: id, page: 3, inPlace: false })
+      await run({
+        kind: 'window',
+        run: id,
+        page: 3,
+        inPlace: false,
+        view: 'documents'
+      })
     ).toEqual({
       kind: 'held',
       id,
-      page: 3
+      page: 3,
+      view: 'documents'
     })
     expect(queryExplore).not.toHaveBeenCalled()
   })
@@ -292,7 +334,12 @@ describe('runExploreUseCase', () => {
       answer({
         read: 'windowed',
         count: null,
-        window: { to: '2026-10-01T00:00:00.000Z', end: false, positions: 'p1' }
+        window: {
+          to: '2026-10-01T00:00:00.000Z',
+          end: false,
+          positions: 'p1',
+          skipped: []
+        }
       })
     )
     const held = await run({ kind: 'typed', q: typed })
@@ -301,7 +348,13 @@ describe('runExploreUseCase', () => {
     vi.mocked(queryExplore).mockClear()
 
     expect(
-      await run({ kind: 'window', run: id, page: 2, inPlace: true })
+      await run({
+        kind: 'window',
+        run: id,
+        page: 2,
+        inPlace: true,
+        view: 'table'
+      })
     ).toMatchObject({ kind: 'page', page: { run: { id, page: 2 } } })
     expect(queryExplore).toHaveBeenCalledExactlyOnceWith({
       query: typed,
@@ -318,8 +371,14 @@ describe('runExploreUseCase', () => {
       vi.mocked(queryExplore).mockClear()
 
       expect(
-        await run({ kind: 'window', run: id, page: 2, inPlace: true })
-      ).toEqual({ kind: 'gone', id })
+        await run({
+          kind: 'window',
+          run: id,
+          page: 2,
+          inPlace: true,
+          view: 'documents'
+        })
+      ).toEqual({ kind: 'gone', id, view: 'documents' })
       expect(queryExplore).not.toHaveBeenCalled()
     }
   )
@@ -666,5 +725,236 @@ describe('runExploreUseCase', () => {
       output: { statusCode: 400 }
     })
     expect(queryExplore).not.toHaveBeenCalled()
+  })
+})
+
+const idOf = (value: unknown): string =>
+  Buffer.from(BSON.serialize({ _id: value })).toString('base64')
+
+const hex = '6741a0c2e4b0f1a2b3c4d5e6'
+
+describe('Show it', () => {
+  const show = (
+    id = idOf(new ObjectId(hex)),
+    at: (number | null)[] = [2, null]
+  ) => ({
+    id,
+    at,
+    service: 'CW' as const,
+    box: 'inbox' as const
+  })
+
+  const heldRun = async (q = typed) =>
+    ((await run({ kind: 'typed', q })) as { id: string }).id
+
+  const shown = async (source: string, row = show(), result = 3) =>
+    (await run({ kind: 'show', run: source, show: row, result })) as {
+      kind: string
+      id: string
+      view: string
+    }
+
+  test('holds the row under its run, asking GAS nothing, to show in Documents', async () => {
+    const source = await heldRun()
+    vi.mocked(queryExplore).mockClear()
+    vi.mocked(checkExplore).mockClear()
+
+    const outcome = await shown(source)
+
+    expect(outcome).toEqual({
+      kind: 'held',
+      id: expect.any(String),
+      view: 'documents'
+    })
+    expect(outcome.id).not.toBe(source)
+    expect(queryExplore).not.toHaveBeenCalled()
+    expect(checkExplore).not.toHaveBeenCalled()
+  })
+
+  test('reads the run’s own query, unchanged, beside the row it shows, numbered as the run numbered it', async () => {
+    const source = await heldRun()
+    const { id } = await shown(source)
+    vi.mocked(queryExplore).mockClear()
+
+    const page = await viewExploreUseCase({
+      owner,
+      run: id,
+      page: 1,
+      view: 'documents'
+    })
+
+    expect(queryExplore).toHaveBeenCalledExactlyOnceWith({
+      query: typed,
+      show: show(),
+      documents: true
+    })
+    expect(page).toMatchObject({
+      kind: 'page',
+      page: { q: typed, run: { id, shown: 3 } }
+    })
+  })
+
+  test('gives each row of a run an address of its own, the same row the same one', async () => {
+    const source = await heldRun()
+    const first = await shown(source)
+    const again = await shown(source)
+    const other = await shown(source, show(idOf(new ObjectId(hex)), [5, null]))
+
+    expect(again.id).toBe(first.id)
+    expect(other.id).not.toBe(first.id)
+  })
+
+  test('holds one Show it a run, the newest replacing the last, whose address then reads as expired', async () => {
+    const source = await heldRun()
+    const first = await shown(source)
+    const second = await shown(source, show(idOf('WMP-2')))
+
+    expect(await findLiveRun(owner, first.id)).toBeNull()
+    expect(await findLiveRun(owner, second.id)).toMatchObject({
+      show: show(idOf('WMP-2'))
+    })
+    expect(
+      await viewExploreUseCase({ owner, run: first.id, page: 1 })
+    ).toMatchObject({ kind: 'page', page: { notice: { kind: 'expired' } } })
+  })
+
+  test('is never in Recent nor counted among the runs held, and goes with its run', async () => {
+    const source = await heldRun()
+    const { id } = await shown(source)
+
+    expect((await recentQueries(owner)).map(({ q }) => q)).toEqual([typed])
+
+    for (let n = 1; n <= 9; n += 1) {
+      await heldRun(`db.applications.find().limit(${n})`)
+    }
+
+    expect(await findLiveRun(owner, source)).not.toBeNull()
+    expect(await findLiveRun(owner, id)).not.toBeNull()
+
+    await heldRun('db.applications.find().limit(10)')
+
+    expect(await findLiveRun(owner, source)).toBeNull()
+    expect(await findLiveRun(owner, id)).toBeNull()
+  })
+
+  test('keeps the source run held however many of its rows Show it opens', async () => {
+    const source = await heldRun()
+
+    for (let n = 0; n < 12; n += 1) {
+      await shown(source, show(idOf(`WMP-${n}`)))
+    }
+
+    expect(await findLiveRun(owner, source)).not.toBeNull()
+  })
+
+  test.each([
+    ['not BSON', 'AAAA'],
+    [
+      'a document with another key',
+      Buffer.from(BSON.serialize({ id: 1 })).toString('base64')
+    ],
+    [
+      'a document of two keys',
+      Buffer.from(BSON.serialize({ _id: 1, a: 2 })).toString('base64')
+    ]
+  ])('refuses a row id that is %s', async (_, id) => {
+    const source = await heldRun()
+
+    await expect(shown(source, show(id))).rejects.toMatchObject({
+      output: { statusCode: 400 }
+    })
+  })
+
+  test('says a run another person holds, or one let go, has expired', async () => {
+    const source = await heldRun()
+
+    expect(
+      await runExploreUseCase({
+        owner: { session: 'session-b', user: 'user-b' },
+        wayIn: { kind: 'show', run: source, show: show(), result: 1 }
+      })
+    ).toMatchObject({ kind: 'page', page: { notice: { kind: 'expired' } } })
+  })
+})
+
+describe('an open in place', () => {
+  const show = {
+    id: idOf(new ObjectId(hex)),
+    at: [],
+    service: null,
+    box: null
+  }
+
+  const heldRun = async () =>
+    ((await run({ kind: 'typed', q: typed })) as { id: string }).id
+
+  const open = (source: string, row = show) =>
+    run({ kind: 'open', run: source, show: row, result: 3 })
+
+  test('reads the row now, in one call of the run’s query beside it, its document whole', async () => {
+    const source = await heldRun()
+    vi.mocked(queryExplore).mockClear()
+    vi.mocked(checkExplore).mockClear()
+
+    expect(await open(source)).toEqual({
+      kind: 'opened',
+      run: source,
+      show,
+      result: 3,
+      read: {
+        outcome: 'read',
+        answer: expect.objectContaining({ rows: answer().rows })
+      }
+    })
+    expect(queryExplore).toHaveBeenCalledExactlyOnceWith({
+      query: typed,
+      show,
+      documents: true
+    })
+    expect(checkExplore).not.toHaveBeenCalled()
+  })
+
+  test('writes nothing: no run held, nothing in Recent, the run’s Show it slot as it was', async () => {
+    const store = provideMemoryExploreStore()
+    const source = await heldRun()
+    const kept = structuredClone(new Map(store))
+
+    await open(source)
+
+    expect(new Map(store)).toEqual(kept)
+  })
+
+  test('says how GAS failed, reading nothing more', async () => {
+    const source = await heldRun()
+    vi.mocked(queryExplore).mockClear()
+    vi.mocked(queryExplore).mockRejectedValueOnce(
+      responseError(429, { reason: 'QUERY_BUSY' })
+    )
+
+    expect(await open(source)).toMatchObject({
+      kind: 'opened',
+      read: { outcome: 'failed', failure: { kind: 'busy' } }
+    })
+    expect(queryExplore).toHaveBeenCalledTimes(1)
+    expect(findVocabulary).not.toHaveBeenCalled()
+  })
+
+  test('says a run no longer held, asking GAS nothing', async () => {
+    vi.mocked(queryExplore).mockClear()
+
+    expect(await open('0b6f3e2a-5c1d-4e8f-9a7b-2c3d4e5f6a7b')).toMatchObject({
+      kind: 'opened',
+      read: null
+    })
+    expect(queryExplore).not.toHaveBeenCalled()
+    expect(findVocabulary).not.toHaveBeenCalled()
+  })
+
+  test('refuses a row id that isn’t a record’s { _id }', async () => {
+    const source = await heldRun()
+
+    await expect(open(source, { ...show, id: 'AAAA' })).rejects.toMatchObject({
+      output: { statusCode: 400 }
+    })
   })
 })

@@ -1,10 +1,52 @@
+import { logger } from '../../common/logger.ts'
 import type {
   ApiToken,
+  ClientService,
+  ListFailure,
+  ListResult,
   ListedToken
 } from '../use-cases/access-tokens.use-case.ts'
+import { serviceWords } from './access-token-services.ts'
 import type { ServiceWords } from './access-token-services.ts'
+import { kindOf, readBase64, toEjson, toPrinted } from './explore-bson.ts'
+import type { BsonValue, Stored } from './explore-bson.ts'
 import { toDayTime, toTimes } from './times.ts'
 import type { TimeText } from './times.ts'
+
+/** A listed token with its stored document read. */
+export type ReadToken = ListedToken & { stored: Stored }
+
+/** The list as the page draws it: `unreadable` when a row's stored document isn't BSON. */
+export type ReadList =
+  | { outcome: 'done'; tokens: ReadToken[] }
+  | ListFailure
+  | { outcome: 'unreadable' }
+
+/** Every row's stored document, read once before the page is drawn; one that doesn't read fails the list, logged by kind alone. */
+export const toReadList = (
+  list: ListResult,
+  service: ClientService
+): ReadList => {
+  if (list.outcome !== 'done') {
+    return list
+  }
+
+  try {
+    return {
+      outcome: 'done',
+      tokens: list.tokens.map((token) => ({
+        ...token,
+        stored: readBase64(token.document)
+      }))
+    }
+  } catch (failure) {
+    logger.warn(
+      `A stored ${serviceWords[service].short} token isn’t readable as BSON: ${kindOf(failure)}`
+    )
+
+    return { outcome: 'unreadable' }
+  }
+}
 
 /** What the page calls a token's state: the service's status, with GAS's "expiring soon" split out of active. */
 export type TokenState = 'active' | 'expiring' | 'expired' | 'revoked'
@@ -100,7 +142,9 @@ export interface TokenRow {
   expires: TimeText | null
   expiresAt: string | null
   inUse: boolean
-  document: string
+  /** The stored row as the printout draws it, and as canonical Extended JSON for Copy. */
+  doc: BsonValue
+  ejson: string
   actions: TokenActions
   /** Why Revoke is off: the token in use is never revoked. */
   revokeOff: string | null
@@ -109,7 +153,7 @@ export interface TokenRow {
 /** An expiry is a UK day by rule (it ends at 23:59:59 UK time), so it is written as one whatever Times says; its title names the zone. */
 const ukTimes = toTimes('uk')
 
-const toRow = (token: ListedToken, words: ServiceWords): TokenRow => {
+const toRow = (token: ReadToken, words: ServiceWords): TokenRow => {
   const state = toTokenState(token)
 
   return {
@@ -124,14 +168,15 @@ const toRow = (token: ListedToken, words: ServiceWords): TokenRow => {
         : toDayTime(new Date(token.expiresAt), ukTimes),
     expiresAt: token.expiresAt,
     inUse: token.inUse,
-    document: JSON.stringify(token.stored, null, 2),
+    doc: toPrinted(token.stored),
+    ejson: toEjson(token.stored),
     actions: toActions(token, state),
     revokeOff: token.inUse ? `${words.inUse.calling} Rotate it instead.` : null
   }
 }
 
 export const toTokenRows = (
-  tokens: ListedToken[],
+  tokens: ReadToken[],
   words: ServiceWords
 ): TokenRow[] =>
   tokens.toSorted(toCompareTokens).map((token) => toRow(token, words))

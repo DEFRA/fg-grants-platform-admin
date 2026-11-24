@@ -17,6 +17,7 @@ import { GpaDropdown } from "./molecules/dropdown/web-component.ts";
 import { GpaErrorSummary } from "./molecules/error-summary/web-component.ts";
 import { GpaListPage } from "./templates/list-page/web-component.ts";
 import { GpaLoadMore } from "./molecules/list-footer/web-component.ts";
+import { GpaDocLine } from "./molecules/doc-line/web-component.ts";
 import { GpaPopover } from "./molecules/popover/web-component.ts";
 import { GpaSearchKind } from "./molecules/search-field/web-component.ts";
 import { GpaSegmented } from "./molecules/segmented-control/web-component.ts";
@@ -26,6 +27,7 @@ import { GpaThemeToggle } from "./molecules/theme-toggle/web-component.ts";
 import { GpaToastRegion } from "./molecules/toast-region/web-component.ts";
 import { GpaToast } from "./molecules/toast/web-component.ts";
 import { GpaTooltip } from "./atoms/tooltip/web-component.ts";
+import { GpaCutText } from "./molecules/cut-text/web-component.ts";
 
 const elements: [string, CustomElementConstructor][] = [
   ["gpa-accordion", GpaAccordion],
@@ -34,6 +36,7 @@ const elements: [string, CustomElementConstructor][] = [
   ["gpa-query-editor", GpaQueryEditor],
   ["gpa-confirm", GpaConfirm],
   ["gpa-copy", GpaCopy],
+  ["gpa-cut-text", GpaCutText],
   ["gpa-data-table", GpaDataTable],
   ["gpa-date-picker", GpaDatePicker],
   ["gpa-date-range-chip", GpaDateRangeChip],
@@ -44,6 +47,7 @@ const elements: [string, CustomElementConstructor][] = [
   ["gpa-error-summary", GpaErrorSummary],
   ["gpa-list-page", GpaListPage],
   ["gpa-load-more", GpaLoadMore],
+  ["gpa-doc-line", GpaDocLine],
   ["gpa-popover", GpaPopover],
   ["gpa-search-kind", GpaSearchKind],
   ["gpa-segmented", GpaSegmented],
@@ -165,4 +169,5 @@ export {
   GpaToastRegion,
   GpaToast,
   GpaTooltip,
+  GpaCutText,
 };

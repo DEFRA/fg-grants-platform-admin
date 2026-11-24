@@ -82,8 +82,7 @@ const eventsCopy: EventsCopy = {
 
 const rawCopy = {
   noun: 'application',
-  error: unexpected('stored document'),
-  nothing
+  error: unexpected('stored document')
 }
 
 /** GAS's outbox, filtered to CreateCase: search refs live in the session, so it can't be opened at this reference. */

@@ -1,0 +1,1 @@
+{% for s in segs %}{% set c = gpaDocClass(s[0]) %}{% if c %}<span class="{{ c }}">{{ s[1] }}</span>{% else %}{{ s[1] }}{% endif %}{% endfor %}

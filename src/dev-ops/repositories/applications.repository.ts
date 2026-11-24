@@ -53,8 +53,8 @@ export interface ApplicationPage {
   header: ApplicationHeader
   overview?: ApplicationOverview | null
   events?: RecordEvents | null
-  /** The stored document as stored: answers and metadata are never read here. */
-  raw?: object | null
+  /** Base64 of the stored document's own BSON: answers and metadata are never read here. */
+  document?: string | null
   storedBytes?: number | null
   sourceErrors: SourceError[]
   sectionErrors: RecordSectionError[]

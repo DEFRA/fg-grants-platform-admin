@@ -177,6 +177,10 @@
   {%- set __html %}{% include "./molecules/copy-button/template.njk" %}{% endset -%}
   {{- __html | trim | safe -}}
 {%- endmacro %}
+{% macro CutText(p) -%}
+  {%- set __html %}{% include "./molecules/cut-text/template.njk" %}{% endset -%}
+  {{- __html | trim | safe -}}
+{%- endmacro %}
 {% macro ThemeToggle(p) -%}
   {%- set __html %}{% include "./molecules/theme-toggle/template.njk" %}{% endset -%}
   {{- __html | trim | safe -}}
@@ -243,6 +247,22 @@
 {%- endmacro %}
 {% macro DocItem(p) -%}
   {%- set __html %}{% include "./organisms/doc-item/template.njk" %}{% endset -%}
+  {{- __html | trim | safe -}}
+{%- endmacro %}
+{% macro DocPrintout(p) -%}
+  {%- set __html %}{% include "./molecules/doc-printout/template.njk" %}{% endset -%}
+  {{- __html | trim | safe -}}
+{%- endmacro %}
+{% macro DocSegs1(segs) -%}
+  {%- set __html %}{% include "./molecules/doc-segs1/template.njk" %}{% endset -%}
+  {{- __html | trim | safe -}}
+{%- endmacro %}
+{% macro DocLineRow(p) -%}
+  {%- set __html %}{% include "./molecules/doc-line-row/template.njk" %}{% endset -%}
+  {{- __html | trim | safe -}}
+{%- endmacro %}
+{% macro DocLine(p) -%}
+  {%- set __html %}{% include "./molecules/doc-line/template.njk" %}{% endset -%}
   {{- __html | trim | safe -}}
 {%- endmacro %}
 {% macro Card(p) -%}
@@ -347,6 +367,10 @@
 {%- endmacro %}
 {% macro Section(p) -%}
   {%- set __html %}{% include "./layouts/section/template.njk" %}{% endset -%}
+  {{- __html | trim | safe -}}
+{%- endmacro %}
+{% macro ButtonSlot(p) -%}
+  {%- set __html %}{% include "./layouts/button-slot/template.njk" %}{% endset -%}
   {{- __html | trim | safe -}}
 {%- endmacro %}
 {% macro HiddenField(p) -%}

@@ -1,0 +1,4 @@
+{% macro DocSegs1(segs) -%}
+  {%- set __html %}{% include "./template.njk" %}{% endset -%}
+  {{- __html | trim | safe -}}
+{%- endmacro %}

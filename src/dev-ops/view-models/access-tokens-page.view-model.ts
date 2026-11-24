@@ -1,8 +1,6 @@
 import { statusCodes } from '../../common/status-codes.ts'
 import type {
   ClientService,
-  ListFailure,
-  ListResult,
   ListedToken
 } from '../use-cases/access-tokens.use-case.ts'
 import { toExpiryDay, toUkDate } from './access-token-dates.ts'
@@ -29,7 +27,7 @@ import {
   toRefusalToast,
   toUnavailableAlert
 } from './access-token-messages.ts'
-import type { TokenRow } from './access-token-rows.ts'
+import type { ReadList, ReadToken, TokenRow } from './access-token-rows.ts'
 import { toTokenRows } from './access-token-rows.ts'
 import type { ServiceWords } from './access-token-services.ts'
 import {
@@ -61,7 +59,7 @@ export interface OpenRequest {
 
 export interface AccessTokensPageInput {
   service: ClientService
-  list: ListResult
+  list: ReadList
   now: Date
   prod: boolean
   requested?: OpenRequest
@@ -487,8 +485,10 @@ interface PageAlert {
   focusOnArrival: boolean
 }
 
+type PageListFailure = Exclude<ReadList, { outcome: 'done' }>
+
 const toListAlert = (
-  failure: ListFailure,
+  failure: PageListFailure,
   service: ClientService,
   path: string
 ): PageAlert => ({
@@ -499,7 +499,7 @@ const toListAlert = (
 
 const toAlerts = (input: AccessTokensPageInput, path: string): PageAlert[] => [
   ...listIf(input.list.outcome !== 'done', () =>
-    toListAlert(input.list as ListFailure, input.service, path)
+    toListAlert(input.list as PageListFailure, input.service, path)
   ),
   ...listIf(input.notice?.alert, () => ({
     ...(input.notice?.alert as TokenAlert),
@@ -528,15 +528,15 @@ const toToasts = (
   return toast ? [toast] : []
 }
 
-const tokensOf = (list: ListResult): ListedToken[] | null =>
+const tokensOf = (list: ReadList): ReadToken[] | null =>
   list.outcome === 'done' ? list.tokens : null
 
 /** What the page is drawn whole without: a write's answer GAS couldn't list beside. */
-const drawnWithout = new Set<ListResult['outcome']>(['done', 'unlisted'])
+const drawnWithout = new Set<ReadList['outcome']>(['done', 'unlisted'])
 
-/** 503 for a list that couldn't be read, as a record that couldn't; a token issued beside no list is no failure. */
-export const toListStatus = (list: ListResult): number =>
-  drawnWithout.has(list.outcome)
+/** 503 for a list that couldn't be read, as a record that couldn't; a token issued beside no list it can draw is no failure. */
+export const toListStatus = (list: ReadList, issued = false): number =>
+  issued || drawnWithout.has(list.outcome)
     ? statusCodes.ok
     : statusCodes.serviceUnavailable
 

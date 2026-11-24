@@ -1,0 +1,17 @@
+.gpa-btnslot {
+  display: inline-flex;
+  justify-content: flex-end;
+  align-items: center;
+}
+.gpa-btnslot-start {
+  justify-content: flex-start;
+}
+.gpa-btnslot-sm {
+  min-width: 96px;
+}
+.gpa-btnslot-md {
+  min-width: 120px;
+}
+.gpa-btnslot-lg {
+  min-width: 140px;
+}

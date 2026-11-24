@@ -1,2 +1,2 @@
-{%- from "../../core/macros.njk" import cls -%}
-<li class="{{ cls('gpa-doc-item', p) }}"{% if p.id %} id="{{ p.id }}"{% endif %}{% if p.restoreHref %} data-restore-href="{{ p.restoreHref }}"{% endif %}>{{ caller() }}</li>
+{%- from "../../core/macros.njk" import attrs, cls -%}
+<li class="{{ cls('gpa-doc-item', p) }}"{% if p.id %} id="{{ p.id }}"{% endif %}{% if p.restoreHref %} data-restore-href="{{ p.restoreHref }}"{% endif %}{{ attrs(p) }}>{{ caller() }}</li>

@@ -8,3 +8,10 @@
 .gpa-form-wide {
   max-width: none;
 }
+.gpa-form-inline {
+  display: inline-flex;
+  flex-direction: row;
+  align-items: center;
+  gap: var(--gap-inline-md);
+  max-width: none;
+}

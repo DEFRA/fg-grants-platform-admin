@@ -16,7 +16,8 @@ describe('toQuoted', () => {
   test.each([
     ['Hilltop Farm', "'Hilltop Farm'"],
     ["O'Brien", "'O\\'Brien'"],
-    ['a\\b', "'a\\\\b'"]
+    ['a\\b', "'a\\\\b'"],
+    ['two\nlines', "'two\\\nlines'"]
   ])('quotes %s as the language reads it back', (value, quoted) => {
     expect(toQuoted(value)).toBe(quoted)
   })

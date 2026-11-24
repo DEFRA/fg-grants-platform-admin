@@ -97,7 +97,7 @@ const eventsCopy: EventsCopy = {
 /** Overview and Raw fail in the Events tab's words, with the tab's title the application's page uses. */
 const tabError = { title: 'This tab couldn’t be read.', text: unexpectedText }
 
-const rawCopy = { noun: 'case', error: tabError, nothing }
+const rawCopy = { noun: 'case', error: tabError }
 
 const noDataAlert: RecordAlert = {
   title: 'CW returned no data for this case.',

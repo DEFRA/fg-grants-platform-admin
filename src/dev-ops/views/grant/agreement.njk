@@ -20,7 +20,7 @@
       {{ gpa.Text({ text: view.fallback, tone: 'muted', as: 'p', testId: 'agreement-fallback' }) }}
     {%- endif -%}
     {%- call gpa.Card({ title: 'Raw agreement definition (JSON)', testId: 'agreement-raw-card' }) -%}
-      {{ gpa.Code({ block: true, code: view.raw, label: 'Raw agreement definition' }) }}
+      {{ gpa.Code({ block: true, code: view.raw, label: 'Raw agreement definition', language: 'json' }) }}
     {%- endcall -%}
   {%- endcall -%}
 {%- else -%}
@@ -141,7 +141,7 @@
     {%- endcall -%}
 
     {%- call gpa.Disclosure({ text: 'Show raw agreement definition (JSON)', hideText: 'Hide raw agreement definition', testId: 'agreement-raw' }) -%}
-      {{ gpa.Code({ block: true, framed: true, code: view.raw, label: 'Raw agreement definition' }) }}
+      {{ gpa.Code({ block: true, framed: true, code: view.raw, label: 'Raw agreement definition', language: 'json' }) }}
     {%- endcall -%}
   {%- endcall -%}
 {%- endif -%}

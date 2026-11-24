@@ -22,6 +22,7 @@ import {
   rotateAccessTokenUseCase
 } from './access-tokens.use-case.ts'
 import { generateToken } from './generate-token.ts'
+import { storedTokenDocument } from './test-fixtures.ts'
 
 vi.mock(import('../repositories/clients.repository.ts'), async (original) => ({
   ...(await original()),
@@ -50,7 +51,7 @@ const token: ListedToken = {
   revokedBy: null,
   inUse: false,
   expiringSoon: false,
-  stored: { _id: { $oid: '6650c1f2a9e4b1d07c20bd91' }, id: 'a1b••••••f2c' }
+  document: storedTokenDocument()
 }
 
 const key: TokenKey = {

@@ -1,14 +1,17 @@
+import { EJSON, ObjectId } from 'bson'
 import { load } from 'cheerio'
 import type { CheerioAPI } from 'cheerio'
 import type { Request, ResponseToolkit, Server } from '@hapi/hapi'
 
 import { config } from '../../common/config.ts'
+import { logger } from '../../common/logger.ts'
 import { createServer } from '../../server/index.ts'
 import { devOps } from '../index.ts'
 import {
   closeHrefOf,
   expectTablesStyled,
   isOpenWithoutScript,
+  linesOf,
   resetsOnOpen,
   tableStyles
 } from '../test-utils.ts'
@@ -25,6 +28,7 @@ import {
   revokeAccessTokenUseCase,
   rotateAccessTokenUseCase
 } from '../use-cases/access-tokens.use-case.ts'
+import { storedToken, storedTokenDocument } from '../use-cases/test-fixtures.ts'
 
 vi.mock(import('../repositories/lists.repository.ts'))
 vi.mock(import('../use-cases/shell-catalogue.ts'))
@@ -61,11 +65,10 @@ const token = (fields: Partial<ListedToken> = {}): ListedToken => ({
   revokedBy: null,
   inUse: false,
   expiringSoon: false,
-  stored: {
-    _id: { $oid: fields.tokenId ?? '6650c1f2a9e4b1d07c20bd91' },
-    id: 'a1b••••••f2c',
+  document: storedTokenDocument({
+    _id: new ObjectId(fields.tokenId ?? '6650c1f2a9e4b1d07c20bd91'),
     clientId: fields.clientId ?? 'grants-ui'
-  },
+  }),
   ...fields
 })
 
@@ -126,6 +129,12 @@ const cwTokens: ListedToken[] = [
   }),
   token({ tokenId: ids.active, clientId: 'fg-cw-frontend', tokenHint: '52aa' })
 ]
+
+/** A row whose stored document isn't BSON: its length runs past its bytes. */
+const unreadableToken = token({
+  tokenId: '6650c1f2a9e4b1d07c20bd9f',
+  document: Buffer.from('not bson').toString('base64')
+})
 
 const listed = (tokens: ListedToken[]): ListResult => ({
   outcome: 'done',
@@ -243,6 +252,17 @@ const choicesOf = ($: CheerioAPI, selector: string) =>
 const tokenPath = (id: string, client = 'grants-ui') =>
   `/dev-ops/clients/gas/${client}/tokens/${id}`
 const drawerOf = ($: CheerioAPI, id: string) => $(`dialog#token-${id}`)
+
+/** A drawer's stored row: its Card and the printout's lines as shown. */
+const storedOf = ($: CheerioAPI, id: string) => {
+  const card = drawerOf($, id).find('[data-testid="token-stored"]')
+
+  return {
+    title: flatten(card.find('.gpa-card-head h2').text()),
+    copy: flatten(card.find('.gpa-card-head gpa-copy').text()),
+    lines: linesOf($, card.find('[data-testid="token-document"]'))
+  }
+}
 const listAlertText = ($: CheerioAPI) =>
   flatten(
     $('[data-testid="tokens-alert"] .gpa-alert-body > div').first().text()
@@ -450,6 +470,27 @@ describe('the list', () => {
     )
   })
 
+  test('Unavailable: a row this page can’t read fails the list, said and logged by kind alone, and New token stays', async () => {
+    const warn = vi.spyOn(logger, 'warn')
+    vi.mocked(listAccessTokensUseCase).mockResolvedValue(
+      listed([...cwTokens, unreadableToken])
+    )
+
+    const { statusCode, $ } = await get('/dev-ops/clients/cw')
+
+    expect(statusCode).toBe(503)
+    expect(text($, '[data-testid="tokens-alert"] .gpa-alert-title')).toBe(
+      'The tokens list couldn’t be loaded.'
+    )
+    expect(listAlertText($)).toBe('CW’s tokens can’t be read.')
+    expect(text($, '.gpa-alert-actions')).toBe('Try again')
+    expect($('[data-testid="tokens-table"]')).toHaveLength(0)
+    expect($('[data-testid="token-new-open"]')).toHaveLength(1)
+    expect(warn).toHaveBeenCalledExactlyOnceWith(
+      'A stored CW token isn’t readable as BSON: BSONOffsetError'
+    )
+  })
+
   test('No shell in the answer: the tokens page still works, and the sidebar has no lists, only the Overview and Access tokens', async () => {
     vi.mocked(shellCatalogue).mockReturnValueOnce(null)
 
@@ -521,10 +562,33 @@ describe('the drawer', () => {
     expect(drawer.find('dd').eq(2).find('time').attr('datetime')).toBe(
       '2027-01-31T23:59:59Z'
     )
-    expect(text($, `dialog#token-${ids.dated} .gpa-card-head`)).toBe(
-      'Stored document'
-    )
-    expect(JSON.parse(drawer.find('pre').text())).toMatchObject({
+    expect(storedOf($, ids.dated)).toEqual({
+      title: 'Stored document',
+      copy: 'Copy',
+      lines: [
+        '{',
+        "  _id: ObjectId('6650c1f2a9e4b1d07c20bd92'),",
+        "  id: 'a1b••••••f2c',",
+        "  clientId: 'farming-grants-agreements-ui',",
+        "  tokenHint: 'a1B2',",
+        '  expiresAt: null,',
+        "  createdAt: ISODate('2026-10-01T09:00:00.000Z'),",
+        "  createdBy: 'Ada Lovelace',",
+        '  revokedAt: null,',
+        '  revokedBy: null',
+        '}'
+      ]
+    })
+    expect(
+      EJSON.parse(
+        drawer
+          .find('[data-testid="token-stored"] gpa-copy')
+          .attr('data-value') ?? '',
+        { relaxed: false }
+      )
+    ).toEqual({
+      ...storedToken,
+      _id: new ObjectId(ids.dated),
       clientId: 'farming-grants-agreements-ui'
     })
     expect(
@@ -1213,6 +1277,9 @@ describe('a refusal whose dialog isn’t drawn any more', () => {
       title: 'Not rotated.',
       text: 'This token is no longer active. Nothing has changed.'
     })
+    expect(storedOf($, ids.active).lines).toContain(
+      `  _id: ObjectId('${ids.active}'),`
+    )
     expect(
       $(`dialog#token-${ids.active} [data-testid="token-drawer-refusal"]`).is(
         '[data-focus-on-arrival]'
@@ -1561,6 +1628,9 @@ describe('Token issued', () => {
     expect(payload.split(raw)).toHaveLength(3)
     expect(sessions.join('')).not.toContain(raw)
     expect(sessions.join('')).not.toContain(raw.slice(-4))
+    expect(storedOf($, ids.active).lines).toContain(
+      `  _id: ObjectId('${ids.active}'),`
+    )
   })
 
   test('after a rotation: the old token’s drawer stays open behind, and Done goes back to it', async () => {
@@ -1582,6 +1652,13 @@ describe('Token issued', () => {
       '24h'
     )
     expect(listAccessTokensUseCase).not.toHaveBeenCalled()
+    expect(storedOf($, ids.active)).toMatchObject({
+      copy: 'Copy',
+      lines: expect.arrayContaining([
+        `  _id: ObjectId('${ids.active}'),`,
+        "  id: 'a1b••••••f2c',"
+      ])
+    })
   })
 
   test('is shown, 200, when GAS couldn’t read the list after it, beside the list’s failure', async () => {
@@ -1601,6 +1678,41 @@ describe('Token issued', () => {
       'GAS couldn’t list the tokens. Try again in a moment.'
     )
   })
+
+  test.each([
+    [
+      'issued',
+      () => issueAccessTokenUseCase,
+      '/dev-ops/clients/gas/tokens',
+      { clientId: 'new-caller', expiry: 'never', date: '' }
+    ],
+    [
+      'rotated',
+      () => rotateAccessTokenUseCase,
+      `${tokenPath(ids.active)}/rotate`,
+      { keepOld: '24h' }
+    ]
+  ])(
+    'is shown, 200, when a token is %s beside a row this page can’t read, beside the list’s failure',
+    async (_, useCase, url, form) => {
+      const warn = vi.spyOn(logger, 'warn')
+      vi.mocked(useCase()).mockResolvedValue({
+        ...issuedWith(),
+        list: listed([...gasTokens, unreadableToken])
+      })
+
+      const { statusCode, $ } = await post(url, form)
+
+      expect(statusCode).toBe(200)
+      expect(isOpenWithoutScript($, 'token-issued')).toBe(true)
+      expect($('#token-issued-value').attr('value')).toBe(raw)
+      expect(listAlertText($)).toBe('GAS’s tokens can’t be read.')
+      expect($('[data-testid="tokens-table"]')).toHaveLength(0)
+      expect(warn).toHaveBeenCalledExactlyOnceWith(
+        'A stored GAS token isn’t readable as BSON: BSONOffsetError'
+      )
+    }
+  )
 
   test('the next page has no token in it', async () => {
     const { payload } = await get('/dev-ops/clients/gas')

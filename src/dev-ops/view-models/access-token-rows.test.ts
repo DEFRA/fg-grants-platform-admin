@@ -1,12 +1,21 @@
+import { EJSON } from 'bson'
+
+import { logger } from '../../common/logger.ts'
 import type { ListedToken } from '../use-cases/access-tokens.use-case.ts'
+import type { ReadToken } from './access-token-rows.ts'
 import {
   toActions,
   toCompareTokens,
+  toReadList,
   toTokenRows,
   toTokenState,
   tokenStates
 } from './access-token-rows.ts'
 import { serviceWords } from './access-token-services.ts'
+import { readBase64 } from './explore-bson.ts'
+import { storedToken, storedTokenDocument } from '../use-cases/test-fixtures.ts'
+
+vi.mock(import('../../common/logger.ts'))
 
 const now = new Date('2026-11-04T13:50:00.000Z')
 const hour = 3_600_000
@@ -14,7 +23,7 @@ const day = 24 * hour
 
 const after = (ms: number): string => new Date(now.getTime() + ms).toISOString()
 
-const token = (fields: Partial<ListedToken> = {}): ListedToken => ({
+const listedToken = (fields: Partial<ListedToken> = {}): ListedToken => ({
   tokenId: '6650c1f2a9e4b1d07c20bd91',
   clientId: 'grants-ui',
   tokenHint: 'x7Qa',
@@ -26,9 +35,15 @@ const token = (fields: Partial<ListedToken> = {}): ListedToken => ({
   revokedBy: null,
   inUse: false,
   expiringSoon: false,
-  stored: { _id: { $oid: fields.tokenId ?? '6650c1f2a9e4b1d07c20bd91' } },
+  document: storedTokenDocument(),
   ...fields
 })
+
+const token = (fields: Partial<ListedToken> = {}): ReadToken => {
+  const listed = listedToken(fields)
+
+  return { ...listed, stored: readBase64(listed.document) }
+}
 
 const words = serviceWords.gas
 
@@ -151,9 +166,23 @@ describe('toTokenRows', () => {
       inUse: true,
       revokeOff: 'Dev Ops is calling GAS with this token. Rotate it instead.'
     })
-    expect(JSON.parse(row.document)).toEqual({
-      _id: { $oid: '6650c1f2a9e4b1d07c20bd91' }
+    expect(row.doc).toMatchObject({
+      t: 'object',
+      entries: expect.arrayContaining([
+        ['_id', { t: 'objectId', v: '6650c1f2a9e4b1d07c20bd91' }],
+        ['id', { t: 'string', v: 'a1b••••••f2c' }],
+        [
+          'createdAt',
+          {
+            t: 'date',
+            v: String(Date.parse(storedToken.createdAt.toISOString()))
+          }
+        ],
+        ['expiresAt', { t: 'null' }]
+      ])
     })
+    expect(EJSON.parse(row.ejson, { relaxed: false })).toEqual(storedToken)
+    expect(row.ejson).toContain('"createdAt":{"$date":{"$numberLong":')
   })
 
   test('a token that never expires has no time, and only the token in use has Revoke off', () => {
@@ -168,6 +197,41 @@ describe('toTokenRows', () => {
 
     expect(row.revokeOff).toBe(
       'GAS is calling CW with this token. Rotate it instead.'
+    )
+  })
+})
+
+describe('toReadList', () => {
+  test('reads every row’s stored document', () => {
+    const list = toReadList(
+      { outcome: 'done', tokens: [listedToken(), listedToken()] },
+      'gas'
+    )
+
+    expect(list).toEqual({ outcome: 'done', tokens: [token(), token()] })
+    expect(logger.warn).not.toHaveBeenCalled()
+  })
+
+  test('passes a list that failed on as it is', () => {
+    expect(toReadList({ outcome: 'unlisted' }, 'cw')).toEqual({
+      outcome: 'unlisted'
+    })
+  })
+
+  test('one row that isn’t BSON makes the list unreadable, logging only the kind of failure', () => {
+    const unreadable = Buffer.from('not bson').toString('base64')
+
+    expect(
+      toReadList(
+        {
+          outcome: 'done',
+          tokens: [listedToken(), listedToken({ document: unreadable })]
+        },
+        'cw'
+      )
+    ).toEqual({ outcome: 'unreadable' })
+    expect(logger.warn).toHaveBeenCalledExactlyOnceWith(
+      'A stored CW token isn’t readable as BSON: BSONOffsetError'
     )
   })
 })

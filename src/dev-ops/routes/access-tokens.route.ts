@@ -56,6 +56,7 @@ import {
   toUnknownAlert,
   isUncertain
 } from '../view-models/access-token-messages.ts'
+import { toReadList } from '../view-models/access-token-rows.ts'
 import {
   clientServices,
   toClientsPath
@@ -132,14 +133,15 @@ const renderPage = (
   extras: PageExtras,
   code?: number
 ): ResponseObject => {
+  const read = toReadList(list, serviceOf(request))
   const page = toAccessTokensPage({
     service: serviceOf(request),
-    list,
+    list: read,
     now: new Date(),
     prod: config.get('environmentLabel') === 'prod',
     ...extras
   })
-  const status = code ?? toListStatus(list)
+  const status = code ?? toListStatus(read, extras.reveal !== undefined)
 
   return h
     .view('access-tokens', page)

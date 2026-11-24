@@ -7,7 +7,7 @@
 {%- set legacy = p.cols -%}
   {%- set tracks = [] -%}
   {%- if p.selectable %}{% set tracks = (tracks.push('var(--size-column-check)'), tracks) %}{% endif -%}
-  {%- for c in p.columns %}{% set tracks = (tracks.push(c.width or ('minmax(max-content, 1fr)' if (c.mono or (loop.first and p.link)) else 'minmax(120px, 1fr)')), tracks) %}{% endfor -%}
+  {%- for c in p.columns %}{% set tracks = (tracks.push(c.width or ('max-content' if c.max else ('minmax(max-content, 1fr)' if (c.mono or (loop.first and p.link)) else 'minmax(120px, 1fr)'))), tracks) %}{% endfor -%}
   {%- if p.link %}{% set tracks = (tracks.push('var(--size-column-chevron)'), tracks) %}{% endif -%}
   {%- set n = p.columns | length -%}
   {%- set narrow = [] -%}
@@ -30,7 +30,7 @@
         {%- for c in p.columns -%}
           {%- set active = p.sort and c.key and p.sort.key == c.key -%}
           {%- set dir = p.sort.dir if active else null -%}
-          <th scope="col" role="columnheader"{% if active %} aria-sort="{{ 'ascending' if dir == 'asc' else 'descending' }}"{% elif c.sortable %} aria-sort="none"{% endif %} class="label-sm{{ ' gpa-center' if c.align == 'center' }}{{ ' gpa-right' if c.align == 'right' }}{{ (' gpa-sticky-col' ~ (' gpa-sticky-after-check' if p.selectable else '')) if p.stickyFirstColumn and loop.first }}{{ ' gpa-wide-only' if p.narrowColumns }}">
+          <th scope="col" role="columnheader"{% if active %} aria-sort="{{ 'ascending' if dir == 'asc' else 'descending' }}"{% elif c.sortable %} aria-sort="none"{% endif %} class="label-sm{{ ' gpa-center' if c.align == 'center' }}{{ ' gpa-right' if c.align == 'right' }}{{ ' gpa-cell-max-' ~ c.max if c.max }}{{ (' gpa-sticky-col' ~ (' gpa-sticky-after-check' if p.selectable else '')) if p.stickyFirstColumn and loop.first }}{{ ' gpa-wide-only' if p.narrowColumns }}">
             {%- if c.sortable -%}
               <a class="gpa-sort{{ ' is-active' if active }}" href="{{ c.sortHref }}">{{ PathHead({ text: c.label }) if c.path else c.label }}{{ Icon({ name: 'arrow-up' if dir == 'asc' else ('arrow-down' if dir == 'desc' else 'chevrons-up-down'), size: 'xs' }) }}</a>
             {%- else -%}{{ PathHead({ text: c.label }) if c.path else c.label }}{%- endif -%}

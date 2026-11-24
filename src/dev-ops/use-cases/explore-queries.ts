@@ -34,9 +34,9 @@ export const toTooLong = (
 /** A form post sends CRLF where the editor counts LF, so GAS's places line up with the editor's text. */
 export const toQueryText = (q: string): string => q.replace(/\r\n?/g, '\n')
 
-/** Text in quotes, as the language reads it back: a backslash escapes the next character. */
+/** Text in quotes, as the language reads it back: a backslash escapes the next character, a line break included. */
 export const toQuoted = (value: string): string =>
-  `'${value.replace(/[\\']/g, '\\$&')}'`
+  `'${value.replace(/[\\'\n]/g, '\\$&')}'`
 
 /** A path as a key: bare when it is a plain word, else quoted, as mongosh needs. */
 const toKey = (path: string): string =>
@@ -107,6 +107,21 @@ export const toExamples = (now: Date): Example[] => {
       slug: 'business-any-version',
       label: 'A business, in any version',
       q: "db.applications.find(\n  { 'phases.answers.applicant.business.name': /hilltop/i },\n  { clientRef: 1, code: 1, 'phases.answers.applicant.business.name': 1, currentStatus: 1 }\n)"
+    },
+    {
+      slug: 'woodland-stored-paths',
+      label: 'Woodland applications: _id, SBI and agreements',
+      q: "db.applications.find(\n  { code: 'woodland' },\n  { _id: 1, 'identifiers.sbi': 1, 'phases.answers.payments.agreement.quantity': 1, agreements: 1 }\n)"
+    },
+    {
+      slug: 'woodland-answers',
+      label: 'Woodland applications, whole answers',
+      q: "db.applications.find(\n  { code: 'woodland' },\n  { clientRef: 1, 'phases.answers': 1 }\n)"
+    },
+    {
+      slug: 'frps-parcels',
+      label: 'FRPS applications’ parcels, through lists',
+      q: "db.applications.find(\n  { code: 'frps-private-beta' },\n  { clientRef: 1, 'phases.answers.payments.parcel.parcelId': 1 }\n)"
     },
     {
       slug: 'frps-cases-by-status',

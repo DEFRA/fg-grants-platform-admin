@@ -8,7 +8,7 @@ type VocabularyPath = VocabularySource['paths'][number]
 export interface EditorField {
   name: string
   detail: string
-  type?: 'number' | 'date' | 'flag'
+  type?: 'number' | 'date' | 'flag' | 'objectId'
   values?: { value: string; label?: string }[]
 }
 
@@ -35,7 +35,8 @@ const typeDetails: Record<NonNullable<VocabularyPath['type']>, string> = {
   text: 'Text',
   number: 'Number',
   boolean: 'True or false',
-  date: 'Date'
+  date: 'Date',
+  objectId: 'ObjectId'
 }
 
 const toDetail = ({ type, indexed }: VocabularyPath): string => {
@@ -49,7 +50,8 @@ const types: Partial<
 > = {
   number: 'number',
   date: 'date',
-  boolean: 'flag'
+  boolean: 'flag',
+  objectId: 'objectId'
 }
 
 const toType = ({ type }: VocabularyPath) => {

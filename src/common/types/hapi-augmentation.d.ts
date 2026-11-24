@@ -27,6 +27,8 @@ declare module '@hapi/hapi' {
 
   interface RequestApplicationState {
     upstream?: import('../../dev-ops/upstream.ts').Upstream
+    /** The response is a part of a page, drawn without the shell around it. */
+    part?: boolean
   }
 
   interface PluginProperties {

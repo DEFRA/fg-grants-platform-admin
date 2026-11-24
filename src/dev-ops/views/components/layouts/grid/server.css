@@ -31,7 +31,13 @@
 .gpa-grid-table td.gpa-row-chevron {
   display: flex;
 }
-.gpa-grid-table :is(th, td).gpa-sticky-col {
+.gpa-grid-table :is(th, td).gpa-sticky-col,
+.gpa-grid-table
+  :where(gpa-data-table[data-sticky]:not([data-selectable]) tbody > .gpa-tr)
+  > td:first-child,
+.gpa-grid-table
+  :where(gpa-data-table[data-sticky][data-selectable] tbody > .gpa-tr)
+  > td:is(.gpa-cell-check, .gpa-cell-check + *) {
   display: flex;
   padding-block: var(--inset-cell-y);
   padding-inline: var(--inset-card) var(--gap-columns);
@@ -39,7 +45,11 @@
 .gpa-grid-table .gpa-thead > th.gpa-sticky-col {
   padding-block: var(--inset-cell-head-y);
 }
-.gpa-grid-table :is(th, td).gpa-sticky-col.gpa-sticky-after-check {
+.gpa-grid-table :is(th, td).gpa-sticky-col.gpa-sticky-after-check,
+.gpa-grid-table
+  :where(gpa-data-table[data-sticky][data-selectable] tbody > .gpa-tr)
+  > .gpa-cell-check
+  + td:nth-child(2) {
   padding-inline-start: 0;
 }
 .gpa-grid-table a.gpa-rowlink {

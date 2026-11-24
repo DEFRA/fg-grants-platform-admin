@@ -1,0 +1,3 @@
+{% from "partials/explore/document.njk" import exploreDocument, openFailed %}
+{#- An open's answer: the one result's line drawn open, or the alert that says why it couldn't be read. -#}
+{%- if failed %}{{ openFailed(failed) }}{% else %}{{ exploreDocument(document) }}{% endif -%}

@@ -1,4 +1,5 @@
 import { el, parsePage } from "../../core/dom.ts";
+import { oneLoad } from "../../core/one-load.ts";
 
 const ARRIVAL_INPUT = ["wheel", "touchstart", "keydown", "pointerdown"];
 
@@ -176,12 +177,15 @@ export class GpaLoadMore extends HTMLElement {
       { "aria-live": "polite" },
     );
     try {
-      const res = await fetch(href, {
-        method: this.#post ? "POST" : "GET",
-        body: this.#post ?? undefined,
-        headers: { Accept: "text/html", "X-Requested-With": "gpa-load-more" },
-        credentials: "same-origin",
-      });
+      const post = this.#post;
+      const res = await oneLoad(() =>
+        fetch(href, {
+          method: post ? "POST" : "GET",
+          body: post ?? undefined,
+          headers: { Accept: "text/html", "X-Requested-With": "gpa-load-more" },
+          credentials: "same-origin",
+        }),
+      );
       const away = res.redirected
         ? res.url
         : (res.status === 409 || res.status === 410) &&

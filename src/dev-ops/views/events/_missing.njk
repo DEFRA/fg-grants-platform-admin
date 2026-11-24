@@ -24,7 +24,7 @@
         {%- else -%}
           {{ gpa.Text({ tone: 'muted', text: kept.said }) }}
         {%- endif -%}
-        {{ gpa.Code({ block: true, framed: true, code: kept.text, label: 'Your changes', maxHeight: 360 }) }}
+        {{ gpa.Code({ block: true, framed: true, code: kept.text, label: 'Your changes', maxHeight: 360, language: 'json' }) }}
         {%- if kept.note -%}
           {%- call gpa.FactsList() %}{{ gpa.Fact({ label: 'Why are you changing it?', text: kept.note }) }}{% endcall -%}
         {%- endif -%}

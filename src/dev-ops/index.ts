@@ -18,7 +18,10 @@ import {
   fetchGrantDefinitionsRoute,
   fetchWorkflowDefinitionRoute
 } from './routes/fetch-definitions.route.ts'
-import { downloadExploreRoute } from './routes/download-explore.route.ts'
+import {
+  downloadExploreRoute,
+  downloadJsonRoute
+} from './routes/download-explore.route.ts'
 import { runExploreRoute, viewExploreRoute } from './routes/explore.route.ts'
 import { viewOverviewRoute } from './routes/overview.route.ts'
 import { purgeEventRoute } from './routes/purge-event.route.ts'
@@ -105,6 +108,7 @@ export const devOps = {
               ...sameOriginOnly([
                 runExploreRoute,
                 downloadExploreRoute,
+                downloadJsonRoute,
                 searchBucketRoute,
                 fetchGrantDefinitionsRoute,
                 fetchWorkflowDefinitionRoute,

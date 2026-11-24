@@ -5,13 +5,21 @@ import type {
   WithVocabulary
 } from '../repositories/explore.repository.ts'
 import {
+  ExploreStreamError,
   findVocabulary,
-  queryExplore
+  queryExplore,
+  streamExploreQuery
 } from '../repositories/explore.repository.ts'
-import { downloadExploreUseCase } from './download-explore.use-case.ts'
-import { holdRun } from './held-runs.ts'
+import {
+  downloadExploreUseCase,
+  downloadJsonUseCase
+} from './download-explore.use-case.ts'
+import { findLiveRun, holdRun, holdShown, keepPage } from './held-runs.ts'
 import { provideMemoryExploreStore } from './test-fixtures.ts'
-import { viewExploreUseCase } from './view-explore.use-case.ts'
+import {
+  restoreExploreUseCase,
+  viewExploreUseCase
+} from './view-explore.use-case.ts'
 
 vi.mock(import('../repositories/explore.repository.ts'))
 
@@ -25,7 +33,15 @@ const answer = (
   source: { name: 'applications', noun: 'application' },
   mode: 'rows',
   read: 'exact',
-  columns: [{ key: 'c0', label: 'Reference', kind: 'text', aggregate: false }],
+  columns: [
+    {
+      key: 'c0',
+      label: 'Reference',
+      kind: 'text',
+      aggregate: false,
+      path: null
+    }
+  ],
   rows: [{ open: null, cells: { c0: 'wmp-aa1-bb2' } }],
   count: { n: 1, capped: false },
   groups: false,
@@ -47,7 +63,7 @@ const windowed = (positions: string | null, end = false) =>
   answer({
     read: 'windowed',
     count: null,
-    window: { to: '2026-10-01T00:00:00.000Z', end, positions }
+    window: { to: '2026-10-01T00:00:00.000Z', end, positions, skipped: [] }
   })
 
 const view = (run: string, page = 1) => viewExploreUseCase({ owner, run, page })
@@ -74,7 +90,7 @@ describe('downloadExploreUseCase', () => {
     await view(id)
 
     expect(await download(id)).toEqual({ kind: 'file', answer: shown(file) })
-    expect(lastSent()).toEqual([{ query: typed, limit: 5000, csv: true }])
+    expect(lastSent()).toEqual([{ query: typed, csv: true }])
   })
 
   test('reads a run no window of which was read from the top', async () => {
@@ -84,7 +100,7 @@ describe('downloadExploreUseCase', () => {
 
     await download(id)
 
-    expect(lastSent()).toEqual([{ query: typed, limit: 5000, csv: true }])
+    expect(lastSent()).toEqual([{ query: typed, csv: true }])
   })
 
   test('reads down to the furthest window Keep looking loaded', async () => {
@@ -104,7 +120,6 @@ describe('downloadExploreUseCase', () => {
     expect(lastSent()?.[0]).toEqual({
       query: typed,
       positions: 'after-2',
-      limit: 5000,
       csv: true
     })
   })
@@ -139,7 +154,6 @@ describe('downloadExploreUseCase', () => {
     expect(lastSent()?.[0]).toEqual({
       query: typed,
       positions: 'after-3',
-      limit: 5000,
       csv: true
     })
   })
@@ -159,7 +173,6 @@ describe('downloadExploreUseCase', () => {
     expect(lastSent()?.[0]).toEqual({
       query: typed,
       untilEnd: true,
-      limit: 5000,
       csv: true
     })
   })
@@ -215,4 +228,183 @@ describe('downloadExploreUseCase', () => {
       }
     })
   })
+})
+
+describe('downloadJsonUseCase', () => {
+  const header = {
+    source: { name: 'applications', noun: 'application' },
+    download: { rows: 5000 }
+  }
+
+  const stream = { header, lines: (async function* () {})() }
+
+  const json = (run: string) => downloadJsonUseCase({ owner, run })
+
+  test('streams the run down to the furthest window read, as GAS sends it', async () => {
+    vi.mocked(queryExplore).mockResolvedValue(windowed('p1'))
+    vi.mocked(streamExploreQuery).mockResolvedValue(stream)
+    const id = await holdRun(owner, typed)
+
+    await view(id)
+
+    expect(await json(id)).toEqual({ kind: 'lines', ...stream, show: null })
+    expect(streamExploreQuery).toHaveBeenCalledExactlyOnceWith({
+      query: typed,
+      positions: 'p1'
+    })
+  })
+
+  test('reads a run no window of which was read from the top', async () => {
+    vi.mocked(streamExploreQuery).mockResolvedValue(stream)
+    const id = await holdRun(owner, typed)
+
+    await json(id)
+
+    expect(streamExploreQuery).toHaveBeenCalledExactlyOnceWith({ query: typed })
+  })
+
+  test('reads a Show it run’s one row by what it shows, never from a window', async () => {
+    vi.mocked(queryExplore).mockResolvedValue(windowed('p1'))
+    vi.mocked(streamExploreQuery).mockResolvedValue(stream)
+    const source = await holdRun(owner, typed)
+    const show = {
+      id: 'FgAAAAdfaWQAZ0GgwuSw8aKzxNXmAA==',
+      at: [],
+      service: null,
+      box: null
+    }
+    const held = await findLiveRun(owner, source)
+    const shown = await holdShown(owner, held!, { show, result: 3 })
+
+    await view(shown)
+    expect(await json(shown)).toMatchObject({ kind: 'lines', show })
+    await download(shown)
+
+    expect(streamExploreQuery).toHaveBeenCalledExactlyOnceWith({
+      query: typed,
+      show
+    })
+    expect(lastSent()).toEqual([{ query: typed, show, csv: true }])
+  })
+
+  test('says a run never held has expired, asking nothing of it', async () => {
+    expect(await json('0b6f3e2a-5c1d-4e8f-9a7b-2c3d4e5f6a7b')).toMatchObject({
+      kind: 'page',
+      page: { notice: { kind: 'expired' } }
+    })
+    expect(streamExploreQuery).not.toHaveBeenCalled()
+  })
+
+  test('draws the run’s page in Documents with GAS’s refusal and the vocabulary it carried', async () => {
+    vi.mocked(streamExploreQuery).mockRejectedValue(
+      new Boom.Boom('Response Error: 400', {
+        statusCode: 400,
+        data: {
+          isResponseError: true,
+          payload: {
+            reason: 'QUERY_REFUSED',
+            message: 'Too big',
+            vocabulary: { sources: [] }
+          }
+        }
+      })
+    )
+    const id = await holdRun(owner, typed)
+
+    expect(await json(id)).toMatchObject({
+      kind: 'page',
+      page: {
+        run: { id, view: 'documents' },
+        result: {
+          outcome: 'failed',
+          failure: { kind: 'refused', service: 'GAS', message: 'Too big' }
+        },
+        vocabulary: { sources: [] }
+      }
+    })
+  })
+
+  test('says GAS answered with an error when its stream had no header', async () => {
+    vi.mocked(streamExploreQuery).mockRejectedValue(
+      new ExploreStreamError('Explore stream without its header')
+    )
+    const id = await holdRun(owner, typed)
+
+    expect(await json(id)).toMatchObject({
+      kind: 'page',
+      page: {
+        result: {
+          outcome: 'failed',
+          failure: { kind: 'errored', service: 'GAS' }
+        }
+      }
+    })
+  })
+})
+
+describe('a Show it run', () => {
+  const show = {
+    id: 'FgAAAAdfaWQAZ0GgwuSw8aKzxNXmAA==',
+    at: [],
+    service: null,
+    box: null
+  }
+
+  /** A Show it run whose held windows say where a next one would start, and that the last reached the end. */
+  const heldShown = async () => {
+    const source = await holdRun(owner, typed)
+    const shown = await holdShown(owner, (await findLiveRun(owner, source))!, {
+      show,
+      result: 2
+    })
+    const records = { name: 'applications', noun: 'application' }
+
+    await keepPage(owner, shown, 1, {
+      positions: 'p1',
+      end: false,
+      found: 1,
+      source: records
+    })
+    await keepPage(owner, shown, 2, {
+      positions: null,
+      end: true,
+      found: 1,
+      source: records
+    })
+
+    return shown
+  }
+
+  const asked = () => [
+    ...vi.mocked(queryExplore).mock.calls.map(([body]) => body),
+    ...vi.mocked(streamExploreQuery).mock.calls.map(([body]) => body)
+  ]
+
+  test.each([
+    ['its page', (id: string) => view(id)],
+    ['its next window', (id: string) => view(id, 2)],
+    [
+      'a restore',
+      (id: string) => restoreExploreUseCase({ owner, run: id, through: 2 })
+    ],
+    ['Download CSV', (id: string) => download(id)],
+    ['Download JSON', (id: string) => downloadJsonUseCase({ owner, run: id })]
+  ])(
+    'sends the run’s query and its row, and neither positions nor untilEnd, for %s',
+    async (_, read) => {
+      vi.mocked(queryExplore).mockResolvedValue(answer())
+      vi.mocked(streamExploreQuery).mockResolvedValue({
+        header: { source: answer().source, download: { rows: 5000 } },
+        lines: (async function* () {})()
+      })
+      const id = await heldShown()
+
+      await read(id)
+
+      expect(asked()).toHaveLength(1)
+      expect(asked()[0]).toMatchObject({ query: typed, show })
+      expect(Object.keys(asked()[0])).not.toContain('positions')
+      expect(Object.keys(asked()[0])).not.toContain('untilEnd')
+    }
+  )
 })

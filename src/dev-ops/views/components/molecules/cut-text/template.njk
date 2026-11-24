@@ -1,0 +1,5 @@
+{%- from "../../core/macros.njk" import attrs, cls -%}
+<gpa-cut-text class="{{ cls('gpa-cut gpa-cut-max-' ~ (p.max or 40) ~ (' gpa-mono' if p.mono else ''), p) }}"{% if p.size %} data-size="{{ p.size }}"{% endif %}{% if p.side %} side="{{ p.side }}"{% endif %}{{ attrs(p) }}><span class="gpa-cut-text"{% if p.size and not p.inRowLink %} tabindex="0"{% endif %}>{{ p.text }}</span>
+  {%- if p.size and p.inRowLink %}<span class="gpa-cut-size">({{ p.size }})</span>{% endif -%}
+  {%- if p.href and not p.inRowLink %}<a class="gpa-link gpa-link-sm gpa-cut-link" href="{{ p.href }}"{% if p.linkLabel %} aria-label="{{ p.linkLabel }}"{% endif %}>{{ p.linkText or 'Whole value' }}</a>{% endif -%}
+  </gpa-cut-text>

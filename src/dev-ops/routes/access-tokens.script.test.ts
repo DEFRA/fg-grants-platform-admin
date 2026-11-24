@@ -8,6 +8,7 @@ import {
   changeTokenExpiryUseCase,
   listAccessTokensUseCase
 } from '../use-cases/access-tokens.use-case.ts'
+import { storedTokenDocument } from '../use-cases/test-fixtures.ts'
 
 vi.mock(import('../use-cases/shell-catalogue.ts'))
 vi.mock(import('../use-cases/access-tokens.use-case.ts'), async (original) => ({
@@ -33,7 +34,7 @@ const token = (fields: Partial<ListedToken>): ListedToken => ({
   revokedBy: null,
   inUse: false,
   expiringSoon: false,
-  stored: {},
+  document: storedTokenDocument(),
   ...fields
 })
 
