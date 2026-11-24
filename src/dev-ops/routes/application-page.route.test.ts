@@ -1,3 +1,4 @@
+import { EJSON } from 'bson'
 import { load, type CheerioAPI } from 'cheerio'
 import type { Element } from 'domhandler'
 import type { Server } from '@hapi/hapi'
@@ -5,11 +6,19 @@ import type { Server } from '@hapi/hapi'
 import { statusCodes } from '../../common/status-codes.ts'
 import { createServer } from '../../server/index.ts'
 import { devOps } from '../index.ts'
-import { expectTablesStyled, isOpenWithoutScript } from '../test-utils.ts'
+import {
+  expectTablesStyled,
+  isOpenWithoutScript,
+  linesOf
+} from '../test-utils.ts'
 import type { ApplicationPage } from '../use-cases/get-application-page.use-case.ts'
 import { getApplicationPageUseCase } from '../use-cases/get-application-page.use-case.ts'
 import { shellCatalogue } from '../use-cases/shell-catalogue.ts'
-import { catalogue } from '../use-cases/test-fixtures.ts'
+import {
+  catalogue,
+  storedApplication,
+  toStoredBase64
+} from '../use-cases/test-fixtures.ts'
 
 vi.mock(import('../use-cases/shell-catalogue.ts'))
 vi.mock(import('../use-cases/get-application-page.use-case.ts'), async () => ({
@@ -709,7 +718,7 @@ describe('the status in the header, on every tab', () => {
     [
       'Raw',
       `${path}?tab=raw`,
-      { overview: undefined, raw: { clientRef: 'gld-ssp-x9v' } }
+      { overview: undefined, document: toStoredBase64(storedApplication) }
     ]
   ]
 
@@ -892,32 +901,63 @@ describe('the Events tab', () => {
 
 describe('the Raw tab', () => {
   const rawPath = `${path}?tab=raw`
-  const document = { clientRef: 'gld-ssp-x9v', answers: { hectares: 12.5 } }
 
-  test('shows the stored document, with Copy', async () => {
-    givenTab({ raw: document, storedBytes: 2458 })
+  test('prints the stored document as stored, every object and list closed, with Copy', async () => {
+    givenTab({ document: toStoredBase64(storedApplication), storedBytes: 512 })
 
     const { $ } = await viewPage(rawPath)
     const card = part($, 'record-raw')
-    const json = JSON.stringify(document, null, 2)
+    const printout = part($, 'record-raw-document')
 
     expect(flatten(card.find('.gpa-card-head h2').text())).toBe(
       'Stored document'
     )
-    expect(card.find('gpa-copy').attr('data-value')).toBe(json)
-    expect(card.find('pre').attr('aria-label')).toBe('Stored document')
-    expect(
-      card
-        .find('pre > div')
-        .toArray()
-        .map((line) => $(line).text())
-        .join('\n')
-    ).toBe(json)
+    expect(flatten(card.find('.gpa-card-head gpa-copy').text())).toBe('Copy')
+    expect(printout.attr('aria-label')).toBe('Stored document')
+    expect(linesOf($, printout)).toEqual([
+      '{',
+      "  _id: ObjectId('6650c1f2a9e4b1d07c20bd91'),",
+      "  clientRef: 'gld-ssp-x9v',",
+      "  code: 'woodland',",
+      "  submittedAt: ISODate('2026-10-01T09:00:00.000Z'),",
+      '  answers: { … 3 fields },',
+      '  identifiers: { … 2 fields },',
+      "  sequence: Long('9007199254740993')",
+      '}'
+    ])
+    expect(printout.find('.gpa-doc-code details:not(.m)')).toHaveLength(7)
+    expect(printout.find('details[open]')).toHaveLength(0)
+    expect(card.find('pre').not(printout.find('.gpa-doc-code'))).toHaveLength(0)
+  })
+
+  test('copies canonical Extended JSON, which parses back to the document with its types', async () => {
+    givenTab({ document: toStoredBase64(storedApplication) })
+
+    const { $ } = await viewPage(rawPath)
+    const copied = part($, 'record-raw').find('gpa-copy').attr('data-value')
+
+    expect(copied).toBe(EJSON.stringify(storedApplication, { relaxed: false }))
+    expect(EJSON.parse(copied ?? '', { relaxed: false })).toEqual(
+      storedApplication
+    )
+  })
+
+  test('says the tab could not be read when the bytes GAS sent are not BSON', async () => {
+    givenTab({ document: Buffer.from('not bson').toString('base64') })
+
+    const { $ } = await viewPage(rawPath)
+
+    expect(alertOf($, 'record-tab-error')).toEqual({
+      title: 'This tab couldn’t be read.',
+      text: 'GAS returned an unexpected answer for this application’s stored document. The rest of the page is unaffected.',
+      buttons: [{ text: 'Try again', href: rawPath }]
+    })
+    expect(part($, 'record-raw-document')).toHaveLength(0)
   })
 
   test('says the document is too large, with its size (A10)', async () => {
     givenTab({
-      raw: null,
+      document: null,
       storedBytes: 2516582,
       sectionErrors: [{ section: 'raw', message: 'too large to show' }]
     })
@@ -934,9 +974,23 @@ describe('the Raw tab', () => {
     expect(card.find('[data-icon="file-exclamation-point"]')).toHaveLength(1)
   })
 
+  test('says a document within the cap has too many values to print', async () => {
+    givenTab({
+      document: null,
+      storedBytes: 784179,
+      sectionErrors: [{ section: 'raw', message: 'too large to show' }]
+    })
+
+    const { $ } = await viewPage(rawPath)
+
+    expect(flatten(part($, 'record-raw').find('.gpa-empty-body').text())).toBe(
+      'The stored application is 765.8 KiB, with too many values to print on a page.'
+    )
+  })
+
   test('says it is too large without a size when GAS sent none (R8)', async () => {
     givenTab({
-      raw: null,
+      document: null,
       storedBytes: null,
       sectionErrors: [{ section: 'raw', message: 'too large to show' }]
     })
@@ -950,7 +1004,7 @@ describe('the Raw tab', () => {
 
   test('says the tab could not be read when GAS failed it (R4)', async () => {
     givenTab({
-      raw: null,
+      document: null,
       sectionErrors: [{ section: 'raw', message: 'GAS timed out' }]
     })
 
@@ -963,14 +1017,17 @@ describe('the Raw tab', () => {
     })
   })
 
-  test('says GAS returned no data when it sent none', async () => {
-    givenTab({ raw: null })
+  test('says the tab could not be read when GAS sent no document and no Raw error, breaking its contract', async () => {
+    givenTab({ document: null })
 
     const { $ } = await viewPage(rawPath)
 
-    expect(alertOf($, 'record-tab-nothing').title).toBe(
-      'GAS returned no data for this tab.'
-    )
+    expect(alertOf($, 'record-tab-error')).toEqual({
+      title: 'This tab couldn’t be read.',
+      text: 'GAS returned an unexpected answer for this application’s stored document. The rest of the page is unaffected.',
+      buttons: [{ text: 'Try again', href: rawPath }]
+    })
+    expect(part($, 'record-tab-nothing')).toHaveLength(0)
   })
 })
 

@@ -29,17 +29,14 @@ export interface ApiToken {
   inUse: boolean
 }
 
-/**
- * The `access_tokens` document exactly as the owning service stores it, every
- * field under its stored name, in relaxed Extended JSON (`{ $oid }`,
- * `{ $date }`). Its `id` is the hash's first and last 3 characters; the
- * service masks it, so the whole hash never reaches GPA.
- */
-export type StoredToken = Record<string, unknown>
-
 /** A token as the list answers it, with its row as stored. */
 export interface ListedToken extends ApiToken {
-  stored: StoredToken
+  /**
+   * Base64 of the `access_tokens` document's own BSON, every field under its
+   * stored name and type. Its `id` is the hash's first and last 3
+   * characters; the service masks it, so the whole hash never reaches GPA.
+   */
+  document: string
   /** GAS's rule, the one its Overview counts by. */
   expiringSoon: boolean
 }
@@ -90,7 +87,9 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value)
 
 const isListed = (token: unknown): boolean =>
-  isRecord(token) && typeof token.expiringSoon === 'boolean'
+  isRecord(token) &&
+  typeof token.expiringSoon === 'boolean' &&
+  typeof token.document === 'string'
 
 const toListed = (tokens: unknown): ListedToken[] | null =>
   Array.isArray(tokens) && tokens.every(isListed)

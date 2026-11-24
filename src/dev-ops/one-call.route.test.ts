@@ -15,7 +15,13 @@ import {
 } from './test-utils.ts'
 import { toRouteKey } from './upstream.ts'
 import { needsAttention } from './use-cases/overview-fixtures.ts'
-import { woodlandDefinition } from './use-cases/test-fixtures.ts'
+import {
+  storedApplication,
+  storedCase,
+  storedTokenDocument,
+  toStoredBase64,
+  woodlandDefinition
+} from './use-cases/test-fixtures.ts'
 
 vi.mock(import('../common/config.ts'))
 
@@ -128,7 +134,7 @@ const listed = {
   revokedAt: null,
   revokedBy: null,
   inUse: false,
-  stored: {}
+  document: storedTokenDocument()
 }
 
 const tokens = { tokens: [listed] }
@@ -1091,13 +1097,14 @@ const caseHeader = (header: object) => ({
   ...header
 })
 
-/** Every tab of a record, with or without names, then each way GAS can fail to answer for it. */
+/** Every tab of a record, with or without names, then each way GAS can fail to answer for it; Raw with the record's stored document. */
 const recordRows = (
   noun: string,
   url: string,
   call: string,
   header: (names: object) => object,
-  reason: string
+  reason: string,
+  document: string
 ): Row[] => [
   ...tabs.flatMap(([tab, query]) =>
     recordNames.map(
@@ -1105,7 +1112,10 @@ const recordRows = (
         name: `${noun}’s ${tab}, ${named}`,
         url: `${url}${query}`,
         gas: {
-          [call]: withShell(recordPage(header({ names: given })))
+          [call]: withShell({
+            ...recordPage(header({ names: given })),
+            ...(tab === 'Raw' && { document })
+          })
         },
         calls: [call],
         status: statusCodes.ok,
@@ -1145,9 +1155,17 @@ const records: Row[] = [
     applicationUrl,
     applicationCall,
     applicationHeader,
-    'APPLICATION_NOT_FOUND'
+    'APPLICATION_NOT_FOUND',
+    toStoredBase64(storedApplication)
   ),
-  ...recordRows('a case', caseUrl, caseCall, caseHeader, 'CASE_NOT_FOUND')
+  ...recordRows(
+    'a case',
+    caseUrl,
+    caseCall,
+    caseHeader,
+    'CASE_NOT_FOUND',
+    toStoredBase64(storedCase)
+  )
 ]
 
 const eventsRead = {

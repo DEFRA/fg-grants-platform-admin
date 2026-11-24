@@ -1,3 +1,5 @@
+import { BSON, Double, Int32, Long, ObjectId } from 'bson'
+
 import type {
   BucketEntry,
   BucketFact,
@@ -1052,3 +1054,51 @@ export const provideMemoryExploreStore = (): Map<string, unknown> => {
 
   return entries
 }
+
+/** A document as GAS sends one it read as stored: base64 of its own BSON. */
+export const toStoredBase64 = (document: object): string =>
+  Buffer.from(BSON.serialize(document)).toString('base64')
+
+/** A stored application whose types JSON would lose: an ObjectId, a date, Int32, Int64 and a whole Double. */
+export const storedApplication = {
+  _id: new ObjectId('6650c1f2a9e4b1d07c20bd91'),
+  clientRef: 'gld-ssp-x9v',
+  code: 'woodland',
+  submittedAt: new Date('2026-10-01T09:00:00.000Z'),
+  answers: {
+    hectares: new Double(12),
+    parcelCount: new Int32(2),
+    parcels: [
+      { id: 'SX1', area: { ha: new Double(1.5) } },
+      { id: 'SX2', area: { ha: new Double(10.5) } }
+    ]
+  },
+  identifiers: { sbi: '106000000', frn: '1102000000' },
+  sequence: Long.fromString('9007199254740993')
+}
+
+export const storedCase = {
+  _id: new ObjectId('6650c1f2a9e4b1d07c20bd92'),
+  caseRef: 'gld-ssp-x9v',
+  workflowCode: 'woodland',
+  createdAt: new Date('2026-10-02T10:30:00.000Z'),
+  currentPhase: 'PRE_AWARD',
+  payload: { clientRef: 'gld-ssp-x9v', answers: { hectares: new Double(12) } }
+}
+
+/** An `access_tokens` row as the owning service stores it, `id` masked to the hash's first and last 3 characters. */
+export const storedToken = {
+  _id: new ObjectId('6650c1f2a9e4b1d07c20bd91'),
+  id: 'a1b••••••f2c',
+  clientId: 'fg-gas-backend',
+  tokenHint: 'a1B2',
+  expiresAt: null,
+  createdAt: new Date('2026-10-01T09:00:00.000Z'),
+  createdBy: 'Ada Lovelace',
+  revokedAt: null,
+  revokedBy: null
+}
+
+export const storedTokenDocument = (
+  fields: Partial<typeof storedToken> = {}
+): string => toStoredBase64({ ...storedToken, ...fields })

@@ -220,6 +220,14 @@ export const readDocument = (bytes: Uint8Array): Stored =>
 export const readBase64 = (base64: string): Stored =>
   readDocument(Buffer.from(base64, 'base64'))
 
+/** What kind of failure it was, never its value: its name, and its code where it has one. */
+export const kindOf = (error: unknown): string => {
+  const { name, code } = (error ?? {}) as { name?: unknown; code?: unknown }
+  const named = typeof name === 'string' ? name : 'unknown'
+
+  return typeof code === 'string' ? `${named} ${code}` : named
+}
+
 /** A one-key document's value, such as `{ _id }`, `{ v }` or `{ n }`. */
 export const firstValueOf = (document: Stored): Stored | null =>
   document.t === 'object' ? (document.entries[0]?.[1] ?? null) : null

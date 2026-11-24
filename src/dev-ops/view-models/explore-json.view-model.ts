@@ -10,7 +10,7 @@ import type {
   ExploreStreamLine,
   ExploreStreamRow
 } from '../use-cases/explore-calls.ts'
-import { firstValueOf, readBase64, toEjson } from './explore-bson.ts'
+import { firstValueOf, kindOf, readBase64, toEjson } from './explore-bson.ts'
 import { contextOf } from './explore-context.ts'
 import { toStopText } from './explore-csv.view-model.ts'
 
@@ -73,14 +73,6 @@ const contextJson = (row: Pick<ExploreStreamRow, 'context'>): string =>
 interface Unread {
   rows: number
   kind: string | null
-}
-
-/** What kind of failure it was, never its value: its name, and its code where it has one. */
-const kindOf = (error: unknown): string => {
-  const { name, code } = (error ?? {}) as { name?: unknown; code?: unknown }
-  const named = typeof name === 'string' ? name : 'unknown'
-
-  return typeof code === 'string' ? `${named} ${code}` : named
 }
 
 /** A part of a row read, or null with the part named, when it isn't readable as BSON. */

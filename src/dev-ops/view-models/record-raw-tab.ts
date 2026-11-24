@@ -1,17 +1,19 @@
+import { logger } from '../../common/logger.ts'
 import type { RecordSectionError } from '../use-cases/record-reads.ts'
+import { kindOf, readBase64, toEjson, toPrinted } from './explore-bson.ts'
+import type { BsonValue } from './explore-bson.ts'
 import { toSectionError, tooLarge } from './record-events-tab.ts'
 import type { Message, TabNotice } from './record-events-tab.ts'
 
 export type RawTab =
   | TabNotice
-  | { kind: 'document'; json: string }
+  | { kind: 'document'; doc: BsonValue; ejson: string }
   | { kind: 'too-large'; text: string }
 
 export interface RawCopy {
   /** What the stored document is, as its sentences name it. */
   noun: string
   error: Message
-  nothing: string
 }
 
 const kib = 1024
@@ -30,19 +32,40 @@ const isTooLarge = (sectionErrors: RecordSectionError[]) =>
     ({ section, message }) => section === 'raw' && message === tooLarge
   )
 
-/** GAS's cap is not in its answer, so the sentence gives the document's size alone. */
-const tooLargeText = (noun: string, bytes: number | null | undefined) =>
-  typeof bytes === 'number'
-    ? `The stored ${noun} is ${toSize(bytes)}, too large for this page.`
-    : `The stored ${noun} is too large to show on this page.`
+/** GAS's Raw cap: a document within it was refused for holding more than 250,000 values. */
+const rawCapBytes = mib
 
+const tooLargeText = (noun: string, bytes: number | null | undefined) => {
+  if (typeof bytes !== 'number') {
+    return `The stored ${noun} is too large to show on this page.`
+  }
+
+  return bytes > rawCapBytes
+    ? `The stored ${noun} is ${toSize(bytes)}, too large for this page.`
+    : `The stored ${noun} is ${toSize(bytes)}, with too many values to print on a page.`
+}
+
+/** The document GAS sent, printed and as canonical Extended JSON; bytes that aren't BSON are the tab's error, logged by kind alone. */
+const toDocumentTab = (base64: string, noun: string, error: RawTab): RawTab => {
+  try {
+    const stored = readBase64(base64)
+
+    return { kind: 'document', doc: toPrinted(stored), ejson: toEjson(stored) }
+  } catch (failure) {
+    logger.warn(`The stored ${noun} isn’t readable as BSON: ${kindOf(failure)}`)
+
+    return error
+  }
+}
+
+/** A document is null only beside a Raw section error, so one missing without it is the tab's error too. */
 export const toRawTab = (
   {
-    raw,
+    document,
     storedBytes,
     sectionErrors
   }: {
-    raw?: object | null
+    document?: string | null
     storedBytes?: number | null
     sectionErrors: RecordSectionError[]
   },
@@ -53,11 +76,22 @@ export const toRawTab = (
     return { kind: 'too-large', text: tooLargeText(copy.noun, storedBytes) }
   }
 
-  if (toSectionError(sectionErrors, 'raw')) {
-    return { kind: 'error', error: { ...copy.error, retryHref: tabHref } }
+  const error: RawTab = {
+    kind: 'error',
+    error: { ...copy.error, retryHref: tabHref }
   }
 
-  return raw
-    ? { kind: 'document', json: JSON.stringify(raw, null, 2) }
-    : { kind: 'nothing', title: copy.nothing }
+  if (toSectionError(sectionErrors, 'raw')) {
+    return error
+  }
+
+  if (typeof document !== 'string') {
+    logger.warn(
+      `The stored ${copy.noun} is missing from the answer: no document`
+    )
+
+    return error
+  }
+
+  return toDocumentTab(document, copy.noun, error)
 }

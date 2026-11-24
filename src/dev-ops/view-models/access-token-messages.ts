@@ -7,6 +7,7 @@ import { statusCodes } from '../../common/status-codes.ts'
 import { cwNotReachedCode } from '../use-cases/gas-status.ts'
 import { toExpiryDay } from './access-token-dates.ts'
 import type { FormRefusal } from './access-token-forms.ts'
+import type { ReadList } from './access-token-rows.ts'
 import { serviceWords } from './access-token-services.ts'
 
 export const accessTokenNoticeKey = 'accessTokenNotice' as const
@@ -249,12 +250,15 @@ export interface UnavailableAlert {
 
 /** The tokens list couldn't be read, said for how it failed, naming the service as `whoFailed` does. */
 export const toUnavailableAlert = (
-  failure: ListFailure,
+  failure: Exclude<ReadList, { outcome: 'done' }>,
   service: ClientService
 ): UnavailableAlert => ({
   tone: 'danger',
   title: 'The tokens list couldn’t be loaded.',
-  text: `${whoFailed(failure, service)} ${unavailableReasons[failure.outcome]}`
+  text:
+    failure.outcome === 'unreadable'
+      ? `${serviceWords[service].short}’s tokens can’t be read.`
+      : `${whoFailed(failure, service)} ${unavailableReasons[failure.outcome]}`
 })
 
 /** Null for a notice meant for the other service's page. */

@@ -16,6 +16,7 @@ import {
   rotateToken,
   toRefusalBody
 } from './clients.repository.ts'
+import { storedTokenDocument } from '../use-cases/test-fixtures.ts'
 
 vi.mock(import('../../common/gas.ts'), async (original) => ({
   ...(await original()),
@@ -143,7 +144,11 @@ const refusal = (statusCode: number, body: unknown) =>
   })
 
 describe('toRefusalBody', () => {
-  const listed = { ...token, stored: {}, expiringSoon: false }
+  const listed = {
+    ...token,
+    document: storedTokenDocument(),
+    expiringSoon: false
+  }
 
   test.each([
     [
@@ -169,6 +174,14 @@ describe('toRefusalBody', () => {
     [
       'no list when a token lacks GAS’s expiring-soon verdict',
       refusal(422, { code: 'EXPIRY_PAST', tokens: [token] }),
+      { tokens: null, active: null }
+    ],
+    [
+      'no list when a token carries its row in the old shape, not as stored',
+      refusal(422, {
+        code: 'EXPIRY_PAST',
+        tokens: [{ ...token, expiringSoon: false, stored: {} }]
+      }),
       { tokens: null, active: null }
     ],
     [
