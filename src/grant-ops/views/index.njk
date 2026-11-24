@@ -1,10 +1,26 @@
 {% extends 'layouts/page.njk' %}
 
 {% block content %}
-  {{ appHeading({
-    text: heading,
-    caption: "fg-grants-platform-admin"
-  }) }}
+  <div class="govuk-grid-row">
+    <div class="govuk-grid-column-full">
+      <h1 class="govuk-heading-l">{{ heading }}</h1>
+    </div>
+  </div>
+
+  <div class="govuk-grid-row" data-testid="home-cards">
+    {% for card in cards %}
+      <div class="govuk-grid-column-one-half">
+        <div class="app-nav-card" data-testid="{{ card.id }}-card">
+          <h2 class="govuk-heading-m app-nav-card__title">
+            <a class="govuk-link" href="{{ card.href }}">{{ card.title }}</a>
+          </h2>
+          {% if card.description %}
+            <p class="govuk-body">{{ card.description }}</p>
+          {% endif %}
+        </div>
+      </div>
+    {% endfor %}
+  </div>
 
   <div class="govuk-grid-row">
     <div class="govuk-grid-column-two-thirds">
@@ -16,5 +32,4 @@
       </div>
     </div>
   </div>
-
 {% endblock %}
