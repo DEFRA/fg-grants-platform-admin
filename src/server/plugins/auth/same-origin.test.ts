@@ -1,9 +1,14 @@
 import hapi from '@hapi/hapi'
-import type { Request, ResponseToolkit } from '@hapi/hapi'
+import type { Request, Server } from '@hapi/hapi'
 import Joi from 'joi'
 
 import { config } from '../../../common/config.ts'
-import { isSameOrigin, sameOriginOnly } from './same-origin.ts'
+import { roles } from '../../../common/roles.ts'
+import { statusCodes } from '../../../common/status-codes.ts'
+import { plugins } from '../../../main.ts'
+import { createServer } from '../../index.ts'
+import { loginCallbackPath } from './paths.ts'
+import { isSameOrigin, sameOrigin } from './same-origin.ts'
 
 const app = new URL(config.get('auth.appBaseUrl')).origin
 
@@ -51,36 +56,54 @@ describe('isSameOrigin', () => {
   })
 })
 
-describe('sameOriginOnly', () => {
+describe('sameOrigin', () => {
   const handler = vi.fn((request: Request) => request.pre.later)
   const server = hapi.server()
 
   beforeAll(async () => {
-    server.route(
-      sameOriginOnly([
-        {
-          method: 'POST',
-          path: '/write',
-          options: {
-            pre: [{ method: () => 'later', assign: 'later' }],
-            validate: { payload: Joi.object({ name: Joi.string().required() }) }
-          },
-          handler
-        }
-      ])
-    )
+    await server.register(sameOrigin)
+    server.route([
+      {
+        method: ['POST', 'PUT', 'PATCH', 'DELETE'],
+        path: '/write',
+        options: {
+          pre: [{ method: () => 'later', assign: 'later' }],
+          validate: { payload: Joi.object({ name: Joi.string().required() }) }
+        },
+        handler
+      },
+      { method: 'GET', path: '/read', handler: () => 'read' },
+      {
+        method: 'POST',
+        path: '/elsewhere',
+        options: { plugins: { sameOrigin: { crossOrigin: true } } },
+        handler: () => 'taken'
+      }
+    ])
     await server.initialize()
   })
 
-  test('refuses a cross-site write before its handler runs', async () => {
+  test.each(['POST', 'PUT', 'PATCH', 'DELETE'])(
+    'refuses a cross-site %s before its handler runs',
+    async (method) => {
+      const { statusCode } = await server.inject({
+        method,
+        url: '/write',
+        headers: { 'sec-fetch-site': 'cross-site' }
+      })
+
+      expect(statusCode).toBe(403)
+      expect(handler).not.toHaveBeenCalled()
+    }
+  )
+
+  test('refuses a write that names no origin at all', async () => {
     const { statusCode } = await server.inject({
       method: 'POST',
-      url: '/write',
-      headers: { 'sec-fetch-site': 'cross-site' }
+      url: '/write'
     })
 
     expect(statusCode).toBe(403)
-    expect(handler).not.toHaveBeenCalled()
   })
 
   test('refuses a cross-site write before it validates the payload', async () => {
@@ -94,40 +117,6 @@ describe('sameOriginOnly', () => {
     expect(statusCode).toBe(403)
   })
 
-  test('keeps a route’s own post-auth step, after the check', async () => {
-    const own = vi.fn((_request: Request, h: ResponseToolkit) => h.continue)
-    const guarded = hapi.server()
-
-    guarded.route(
-      sameOriginOnly([
-        {
-          method: 'POST',
-          path: '/own',
-          options: { ext: { onPostAuth: { method: own } } },
-          handler: () => 'done'
-        }
-      ])
-    )
-
-    const refused = await guarded.inject({
-      method: 'POST',
-      url: '/own',
-      headers: { 'sec-fetch-site': 'cross-site' }
-    })
-
-    expect(refused.statusCode).toBe(403)
-    expect(own).not.toHaveBeenCalled()
-
-    const through = await guarded.inject({
-      method: 'POST',
-      url: '/own',
-      headers: { 'sec-fetch-site': 'same-origin' }
-    })
-
-    expect(through.result).toBe('done')
-    expect(own).toHaveBeenCalledTimes(1)
-  })
-
   test('lets a same-origin write through, still running its own steps', async () => {
     const { statusCode, result } = await server.inject({
       method: 'POST',
@@ -138,5 +127,79 @@ describe('sameOriginOnly', () => {
 
     expect(statusCode).toBe(200)
     expect(result).toBe('later')
+  })
+
+  test.each(['GET', 'HEAD'])('leaves a cross-site %s alone', async (method) => {
+    const { statusCode } = await server.inject({
+      method,
+      url: '/read',
+      headers: { 'sec-fetch-site': 'cross-site' }
+    })
+
+    expect(statusCode).toBe(200)
+  })
+
+  test('lets a cross-site write through to a route that takes one', async () => {
+    const { result } = await server.inject({
+      method: 'POST',
+      url: '/elsewhere',
+      headers: { 'sec-fetch-site': 'cross-site' }
+    })
+
+    expect(result).toBe('taken')
+  })
+})
+
+describe('the app', () => {
+  let app: Server
+
+  const writes = () =>
+    app.table().filter(({ method }) => !['get', 'head'].includes(method))
+
+  beforeAll(async () => {
+    app = await createServer()
+    await app.register(plugins)
+    await app.initialize()
+  })
+
+  afterAll(async () => {
+    await app.stop()
+  })
+
+  test('takes a write from another origin only at the Entra ID callback', () => {
+    const open = writes()
+      .filter(({ settings }) => settings.plugins?.sameOrigin?.crossOrigin)
+      .map(({ method, path }) => `${method} ${path}`)
+
+    expect(open).toEqual([`post ${loginCallbackPath}`])
+  })
+
+  test('refuses a cross-site request to every other write it serves', async () => {
+    const guarded = writes().filter(({ path }) => path !== loginCallbackPath)
+    const given = await Promise.all(
+      guarded.map(async ({ method, path }) => {
+        const { statusCode } = await app.inject({
+          method,
+          url: path.replace(/\{[^}]+\}/g, 'x'),
+          headers: { 'sec-fetch-site': 'same-site' },
+          auth: {
+            strategy: 'session',
+            credentials: {
+              user: { name: 'Ada Lovelace' },
+              scope: Object.values(roles)
+            }
+          }
+        })
+
+        return { route: `${method} ${path}`, statusCode }
+      })
+    )
+
+    expect(guarded.some(({ path }) => path.startsWith('/grant-ops/'))).toBe(
+      true
+    )
+    expect(given).toEqual(
+      given.map(({ route }) => ({ route, statusCode: statusCodes.forbidden }))
+    )
   })
 })

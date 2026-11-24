@@ -12,6 +12,8 @@ import {
   replaceGrantAllowList
 } from '../repositories/allow-list.repository.ts'
 
+const sameOrigin = { 'sec-fetch-site': 'same-origin' }
+
 vi.mock(
   import('../repositories/allow-list.repository.ts'),
   async (importOriginal) => ({
@@ -72,7 +74,13 @@ const viewPage = async () => {
 }
 
 const post = (payload: { sbi: string; crn: string }) =>
-  server.inject({ method: 'POST', url, payload, auth: authenticated })
+  server.inject({
+    method: 'POST',
+    url,
+    payload,
+    auth: authenticated,
+    headers: sameOrigin
+  })
 
 /** A wreck-thrown non-2xx, matching what @hapi/wreck attaches to the error. */
 const gasError = (statusCode: number, payload?: object) =>
@@ -521,7 +529,8 @@ describe('replaceAllowListRoute', () => {
       method: 'POST',
       url: escapedUrl,
       payload: submitted,
-      auth: authenticated
+      auth: authenticated,
+      headers: sameOrigin
     })
 
     expect(replaceGrantAllowList).toHaveBeenCalledWith('wood land', submitted)
@@ -538,7 +547,8 @@ describe('allow-list administration access refusals', () => {
       method,
       url,
       payload: method === 'POST' ? { sbi: '', crn: '' } : undefined,
-      auth: authenticated
+      auth: authenticated,
+      headers: sameOrigin
     })
 
   beforeEach(() => {

@@ -50,6 +50,11 @@ declare module '@hapi/hapi' {
     }
   }
 
+  interface PluginSpecificConfiguration {
+    /** A write that comes from another origin by design; see server/plugins/auth/same-origin.ts */
+    sameOrigin?: { crossOrigin: true }
+  }
+
   interface ReqRefDefaults {
     AuthCredentialsExtra: {
       user: import('../server/plugins/auth/user.ts').User

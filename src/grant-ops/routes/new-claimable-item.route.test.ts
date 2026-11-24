@@ -16,6 +16,8 @@ import {
   findClaim
 } from '../repositories/claims.repository.ts'
 
+const sameOrigin = { 'sec-fetch-site': 'same-origin' }
+
 vi.mock(import('../use-cases/get-claims.use-case.ts'))
 vi.mock(import('../repositories/claims.repository.ts'))
 
@@ -362,7 +364,8 @@ describe('createClaimableItemRoute', () => {
       method: 'POST',
       url,
       payload,
-      auth: { strategy: 'session', credentials }
+      auth: { strategy: 'session', credentials },
+      headers: sameOrigin
     })
 
   const bounded = () =>
@@ -627,7 +630,8 @@ describe('createClaimableItemRoute', () => {
       method: 'POST',
       url: escapedUrl,
       payload: { totalHectares: '40.25' },
-      auth: { strategy: 'session', credentials }
+      auth: { strategy: 'session', credentials },
+      headers: sameOrigin
     })
 
     expect(createEntitlement).toHaveBeenCalledWith(

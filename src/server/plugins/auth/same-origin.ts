@@ -1,10 +1,5 @@
 import Boom from '@hapi/boom'
-import type {
-  Request,
-  ResponseToolkit,
-  RouteOptions,
-  ServerRoute
-} from '@hapi/hapi'
+import type { Request, ResponseToolkit, Server } from '@hapi/hapi'
 
 import { config } from '../../../common/config.ts'
 
@@ -24,9 +19,9 @@ const checks = ({ 'sec-fetch-site': site, origin }: OriginHeaders) => [
 /**
  * A request this app's own pages sent. The session cookie's SameSite=Strict
  * still rides along on a request from any other CDP frontend, because every
- * `*.cdp-int.defra.cloud` site is the same site as this one. So a write that
- * mints or revokes credentials also asks the browser where it came from: at
- * least one of the two headers, and nothing either says against it.
+ * `*.cdp-int.defra.cloud` site is the same site as this one. So every write
+ * also asks the browser where it came from: at least one of the two headers,
+ * and nothing either says against it.
  */
 export const isSameOrigin = (headers: OriginHeaders): boolean => {
   const said = checks(headers).filter((check) => check !== null)
@@ -34,7 +29,7 @@ export const isSameOrigin = (headers: OriginHeaders): boolean => {
   return said.length > 0 && said.every(Boolean)
 }
 
-export const requireSameOrigin = (request: Request, h: ResponseToolkit) => {
+const requireSameOrigin = (request: Request, h: ResponseToolkit) => {
   if (!isSameOrigin(request.headers)) {
     throw Boom.forbidden('Cross-origin write refused')
   }
@@ -42,17 +37,25 @@ export const requireSameOrigin = (request: Request, h: ResponseToolkit) => {
   return h.continue
 }
 
-/** First of a route's own post-auth steps, which it keeps. */
-const withGuard = (ext: RouteOptions['ext']): RouteOptions['ext'] => ({
-  ...ext,
-  onPostAuth: [{ method: requireSameOrigin }, ...[ext?.onPostAuth ?? []].flat()]
-})
+const readsOnly = new Set(['get', 'head'])
 
-/** Runs before these routes validate what was sent, so a refusal is always a 403. */
-export const sameOriginOnly = (
-  routes: (ServerRoute & { options?: RouteOptions })[]
-): ServerRoute[] =>
-  routes.map((route) => ({
-    ...route,
-    options: { ...route.options, ext: withGuard(route.options?.ext) }
-  }))
+const takesAnyOrigin = ({ method, route }: Request): boolean =>
+  readsOnly.has(method) ||
+  route.settings.plugins?.sameOrigin?.crossOrigin === true
+
+/**
+ * Every route that takes a write takes it only from this app's own pages,
+ * unless it says otherwise with `plugins: { sameOrigin: { crossOrigin: true } }`.
+ * Applied server-wide, so a write added later is guarded without asking. It
+ * runs before a route validates what was sent, so a refusal is always a 403.
+ */
+export const sameOrigin = {
+  plugin: {
+    name: 'same-origin',
+    register(server: Server) {
+      server.ext('onPostAuth', (request, h) =>
+        takesAnyOrigin(request) ? h.continue : requireSameOrigin(request, h)
+      )
+    }
+  }
+}

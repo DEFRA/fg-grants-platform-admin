@@ -6,7 +6,7 @@ const contentSecurityPolicy = {
   options: {
     defaultSrc: ['self'],
     fontSrc: ['self', 'data:'],
-    connectSrc: ['self', 'wss', 'data:'],
+    connectSrc: ['self', 'data:'],
     mediaSrc: ['self'],
     styleSrc: ['self'],
     scriptSrc: [

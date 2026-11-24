@@ -7,6 +7,8 @@ import { currentGasActor } from '../../common/gas-actor.ts'
 import { createServer } from '../../server/index.ts'
 import { grantOps } from '../index.ts'
 
+const sameOrigin = { 'sec-fetch-site': 'same-origin' }
+
 vi.mock(import('../../common/gas.ts'), async (original) => ({
   ...(await original()),
   getFromGas: vi.fn(),
@@ -64,7 +66,13 @@ const get = (cookie?: string) =>
     ...(cookie && { headers: { cookie } })
   })
 const post = (payload: object) =>
-  server.inject({ method: 'POST', url: settingsUrl, auth, payload })
+  server.inject({
+    method: 'POST',
+    url: settingsUrl,
+    auth,
+    payload,
+    headers: sameOrigin
+  })
 
 describe('Grant setup', () => {
   test('shows the saved closed state using GOV.UK radios and Save changes', async () => {
@@ -180,7 +188,8 @@ describe('Grant setup', () => {
       method: 'POST',
       url,
       auth,
-      payload: { sbi: 'bad', crn: '' }
+      payload: { sbi: 'bad', crn: '' },
+      headers: sameOrigin
     })
     const $ = load(response.payload)
     expect(response.statusCode).toBe(400)
