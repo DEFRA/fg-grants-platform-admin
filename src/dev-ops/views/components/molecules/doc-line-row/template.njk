@@ -1,0 +1,4 @@
+{%- from "../../atoms/icon/macro.njk" import Icon -%}
+{%- from "../../molecules/doc-segs1/macro.njk" import DocSegs1 -%}
+{%- set l = gpaDocLine(p.doc or { t: 'object', entries: [] }) -%}
+  <span class="gpa-docline-caret" aria-hidden="true">{{ Icon({ name: 'chevron-right', size: 'sm' }) }}</span><span class="gpa-docline-text">{{ DocSegs1(l.segs) }}</span>

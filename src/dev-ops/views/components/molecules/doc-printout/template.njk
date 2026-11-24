@@ -1,0 +1,16 @@
+{%- from "../../core/macros.njk" import attrs, cls -%}
+{%- from "../../atoms/text/macro.njk" import Text -%}
+{%- from "./macro.njk" import DocPrintout -%}
+{%- set m = gpaDoc(p.doc or { t: 'object', entries: [] }, p.expand or 0) -%}
+  <div class="{{ cls('gpa-doc', p) }}"{% if p.id %} id="{{ p.id }}"{% endif %} role="group"{% if p.label %} aria-label="{{ p.label }}"{% endif %}{{ attrs(p) }}>
+    <div class="gpa-doc-row">
+      {%- if p.note -%}
+        <div class="gpa-doc-note-row">{{ Text({ text: p.note.text, tone: 'subtle' }) }}{{ p.note.action | safe if p.note.action }}</div>
+      {%- else -%}
+        <pre class="gpa-doc-code"><code>{{ m.html | safe }}</code></pre>
+      {%- endif -%}
+      {%- if p.action %}<div class="gpa-doc-action">{{ p.action | safe }}</div>{% endif -%}
+    </div>
+    {%- if p.context %}<div class="gpa-doc-context">{{ p.context | safe }}</div>{% endif -%}
+    {%- if p.related %}<div class="gpa-doc-related">{{ Text({ text: p.related.title, variant: 'body-sm', tone: 'subtle' }) }}{{ DocPrintout({ doc: p.related.doc, label: p.related.label or p.related.title }) }}</div>{% endif -%}
+  </div>

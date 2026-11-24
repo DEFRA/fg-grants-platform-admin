@@ -8,6 +8,17 @@ import { getExploreVocabularyUseCase } from './get-explore-vocabulary.use-case.t
 import { recentQueries } from './held-runs.ts'
 import type { ExploreOwner, HeldPage, RecentQuery } from './held-runs.ts'
 
+/** How a run's results are shown: a cell a value, or each row's document as stored. */
+export type ExploreView = 'table' | 'documents'
+
+/** What Documents asks GAS to print: each record's start, or a Show it run's one document whole. */
+const documentsAsked = (shown: boolean) =>
+  shown ? { documents: true } : { starts: true }
+
+/** Only Documents asks GAS for what it prints. */
+export const toDocumentsAsked = (view: ExploreView, shown: boolean) =>
+  view === 'documents' ? documentsAsked(shown) : {}
+
 /** Said in place of a run: nothing was read for it. */
 export type ExploreNotice =
   | { kind: 'expired' }
@@ -25,11 +36,16 @@ export interface ExploreShown {
     stopped?: ExploreStop | null
     /** The most windows a restore of the run draws, when GAS has found fewer than a restore's most. */
     restorable?: number
+    view?: ExploreView
+    /** A Show it run: the number of the one row of the query it shows, found again by its record's `_id`. */
+    shown?: number
   } | null
   result: Explored<ExploreAnswer> | null
   /** The window before the one shown, as read; null for the first. */
   previous: HeldPage | null
   notice: ExploreNotice | null
+  /** With no run, the view the editor's Run lands in. */
+  view?: ExploreView
 }
 
 export interface ExplorePageData extends ExploreShown {
@@ -50,8 +66,16 @@ export interface ExploreAsker {
 
 export const toEditor = (
   q: string,
-  notice: ExploreNotice | null = null
-): ExploreShown => ({ q, run: null, result: null, previous: null, notice })
+  notice: ExploreNotice | null = null,
+  view: ExploreView = 'table'
+): ExploreShown => ({
+  q,
+  run: null,
+  result: null,
+  previous: null,
+  notice,
+  view
+})
 
 export const expired: ExploreShown = toEditor('', { kind: 'expired' })
 

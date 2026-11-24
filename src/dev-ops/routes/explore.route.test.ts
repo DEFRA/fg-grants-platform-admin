@@ -4,10 +4,11 @@ import { load, type CheerioAPI } from 'cheerio'
 import type { Request, Server } from '@hapi/hapi'
 import type { OidcToken } from '@defra/hapi-auth-oidc'
 
+import { logger } from '../../common/logger.ts'
 import { statusCodes } from '../../common/status-codes.ts'
 import { createServer } from '../../server/index.ts'
 import { devOps } from '../index.ts'
-import { expectTablesStyled } from '../test-utils.ts'
+import { expectTablesStyled, linesOf } from '../test-utils.ts'
 import type {
   ExploreAnswer,
   ExploreFailure,
@@ -293,7 +294,8 @@ describe('Explore, first opened', () => {
     expect(viewExploreUseCase).toHaveBeenCalledExactlyOnceWith({
       owner: expect.objectContaining({ user: credentials.user.id }),
       run: null,
-      page: 1
+      page: 1,
+      view: 'table'
     })
     expect(textOf($, 'explore-title')).toBe('Explore')
     expect($('title').text()).toBe('Explore – Grants Platform')
@@ -437,11 +439,57 @@ describe('running a typed query', () => {
 
     expect(runExploreUseCase).toHaveBeenCalledExactlyOnceWith({
       owner: expect.objectContaining({ user: credentials.user.id }),
-      wayIn: { kind: 'typed', q: typed }
+      wayIn: { kind: 'typed', q: typed, view: 'table' }
     })
     expect(posted.statusCode).toBe(statusCodes.seeOther)
     expect(posted.location).toBe(runHref)
     expect(posted.location).toMatch(runId)
+  })
+
+  test('lands a Run made after Start again in Documents, the editor’s form posting its view', async () => {
+    showing(editorPage({ view: 'documents' }))
+
+    const { $ } = await view('/dev-ops/explore?view=documents')
+
+    expect(viewExploreUseCase).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ run: null, view: 'documents' })
+    )
+    expect(
+      by($, 'explore-form')
+        .find('input[type="hidden"]')
+        .map((_, input) => [[$(input).attr('name'), $(input).val()]])
+        .get()
+    ).toEqual([['view', 'documents']])
+
+    vi.mocked(runExploreUseCase).mockResolvedValue({
+      kind: 'held',
+      id,
+      view: 'documents'
+    })
+
+    const posted = await post({ q: typed, view: 'documents' })
+
+    expect(wayInOf()).toEqual({ kind: 'typed', q: typed, view: 'documents' })
+    expect(posted.statusCode).toBe(statusCodes.seeOther)
+    expect(posted.location).toBe(`${runHref}&view=documents`)
+  })
+
+  test('posts no view from an editor opened in the Table', async () => {
+    showing(editorPage())
+
+    const { $ } = await view()
+
+    expect(by($, 'explore-form').find('input[type="hidden"]')).toHaveLength(0)
+  })
+
+  test.each([
+    ['a Show it', { run: id, show: 'AAAA', result: '1', view: 'documents' }],
+    ['a list’s Open in Explore', { from: 'x', view: 'documents' }]
+  ])('refuses a view on %s', async (_, payload) => {
+    const { statusCode } = await post(payload)
+
+    expect(statusCode).toBe(statusCodes.badRequest)
+    expect(runExploreUseCase).not.toHaveBeenCalled()
   })
 
   test('leaves a form’s CRLF line breaks to the use case, which lines GAS’s places up with the editor’s text', async () => {
@@ -449,7 +497,8 @@ describe('running a typed query', () => {
 
     expect(wayInOf()).toEqual({
       kind: 'typed',
-      q: typed.replaceAll('\n', '\r\n')
+      q: typed.replaceAll('\n', '\r\n'),
+      view: 'table'
     })
   })
 
@@ -459,7 +508,8 @@ describe('running a typed query', () => {
     expect(viewExploreUseCase).toHaveBeenCalledExactlyOnceWith({
       owner: expect.objectContaining({ user: credentials.user.id }),
       run: id,
-      page: 1
+      page: 1,
+      view: 'table'
     })
     expect(statusCode).toBe(statusCodes.ok)
     expect($('#q').val()).toBe(typed)
@@ -642,7 +692,7 @@ describe('running a typed query', () => {
 
     const { $, statusCode } = await post({ q })
 
-    expect(wayInOf()).toEqual({ kind: 'typed', q })
+    expect(wayInOf()).toEqual({ kind: 'typed', q, view: 'table' })
     expect(statusCode).toBe(statusCodes.badRequest)
     expect(
       JSON.parse($('gpa-query-editor').attr('data-error') ?? '{}')
@@ -668,7 +718,7 @@ const frameOf = ($: CheerioAPI) =>
       $(part).is('table') ? 'header' : $(part).children().attr('data-testid')
     )
 
-const barIds = ['explore-count', 'explore-csv']
+const barIds = ['explore-count', 'explore-view', 'explore-csv', 'explore-json']
 
 /** The page's parts top to bottom, the results bar's, the table's frame, and what is made to stick. */
 const layoutOf = ($: CheerioAPI) => {
@@ -697,7 +747,7 @@ const resultsLayout = {
     'explore-editor',
     'explore-table'
   ],
-  bar: ['explore-count', 'explore-csv'],
+  bar: ['explore-count', 'explore-view', 'explore-csv'],
   frame: ['explore-bar', 'header'],
   stickyTop: 0,
   tableHeads: 1
@@ -721,7 +771,7 @@ describe('the page’s layout', () => {
 
     expect(layoutOf($)).toEqual(resultsLayout)
     expect(by($, 'explore-bar').hasClass('gpa-justify-between')).toBe(true)
-    expect(by($, 'explore-csv-slot').hasClass('gpa-btnslot-lg')).toBe(true)
+    expect(by($, 'explore-download-slot').hasClass('gpa-btnslot-lg')).toBe(true)
     expect($('.gpa-justify-end')).toHaveLength(0)
   })
 
@@ -757,7 +807,10 @@ describe('the page’s layout', () => {
       })
     )
 
-    expect(layoutOf($)).toEqual({ ...resultsLayout, bar: ['explore-csv'] })
+    expect(layoutOf($)).toEqual({
+      ...resultsLayout,
+      bar: ['explore-view', 'explore-csv']
+    })
     expect(by($, 'explore-bar').hasClass('gpa-justify-end')).toBe(true)
   })
 
@@ -1317,8 +1370,8 @@ describe('the table’s cells', () => {
     expect(rowsOf($)).toEqual([[whole, `${'b'.repeat(299)}🌳`]])
     expect(cuts.eq(0).attr('data-size')).toBeUndefined()
     expect(cuts.eq(1).attr('data-size')).toBe('2.2 KiB')
-    expect(cuts.eq(1).text()).toBe(`${'b'.repeat(299)}🌳`)
-    expect(cuts.eq(1).find('a')).toHaveLength(0)
+    expect(cuts.eq(1).find('.gpa-cut-text').text()).toBe(`${'b'.repeat(299)}🌳`)
+    expect(cuts.find('a')).toHaveLength(0)
   })
 
   test('show a number with every digit it has, grouped by thousands', async () => {
@@ -1400,12 +1453,10 @@ describe('the table’s cells', () => {
     const { $, payload } = await page(huge)
     const short = await page('x'.repeat(300))
 
-    expect(payload.length).toBeLessThan(short.payload.length + 20 * 3 * 100)
-    expect(rowsOf($)[0]).toEqual([
-      'x'.repeat(300),
-      'x'.repeat(300),
-      'x'.repeat(300)
-    ])
+    expect(payload.length).toBeLessThan(short.payload.length + 20 * 3 * 400)
+    expect(rowsOf($)[0]).toEqual(
+      Array.from({ length: 3 }, () => 'x'.repeat(300))
+    )
     expect(
       by($, 'explore-row').find('gpa-cut-text').first().attr('data-size')
     ).toBe('3.8 MiB')
@@ -1659,7 +1710,8 @@ describe('a windowed run', () => {
       kind: 'window',
       run: id,
       page: 2,
-      inPlace: false
+      inPlace: false,
+      view: 'table'
     })
     expect(next.statusCode).toBe(statusCodes.seeOther)
     expect(next.location).toBe(`${runHref}&page=2`)
@@ -1683,7 +1735,8 @@ describe('a windowed run', () => {
       kind: 'window',
       run: id,
       page: 2,
-      inPlace: true
+      inPlace: true,
+      view: 'table'
     })
     expect(next.statusCode).toBe(statusCodes.ok)
     expect(next.location).toBeUndefined()
@@ -1732,14 +1785,21 @@ describe('a windowed run', () => {
   )
 
   test('answers Keep looking in place on a run no longer held with a conflict naming the run’s page, so the loader goes there', async () => {
-    vi.mocked(runExploreUseCase).mockResolvedValue({ kind: 'gone', id })
-
-    const next = await post({ run: id, page: '2' }, '', '/dev-ops/explore', {
-      'x-requested-with': 'gpa-load-more'
+    vi.mocked(runExploreUseCase).mockResolvedValue({
+      kind: 'gone',
+      id,
+      view: 'documents'
     })
 
+    const next = await post(
+      { run: id, page: '2', view: 'documents' },
+      '',
+      '/dev-ops/explore',
+      { 'x-requested-with': 'gpa-load-more' }
+    )
+
     expect(next.statusCode).toBe(statusCodes.conflict)
-    expect(next.location).toBe(runHref)
+    expect(next.location).toBe(`${runHref}&view=documents`)
     expect(next.payload).toBe('')
   })
 
@@ -1785,8 +1845,16 @@ describe('a windowed run', () => {
   ])(
     'goes back to the first window for one the use case can’t start, from %s',
     async (_, request) => {
-      vi.mocked(viewExploreUseCase).mockResolvedValue({ kind: 'restart', id })
-      vi.mocked(runExploreUseCase).mockResolvedValue({ kind: 'restart', id })
+      vi.mocked(viewExploreUseCase).mockResolvedValue({
+        kind: 'restart',
+        id,
+        view: 'table'
+      })
+      vi.mocked(runExploreUseCase).mockResolvedValue({
+        kind: 'restart',
+        id,
+        view: 'table'
+      })
 
       const { statusCode, location } = await request()
 
@@ -1865,7 +1933,8 @@ describe('a windowed run', () => {
     expect(viewExploreUseCase).toHaveBeenCalledExactlyOnceWith({
       owner: expect.objectContaining({ user: credentials.user.id }),
       run: id,
-      page: 3
+      page: 3,
+      view: 'table'
     })
   })
 
@@ -2383,7 +2452,8 @@ describe('drawing every window again', () => {
     expect(restoreExploreUseCase).toHaveBeenCalledExactlyOnceWith({
       owner: expect.objectContaining({ user: credentials.user.id }),
       run: id,
-      through: 3
+      through: 3,
+      view: 'table'
     })
     expect(viewExploreUseCase).not.toHaveBeenCalled()
     expect(statusCode).toBe(statusCodes.ok)
@@ -2550,18 +2620,25 @@ describe('drawing every window again', () => {
     vi.mocked(restoreExploreUseCase).mockResolvedValue({
       kind: 'apart',
       id,
-      page: 5
+      page: 5,
+      view: 'documents'
     })
 
-    const { statusCode, location } = await view(`${runHref}&through=5`)
+    const { statusCode, location } = await view(
+      `${runHref}&through=5&view=documents`
+    )
 
     expect(statusCode).toBe(statusCodes.seeOther)
-    expect(location).toBe(`${runHref}&page=5`)
+    expect(location).toBe(`${runHref}&page=5&view=documents`)
     expect(location).not.toContain('#')
   })
 
   test('goes back to the first window for windows not yet reached', async () => {
-    vi.mocked(restoreExploreUseCase).mockResolvedValue({ kind: 'restart', id })
+    vi.mocked(restoreExploreUseCase).mockResolvedValue({
+      kind: 'restart',
+      id,
+      view: 'table'
+    })
 
     const { statusCode, location } = await view(`${runHref}&through=5`)
 
@@ -3042,6 +3119,9 @@ describe('the Queries menu', () => {
       'Applications',
       'Grassland applications, last 30 days',
       'A business, in any version',
+      'Woodland applications: _id, SBI and agreements',
+      'Woodland applications, whole answers',
+      'FRPS applications’ parcels, through lists',
       'FRPS cases by status, today',
       'Woodland case stages, today',
       'Dead letters by event, last 7 days',
@@ -3097,7 +3177,11 @@ describe('the Queries menu', () => {
   test('sends a pick to the use case, over the editor’s text that comes with it, and redirects to the run it holds', async () => {
     const posted = await post({ pick: 'frps-cases-by-status', q: typed })
 
-    expect(wayInOf()).toEqual({ kind: 'pick', pick: 'frps-cases-by-status' })
+    expect(wayInOf()).toEqual({
+      kind: 'pick',
+      pick: 'frps-cases-by-status',
+      view: 'table'
+    })
     expect(posted.statusCode).toBe(statusCodes.seeOther)
     expect(posted.location).toBe(runHref)
   })
@@ -3541,5 +3625,1504 @@ describe('the editor’s values', () => {
     expect(location).toBeUndefined()
     expect(runExploreUseCase).not.toHaveBeenCalled()
     expect(viewExploreUseCase).not.toHaveBeenCalled()
+  })
+})
+
+const base64Of = (document: object): string =>
+  Buffer.from(BSON.serialize(document)).toString('base64')
+
+const appId = base64Of({ _id: new ObjectId(oid1) })
+
+const largeValues = Array.from({ length: 119_998 }, (_, n) => n)
+
+/** A record of 120,000 values, built once; its page prints about 4 MB, so drawing it has 30 s, not 5. */
+const largeDoc = base64Of({ _id: new ObjectId(oid1), values: largeValues })
+
+/** A row as GAS sends it with documents: its record's `_id`, its document, its start, and what GAS says of it. */
+const documentRow = (
+  ref: string,
+  overrides: Partial<ExploreAnswer['rows'][number]> = {}
+): ExploreAnswer['rows'][number] => {
+  const doc =
+    overrides.doc === undefined
+      ? base64Of({ _id: new ObjectId(oid1), clientRef: ref, $schema: 'x' })
+      : overrides.doc
+
+  return {
+    open: { kind: 'application', code: 'woodland', ref },
+    cells: { c0: ref },
+    id: appId,
+    doc,
+    start: doc ? { doc, cut: false } : null,
+    context: null,
+    docNote: null,
+    ...overrides
+  }
+}
+
+/** A group's, value's or count's row as GAS sends it: its document and that document's start. */
+const workedOutRow = (doc: object): ExploreAnswer['rows'][number] => ({
+  open: null,
+  cells: {},
+  id: null,
+  doc: base64Of(doc),
+  start: { doc: base64Of(doc), cut: false },
+  context: null,
+  docNote: null
+})
+
+/** A record's row as a Documents page reads it: its start, cut from the stored record, and what it prints whole. */
+const startRow = (
+  ref: string,
+  overrides: Partial<ExploreAnswer['rows'][number]> = {}
+): ExploreAnswer['rows'][number] => ({
+  open: { kind: 'application', code: 'woodland', ref },
+  cells: { c0: ref },
+  id: appId,
+  at: [],
+  start: {
+    doc: base64Of({ _id: new ObjectId(oid1), clientRef: ref, $schema: 'x' }),
+    cut: false
+  },
+  printed: { bytes: 60, values: 3 },
+  context: null,
+  docNote: null,
+  ...overrides
+})
+
+const shownRun = { run: { id, page: 1, view: 'documents' as const, shown: 1 } }
+
+const documentsOf = (
+  rows: ExploreAnswer['rows'],
+  overrides: Partial<ExplorePageData> = {},
+  answer: Partial<ExploreAnswer> = {}
+) =>
+  ran(
+    applications({ rows, count: { n: rows.length, capped: false }, ...answer }),
+    {
+      run: { id, page: 1, view: 'documents' },
+      ...overrides
+    }
+  )
+
+/** A printout's text, line by line, each object or list inside it closed as it first shows ("… N fields"). */
+const linesText = ($: CheerioAPI, printout: ReturnType<CheerioAPI>) =>
+  linesOf($, printout).map(flat).join(' ')
+
+const printoutText = ($: CheerioAPI, n = 0) =>
+  linesText($, by($, 'explore-document').eq(n))
+
+const itemsOf = ($: CheerioAPI) => by($, 'explore-row')
+
+describe('Documents', () => {
+  test('asks the use case for the run’s window in Documents', async () => {
+    showing(
+      runPage(read(applications({ rows: [startRow('wmp-1')] })), {
+        run: { id, page: 1, view: 'documents' }
+      })
+    )
+
+    const { statusCode } = await view(`${runHref}&view=documents`)
+
+    expect(statusCode).toBe(statusCodes.ok)
+    expect(viewExploreUseCase).toHaveBeenCalledExactlyOnceWith({
+      owner: expect.objectContaining({ user: credentials.user.id }),
+      run: id,
+      page: 1,
+      view: 'documents'
+    })
+  })
+
+  test.each([
+    ['a view it doesn’t name', `${runHref}&view=table`],
+    ['any other view', `${runHref}&view=json`],
+    ['views twice', `${runHref}&view=documents&view=documents`]
+  ])('refuses %s', async (_, url) => {
+    const { statusCode } = await view(url)
+
+    expect(statusCode).toBe(statusCodes.badRequest)
+    expect(viewExploreUseCase).not.toHaveBeenCalled()
+  })
+
+  test('draws each record as its result’s line, opened by a post in place, with no printout and no link to its record', async () => {
+    const { $ } = await documentsOf([startRow('wmp-1'), startRow('wmp-2')])
+    const documents = by($, 'explore-document')
+    const form = documents.first().find('form')
+
+    expect(by($, 'explore-table')).toHaveLength(0)
+    expect(by($, 'explore-documents').find('ol').attr('id')).toBe(
+      'explore-rows'
+    )
+    expect(
+      itemsOf($)
+        .map((_, item) => $(item).attr('id'))
+        .get()
+    ).toEqual(['row-1-1', 'row-1-2'])
+    expect(
+      documents.map((_, item) => $(item).attr('aria-label')).get()
+    ).toEqual(['Result 1', 'Result 2'])
+    expect(documents.map((_, item) => $(item).attr('role')).get()).toEqual([
+      'group',
+      'group'
+    ])
+    expect(documents.map((_, item) => $(item).attr('id')).get()).toEqual([
+      'result-1',
+      'result-2'
+    ])
+    expect($('gpa-doc-line')).toHaveLength(2)
+    expect(by($, 'explore-documents').find('.gpa-doc-code')).toHaveLength(0)
+    expect(itemsOf($).find('a')).toHaveLength(0)
+    expect(form.attr('action')).toBe('/dev-ops/explore')
+    expect(form.attr('method')).toBe('post')
+    expect(
+      form
+        .find('input[type="hidden"]')
+        .map((_, input) => [[$(input).attr('name'), $(input).val()]])
+        .get()
+    ).toEqual([
+      ['run', id],
+      ['show', appId],
+      ['result', '1']
+    ])
+    expect(form.find('button[type="submit"]').text()).toBe(
+      `{ _id: ObjectId('${oid1}'), clientRef: 'wmp-1', '$schema': 'x' }`
+    )
+  })
+
+  test('expands a record past what a page prints in place with its caret, posting nothing, its line kept and under it why, with Show in new tab, a plain post to its own page', async () => {
+    const { $ } = await documentsOf([
+      startRow('wmp-1', { printed: { bytes: 2_000_000, values: 3 } })
+    ])
+    const document = by($, 'explore-document')
+
+    expect($('gpa-doc-line')).toHaveLength(0)
+    expect(document.find('form.gpa-docline-form')).toHaveLength(0)
+    expect(document.find('.gpa-docline-action')).toHaveLength(0)
+    expect(document.find('details.gpa-docline-d.is-keep')).toHaveLength(1)
+    expect(document.find('details').attr('open')).toBeUndefined()
+    expect(document.find('summary.gpa-docline-row').text()).toBe(
+      `{ _id: ObjectId('${oid1}'), clientRef: 'wmp-1', '$schema': 'x' }`
+    )
+    const body = document.find('details > .gpa-docline-body')
+    expect(flat(body.find('[data-testid="explore-show-text"]').text())).toBe(
+      'This application’s document is too large to print on a page.'
+    )
+    expect(
+      body.find('[data-testid="explore-show-text"]').next().is('form')
+    ).toBe(true)
+    expect(
+      body.find('[data-testid="explore-show-beside"]').hasClass('gpa-inline')
+    ).toBe(true)
+    expect(flat(body.find('[data-testid="explore-show"]').text())).toBe(
+      'Show in new tab'
+    )
+    expect(body.find('[data-testid="explore-show"]').attr('formtarget')).toBe(
+      '_blank'
+    )
+    expect(by($, 'explore-show-form').hasClass('gpa-form-inline')).toBe(true)
+    expect(by($, 'explore-show').attr('aria-label')).toBe(
+      'Show in new tab, result 1'
+    )
+    expect(
+      by($, 'explore-show-form')
+        .find('input[type="hidden"]')
+        .map((_, input) => [[$(input).attr('name'), $(input).val()]])
+        .get()
+    ).toEqual([
+      ['run', id],
+      ['show', appId],
+      ['result', '1']
+    ])
+    const button = by($, 'explore-show')
+    expect(button.is('button[type="submit"]')).toBe(true)
+    expect(button.hasClass('gpa-btn-link')).toBe(true)
+    expect(button.hasClass('gpa-btn-sm')).toBe(true)
+    expect(button.attr('formtarget')).toBe('_blank')
+    expect(by($, 'explore-show-form').attr('method')).toBe('post')
+  })
+
+  test('is GAS answering with an error, logged, when a cut start prints within the line', async () => {
+    const { $, statusCode } = await documentsOf([
+      startRow('wmp-1', {
+        start: { doc: base64Of({ _id: new ObjectId(oid1) }), cut: true }
+      })
+    ])
+
+    expect(statusCode).toBe(statusCodes.serviceUnavailable)
+    expect(textOf($, 'explore-alert')).toContain(
+      'The Grant Application Service answered with an error.'
+    )
+    expect(by($, 'explore-documents')).toHaveLength(0)
+  })
+
+  test('is GAS answering with an error, logged, when a group comes with no start', async () => {
+    const error = vi.spyOn(logger, 'error')
+    const { $, statusCode } = await documentsOf(
+      [{ ...workedOutRow({ _id: 'AWAITING', cases: 12 }), start: undefined }],
+      {},
+      {
+        mode: 'groups',
+        groups: true,
+        count: { n: 1, capped: false, groups: 1 }
+      }
+    )
+
+    expect(statusCode).toBe(statusCodes.serviceUnavailable)
+    expect(by($, 'explore-documents')).toHaveLength(0)
+    expect(error).toHaveBeenCalledWith(
+      "fg-gas-backend answered Explore's Documents with a document with no start"
+    )
+  })
+
+  test('draws a Show it run of a record of 120,000 values, its line printed from its start and cut', async () => {
+    const { $, statusCode } = await documentsOf(
+      [
+        documentRow('wmp-1', {
+          doc: largeDoc,
+          start: {
+            doc: base64Of({
+              _id: new ObjectId(oid1),
+              values: largeValues.slice(1, 81)
+            }),
+            cut: true
+          }
+        })
+      ],
+      shownRun
+    )
+    const line = flat(
+      by($, 'explore-document').find('.gpa-docline-text').text()
+    )
+
+    expect(statusCode).toBe(statusCodes.ok)
+    expect(line).toMatch(
+      new RegExp(`^\\{ _id: ObjectId\\('${oid1}'\\), values: \\[ 1, 2, 3, .*…$`)
+    )
+    expect([...line.replace(/…$/, '')]).toHaveLength(160)
+    expect(by($, 'explore-printout')).toHaveLength(1)
+  }, 30_000)
+
+  test('is GAS answering with an error, logged, when a Show it run’s record comes with no start', async () => {
+    const error = vi.spyOn(logger, 'error')
+    const { $, statusCode } = await documentsOf(
+      [documentRow('wmp-1', { start: undefined })],
+      shownRun
+    )
+
+    expect(statusCode).toBe(statusCodes.serviceUnavailable)
+    expect(by($, 'explore-documents')).toHaveLength(0)
+    expect(error).toHaveBeenCalledWith(
+      "fg-gas-backend answered Explore's Documents with a document with no start"
+    )
+  })
+
+  test('posts the open of an event with its service and box, and of an unwound row with its places', async () => {
+    const { $ } = await documentsOf([
+      startRow('e', {
+        open: { kind: 'event', service: 'GAS', box: 'outbox', id: oid1 },
+        at: [3, null],
+        context: { service: 'GAS', box: 'outbox' }
+      })
+    ])
+
+    expect(
+      by($, 'explore-document')
+        .find('form input[type="hidden"]')
+        .map((_, input) => [[$(input).attr('name'), $(input).val()]])
+        .get()
+    ).toEqual([
+      ['run', id],
+      ['show', appId],
+      ['result', '1'],
+      ['at', '3,null'],
+      ['service', 'GAS'],
+      ['box', 'outbox']
+    ])
+  })
+
+  test('draws a page of 50 records in under 2 KB a row, whatever their records’ sizes', async () => {
+    const rows = (printed: { bytes: number; values: number }) =>
+      Array.from({ length: 50 }, (_, n) =>
+        startRow(`wmp-${n}`, {
+          start: {
+            doc: base64Of({ _id: new ObjectId(oid1), notes: 'é'.repeat(3000) }),
+            cut: true
+          },
+          printed
+        })
+      )
+    const inPlace = await documentsOf(rows({ bytes: 60_000, values: 2 }))
+    const ownPage = await documentsOf(
+      rows({ bytes: 4_000_000, values: 200_000 })
+    )
+
+    for (const { $ } of [inPlace, ownPage]) {
+      itemsOf($).each((_, item) => {
+        expect(Buffer.byteLength($.html(item))).toBeLessThan(2 * 1024)
+      })
+    }
+    expect(Buffer.byteLength(inPlace.payload)).toBeLessThan(100 * 1024)
+    expect(Buffer.byteLength(ownPage.payload)).toBeLessThan(128 * 1024)
+  })
+
+  test('lists the records a window skipped by their _id alone, the Table linking them', async () => {
+    const answer = {
+      read: 'windowed' as const,
+      count: null,
+      window: {
+        to: null,
+        end: true,
+        positions: null,
+        skipped: [skippedRecord('wmp-big', oid2)]
+      }
+    }
+    const documents = await documentsOf([startRow('wmp-1')], {}, answer)
+    const empty = await documentsOf(
+      [],
+      {},
+      { ...answer, window: { ...answer.window, end: false, positions: 'p' } }
+    )
+    const table = await ran(applications(answer), { run: { id, page: 1 } })
+
+    expect(textOf(documents.$, 'explore-skipped')).toBe(`ObjectId('${oid2}')`)
+    expect(by(documents.$, 'explore-footer').find('a')).toHaveLength(0)
+    expect(itemsOf(documents.$).find('a')).toHaveLength(0)
+    expect(textOf(empty.$, 'explore-empty')).toContain(`ObjectId('${oid2}')`)
+    expect(by(empty.$, 'explore-empty').find('a')).toHaveLength(0)
+    expect(textOf(table.$, 'explore-skipped')).toBe(
+      `ObjectId('${oid2}') Open application`
+    )
+  })
+
+  test('numbers results after the windows before this one', async () => {
+    const { $ } = await documentsOf([startRow('wmp-4')], {
+      run: { id, page: 2, view: 'documents' },
+      previous: {
+        positions: 'p',
+        end: false,
+        found: 3,
+        source: { name: 'applications', noun: 'application' }
+      }
+    })
+
+    expect(by($, 'explore-document').attr('aria-label')).toBe('Result 4')
+    expect(itemsOf($).attr('id')).toBe('row-2-1')
+  })
+
+  test('switches between the views at the page’s own address, Table first, the view shown picked', async () => {
+    const { $ } = await documentsOf([startRow('wmp-1')], {
+      run: { id, page: 2, view: 'documents' }
+    })
+    const views = by($, 'explore-view')
+
+    expect(views.attr('role')).toBe('radiogroup')
+    expect(views.attr('aria-label')).toBe('Show results as')
+    expect(
+      views
+        .find('a[role="radio"]')
+        .map((_, link) => ({
+          text: $(link).text(),
+          href: $(link).attr('href'),
+          checked: $(link).attr('aria-checked')
+        }))
+        .get()
+    ).toEqual([
+      { text: 'Table', href: `${runHref}&page=2`, checked: 'false' },
+      {
+        text: 'Documents',
+        href: `${runHref}&page=2&view=documents`,
+        checked: 'true'
+      }
+    ])
+  })
+
+  test.each([
+    [{ id, page: 1 }, [runHref, `${runHref}&view=documents`]],
+    [
+      { id, page: 3, through: 3, windowRows: [1, 0, 0] },
+      [`${runHref}&through=3`, `${runHref}&through=3&view=documents`]
+    ]
+  ])('switches from the address that drew the page', async (run, hrefs) => {
+    const { $ } = await ran(applications(), { run })
+
+    expect(
+      by($, 'explore-view')
+        .find('a')
+        .map((_, link) => $(link).attr('href'))
+        .get()
+    ).toEqual(hrefs)
+  })
+
+  test('downloads JSON in Documents, CSV in the Table, each form posting only the run', async () => {
+    const documents = await documentsOf([startRow('wmp-1')])
+    const table = await ran(applications())
+
+    expect(textOf(documents.$, 'explore-json')).toBe('Download JSON')
+    expect(
+      documents
+        .$(`#${by(documents.$, 'explore-json').attr('form')}`)
+        .attr('action')
+    ).toBe('/dev-ops/explore.json')
+    expect(
+      documents
+        .$('#explore-json-form input')
+        .map((_, input) => documents.$(input).attr('name'))
+        .get()
+    ).toEqual(['run'])
+    expect(by(documents.$, 'explore-csv')).toHaveLength(0)
+    expect(by(table.$, 'explore-json')).toHaveLength(0)
+    expect(textOf(table.$, 'explore-csv')).toBe('Download CSV')
+  })
+
+  test('says an event’s service and box, and a version’s definition as a printout of its own, in a result drawn open', async () => {
+    const { $ } = await documentsOf(
+      [
+        documentRow('e', {
+          open: { kind: 'event', service: 'CW', box: 'inbox', id: oid1 },
+          context: { service: 'CW', box: 'inbox' }
+        }),
+        documentRow('g', {
+          open: { kind: 'grant', code: 'woodland', version: '1.2.0' },
+          context: { definition: base64Of({ $schema: 'x' }) }
+        }),
+        documentRow('g2', {
+          open: { kind: 'grant', code: 'woodland', version: '1.3.0' },
+          context: { definition: null }
+        })
+      ],
+      shownRun
+    )
+    const documents = by($, 'explore-document')
+
+    expect(textOf($, 'explore-document-context')).toContain('CW inbox')
+    expect(
+      flat(
+        documents
+          .eq(1)
+          .find(
+            '.gpa-doc-related > .gpa-text, .gpa-doc-related > p, .gpa-doc-related > span'
+          )
+          .first()
+          .text()
+      )
+    ).toBe('Its grant definition (grants: woodland 1.2.0)')
+    expect(linesText($, documents.eq(1).find('.gpa-doc-related'))).toBe(
+      "{ '$schema': 'x' }"
+    )
+    expect(
+      documents.eq(1).find('.gpa-doc-related [role="group"]').attr('aria-label')
+    ).toBe('Its grant definition (grants: woodland 1.2.0), result 2')
+    expect(
+      flat(
+        documents.eq(2).find('[data-testid="explore-document-context"]').text()
+      )
+    ).toBe('It names no stored definition.')
+  })
+
+  test('says a record changed since it was found, under its result', async () => {
+    const { $ } = await documentsOf([
+      startRow('wmp-1', { docNote: { changed: true } })
+    ])
+
+    expect(
+      flat(by($, 'explore-document').find('.gpa-docline-sub').text())
+    ).toBe('Changed since it was found: it may no longer match the filter.')
+    expect($('gpa-doc-line')).toHaveLength(1)
+  })
+
+  test('says a record no longer exists, in place of its result, with nothing to open', async () => {
+    const { $ } = await documentsOf([
+      startRow('wmp-1', { start: null, printed: null, docNote: { gone: true } })
+    ])
+
+    expect($('gpa-doc-line')).toHaveLength(0)
+    expect(
+      by($, 'explore-document').find('form, details, button')
+    ).toHaveLength(0)
+    expect(
+      flat(by($, 'explore-document').find('.gpa-docline-note').text())
+    ).toBe('This application no longer exists. Run the query again.')
+    expect(by($, 'explore-document').attr('role')).toBe('group')
+    expect(by($, 'explore-document').attr('aria-label')).toBe('Result 1')
+  })
+
+  test('offers Download JSON, not Show it, for a Show it’s document too large to print on any page', async () => {
+    const { $ } = await documentsOf(
+      [
+        documentRow('wmp-1', {
+          doc: null,
+          docNote: { later: 16_000_000, values: 900_000 }
+        })
+      ],
+      shownRun
+    )
+
+    expect(by($, 'explore-show-form')).toHaveLength(0)
+    expect(
+      flat(by($, 'explore-document').find('.gpa-doc-note-row').text())
+    ).toBe(
+      'This application’s document is too large to print on a page. Download JSON holds it whole.Download JSON'
+    )
+    expect(by($, 'explore-document-download').attr('form')).toBe(
+      'explore-json-form'
+    )
+  })
+
+  test('says a projection makes the document larger than mongod allows', async () => {
+    const { $ } = await documentsOf([
+      startRow('wmp-1', {
+        start: null,
+        printed: null,
+        docNote: { tooLarge: true }
+      })
+    ])
+
+    expect(
+      flat(by($, 'explore-document').find('.gpa-docline-note').text())
+    ).toBe('This projection makes the document larger than mongod allows.')
+    expect(
+      by($, 'explore-document').find('form, details, button')
+    ).toHaveLength(0)
+  })
+
+  test('prints a group as $group writes it, a value and a count as themselves, with no link', async () => {
+    const groups = await documentsOf(
+      [workedOutRow({ _id: 'AWAITING', cases: 12 })],
+      {},
+      {
+        mode: 'groups',
+        groups: true,
+        count: { n: 1, capped: false, groups: 1 }
+      }
+    )
+    const value = await documentsOf(
+      [workedOutRow({ v: 'AWAITING' })],
+      {},
+      { mode: 'distinct', count: { n: 1, capped: false, groups: 1 } }
+    )
+
+    expect(printoutText(groups.$)).toBe("{ _id: 'AWAITING', cases: 12 }")
+    expect(itemsOf(groups.$).find('a')).toHaveLength(0)
+    expect(by(groups.$, 'explore-open')).toHaveLength(0)
+    expect(printoutText(value.$)).toBe("'AWAITING'")
+  })
+
+  test('closes each object and list inside a document to a line, however short, opening in place without script', async () => {
+    const address = {
+      line1: 'Field Farm',
+      town: 'Hexham',
+      postcode: 'NE46 4AB',
+      no: 1
+    }
+    const { $ } = await documentsOf(
+      [
+        documentRow('wmp-1', {
+          doc: base64Of({
+            identifiers: { sbi: '106' },
+            address,
+            holdings: address,
+            parcels: [{ id: 'SX1' }, { id: 'SX2', area: { ha: 2 } }]
+          })
+        })
+      ],
+      shownRun
+    )
+    const document = by($, 'explore-document')
+    const nodes = document.find('.gpa-doc-code details:not(.m)')
+
+    expect(printoutText($)).toBe(
+      '{ identifiers: { … 1 field }, address: { … 4 fields }, holdings: { … 4 fields }, parcels: [ … 2 items ] }'
+    )
+    expect(nodes.filter('[open]')).toHaveLength(0)
+    expect(
+      nodes
+        .children('summary')
+        .map((_, line) => flat($(line).text()))
+        .get()
+    ).toEqual([
+      'identifiers: {',
+      'address: {',
+      'holdings: {',
+      'parcels: [',
+      '{',
+      '{',
+      'area: {'
+    ])
+    expect(linesOf($, nodes.eq(3), { opened: true }).map(flat)).toEqual([
+      'parcels: [',
+      '{',
+      "id: 'SX1'",
+      '},',
+      '{',
+      "id: 'SX2',",
+      'area: {',
+      'ha: 2',
+      '}',
+      '}',
+      ']'
+    ])
+    expect(document.find('script')).toHaveLength(0)
+  })
+
+  test('prints a document nested past six levels whole, each level opening in place', async () => {
+    const deep = Array.from({ length: 9 }).reduce<unknown>(
+      (inner, _, n) => ({ [`l${9 - n}`]: inner }),
+      { leaf: 'bottom' }
+    )
+    const { $ } = await documentsOf(
+      [documentRow('wmp-1', { doc: base64Of({ deep }) })],
+      shownRun
+    )
+    const document = by($, 'explore-document')
+
+    expect(printoutText($)).toBe('{ deep: { … 1 field } }')
+    expect(document.find('.gpa-doc-code details:not(.m)')).toHaveLength(10)
+    expect(document.find('.gpa-doc-code details[open]')).toHaveLength(0)
+    expect(linesOf($, document, { opened: true })).toContain(
+      `${'  '.repeat(11)}leaf: 'bottom'`
+    )
+    expect(document.text()).not.toMatch(/\[Object\]|\[Array\]/)
+  })
+
+  test('shows a long document’s whole first level, each list a details', async () => {
+    const fields = Object.fromEntries(
+      Array.from({ length: 19 }, (_, n) => [`f${n}`, n])
+    )
+    const parcels = Array.from({ length: 30 }, (_, n) => ({
+      n,
+      area: { ha: n, parts: [n] }
+    }))
+    const { $ } = await documentsOf(
+      [
+        documentRow('wmp-1', {
+          doc: base64Of({
+            identifiers: {
+              sbi: '106000000000',
+              frn: '1102000000',
+              crn: '1103000000'
+            },
+            ...fields,
+            parcels
+          })
+        })
+      ],
+      shownRun
+    )
+    const document = by($, 'explore-document')
+
+    const lines = linesOf($, document)
+    const identifiers = document.find('.gpa-doc-code > code > details').first()
+
+    expect(document.find('.gpa-doc-code > code > details.m')).toHaveLength(0)
+    expect(flat(identifiers.children('summary').text())).toBe('identifiers: {')
+    expect(lines[1]).toBe('  identifiers: { … 3 fields },')
+    expect(linesOf($, identifiers, { opened: true })).toContain(
+      "    crn: '1103000000'"
+    )
+    expect(lines[2]).toBe('  f0: 0,')
+    expect(lines).toHaveLength(23)
+    expect(flat(document.find('.gpa-doc-code .m > summary').text())).toBe(
+      '… 25 more'
+    )
+  })
+
+  test('keeps looking in Documents, in place and without script', async () => {
+    const { $ } = await documentsOf(
+      [startRow('wmp-1')],
+      {},
+      {
+        read: 'windowed',
+        count: null,
+        window: { to: null, end: false, positions: 'p', skipped: [] }
+      }
+    )
+
+    expect(
+      by($, 'explore-footer')
+        .find('input[type="hidden"]')
+        .map((_, input) => [[$(input).attr('name'), $(input).val()]])
+        .get()
+    ).toEqual([
+      ['run', id],
+      ['page', '2'],
+      ['view', 'documents']
+    ])
+    expect(by($, 'explore-footer').attr('data-restore-href')).toBe(
+      `${runHref}&view=documents`
+    )
+  })
+
+  test('keeps looking from an empty window in Documents, by its own form', async () => {
+    const { $ } = await documentsOf(
+      [],
+      {},
+      {
+        read: 'windowed',
+        count: null,
+        window: { to: null, end: false, positions: 'p', skipped: [] }
+      }
+    )
+
+    expect(
+      $('#explore-keep-looking-form input')
+        .map((_, input) => [[$(input).attr('name'), $(input).val()]])
+        .get()
+    ).toEqual([
+      ['run', id],
+      ['page', '2'],
+      ['view', 'documents']
+    ])
+  })
+
+  test('keeps Documents in Try again and Start again', async () => {
+    showing(
+      runPage(failed({ kind: 'refused', service: 'GAS', message: null }), {
+        run: { id, page: 1, view: 'documents' }
+      })
+    )
+
+    const { $ } = await view(`${runHref}&view=documents`)
+
+    expect(by($, 'explore-start-again').attr('href')).toBe(
+      '/dev-ops/explore?view=documents'
+    )
+
+    showing(
+      runPage(failed({ kind: 'errored', service: 'GAS' }), {
+        run: { id, page: 1, view: 'documents' }
+      })
+    )
+
+    const retried = await view(`${runHref}&view=documents`)
+
+    expect(by(retried.$, 'explore-retry').attr('href')).toBe(
+      `${runHref}&view=documents`
+    )
+  })
+
+  test('posts Keep looking in Documents, and lands on the window in Documents', async () => {
+    vi.mocked(runExploreUseCase).mockResolvedValue({
+      kind: 'held',
+      id,
+      page: 2,
+      view: 'documents'
+    })
+
+    const next = await post({ run: id, page: '2', view: 'documents' })
+
+    expect(wayInOf()).toEqual({
+      kind: 'window',
+      run: id,
+      page: 2,
+      inPlace: false,
+      view: 'documents'
+    })
+    expect(next.location).toBe(`${runHref}&page=2&view=documents`)
+  })
+})
+
+describe('a Show it run', () => {
+  test('says it shows one result of the query in the editor', async () => {
+    const { $ } = await documentsOf([documentRow('wmp-1')], {
+      run: { id, page: 1, view: 'documents', shown: 7 }
+    })
+
+    expect(textOf($, 'explore-shown')).toBe(
+      'Result 7 of the query in the editor, read again by its _id: Run the query for all of them.'
+    )
+    expect(by($, 'explore-document').attr('aria-label')).toBe('Result 7')
+    expect($('#q').val()).toBe(typed)
+  })
+
+  test('says its record no longer exists when GAS finds none: in Documents in place of its document, under its number, in the Table where its row would be', async () => {
+    const answer = { documents: { whole: true, bytes: 0, gone: true } }
+    const { $ } = await documentsOf(
+      [],
+      { run: { id, page: 1, view: 'documents', shown: 7 } },
+      answer
+    )
+    const table = await documentsOf(
+      [],
+      { run: { id, page: 1, shown: 7 } },
+      answer
+    )
+    const printout = by($, 'explore-document')
+
+    expect(printout).toHaveLength(1)
+    expect(printout.attr('role')).toBe('group')
+    expect(printout.attr('aria-label')).toBe('Result 7')
+    expect(printout.find('.gpa-doc-code')).toHaveLength(0)
+    expect(by($, 'explore-document-open')).toHaveLength(0)
+    expect(flat(printout.find('.gpa-docline-note').text())).toBe(
+      'This application no longer exists. Run the query again.'
+    )
+    expect(by($, 'explore-row').attr('id')).toBe('row-1-1')
+    expect(by($, 'explore-empty')).toHaveLength(0)
+    expect(textOf($, 'explore-shown')).toBe(
+      'Result 7 of the query in the editor, read again by its _id: Run the query for all of them.'
+    )
+    expect(textOf(table.$, 'explore-empty')).toBe(
+      'This application no longer exists Run the query again.'
+    )
+    expect(by(table.$, 'explore-row')).toHaveLength(0)
+  })
+
+  test('says once, in place of its document, that its record no longer exists when GAS says so, the line above saying only which result it is', async () => {
+    const gone = documentRow('wmp-1', { doc: null, docNote: { gone: true } })
+    const answer = { documents: { whole: true, bytes: 0, gone: true } }
+    const { $ } = await documentsOf(
+      [gone],
+      { run: { id, page: 1, view: 'documents', shown: 7 } },
+      answer
+    )
+
+    expect(textOf($, 'explore-shown')).toBe(
+      'Result 7 of the query in the editor, read again by its _id: Run the query for all of them.'
+    )
+    expect(
+      flat(by($, 'explore-document').find('.gpa-docline-note').text())
+    ).toBe('This application no longer exists. Run the query again.')
+  })
+
+  test.each([
+    [
+      'changed since it was found',
+      { docNote: { changed: true as const } },
+      'Changed since it was found: it may no longer match the filter.'
+    ],
+    [
+      'gone',
+      { doc: null, docNote: { gone: true as const } },
+      'This application no longer exists. Run the query again.'
+    ]
+  ])(
+    'says in either view that its record is %s when GAS says so, its row there too',
+    async (_, note, text) => {
+      const row = documentRow('wmp-1', note)
+      const documents = await documentsOf([row], {
+        run: { id, page: 1, view: 'documents', shown: 7 }
+      })
+      const table = await documentsOf([row], {
+        run: { id, page: 1, shown: 7 }
+      })
+
+      expect(
+        flat(by(documents.$, 'explore-document').first().text())
+      ).toContain(text)
+      expect(by(documents.$, 'explore-shown-note')).toHaveLength(0)
+      expect(textOf(table.$, 'explore-shown-note')).toBe(text)
+      expect(by(table.$, 'explore-row')).toHaveLength(1)
+    }
+  )
+
+  test('says nothing more in the Table of a Show it row whose record is as found, nor of a run’s rows', async () => {
+    const shown = await documentsOf([documentRow('wmp-1')], {
+      run: { id, page: 1, shown: 7 }
+    })
+    const changed = documentRow('wmp-1', { docNote: { changed: true } })
+    const run = await documentsOf([changed], { run: { id, page: 1 } })
+
+    expect(by(shown.$, 'explore-shown-note')).toHaveLength(0)
+    expect(by(run.$, 'explore-shown-note')).toHaveLength(0)
+  })
+
+  test('says a read cut before its row can’t show it on its own, without saying it is gone', async () => {
+    const { $ } = await documentsOf(
+      [],
+      { run: { id, page: 1, view: 'documents', shown: 7 } },
+      { documents: { whole: true, bytes: 0, gone: false } }
+    )
+
+    expect(textOf($, 'explore-empty')).toBe(
+      'This result can’t be shown on its own Run the query to see it among the others.'
+    )
+  })
+
+  test.each([
+    ['as found', [documentRow('wmp-1')], {}],
+    [
+      'changed since it was found',
+      [documentRow('wmp-1', { docNote: { changed: true } })],
+      {}
+    ],
+    [
+      'gone with its row',
+      [documentRow('wmp-1', { doc: null, docNote: { gone: true } })],
+      { documents: { whole: true, bytes: 0, gone: true } }
+    ],
+    ['gone', [], { documents: { whole: true, bytes: 0, gone: true } }],
+    [
+      'too large to print',
+      [
+        documentRow('wmp-1', {
+          doc: null,
+          docNote: { later: 16_000_000, values: 900_000 }
+        })
+      ],
+      {}
+    ]
+  ] as const)(
+    'counts nothing in either view when its record is %s, the shown line saying which result it is',
+    async (_, rows, answer) => {
+      for (const view of ['documents', undefined] as const) {
+        const { $ } = await documentsOf(
+          [...rows],
+          { run: { id, page: 1, view, shown: 7 } },
+          answer
+        )
+
+        expect(by($, 'explore-count')).toHaveLength(0)
+        expect(textOf($, 'explore-shown')).toBe(
+          'Result 7 of the query in the editor, read again by its _id: Run the query for all of them.'
+        )
+        expect(by($, 'explore-shown').attr('role')).toBe('status')
+      }
+    }
+  )
+
+  test('puts focus on the shown line of the page Show it lands on, and not again on reload', async () => {
+    vi.mocked(runExploreUseCase).mockResolvedValue({
+      kind: 'held',
+      id,
+      view: 'documents'
+    })
+    showing(
+      runPage(
+        read(
+          applications({
+            rows: [],
+            count: { n: 0, capped: false },
+            documents: { whole: true, bytes: 0, gone: true }
+          })
+        ),
+        {
+          run: { id, page: 1, view: 'documents', shown: 7 }
+        }
+      )
+    )
+
+    const posted = await post({ run: id, show: appId, result: '7' })
+    const landed = await view(posted.location, posted.cookie)
+    const again = await view(posted.location, landed.cookie)
+
+    expect(by(landed.$, 'explore-shown').attr('data-focus-on-arrival')).toBe('')
+    expect(by(landed.$, 'explore-shown').attr('tabindex')).toBe('-1')
+    expect(landed.$('[data-focus-on-arrival]')).toHaveLength(1)
+    expect(again.$('[data-focus-on-arrival]')).toHaveLength(0)
+  })
+
+  test('says GAS refuses positions that don’t fit the query’s $unwind', async () => {
+    showing(
+      runPage(
+        failed({
+          kind: 'refused',
+          service: 'GAS',
+          message: 'Show it’s row positions don’t fit this query’s $unwind'
+        }),
+        { run: { id, page: 1, view: 'documents', shown: 7 } }
+      )
+    )
+
+    const { $, statusCode } = await view(`${runHref}&view=documents`)
+
+    expect(statusCode).toBe(statusCodes.badRequest)
+    expect(textOf($, 'explore-alert')).toBe(
+      'The Grant Application Service refused this query. Show it’s row positions don’t fit this query’s $unwind Start again'
+    )
+    expect(by($, 'explore-start-again').attr('href')).toBe(
+      '/dev-ops/explore?view=documents'
+    )
+  })
+
+  test('flags a key the printout decodes that isn’t valid UTF-8 as stored, the note counted in its line', async () => {
+    const stored = (after: string) => {
+      const value = Buffer.from(`${after}\0`)
+      const length = Buffer.alloc(4)
+
+      length.writeInt32LE(value.length)
+
+      const body = Buffer.concat([
+        Buffer.from([16]),
+        Buffer.from([0x6b, 0xfe, 0]),
+        Buffer.from([1, 0, 0, 0]),
+        Buffer.from([2]),
+        Buffer.from('okAfter\0'),
+        length,
+        value,
+        Buffer.from([0])
+      ])
+      const size = Buffer.alloc(4)
+
+      size.writeInt32LE(body.length + 4)
+
+      return Buffer.concat([size, body]).toString('base64')
+    }
+    const note = ' // not valid UTF-8, 2 bytes'
+
+    const { $ } = await documentsOf(
+      [
+        documentRow('wmp-1', { doc: stored('a'.repeat(28)) }),
+        documentRow('wmp-2', { doc: stored('a'.repeat(29)) })
+      ],
+      shownRun
+    )
+
+    expect(printoutText($)).toBe(
+      `{ 'k�': 1, okAfter: '${'a'.repeat(28)}' }${note}`
+    )
+    expect(printoutText($)).toHaveLength(80)
+    expect(printoutText($, 1)).toBe(
+      `{ 'k�': 1,${note} okAfter: '${'a'.repeat(29)}' }`
+    )
+    expect(
+      linesOf($, by($, 'explore-document').eq(1)).filter((line) =>
+        /^ {2}\S/.test(line)
+      )
+    ).toHaveLength(2)
+    expect(
+      by($, 'explore-document')
+        .find('.gpa-docline-body .gpa-doc-code .x')
+        .map((_, n) => $(n).text())
+        .get()
+    ).toEqual([note, note])
+  })
+})
+
+describe('Show it', () => {
+  test('holds the run’s query by the row’s _id, and lands on it in Documents', async () => {
+    vi.mocked(runExploreUseCase).mockResolvedValue({
+      kind: 'held',
+      id,
+      view: 'documents'
+    })
+
+    const next = await post({
+      run: id,
+      show: appId,
+      result: '4',
+      at: '2,null',
+      service: 'CW',
+      box: 'inbox'
+    })
+
+    expect(wayInOf()).toEqual({
+      kind: 'show',
+      run: id,
+      show: { id: appId, at: [2, null], service: 'CW', box: 'inbox' },
+      result: 4
+    })
+    expect(next.statusCode).toBe(statusCodes.seeOther)
+    expect(next.location).toBe(`${runHref}&view=documents`)
+  })
+
+  test('posts no box for a row that isn’t an event', async () => {
+    vi.mocked(runExploreUseCase).mockResolvedValue({
+      kind: 'held',
+      id,
+      view: 'documents'
+    })
+
+    await post({ run: id, show: appId, result: '1' })
+
+    expect(wayInOf()).toEqual({
+      kind: 'show',
+      run: id,
+      show: { id: appId, at: [], service: null, box: null },
+      result: 1
+    })
+  })
+
+  test.each([
+    ['no run', { show: appId, result: '1' }],
+    ['a window too', { run: id, page: '2', show: appId, result: '1' }],
+    ['a view too', { run: id, show: appId, view: 'documents', result: '1' }],
+    [
+      'a service without its box',
+      { run: id, show: appId, service: 'GAS', result: '1' }
+    ],
+    [
+      'a box no service has',
+      { run: id, show: appId, service: 'GAS', box: 'attic', result: '1' }
+    ],
+    ['an id that isn’t base64', { run: id, show: 'not base64!', result: '1' }],
+    ['a box with no id', { run: id, page: '2', service: 'GAS', box: 'inbox' }],
+    ['a view that isn’t Documents', { run: id, page: '2', view: 'json' }],
+    ['places with no id', { run: id, page: '2', at: '1' }],
+    [
+      'places that aren’t numbers',
+      { run: id, show: appId, at: '1,x', result: '1' }
+    ],
+    [
+      'more than 4 places',
+      { run: id, show: appId, at: '1,2,3,4,5', result: '1' }
+    ],
+    ['no result number', { run: id, show: appId }],
+    ['a result number with no id', { run: id, page: '2', result: '1' }],
+    ['a result number that isn’t one', { run: id, show: appId, result: '0' }]
+  ])('refuses a post with %s', async (_, payload) => {
+    const { statusCode } = await post(payload as Record<string, string>)
+
+    expect(statusCode).toBe(statusCodes.badRequest)
+    expect(runExploreUseCase).not.toHaveBeenCalled()
+  })
+})
+
+describe('an open in place', () => {
+  const opening = { 'x-requested-with': 'gpa-doc-line' }
+  const show = { id: appId, at: [], service: null, box: null }
+  const fields = [
+    ['run', id],
+    ['show', appId],
+    ['result', '4']
+  ]
+
+  const answeringOpen = (read: Explored<ExploreAnswer> | null) => {
+    vi.mocked(runExploreUseCase).mockResolvedValue({
+      kind: 'opened',
+      run: id,
+      show,
+      result: 4,
+      read
+    })
+  }
+
+  const open = () =>
+    post({ run: id, show: appId, result: '4' }, '', undefined, opening)
+
+  const shownAnswer = (overrides: Partial<ExploreAnswer> = {}) =>
+    read(applications({ rows: [documentRow('wmp-1')], ...overrides }))
+
+  const hiddenOf = ($: CheerioAPI, testId: string) =>
+    by($, testId)
+      .find('input[type="hidden"]')
+      .map((_, input) => [[$(input).attr('name'), $(input).val()]])
+      .get()
+
+  test('reads the row now, and answers its one result drawn open, without the page around it', async () => {
+    answeringOpen(
+      shownAnswer({
+        rows: [
+          documentRow('e', {
+            open: { kind: 'event', service: 'CW', box: 'inbox', id: oid1 },
+            context: { service: 'CW', box: 'inbox' },
+            docNote: { changed: true }
+          })
+        ]
+      })
+    )
+
+    const { $, statusCode, headers, payload } = await post(
+      {
+        run: id,
+        show: appId,
+        result: '4',
+        service: 'CW',
+        box: 'inbox'
+      },
+      '',
+      undefined,
+      opening
+    )
+
+    expect(wayInOf()).toEqual({
+      kind: 'open',
+      run: id,
+      show: { id: appId, at: [], service: 'CW', box: 'inbox' },
+      result: 4
+    })
+    expect(statusCode).toBe(statusCodes.ok)
+    expect(headers['cache-control']).toBe('no-store')
+    expect(payload).not.toMatch(/<html|<body|<nav|<li/)
+    expect(by($, 'explore-document')).toHaveLength(1)
+    expect(by($, 'explore-document').attr('id')).toBe('result-4')
+    expect(by($, 'explore-document').hasClass('gpa-docline')).toBe(true)
+    expect(by($, 'explore-document').attr('aria-label')).toBe('Result 4')
+    expect(by($, 'explore-document').find('details').attr('open')).toBe('open')
+    expect($('gpa-doc-line, form')).toHaveLength(0)
+    expect(printoutText($)).toBe(
+      `{ _id: ObjectId('${oid1}'), clientRef: 'e', '$schema': 'x' }`
+    )
+    expect(textOf($, 'explore-document-context')).toBe('CW inbox')
+    expect(textOf($, 'explore-document-changed')).toBe(
+      'Changed since it was found: it may no longer match the filter.'
+    )
+    expect($('a')).toHaveLength(0)
+    expect($('[data-focus-on-arrival]')).toHaveLength(0)
+  })
+
+  test('is GAS answering with an error, logged, when the record comes with no start', async () => {
+    const error = vi.spyOn(logger, 'error')
+
+    answeringOpen(
+      shownAnswer({ rows: [documentRow('wmp-1', { start: undefined })] })
+    )
+
+    const { $, statusCode } = await open()
+
+    expect(statusCode).toBe(statusCodes.serviceUnavailable)
+    expect(by($, 'explore-open-failed')).toHaveLength(1)
+    expect(by($, 'explore-printout')).toHaveLength(0)
+    expect(error).toHaveBeenCalledWith(
+      "fg-gas-backend answered Explore's Documents with a document with no start"
+    )
+  })
+
+  test('holds a Show it and lands on its page without the header, as before', async () => {
+    vi.mocked(runExploreUseCase).mockResolvedValue({
+      kind: 'held',
+      id,
+      view: 'documents'
+    })
+
+    const next = await post({ run: id, show: appId, result: '4' })
+
+    expect(wayInOf()).toMatchObject({ kind: 'show' })
+    expect(next.statusCode).toBe(statusCodes.seeOther)
+  })
+
+  test.each([
+    [
+      'it is gone',
+      { documents: { whole: true, bytes: 0, gone: true } },
+      'This application no longer exists. Run the query again.'
+    ],
+    [
+      'the run’s limit cuts the read before it',
+      { documents: { whole: true, bytes: 0, gone: false } },
+      'This application can’t be shown on its own: the query’s limit cuts it. Download JSON holds it.'
+    ]
+  ])('says so in the result when %s', async (_, answer, text) => {
+    answeringOpen(shownAnswer({ rows: [], ...answer }))
+
+    const { $, statusCode } = await open()
+
+    expect(statusCode).toBe(statusCodes.ok)
+    expect(by($, 'explore-document').attr('id')).toBe('result-4')
+    expect(by($, 'explore-document').attr('aria-label')).toBe('Result 4')
+    expect(
+      flat(by($, 'explore-document').find('.gpa-docline-note').text())
+    ).toBe(text)
+    expect(by($, 'explore-document').find('form, details')).toHaveLength(0)
+  })
+
+  /** What an item kept open on its line with why and Show in new tab under it shows, as each test expects it. */
+  const showItOpen = ($: CheerioAPI) => {
+    const document = by($, 'explore-document')
+
+    return {
+      id: document.attr('id'),
+      docLine: document.hasClass('gpa-docline'),
+      open: document.find('details').attr('open') !== undefined,
+      keepLine: document.find('details').hasClass('is-keep'),
+      lineForm: document.find('form.gpa-docline-form').length,
+      underLine: document.find(
+        'details > .gpa-docline-body [data-testid="explore-show"]'
+      ).length,
+      line: document.find('summary.gpa-docline-row').text(),
+      text: flat(
+        document
+          .find('.gpa-docline-body [data-testid="explore-show-text"]')
+          .text()
+      ),
+      button: flat(
+        document.find('.gpa-docline-body [data-testid="explore-show"]').text()
+      ),
+      inline: by($, 'explore-show-form').hasClass('gpa-form-inline'),
+      fields: hiddenOf($, 'explore-show-form'),
+      formtarget: document
+        .find('.gpa-docline-body [data-testid="explore-show"]')
+        .attr('formtarget'),
+      name: by($, 'explore-show').attr('aria-label'),
+      printed: document.find('.gpa-doc-code, .gpa-doc-note-row').length,
+      downloadText: document.text().includes('Download JSON'),
+      download: by($, 'explore-document-download').length
+    }
+  }
+
+  const shownOpen = (line: unknown) => ({
+    id: 'result-4',
+    docLine: true,
+    open: true,
+    keepLine: true,
+    lineForm: 0,
+    underLine: 1,
+    line,
+    text: 'This application’s document is too large to print on a page.',
+    button: 'Show in new tab',
+    inline: true,
+    fields,
+    formtarget: '_blank',
+    name: 'Show in new tab, result 4',
+    printed: 0,
+    downloadText: false,
+    download: 0
+  })
+
+  test('keeps the line, drawn open with why and Show in new tab under it, for a document that grew past what a page prints in place', async () => {
+    answeringOpen(
+      shownAnswer({
+        rows: [
+          documentRow('wmp-1', {
+            doc: base64Of({ big: 'x'.repeat(1024 * 1024) })
+          })
+        ]
+      })
+    )
+
+    const { $ } = await open()
+
+    expect(showItOpen($)).toEqual(
+      shownOpen(expect.stringContaining("{ big: 'xxx"))
+    )
+  })
+
+  test('keeps the line of its start, drawn open with why and Show in new tab under it, for a document that grew past what one answer prints', async () => {
+    answeringOpen(
+      shownAnswer({
+        rows: [
+          documentRow('wmp-1', {
+            doc: null,
+            start: {
+              doc: base64Of({
+                _id: new ObjectId(oid1),
+                clientRef: 'wmp-1',
+                $schema: 'x'
+              }),
+              cut: false
+            },
+            docNote: { later: 16_000_000, values: 900_000 }
+          })
+        ]
+      })
+    )
+
+    const { $ } = await open()
+
+    expect(showItOpen($)).toEqual(
+      shownOpen(
+        `{ _id: ObjectId('${oid1}'), clientRef: 'wmp-1', '$schema': 'x' }`
+      )
+    )
+  })
+
+  const failedLine = ($: CheerioAPI) => {
+    const document = by($, 'explore-open-failed')
+
+    expect(document.attr('id')).toBe('result-4')
+    expect(document.hasClass('gpa-docline')).toBe(true)
+    expect(document.attr('aria-label')).toBe('Result 4')
+    expect(document.find('details').attr('open')).toBe('open')
+    expect(document.find('summary').text()).toBe(`{ _id: ObjectId('${oid1}') }`)
+    expect(
+      document.find('.gpa-docline-body [data-testid="explore-alert"]')
+    ).toHaveLength(1)
+    expect($('gpa-doc-line, a, [data-focus-on-arrival]')).toHaveLength(0)
+  }
+
+  test('says a run no longer held has expired, as 410, in the result, with nothing to try again', async () => {
+    answeringOpen(null)
+
+    const { $, statusCode } = await open()
+
+    expect(statusCode).toBe(statusCodes.gone)
+    failedLine($)
+    expect(textOf($, 'explore-alert')).toBe(
+      'This query has expired. Run it again.'
+    )
+    expect($('form')).toHaveLength(0)
+  })
+
+  test.each([
+    [
+      'another query of this person’s is running',
+      { kind: 'busy', service: 'GAS' },
+      statusCodes.tooManyRequests,
+      'You already have a query running. Wait for it to finish, then try again.'
+    ],
+    [
+      'GAS doesn’t answer',
+      {
+        kind: 'no-answer',
+        service: 'GAS',
+        failure: { kind: 'timed-out' }
+      },
+      statusCodes.serviceUnavailable,
+      'The Grant Application Service didn’t answer in time. Nothing has changed: try again.'
+    ]
+  ] as const)(
+    'says why in the result when %s, Try again posting the open to its own page',
+    async (_, failure, status, text) => {
+      answeringOpen(failed(failure as ExploreFailure))
+
+      const { $, statusCode } = await open()
+
+      expect(statusCode).toBe(status)
+      failedLine($)
+      expect(textOf($, 'explore-alert')).toContain(text)
+      expect(textOf($, 'explore-retry')).toBe('Try again')
+      expect(by($, 'explore-retry-form').attr('action')).toBe(
+        '/dev-ops/explore'
+      )
+      expect(hiddenOf($, 'explore-retry-form')).toEqual(fields)
+      expect($('form')).toHaveLength(1)
+    }
+  )
+
+  test('says GAS refused it, as the result’s own page would', async () => {
+    answeringOpen(
+      failed({ kind: 'refused', service: 'GAS', message: 'Not this one' })
+    )
+
+    const { $, statusCode } = await open()
+
+    expect(statusCode).toBe(statusCodes.badRequest)
+    failedLine($)
+    expect(textOf($, 'explore-alert')).toBe(
+      'The Grant Application Service refused this query. Not this one'
+    )
+    expect($('form')).toHaveLength(0)
+  })
+
+  test('refuses an open of a row id that isn’t base64', async () => {
+    const { statusCode } = await post(
+      { run: id, show: 'not base64!', result: '4' },
+      '',
+      undefined,
+      opening
+    )
+
+    expect(statusCode).toBe(statusCodes.badRequest)
+    expect(runExploreUseCase).not.toHaveBeenCalled()
+  })
+})
+
+describe('a Documents page GAS ended early', () => {
+  test('offers Keep looking from where it ended, however few rows it holds', async () => {
+    const { $ } = await documentsOf(
+      [startRow('wmp-1'), startRow('wmp-2')],
+      {},
+      {
+        read: 'windowed',
+        count: null,
+        window: {
+          to: '2026-10-01T00:00:00.000Z',
+          end: false,
+          positions: 'p',
+          skipped: []
+        }
+      }
+    )
+
+    expect(by($, 'explore-document')).toHaveLength(2)
+    expect(
+      by($, 'explore-footer')
+        .find('input[type="hidden"]')
+        .map((_, input) => [[$(input).attr('name'), $(input).val()]])
+        .get()
+    ).toEqual([
+      ['run', id],
+      ['page', '2'],
+      ['view', 'documents']
+    ])
   })
 })

@@ -2,8 +2,10 @@ import { describeError } from '../../common/describe-error.ts'
 import { logger } from '../../common/logger.ts'
 import { statusCodes } from '../../common/status-codes.ts'
 import type {
+  EventService,
   ExploreAnswer,
   ExploreQuery,
+  ExploreStream,
   QueryError,
   Vocabulary,
   WithVocabulary
@@ -11,7 +13,8 @@ import type {
 import {
   checkExplore,
   findVocabulary,
-  queryExplore
+  queryExplore,
+  streamExploreQuery
 } from '../repositories/explore.repository.ts'
 import { toGasErrorBody, toGasFailure, toGasStatusCode } from './gas-status.ts'
 import type { GasFailure } from './gas-status.ts'
@@ -20,19 +23,31 @@ export type {
   ExploreAnswer,
   ExploreCell,
   ExploreColumn,
+  ExploreContext,
+  ExploreDocNote,
   ExploreDownload,
   ExploreDownloadStop,
   ExploreObject,
   ExploreOpen,
+  ExplorePrinted,
+  ExploreRow,
+  ExploreShow,
   ExploreSkipped,
+  ExploreStart,
   ExploreSource,
+  ExploreStreamEnd,
+  ExploreStreamHeader,
+  ExploreStreamLine,
+  ExploreStreamRow,
   ExploreValue,
+  EventBox,
+  EventService,
   QueryError,
   Vocabulary,
   VocabularySource
 } from '../repositories/explore.repository.ts'
 
-export type ExploreService = 'GAS' | 'CW'
+export type ExploreService = EventService
 
 /**
  * - `invalid`: the query broke a rule of the language, at a place in its text.
@@ -277,6 +292,24 @@ export const runExplore = async (
   callExplore('run an Explore query', () =>
     toReply('run an Explore query', () => queryExplore(query))
   )
+
+/** Download JSON: GAS's lines, once it has said it will answer; a refusal before them as any run's. */
+export const streamExplore = async (
+  query: ExploreQuery
+): Promise<ExploreReply<ExploreStream>> =>
+  callExplore('download an Explore query', async () => {
+    try {
+      return {
+        result: { outcome: 'read', answer: await streamExploreQuery(query) },
+        vocabulary: null
+      }
+    } catch (error) {
+      return {
+        result: toFailed('download an Explore query', error),
+        vocabulary: vocabularyIn(toGasErrorBody(error))
+      }
+    }
+  })
 
 export const checkExploreQuery = async (
   query: string

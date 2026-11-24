@@ -4,6 +4,7 @@ import type nunjucks from "nunjucks";
 import { sparkline } from "./core/charts.ts";
 import { calendarMonth, formatDate, formatRange } from "./core/dates.ts";
 import { diffLines } from "./core/diff.ts";
+import { docClass, docHtml, docLine } from "./core/doc.ts";
 import { codeClass, codeLine } from "./core/json.ts";
 
 export {
@@ -20,6 +21,15 @@ export {
   parseDate,
 } from "./core/dates.ts";
 export { diffLines } from "./core/diff.ts";
+export {
+  docClass,
+  docFromJs,
+  docInline,
+  docLine,
+  docModel,
+  docHtml,
+  docText,
+} from "./core/doc.ts";
 export { codeClass, codeLine } from "./core/json.ts";
 
 export const devOpsComponentsViews = path.resolve(import.meta.dirname, "..");
@@ -52,6 +62,9 @@ export const addDevOpsComponents = (environment: nunjucks.Environment) => {
   environment.addGlobal("gpaIconName", iconName);
   environment.addGlobal("gpaId", nextId);
   environment.addGlobal("gpaDiff", diffLines);
+  environment.addGlobal("gpaDoc", docHtml);
+  environment.addGlobal("gpaDocClass", docClass);
+  environment.addGlobal("gpaDocLine", docLine);
   environment.addGlobal("gpaCodeLine", codeLine);
   environment.addGlobal("gpaCodeClass", codeClass);
   environment.addGlobal("gpaFormatDate", formatDate);

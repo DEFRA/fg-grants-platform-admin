@@ -249,6 +249,22 @@
   {%- set __html %}{% include "./organisms/doc-item/template.njk" %}{% endset -%}
   {{- __html | trim | safe -}}
 {%- endmacro %}
+{% macro DocPrintout(p) -%}
+  {%- set __html %}{% include "./molecules/doc-printout/template.njk" %}{% endset -%}
+  {{- __html | trim | safe -}}
+{%- endmacro %}
+{% macro DocSegs1(segs) -%}
+  {%- set __html %}{% include "./molecules/doc-segs1/template.njk" %}{% endset -%}
+  {{- __html | trim | safe -}}
+{%- endmacro %}
+{% macro DocLineRow(p) -%}
+  {%- set __html %}{% include "./molecules/doc-line-row/template.njk" %}{% endset -%}
+  {{- __html | trim | safe -}}
+{%- endmacro %}
+{% macro DocLine(p) -%}
+  {%- set __html %}{% include "./molecules/doc-line/template.njk" %}{% endset -%}
+  {{- __html | trim | safe -}}
+{%- endmacro %}
 {% macro Card(p) -%}
   {%- set __html %}{% include "./organisms/card/template.njk" %}{% endset -%}
   {{- __html | trim | safe -}}

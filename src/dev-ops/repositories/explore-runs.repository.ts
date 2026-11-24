@@ -1,7 +1,11 @@
 import type { Server } from '@hapi/hapi'
 
 import { config } from '../../common/config.ts'
-import type { ExplorePositions, ExploreSource } from './explore.repository.ts'
+import type {
+  ExplorePositions,
+  ExploreShow,
+  ExploreSource
+} from './explore.repository.ts'
 
 /** Whose runs: the session and the signed-in user, so one person's runs are never another's. */
 export interface ExploreOwner {
@@ -25,6 +29,10 @@ export interface HeldRun {
   heldAt: number
   /** The most windows a restore draws: GAS stopped the one after for too many cells. Kept under its own key, so learning it never writes the run. */
   restorable?: number
+  /** Show it: one row of the run `q` is, which every read of this run names beside it. */
+  show?: ExploreShow
+  /** Show it: the row's number among its run's results. */
+  result?: number
 }
 
 export interface RecentQuery {
@@ -128,6 +136,26 @@ export const dropHeldRun = async (
   await storeOf().drop(runKey(owner, id))
   await storeOf().drop(restorableKey(owner, id))
 }
+
+const shownKey = (owner: ExploreOwner, source: string) =>
+  `${runKey(owner, source)}:shown`
+
+/** The Show it run held under a run: the one its newest Show it holds. */
+export const findShownId = async (
+  owner: ExploreOwner,
+  source: string
+): Promise<string | null> => read<string>(shownKey(owner, source))
+
+export const saveShownId = async (
+  owner: ExploreOwner,
+  source: string,
+  id: string
+): Promise<void> => storeOf().set(shownKey(owner, source), id)
+
+export const dropShownId = async (
+  owner: ExploreOwner,
+  source: string
+): Promise<void> => storeOf().drop(shownKey(owner, source))
 
 export const findHeldPage = async (
   owner: ExploreOwner,

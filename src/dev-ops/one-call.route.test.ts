@@ -1498,6 +1498,8 @@ const typedQuery = 'db.applications.find()'
 const notHeld = '0b6f3e2a-5c1d-4e8f-9a7b-2c3d4e5f6a7b'
 const exploreUrl = '/dev-ops/explore'
 const loadMore = { 'x-requested-with': 'gpa-load-more' }
+const opening = { 'x-requested-with': 'gpa-doc-line' }
+const shownId = 'FgAAAAdfaWQAZ0GgwuSw8aKzxNXmAA=='
 
 const explore: Row[] = [
   {
@@ -1607,6 +1609,16 @@ const explore: Row[] = [
     drawn: 'no-lists'
   },
   {
+    name: 'an open in place of a run no longer held',
+    method: 'POST',
+    url: exploreUrl,
+    payload: { run: notHeld, show: shownId, result: '3' },
+    headers: opening,
+    calls: [],
+    status: statusCodes.gone,
+    drawn: 'no-lists'
+  },
+  {
     name: 'a list opened in Explore',
     method: 'POST',
     url: exploreUrl,
@@ -1667,6 +1679,16 @@ const explore: Row[] = [
     },
     calls: [exploreCall],
     status: statusCodes.badRequest,
+    drawn: 'shell'
+  },
+  {
+    name: 'a JSON download of a run no longer held',
+    method: 'POST',
+    url: `${exploreUrl}.json`,
+    payload: { run: notHeld },
+    gas: { [vocabularyCall]: withShell(vocabulary) },
+    calls: [vocabularyCall],
+    status: statusCodes.ok,
     drawn: 'shell'
   },
   {
@@ -1919,6 +1941,109 @@ describe('one call per request: explore', () => {
         gas: { [exploreCall]: withShell(explored) },
         calls: [exploreCall],
         status: statusCodes.ok,
+        drawn: 'no-lists'
+      })
+    ],
+    [
+      'a JSON download of a run, read as GAS streams it',
+      true,
+      (id) => ({
+        method: 'POST',
+        url: `${exploreUrl}.json`,
+        payload: { run: id },
+        gas: {
+          [exploreCall]: {
+            body: [
+              { header: { source: explored.source, download: { rows: 5000 } } },
+              { end: { stopped: null, searchedTo: null, skipped: [] } }
+            ]
+              .map((line) => `${JSON.stringify(line)}\n`)
+              .join('')
+          }
+        },
+        calls: [exploreCall],
+        status: statusCodes.ok,
+        drawn: 'no-lists'
+      })
+    ],
+    [
+      'a JSON download GAS refuses, drawn from its refusal',
+      true,
+      (id) => ({
+        method: 'POST',
+        url: `${exploreUrl}.json`,
+        payload: { run: id },
+        gas: {
+          [exploreCall]: refusal(statusCodes.serviceUnavailable, {
+            vocabulary
+          })
+        },
+        calls: [exploreCall],
+        status: statusCodes.serviceUnavailable,
+        drawn: 'shell'
+      })
+    ],
+    [
+      'Show it, which holds a run by the row’s _id and reads nothing',
+      false,
+      (id) => ({
+        method: 'POST',
+        url: exploreUrl,
+        payload: { run: id, show: shownId, result: '3' },
+        calls: [],
+        status: statusCodes.seeOther,
+        drawn: 'redirect'
+      })
+    ],
+    [
+      'an open in place, which reads the row now and holds nothing',
+      false,
+      (id) => ({
+        method: 'POST',
+        url: exploreUrl,
+        payload: { run: id, show: shownId, result: '3' },
+        extra: opening,
+        gas: {
+          [exploreCall]: withShell({
+            ...explored,
+            read: 'exact',
+            window: null,
+            count: { n: 1, capped: false },
+            rows: [
+              {
+                ...explored.rows[0],
+                id: shownId,
+                at: [],
+                doc: shownId,
+                start: { doc: shownId, cut: false },
+                context: null,
+                docNote: null
+              }
+            ],
+            documents: { whole: true, bytes: 44, gone: false },
+            vocabulary
+          })
+        },
+        calls: [exploreCall],
+        status: statusCodes.ok,
+        drawn: 'no-lists'
+      })
+    ],
+    [
+      'an open in place, while another query of this person’s runs',
+      false,
+      (id) => ({
+        method: 'POST',
+        url: exploreUrl,
+        payload: { run: id, show: shownId, result: '3' },
+        extra: opening,
+        gas: {
+          [exploreCall]: refusal(statusCodes.tooManyRequests, {
+            reason: 'QUERY_BUSY'
+          })
+        },
+        calls: [exploreCall],
+        status: statusCodes.tooManyRequests,
         drawn: 'no-lists'
       })
     ],

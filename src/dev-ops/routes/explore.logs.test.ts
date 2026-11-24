@@ -1,16 +1,19 @@
 import Boom from '@hapi/boom'
 import type { Server } from '@hapi/hapi'
+import { BSON, ObjectId } from 'bson'
 
 import { createServer } from '../../server/index.ts'
 import { devOps } from '../index.ts'
 import type {
   ExploreAnswer,
+  ExploreStreamLine,
   WithVocabulary
 } from '../repositories/explore.repository.ts'
 import {
   checkExplore,
   findVocabulary,
-  queryExplore
+  queryExplore,
+  streamExploreQuery
 } from '../repositories/explore.repository.ts'
 import { queryList } from '../repositories/lists.repository.ts'
 import { shellCatalogue } from '../use-cases/shell-catalogue.ts'
@@ -105,14 +108,15 @@ const inject = async (
   method: 'GET' | 'POST',
   url: string,
   cookie: string,
-  payload?: Record<string, string>
+  payload?: Record<string, string>,
+  extra: Record<string, string> = {}
 ) => {
   const { headers } = await server.inject({
     method,
     url,
     payload,
     auth: { strategy: 'session', credentials },
-    headers: { cookie, 'sec-fetch-site': 'same-origin' }
+    headers: { cookie, 'sec-fetch-site': 'same-origin', ...extra }
   })
 
   return {
@@ -223,6 +227,167 @@ describe('a query’s values', () => {
       locations.filter(
         (location) =>
           location.includes(sentinel) || location.includes(idSentinel)
+      )
+    ).toEqual([])
+  })
+})
+
+const base64Of = (document: object): string =>
+  Buffer.from(BSON.serialize(document)).toString('base64')
+
+/** A record whose every value is a sentinel, its comments and its `_id` among them. */
+const sentinelDocument = {
+  _id: new ObjectId(idSentinel),
+  clientRef: sentinel,
+  comments: [{ text: sentinel, by: sentinel }],
+  ref: new ObjectId(idSentinel)
+}
+
+const documentRow = {
+  open: { kind: 'application' as const, code: 'woodland', ref: 'wmp-aa1-bb2' },
+  cells: { c0: sentinel, c1: sentinel },
+  id: base64Of({ _id: new ObjectId(idSentinel) }),
+  doc: base64Of(sentinelDocument),
+  context: { definition: base64Of({ title: sentinel }) },
+  docNote: null
+}
+
+/** The same record as a Documents page reads it: its start. */
+const startRow = {
+  open: documentRow.open,
+  cells: documentRow.cells,
+  id: documentRow.id,
+  at: [],
+  start: { doc: base64Of(sentinelDocument), cut: false },
+  printed: { bytes: 200, values: 6 },
+  context: null,
+  docNote: null
+}
+
+const gasLines = (broken: boolean) => ({
+  header: { source: answer().source, download: { rows: 5000 } },
+  lines: (async function* (): AsyncGenerator<ExploreStreamLine> {
+    yield { row: documentRow }
+    yield { row: { ...documentRow, doc: 'AAAA' } }
+
+    if (broken) {
+      throw new Error(`socket hang up ${sentinel}`)
+    }
+
+    yield {
+      end: {
+        stopped: null,
+        searchedTo: null,
+        skipped: [{ open: null, id: documentRow.id }]
+      }
+    }
+  })()
+})
+
+describe('a document’s values', () => {
+  test('are in no log line and no redirect, in Documents, Show it, an open in place and Download JSON', async () => {
+    vi.mocked(queryExplore).mockResolvedValue(
+      answer({
+        rows: [
+          startRow,
+          { ...startRow, start: { doc: 'AAAA', cut: false } },
+          { ...startRow, start: null, printed: null, docNote: { gone: true } }
+        ],
+        documents: { whole: true, bytes: 100 }
+      })
+    )
+    const run = await inject('POST', '/dev-ops/explore', '', { q: query })
+    const id = new URL(run.location, 'http://x').searchParams.get('run') ?? ''
+    const shown = await inject(
+      'GET',
+      `${run.location}&view=documents`,
+      run.cookie
+    )
+    const shownIt = await inject('POST', '/dev-ops/explore', shown.cookie, {
+      run: id,
+      show: documentRow.id,
+      result: '1',
+      at: '0'
+    })
+
+    vi.mocked(queryExplore).mockResolvedValue(
+      answer({
+        rows: [documentRow],
+        documents: { whole: true, bytes: 100, gone: false }
+      })
+    )
+    await inject('GET', shownIt.location, shownIt.cookie)
+
+    const open = { run: id, show: documentRow.id, result: '1', at: '0' }
+    const opening = { 'x-requested-with': 'gpa-doc-line' }
+
+    await inject('POST', '/dev-ops/explore', shownIt.cookie, open, opening)
+    vi.mocked(queryExplore).mockResolvedValueOnce(
+      answer({ rows: [{ ...documentRow, doc: 'AAAA' }] })
+    )
+    await inject('POST', '/dev-ops/explore', shownIt.cookie, open, opening)
+    vi.mocked(queryExplore).mockRejectedValueOnce(
+      responseError(500, { message: sentinel })
+    )
+    await inject('POST', '/dev-ops/explore', shownIt.cookie, open, opening)
+    expect(queryExplore).toHaveBeenLastCalledWith(
+      expect.objectContaining({ documents: true, show: expect.any(Object) })
+    )
+    await inject('POST', '/dev-ops/explore', shownIt.cookie, {
+      run: id,
+      page: '2',
+      view: 'documents'
+    })
+
+    for (const broken of [false, true]) {
+      vi.mocked(streamExploreQuery).mockResolvedValueOnce(gasLines(broken))
+      await inject('POST', '/dev-ops/explore.json', shownIt.cookie, { run: id })
+    }
+
+    vi.mocked(streamExploreQuery).mockRejectedValueOnce(
+      responseError(500, { message: sentinel })
+    )
+    await inject('POST', '/dev-ops/explore.json', shownIt.cookie, { run: id })
+
+    expect(streamExploreQuery).toHaveBeenCalledTimes(3)
+    expect(lines.length).toBeGreaterThan(0)
+    expect(
+      lines.filter(
+        (line) => line.includes(sentinel) || line.includes(idSentinel)
+      )
+    ).toEqual([])
+    expect(shownIt.location).toMatch(
+      /^\/dev-ops\/explore\?run=[\w-]+&view=documents$/
+    )
+  })
+})
+
+describe('a Documents page GAS answered with rows it can’t have sent', () => {
+  test('logs what was wrong as an error, without the document’s values', async () => {
+    vi.mocked(queryExplore).mockResolvedValue(
+      answer({
+        rows: [
+          {
+            ...startRow,
+            start: { doc: base64Of({ clientRef: sentinel }), cut: true }
+          }
+        ],
+        documents: { whole: true, bytes: 100 }
+      })
+    )
+    const run = await inject('POST', '/dev-ops/explore', '', { q: query })
+    const before = lines.length
+    await inject('GET', `${run.location}&view=documents`, run.cookie)
+    const logged = lines.slice(before).map((line) => JSON.parse(line))
+
+    expect(
+      logged.filter(({ level }) => level === 50).map(({ msg }) => msg)
+    ).toEqual([
+      "fg-gas-backend answered Explore's Documents with a cut start that prints whole"
+    ])
+    expect(
+      logged.filter(
+        ({ msg }) => msg?.includes(sentinel) || msg?.includes(idSentinel)
       )
     ).toEqual([])
   })

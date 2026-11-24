@@ -5,8 +5,14 @@ import type { Server } from '@hapi/hapi'
 import { statusCodes } from '../../common/status-codes.ts'
 import { createServer } from '../../server/index.ts'
 import { devOps } from '../index.ts'
-import { downloadExploreUseCase } from '../use-cases/download-explore.use-case.ts'
-import type { ExploreAnswer } from '../use-cases/explore-calls.ts'
+import {
+  downloadExploreUseCase,
+  downloadJsonUseCase
+} from '../use-cases/download-explore.use-case.ts'
+import type {
+  ExploreAnswer,
+  ExploreStreamLine
+} from '../use-cases/explore-calls.ts'
 import type { ExplorePageData } from '../use-cases/explore-page.ts'
 import { shellCatalogue } from '../use-cases/shell-catalogue.ts'
 import { fullCatalogue } from '../use-cases/test-fixtures.ts'
@@ -387,6 +393,123 @@ describe('Download CSV', () => {
 
       expect(statusCode).toBe(statusCodes.badRequest)
       expect(downloadExploreUseCase).not.toHaveBeenCalled()
+    }
+  )
+})
+
+describe('Download JSON', () => {
+  const header = {
+    source: { name: 'applications', noun: 'application' },
+    download: { rows: 5000 }
+  }
+
+  const lines = async function* (): AsyncGenerator<ExploreStreamLine> {
+    yield {
+      row: {
+        open: null,
+        id: idOf(new ObjectId('6741a0c2e4b0f1a2b3c4d5e6')),
+        doc: Buffer.from(BSON.serialize({ n: 1 })).toString('base64'),
+        context: null,
+        docNote: null
+      }
+    }
+    yield { end: { stopped: 'time', searchedTo: null, skipped: [] } }
+  }
+
+  const downloadJson = async (
+    headers: Record<string, string> = { 'sec-fetch-site': 'same-origin' },
+    payload: object = { run: id }
+  ) =>
+    server.inject({
+      method: 'POST',
+      url: '/dev-ops/explore.json',
+      payload,
+      auth: { strategy: 'session', credentials },
+      headers
+    })
+
+  test('sends the run’s documents as a JSON attachment, never kept, as they are read', async () => {
+    vi.mocked(downloadJsonUseCase).mockResolvedValue({
+      kind: 'lines',
+      header,
+      lines: lines(),
+      show: null
+    })
+
+    const { statusCode, headers, payload } = await downloadJson()
+
+    expect(downloadJsonUseCase).toHaveBeenCalledExactlyOnceWith({
+      owner: expect.objectContaining({ user: credentials.user.id }),
+      run: id
+    })
+    expect(statusCode).toBe(statusCodes.ok)
+    expect(headers['content-type']).toBe('application/json; charset=utf-8')
+    expect(headers['content-disposition']).toBe(
+      'attachment; filename="explore-applications.json"'
+    )
+    expect(headers['cache-control']).toBe('no-store')
+    expect(JSON.parse(payload)).toEqual([
+      { document: { n: { $numberInt: '1' } }, context: null, note: null },
+      {
+        $explore: {
+          stopped: 'time',
+          searchedTo: null,
+          skipped: [],
+          text: 'Stopped at the 10-second time limit. Run a narrower query for the rest.'
+        }
+      }
+    ])
+  })
+
+  test('says a run the use case no longer holds has expired', async () => {
+    vi.mocked(downloadJsonUseCase).mockResolvedValue({
+      kind: 'page',
+      page: page({ q: '', notice: { kind: 'expired' } })
+    })
+
+    const { statusCode, payload } = await downloadJson()
+
+    expect(statusCode).toBe(statusCodes.ok)
+    expect(alertOf(load(payload))).toBe('This query has expired. Run it again.')
+  })
+
+  test('says why GAS refused it, on the run’s page', async () => {
+    vi.mocked(downloadJsonUseCase).mockResolvedValue({
+      kind: 'page',
+      page: page({
+        run: { id, page: 1, view: 'documents' },
+        result: {
+          outcome: 'failed',
+          failure: { kind: 'errored', service: 'GAS' }
+        }
+      })
+    })
+
+    const { statusCode, payload } = await downloadJson()
+
+    expect(statusCode).toBe(statusCodes.serviceUnavailable)
+    expect(alertOf(load(payload))).toContain(
+      'The Grant Application Service answered with an error.'
+    )
+  })
+
+  test.each([
+    [{ 'sec-fetch-site': 'cross-site' }],
+    [{ origin: 'https://other.cdp-int.defra.cloud' }]
+  ])('is refused from another site, and reads nothing: %o', async (headers) => {
+    const { statusCode } = await downloadJson(headers)
+
+    expect(statusCode).toBe(statusCodes.forbidden)
+    expect(downloadJsonUseCase).not.toHaveBeenCalled()
+  })
+
+  test.each([[{}], [{ run: 'not-a-run' }], [{ run: id, view: 'documents' }]])(
+    'refuses a post that is anything but a run: %o',
+    async (payload) => {
+      const { statusCode } = await downloadJson(undefined, payload)
+
+      expect(statusCode).toBe(statusCodes.badRequest)
+      expect(downloadJsonUseCase).not.toHaveBeenCalled()
     }
   )
 })

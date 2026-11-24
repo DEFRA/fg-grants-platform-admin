@@ -4,7 +4,7 @@ import type {
   ExploreDownload,
   ExploreDownloadStop
 } from '../use-cases/explore-calls.ts'
-import { toIdText } from '../use-cases/explore-queries.ts'
+import { toIdText } from './explore-bson.ts'
 import { recordsOf, toNumberText } from './explore-cells.ts'
 
 /** A spreadsheet would read a text starting with one of these as a formula. */
@@ -71,13 +71,16 @@ const stopOf = ({ download }: ExploreAnswer) =>
 const toSearchedTo = (searchedTo: string | null | undefined): string =>
   searchedTo ? `: searched back to ${searchedTo}` : ''
 
-const toStopLine = (answer: ExploreAnswer): string | null => {
-  const stop = stopOf(answer)
+/** Where a download stopped short and why, as its file says it; null when it holds everything asked. */
+export const toStopText = (download: ExploreDownload): string | null =>
+  download.stopped
+    ? `${stops[download.stopped](download).text}${toSearchedTo(download.searchedTo)}. Run a narrower query for the rest.`
+    : null
 
-  return (
-    stop &&
-    `# ${stop.text}${toSearchedTo(answer.download?.searchedTo)}. Run a narrower query for the rest.`
-  )
+const toStopLine = ({ download }: ExploreAnswer): string | null => {
+  const text = download ? toStopText(download) : null
+
+  return text && `# ${text}`
 }
 
 /** Records the download passed over as too large to search, by their `_id`s. */

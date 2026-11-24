@@ -1,10 +1,13 @@
 import { config } from './config.ts'
 import { asGasActor } from './gas-actor.ts'
+import { Readable } from 'node:stream'
+
 import {
   deleteFromGas,
   getFromGas,
   postToGas,
   putToGas,
+  streamFromGas,
   toHeaderActor
 } from './gas.ts'
 import { wreck } from './wreck.ts'
@@ -16,7 +19,8 @@ vi.mock(import('./wreck.ts'), () => ({
     get: vi.fn(),
     post: vi.fn(),
     put: vi.fn(),
-    delete: vi.fn()
+    delete: vi.fn(),
+    request: vi.fn()
   } as never
 }))
 
@@ -434,5 +438,97 @@ describe('the calls a Dev Ops request makes', () => {
     })
 
     expect(upstream).toEqual({ calls: 2, shell })
+  })
+})
+
+describe('streamFromGas', () => {
+  const responseOf = (statusCode: number, body: string) =>
+    Object.assign(Readable.from([body]), {
+      statusCode,
+      headers: {},
+      setTimeout: vi.fn()
+    })
+
+  test('posts the payload as JSON and answers the response to read as it comes', async () => {
+    const response = responseOf(200, 'line\n')
+    vi.mocked(wreck.request).mockResolvedValue(response as never)
+
+    await expect(
+      streamFromGas('/grant-admin/explore/query', {
+        payload: { query: 'q' },
+        timeoutMs: 4321,
+        idleMs: 99
+      })
+    ).resolves.toBe(response)
+    expect(wreck.request).toHaveBeenCalledWith(
+      'POST',
+      `${config.get('gas.apiUrl')}/grant-admin/explore/query`,
+      expect.objectContaining({
+        payload: '{"query":"q"}',
+        timeout: 4321,
+        headers: expect.objectContaining({
+          authorization: `Bearer ${config.get('gas.serviceToken')}`,
+          'content-type': 'application/json'
+        })
+      })
+    )
+  })
+
+  test('rejects a non-2xx as wreck does, with GAS’s status and body', async () => {
+    vi.mocked(wreck.request).mockResolvedValue(
+      responseOf(400, '{"reason":"QUERY_REFUSED"}') as never
+    )
+
+    await expect(
+      streamFromGas('/grant-admin/explore/query', { payload: {}, idleMs: 99 })
+    ).rejects.toMatchObject({
+      output: { statusCode: 400 },
+      data: { isResponseError: true, payload: { reason: 'QUERY_REFUSED' } }
+    })
+  })
+
+  test('lets go of a body that sends nothing for its idle time, so its reader sees it break', async () => {
+    const response = responseOf(200, '')
+    vi.mocked(wreck.request).mockResolvedValue(response as never)
+
+    await streamFromGas('/grant-admin/explore/query', {
+      payload: {},
+      idleMs: 99
+    })
+    const [[idleMs, onIdle]] = response.setTimeout.mock.calls as [
+      [number, () => void]
+    ]
+    const broken = new Promise((resolve) => response.on('error', resolve))
+
+    onIdle()
+
+    expect(idleMs).toBe(99)
+    await expect(broken).resolves.toMatchObject({
+      name: 'GasStreamIdleError'
+    })
+  })
+
+  test('reads no more than a refusal holds of a 4xx body', async () => {
+    vi.mocked(wreck.request).mockResolvedValue(
+      responseOf(400, `{"reason":"${'x'.repeat(2 * 1024 * 1024)}"}`) as never
+    )
+
+    await expect(
+      streamFromGas('/grant-admin/explore/query', { payload: {}, idleMs: 99 })
+    ).rejects.toMatchObject({
+      output: { statusCode: 400 },
+      data: { payload: null }
+    })
+  })
+
+  test('counts the call against the request it is made in', async () => {
+    vi.mocked(wreck.request).mockResolvedValue(responseOf(200, '') as never)
+    const upstream: Upstream = { calls: 0, shell: null }
+
+    await withUpstream({ app: { upstream } } as never, () =>
+      streamFromGas('/grant-admin/explore/query', { payload: {}, idleMs: 99 })
+    )
+
+    expect(upstream.calls).toBe(1)
   })
 })

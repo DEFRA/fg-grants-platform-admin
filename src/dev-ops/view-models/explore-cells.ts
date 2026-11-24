@@ -16,8 +16,7 @@ export const startMax = 300
 
 /**
  * `text` is the value whole, or past `wholeMax` characters its first `startMax`
- * with `size` the whole value's. `href` is null: no page holds a cut value
- * whole yet.
+ * with `size` the whole value's.
  */
 export type ExploreCellModel =
   | { kind: 'none' }
@@ -27,7 +26,6 @@ export type ExploreCellModel =
       text: string
       whole: boolean
       size: string | null
-      href: string | null
       mono: boolean
     }
 
@@ -124,7 +122,6 @@ const toTextCell = (text: string, mono: boolean): ExploreCellModel => {
     text: whole ? text : firstCharacters(text, startMax).join(''),
     whole,
     size: whole ? null : toSize(Buffer.byteLength(text, 'utf8')),
-    href: null,
     mono
   }
 }
