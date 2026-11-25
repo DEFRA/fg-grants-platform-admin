@@ -37,8 +37,8 @@ const toRedirect = (key: EventKey, from: string): string => {
  * reaches the scope check, let alone the queue.
  *
  * A same-site one still carries it: every `*.cdp-int.defra.cloud` frontend is
- * the same site as this app. src/dev-ops/index.ts closes that by registering
- * this write through `sameOriginOnly`, as the access token writes are.
+ * the same site as this app. server/plugins/auth/same-origin.ts closes that
+ * for every write, this one included.
  *
  * A crumb here would be a token in one place out of one, which is the shape
  * of a defence that quietly stops working.

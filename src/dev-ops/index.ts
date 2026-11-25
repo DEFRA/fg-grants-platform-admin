@@ -1,7 +1,6 @@
 import type { Server } from '@hapi/hapi'
 
 import { devOpsSignedOutPath } from '../server/plugins/auth/paths.ts'
-import { sameOriginOnly } from '../server/plugins/auth/same-origin.ts'
 import { scopedTo } from '../server/plugins/auth/scoped-to.ts'
 import { asOperator } from '../common/as-operator.ts'
 import { config } from '../common/config.ts'
@@ -105,20 +104,18 @@ export const devOps = {
               viewEventRoute,
               viewAccessTokensRoute,
               viewTimesRoute,
-              ...sameOriginOnly([
-                runExploreRoute,
-                downloadExploreRoute,
-                downloadJsonRoute,
-                searchBucketRoute,
-                fetchGrantDefinitionsRoute,
-                fetchWorkflowDefinitionRoute,
-                redriveEventRoute,
-                purgeEventRoute,
-                reviewPayloadRoute,
-                savePayloadRoute,
-                ...accessTokenWriteRoutes,
-                saveTimesRoute
-              ])
+              runExploreRoute,
+              downloadExploreRoute,
+              downloadJsonRoute,
+              searchBucketRoute,
+              fetchGrantDefinitionsRoute,
+              fetchWorkflowDefinitionRoute,
+              redriveEventRoute,
+              purgeEventRoute,
+              reviewPayloadRoute,
+              savePayloadRoute,
+              ...accessTokenWriteRoutes,
+              saveTimesRoute
             ])
           )
         )

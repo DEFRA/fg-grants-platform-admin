@@ -1,6 +1,7 @@
 import type { Request, ResponseToolkit, Server, ServerRoute } from '@hapi/hapi'
 
 import { oidc } from './oidc.ts'
+import { sameOrigin } from './same-origin.ts'
 import { sessionScheme } from './session-scheme.ts'
 import {
   redirectCookieName,
@@ -36,6 +37,8 @@ const loginRoute: ServerRoute = {
  *
  * Both methods are accepted because the response mode follows the cookie
  * security setting: `form_post` over HTTPS, a `query` redirect over plain HTTP.
+ * That POST comes from Entra ID's origin, so it is the one write let through
+ * from another; state, nonce and PKCE are what bind it to this browser.
  *
  * It ends in a page rather than a redirect; see ./continue-page.ts.
  */
@@ -43,7 +46,8 @@ const loginCallbackRoute: ServerRoute = {
   method: ['GET', 'POST'],
   path: loginCallbackPath,
   options: {
-    auth: false as const
+    auth: false as const,
+    plugins: { sameOrigin: { crossOrigin: true } }
   },
   async handler(request: Request, h: ResponseToolkit) {
     const credentials = await request.callback(h)
@@ -104,7 +108,7 @@ export const auth = {
     name: 'auth',
     dependencies: ['@hapi/yar'],
     async register(server: Server) {
-      await server.register(oidc)
+      await server.register([oidc, sameOrigin])
 
       server.state(redirectCookieName, redirectCookieOptions)
 

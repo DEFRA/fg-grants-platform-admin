@@ -17,6 +17,8 @@ import {
   updateEntitlement
 } from '../repositories/claims.repository.ts'
 
+const sameOrigin = { 'sec-fetch-site': 'same-origin' }
+
 vi.mock(import('../repositories/claims.repository.ts'))
 
 const claimsUrl = '/grant-ops/grants/woodland/applications/WMP-1T9-RXN/claims'
@@ -400,7 +402,8 @@ describe('updateClaimableItemRoute', () => {
       method: 'POST',
       url,
       payload,
-      auth: { strategy: 'session', credentials }
+      auth: { strategy: 'session', credentials },
+      headers: sameOrigin
     })
 
   test('does not change for a user the backend grants view-only access to the claims', async () => {
@@ -637,7 +640,8 @@ describe('updateClaimableItemRoute', () => {
       method: 'POST',
       url: escapedUrl,
       payload: { totalHectares: '45.5' },
-      auth: { strategy: 'session', credentials }
+      auth: { strategy: 'session', credentials },
+      headers: sameOrigin
     })
 
     expect(updateEntitlement).toHaveBeenCalledWith(
