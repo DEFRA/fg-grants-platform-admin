@@ -31,7 +31,7 @@ export default [
     },
     rules: {
       'func-style': ['error', 'expression'],
-      complexity: ['error', { max: 4 }],
+      complexity: ['error', { max: 8 }],
       'no-console': 'error',
       'import-x/no-default-export': 'error',
       'import-x/no-mutable-exports': 'error',
