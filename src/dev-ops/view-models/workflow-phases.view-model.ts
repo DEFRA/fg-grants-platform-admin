@@ -499,7 +499,7 @@ const needsTasks = 'needs tasks'
 
 /** CW's dead letters to redrive from, when its events are listed. */
 const toBlockedNote = (stageName: string, href: string | null) => {
-  const text = `CW rejects GAS’s message while mandatory tasks in ${stageName} (the case’s current stage) are open. After its retries the message goes to CW’s inbox as a dead letter, and nothing re-applies it`
+  const text = `CW rejects GAS’s message while mandatory tasks in ${stageName} (the case’s current stage) are open. After its retries the message is a dead letter in CW’s inbox, and nothing re-applies it`
 
   return href
     ? {

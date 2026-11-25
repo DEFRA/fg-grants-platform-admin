@@ -435,7 +435,7 @@ describe('Purge', () => {
     expect(purgeEvent).not.toHaveBeenCalled()
   })
 
-  test('Other with no note: "Say why: the reason is Other", the reason kept', async () => {
+  test('Other with no note: "Add a note to say why", the reason kept', async () => {
     const posted = await request('POST', `${path}/purge`, {
       reasonCode: 'OTHER'
     })
@@ -446,14 +446,41 @@ describe('Purge', () => {
       posted.cookie
     )
 
-    expect(flat(by($, 'purge-note-error').text())).toBe(
-      'Say why: the reason is Other'
-    )
+    expect(flat(by($, 'purge-note-error').text())).toBe('Add a note to say why')
     expect($('input[name="reasonCode"][value="OTHER"]').is('[checked]')).toBe(
       true
     )
     expect(by($, 'purge-note').attr('aria-invalid')).toBe('true')
   })
+
+  test.each([
+    ['no reason', { note: 'typed' }, true],
+    [
+      'another reason',
+      { reasonCode: 'SENT_IN_ERROR', note: 'x'.repeat(501) },
+      true
+    ],
+    ['Other', { reasonCode: 'OTHER' }, false]
+  ])(
+    'sent back with %s, the note is drawn optional (%s), and follows the reason on the page',
+    async (_name, payload, optional) => {
+      const posted = await request('POST', `${path}/purge`, payload)
+      const { $ } = await request(
+        'GET',
+        posted.location!,
+        undefined,
+        posted.cookie
+      )
+
+      const field = $('.gpa-field:has(#purge-note)')
+      const mark = field.find('label[for="purge-note"] .gpa-label-optional')
+
+      expect(mark).toHaveLength(1)
+      expect(mark.is('[hidden]')).toBe(!optional)
+      expect(field.attr('data-gpa-optional-unless-name')).toBe('reasonCode')
+      expect(field.attr('data-gpa-optional-unless-value')).toBe('OTHER')
+    }
+  )
 
   test.each([
     ['a deletion date', '2027-02-02T00:00:00.000Z', true],

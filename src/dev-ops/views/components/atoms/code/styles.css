@@ -46,12 +46,23 @@
   font: inherit;
   white-space: pre;
 }
+.gpa-code-wrap .gpa-code-pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
 .gpa-code-pre .is-error {
   margin: 0 calc(var(--inset-code-x) * -1);
   padding: 0 var(--inset-code-x);
   background: var(--bg-danger-subtle);
 }
 .gpa-code-coloured {
+  color: var(--fg-muted);
+}
+.gpa-code-msg {
+  color: var(--fg-default);
+}
+.gpa-code-app,
+.gpa-code-int {
   color: var(--fg-muted);
 }
 .gpa-code-key {
