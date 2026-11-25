@@ -24,7 +24,7 @@ import {
 import { toTone } from './catalogue-presentation.ts'
 import type { Tone } from './catalogue-presentation.ts'
 import { toUrlService } from './event-address.ts'
-import { toBanner, toToasts } from './event-banners.ts'
+import { purgedToast, toBanner, toToasts } from './event-banners.ts'
 import type { Banner, EventNotice, Toast } from './event-banners.ts'
 import { serviceNames, timeOf, toSelfHref } from './event-context.ts'
 import type { EventContext } from './event-context.ts'
@@ -38,6 +38,13 @@ import { toFacts } from './event-facts.ts'
 import type { Fact } from './event-facts.ts'
 import { toHistory } from './event-history.ts'
 import type { HistoryItem } from './event-history.ts'
+import {
+  deliveredToast,
+  toFailedAgain,
+  toWatch,
+  toWatchOutcome
+} from './event-watch.ts'
+import type { WatchModel, WatchOutcome } from './event-watch.ts'
 import { toEventHref } from './event-formats.ts'
 import {
   eventsPresentationId,
@@ -163,6 +170,10 @@ export interface EventPageModel {
   purgeHref: string | null
   redriveHref: string | null
   banner: (Banner & { redriveHref: string | null }) | null
+  /** Only on the page a redrive returned, which checks for its result. */
+  watch: WatchModel | null
+  /** Only on a result: what the redrive came to. */
+  outcome: WatchOutcome | null
   toasts: Toast[]
   tab: EventTab
   tabs: EventTabItem[]
@@ -224,13 +235,9 @@ const actionHref = (
 const deletionDayOf = ({ event, times }: EventContext): string | null =>
   timeOf(event.expiresAt, times, toDayTime)?.text ?? null
 
-const allowedOf = ({ count }: EventContext): number | null =>
-  count?.allowed ?? null
-
 const toBannerModel = (context: EventContext, notice: EventNotice | null) => {
   const banner = toBanner(notice, {
     service: context.service,
-    allowed: allowedOf(context),
     deletionDay: deletionDayOf(context),
     canRedrive: context.state.redrivable
   })
@@ -297,6 +304,7 @@ const toFound = (input: EventPageInput, event: EventDetail): EventPageModel => {
   const payload = toPayload(context, input)
   /** Purge and Redrive act on the stored payload, so they wait while it's edited. */
   const viewing = payload.mode === 'view'
+  const banner = toBannerModel(context, notice)
 
   return {
     pageTitle: `${title} – ${context.service} event`,
@@ -315,7 +323,9 @@ const toFound = (input: EventPageInput, event: EventDetail): EventPageModel => {
       viewing && context.state.redrivable,
       'redrive'
     ),
-    banner: toBannerModel(context, notice),
+    banner,
+    watch: banner?.busy ? toWatch(context, banner) : null,
+    outcome: null,
     toasts: toToasts(notice),
     tab: context.tab,
     tabs: toTabs(context, history.length),
@@ -390,6 +400,8 @@ const toMissing = (input: EventPageInput): EventPageModel => {
     purgeHref: null,
     redriveHref: null,
     banner: null,
+    watch: null,
+    outcome: null,
     toasts: [],
     tab: 'overview',
     tabs: [],
@@ -405,6 +417,39 @@ export const toEventPage = (input: EventPageInput): EventPageModel =>
   input.result.event === null
     ? toMissing(input)
     : toFound(input, input.result.event)
+
+const resultToasts: Partial<Record<WatchOutcome, Toast[]>> = {
+  delivered: [deliveredToast],
+  purged: [purgedToast]
+}
+
+/**
+ * A settled redrive's result, for the page that was checking for it: the
+ * event as it is now, with Failed again in the banner, or a toast for one
+ * delivered or purged. Nothing is taken from the session.
+ */
+export const toEventResult = (
+  input: Omit<EventPageInput, 'notice' | 'form' | 'edit' | 'held' | 'kept'>
+): EventPageModel | null => {
+  const page = toEventPage(input)
+  const { event } = input.result
+
+  if (event === null) {
+    return null
+  }
+
+  const outcome = toWatchOutcome(event.status)
+
+  return {
+    ...page,
+    banner:
+      outcome === 'failed'
+        ? { ...toFailedAgain(event), redriveHref: null }
+        : null,
+    outcome,
+    toasts: resultToasts[outcome] ?? []
+  }
+}
 
 const missingCodes: Record<MissingEvent['state'], number> = {
   'not-found': statusCodes.notFound,

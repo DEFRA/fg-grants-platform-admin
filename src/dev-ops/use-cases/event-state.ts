@@ -28,6 +28,12 @@ export const isDeadLetterStatus = (status: string): boolean =>
 
 export const isPurgedStatus = (status: string): boolean => status === 'PURGED'
 
+/** Where a redrive ends: delivered, or a dead letter again, which someone may since have purged. */
+export const isSettledStatus = (status: string): boolean =>
+  isCompletedStatus(status) ||
+  isDeadLetterStatus(status) ||
+  isPurgedStatus(status)
+
 /** A deletion date of '' is none. */
 const isPurgeable = ({ status, purgeDeletionDate }: EventDetail): boolean =>
   isDeadLetterStatus(status) && Boolean(purgeDeletionDate)

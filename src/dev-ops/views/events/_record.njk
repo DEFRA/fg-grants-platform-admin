@@ -1,0 +1,90 @@
+{% import "components/macros.njk" as gpa %}
+{#- One event's record: its header, banner, tabs and dialogs. The page draws it, and so does a redrive's result, swapped in for it. -#}
+
+{#- The Details card: each fact once, in a fixed order. -#}
+{% macro details(facts) -%}
+  {%- set cards = [] -%}
+  {%- for fact in facts -%}
+    {%- set html -%}
+      {%- set v = fact.value -%}
+      {%- if v.kind == 'text' -%}
+        {{ v.text }}
+      {%- elif v.kind == 'time' -%}
+        {{ gpa.Time(v.time) }}
+      {%- elif v.kind == 'link' -%}
+        {{ gpa.Link({ text: v.text, href: v.href }) }}
+      {%- elif v.kind == 'logs' -%}
+        {{ gpa.Link({ text: 'OpenSearch', href: v.href, external: true, testId: 'event-logs' }) }}
+      {%- else -%}
+        {%- call gpa.Stack({ gap: '2xs' }) -%}
+          {%- set line -%}{% if v.time %}{{ gpa.Time(v.time) }}{% else %}{{ gpa.NoValue() }}{% endif %} by {{ v.by }}{{ v.after }}{%- endset -%}
+          {{ gpa.Text({ html: line }) }}
+          {%- if v.note %}{{ gpa.Text({ text: v.note, tone: 'muted' }) }}{% endif -%}
+        {%- endcall -%}
+      {%- endif -%}
+    {%- endset -%}
+    {%- set cards = (cards.push({ label: fact.label, html: html }), cards) -%}
+  {%- endfor -%}
+  {{ gpa.FactsCard({ title: 'Details', facts: cards, testId: 'event-details' }) }}
+{%- endmacro %}
+
+{#- Drawn once, already checking; hidden until the script shows it, so without one only the Reload alert says anything. -#}
+{% macro watching(w) -%}
+  {{ gpa.Alert({ id: 'event-banner', tone: w.waiting.tone, title: w.waiting.title, text: w.waiting.text, busy: true, focusOnArrival: true, attributes: { hidden: true, 'data-gpa-watch': true, 'data-status-href': w.statusHref, 'data-result-href': w.resultHref }, testId: 'event-banner' }) }}
+  <noscript>
+    {%- set reload %}{{ gpa.Button({ text: 'Reload', size: 'sm', href: w.noScript.reloadHref, testId: 'event-banner-reload' }) }}{% endset -%}
+    {{ gpa.Alert({ tone: w.noScript.tone, title: w.noScript.title, text: w.noScript.text, actions: reload, testId: 'event-banner-noscript' }) }}
+  </noscript>
+  {%- set again %}{{ gpa.Button({ text: 'Check again', size: 'sm', iconStart: 'refresh-cw', href: w.stopped.againHref, attributes: { 'data-gpa-check-again': true }, testId: 'event-banner-check-again' }) }}{% endset -%}
+  <template data-gpa-watch-stopped="not-retried">
+    {{- gpa.Alert({ tone: w.stopped.notRetried.tone, title: w.stopped.notRetried.title, text: w.stopped.notRetried.text, actions: again }) -}}
+  </template>
+  <template data-gpa-watch-stopped="retrying">
+    {%- set retrying %}Still retrying: <span data-gpa-failed></span> of <span data-gpa-allowed></span> attempts have failed so far. Stopped checking after 30 seconds.{% endset -%}
+    {{- gpa.Alert({ tone: 'success', title: w.stopped.title, html: retrying, actions: again }) -}}
+  </template>
+{%- endmacro %}
+
+<div id="event-record"{% if outcome %} data-gpa-outcome="{{ outcome }}"{% endif %}>
+  {%- set idLine -%}
+    {%- call gpa.Inline({ gap: 'xs', wrap: false }) -%}
+      {{ gpa.Text({ text: eventId, mono: true, tone: 'subtle', testId: 'event-id' }) }}{{ gpa.CopyButton({ value: eventId, label: 'Copy event ID' }) }}
+    {%- endcall -%}
+  {%- endset -%}
+
+  {%- set actions -%}
+    {%- if purgeHref %}{{ gpa.Button({ text: 'Purge', variant: 'danger', href: purgeHref, attributes: { 'data-gpa-open': purgeDialog.id }, testId: 'event-purge' }) }}{% endif -%}
+    {%- if redriveHref %}{{ gpa.Button({ text: 'Redrive', variant: 'primary', iconStart: 'refresh-cw', href: redriveHref, attributes: { 'data-gpa-open': redriveDialog.id }, testId: 'event-redrive' }) }}{% endif -%}
+  {%- endset -%}
+
+  {%- set bannerHtml -%}
+    {%- if watch -%}
+      {{ watching(watch) }}
+    {%- elif banner -%}
+      {%- set bannerActions -%}
+        {%- if banner.redriveHref %}{{ gpa.Button({ text: 'Redrive now', size: 'sm', variant: 'primary', href: banner.redriveHref, attributes: { 'data-gpa-open': redriveDialog.id }, testId: 'event-banner-redrive' }) }}{% endif -%}
+      {%- endset -%}
+      {{ gpa.Alert({ id: 'event-banner', tone: banner.tone, title: banner.title, text: banner.text, actions: bannerActions, dismissible: true, focusOnArrival: true, testId: 'event-banner' }) }}
+    {%- endif -%}
+  {%- endset -%}
+
+  {%- call gpa.RecordPage({
+    title: title,
+    mono: titleMono,
+    back: { href: back.href, text: back.text, testId: 'event-back' },
+    meta: [gpa.StatusDot({ text: status.text, tone: status.tone, testId: 'event-status' }), idLine],
+    actions: actions,
+    alert: bannerHtml,
+    tabs: { label: 'Event', items: tabs },
+    aside: details(facts) if tab == 'overview',
+    titleTestId: 'event-title'
+  }) -%}
+    {%- if tab == 'history' -%}
+      {% include "events/_history.njk" %}
+    {%- else -%}
+      {% include "events/_payload.njk" %}
+    {%- endif -%}
+  {%- endcall -%}
+
+  {% include "events/_dialogs.njk" %}
+</div>

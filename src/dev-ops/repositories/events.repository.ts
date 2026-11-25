@@ -131,6 +131,18 @@ const toPath = (key: EventKey): string =>
 export const findEvent = async (key: EventKey): Promise<EventDetail> =>
   getFromGas<EventDetail>(toPath(key))
 
+/** Where an event stands, without its payload: GAS reads no more and audits nothing. */
+export interface EventStatus {
+  status: string
+  statusLabel: string
+  /** A redrive resets the count, so these are the attempts since the last one. */
+  attemptsSinceRedrive: number
+  maxAttempts: number
+}
+
+export const findEventStatus = async (key: EventKey): Promise<EventStatus> =>
+  getFromGas<EventStatus>(`${toPath(key)}/status`)
+
 /** GAS answers an accepted redrive with 204 and no body. */
 export const redriveEvent = async (
   key: EventKey,

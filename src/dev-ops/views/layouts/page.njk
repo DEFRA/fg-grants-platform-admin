@@ -10,6 +10,8 @@
     <link rel="icon" sizes="any" href="{{ getAssetPath("node_modules/govuk-frontend/dist/govuk/assets/images/favicon.svg") }}" type="image/svg+xml">
     <link rel="preload" href="{{ getAssetPath('src/dev-ops/views/components/fonts/InterVariable.woff2') }}" as="font" type="font/woff2" crossorigin>
     <link href="{{ getAssetPath('src/dev-ops/views/dev-ops.css') }}" rel="stylesheet">
+    {#- Before the components' script, so a page's own runs first. -#}
+    {% block headScripts %}{% endblock %}
     <script type="module" src="{{ getAssetPath('src/dev-ops/views/components/index.ts') }}"></script>
   </head>
   <body>
@@ -37,7 +39,7 @@
       {% block content %}{% endblock %}
     {%- endcall -%}
     {% if offersTimes %}{% include "times-dialog.njk" %}{% endif %}
-    {%- if toasts and toasts.length -%}
+    {%- if (toasts and toasts.length) or watch -%}
       {%- call gpa.ToastRegion() -%}
         {%- for toast in toasts %}{{ gpa.Toast({ tone: toast.tone, text: toast.text, testId: 'toast' }) }}{% endfor -%}
       {%- endcall -%}

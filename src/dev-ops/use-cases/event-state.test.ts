@@ -1,5 +1,5 @@
 import type { EventDetail } from './get-event.use-case.ts'
-import { toEventState } from './event-state.ts'
+import { isSettledStatus, toEventState } from './event-state.ts'
 
 const failure = {
   at: '2026-06-16T10:08:00.000Z',
@@ -149,4 +149,13 @@ describe('the purge gate', () => {
         .purgeable
     ).toBe(purgeable)
   })
+})
+
+test('a redrive has settled once the event is delivered, a dead letter again, or purged since', () => {
+  expect(
+    ['COMPLETED', 'DEAD_LETTER', 'PURGED'].map(isSettledStatus)
+  ).toStrictEqual([true, true, true])
+  expect(
+    ['RESUBMITTED', 'PUBLISHED', 'PROCESSING', 'FAILED'].map(isSettledStatus)
+  ).toStrictEqual([false, false, false, false])
 })

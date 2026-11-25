@@ -3,7 +3,6 @@ import type { BannerContext, EventNotice } from './event-banners.ts'
 
 const context: BannerContext = {
   service: 'CW',
-  allowed: 5,
   deletionDay: '2 Feb 2027',
   canRedrive: true
 }
@@ -24,13 +23,33 @@ describe('toBanner', () => {
     expect(toBanner(notice({}), context)?.title).toBe('Redriven.')
   })
 
-  test('redriven: up to the allowed attempts, or without a count when there is none', () => {
-    expect(toBanner(notice({}), context)?.text).toBe(
-      'The poller will pick it up shortly and retry it up to 5 times.'
-    )
-    expect(toBanner(notice({}), { ...context, allowed: null })?.text).toBe(
-      'The poller will pick it up shortly and retry it.'
-    )
+  test('redriven: already checking for the result, with the spinner', () => {
+    expect(toBanner(notice({}), context)).toStrictEqual({
+      tone: 'success',
+      title: 'Redriven.',
+      text: 'Checking for the result…',
+      redriveNow: false,
+      busy: true
+    })
+  })
+
+  test('saved and redriven: the same check, under a title naming both', () => {
+    expect(
+      toBanner(
+        notice({
+          action: 'edit',
+          outcome: 'saved',
+          redrive: { outcome: 'redriven', status: null }
+        }),
+        context
+      )
+    ).toStrictEqual({
+      tone: 'success',
+      title: 'Payload saved and redriven.',
+      text: 'Checking for the result…',
+      redriveNow: false,
+      busy: true
+    })
   })
 
   test.each([
@@ -205,7 +224,7 @@ describe('toBanner', () => {
 
 describe('toToasts', () => {
   test.each([
-    [notice({}), [{ tone: 'success', text: 'Event redriven' }]],
+    [notice({}), []],
     [
       notice({ outcome: 'purged', action: 'purge' }),
       [{ tone: 'info', text: 'Event purged' }]
@@ -220,7 +239,15 @@ describe('toToasts', () => {
         action: 'edit',
         redrive: { outcome: 'redriven', status: null }
       }),
-      [{ tone: 'success', text: 'Payload saved and redriven' }]
+      []
+    ],
+    [
+      notice({
+        outcome: 'saved',
+        action: 'edit',
+        redrive: { outcome: 'conflict', status: 'COMPLETED' }
+      }),
+      [{ tone: 'success', text: 'Payload saved' }]
     ],
     [notice({ outcome: 'timed-out' }), []],
     [null, []]
