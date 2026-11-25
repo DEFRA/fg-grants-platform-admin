@@ -6,14 +6,13 @@ import { timeOf, toRecordLink } from './event-context.ts'
 import type { EventContext } from './event-context.ts'
 import { toTraceHref } from './event-formats.ts'
 import { toPurgeReasonLabel } from './purge-form.ts'
-import { toDayTime } from './times.ts'
 import type { TimeText, Times } from './times.ts'
 
 export type FactValue =
   | { kind: 'text'; text: string }
   | { kind: 'time'; time: TimeText }
   | { kind: 'link'; text: string; href: string }
-  | { kind: 'logs'; href: string | null; traceId: string }
+  | { kind: 'logs'; href: string }
   | {
       kind: 'byline'
       time: TimeText | null
@@ -52,18 +51,12 @@ const queue: FactOf = ({ key }) => ({
 const created: FactOf = ({ event, times }) =>
   time('Created', timeOf(event.createdAt, times))
 
-/** Opens the logs filtered to this trace, from the environment's logs address. */
-const logs: FactOf = ({ event: { traceId, createdAt } }) =>
-  traceId
-    ? {
-        label: 'Logs',
-        value: {
-          kind: 'logs',
-          href: toTraceHref({ traceId, createdAt }),
-          traceId
-        }
-      }
-    : null
+/** Opens the logs filtered to this trace, from the environment's logs address; none without one. */
+const logs: FactOf = ({ event: { traceId, createdAt } }) => {
+  const href = traceId ? toTraceHref({ traceId, createdAt }) : null
+
+  return href ? { label: 'Logs', value: { kind: 'logs', href } } : null
+}
 
 const record = (value: EventRecord | null | undefined): Fact | null => {
   const link = toRecordLink(value)
@@ -72,29 +65,15 @@ const record = (value: EventRecord | null | undefined): Fact | null => {
 }
 
 const deletion: FactOf = ({ event, times }) =>
-  time('Deletion date', timeOf(event.expiresAt, times, toDayTime))
+  time('Deletion date', timeOf(event.expiresAt, times))
 
-const lastRedrive: FactOf = ({ event, times }) =>
-  event.lastRedrive && {
-    label: 'Last redrive',
-    value: byline(event.lastRedrive, times)
-  }
-
-const edited: FactOf = ({ event, times }) =>
-  event.lastEdit
-    ? {
-        label: 'Payload edited',
-        value: byline(event.lastEdit, times, '', quoted(event.lastEdit.note))
-      }
-    : null
-
-/** The row keeps one purge, and keeps it through a redrive, so the label moves rather than the fact. */
+/** Only while the event is purged; a purge a redrive undid is in History. */
 const purged: FactOf = ({ event, state, times }) => {
   const purge = event.lastPurge
 
-  return purge
+  return state.purged && purge
     ? {
-        label: state.purged ? 'Purged' : 'Previously purged',
+        label: 'Purged',
         value: byline(
           purge,
           times,
@@ -110,12 +89,10 @@ export const toFacts = (context: EventContext): Fact[] =>
   [
     queue,
     created,
-    logs,
-    ({ event }: EventContext) => record(event.record),
     deletion,
-    lastRedrive,
-    edited,
-    purged
+    purged,
+    logs,
+    ({ event }: EventContext) => record(event.record)
   ]
     .map((fact) => fact(context))
     .filter((fact): fact is Fact => fact !== null)

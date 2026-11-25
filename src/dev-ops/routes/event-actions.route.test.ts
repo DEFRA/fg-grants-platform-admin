@@ -220,6 +220,40 @@ afterAll(async () => {
   await server.stop()
 })
 
+describe('from History', () => {
+  test('a redrive goes back to History, the banner above it', async () => {
+    const { $, posted } = await postAndFollow(`${path}/redrive`, {
+      back: listPath,
+      tab: 'history'
+    })
+
+    expect(posted.location).toBe(
+      `${path}?back=${encodeURIComponent(listPath)}&tab=history#event-banner`
+    )
+    expect(bannerOf($).title).toBe('Redriven.')
+    expect(by($, 'event-history')).toHaveLength(1)
+  })
+
+  test('a purge goes back to History; a rejected one hands the dialog back open there', async () => {
+    const purged = await request('POST', `${path}/purge`, {
+      reasonCode: 'SENT_IN_ERROR',
+      tab: 'history'
+    })
+    const rejected = await request('POST', `${path}/purge`, {
+      tab: 'history'
+    })
+
+    expect(purged.location).toBe(`${path}?tab=history#event-banner`)
+    expect(rejected.location).toBe(`${path}?tab=history&confirm=purge`)
+  })
+
+  test('a tab that names none goes back to the Overview', async () => {
+    const posted = await request('POST', `${path}/redrive`, { tab: 'nonsense' })
+
+    expect(posted.location).toBe(`${path}#event-banner`)
+  })
+})
+
 describe('Redrive', () => {
   test('asks GAS as the signed-in person, goes back to the event and its list, and says how it went once', async () => {
     const { $, posted } = await postAndFollow(`${path}/redrive`, {

@@ -33,6 +33,8 @@ export interface EventContext {
   /** The page it was opened from, checked; empty for none. */
   from: string
   eventHref: string
+  /** The tab the page is on, which its own links keep. */
+  tab: 'overview' | 'history'
   catalogue: Catalogue | null
   /** The list the event's queue is on. */
   ownList: BucketEntry | null
@@ -43,10 +45,19 @@ export const serviceNames: Record<EventKey['service'], string> = {
   caseworking: 'CW'
 }
 
-const toQuery = (from: string, extra?: [string, string]): string => {
-  const params = new URLSearchParams(
-    from ? { [backKey]: toFittingBack(from) } : {}
-  )
+const toParams = (from: string, tab: string) =>
+  new URLSearchParams({
+    ...(from ? { [backKey]: toFittingBack(from) } : {}),
+    ...(tab === 'history' ? { tab } : {})
+  })
+
+/** The event page's query: the page it goes back to, its tab unless the Overview, and at most one ask. */
+export const toEventQuery = (
+  from: string,
+  tab: string,
+  extra?: [string, string]
+): string => {
+  const params = toParams(from, tab)
 
   if (extra) {
     params.set(...extra)
@@ -55,12 +66,16 @@ const toQuery = (from: string, extra?: [string, string]): string => {
   return params.size ? `?${params}` : ''
 }
 
-/** The event's own address, keeping the page it came from and, at most, one ask of the page. */
+/** The event's own address, keeping the page it came from, its tab and, at most, one ask of the page. */
 export const toSelfHref = (
-  { key, from }: Pick<EventContext, 'key' | 'from'>,
+  {
+    key,
+    from,
+    tab = 'overview'
+  }: Pick<EventContext, 'key' | 'from'> & Partial<Pick<EventContext, 'tab'>>,
   extra?: [string, string],
   fragment = ''
-): string => `${toEventHref(key)}${toQuery(from, extra)}${fragment}`
+): string => `${toEventHref(key)}${toEventQuery(from, tab, extra)}${fragment}`
 
 const dateOf = (value: string | null | undefined): Date | null =>
   value ? toValidDate(value) : null
@@ -129,36 +144,4 @@ export const toBlock = (
   }
 
   return stack.startsWith(name) ? stack : `${errorLine(attempt)}\n${stack}`
-}
-
-const isLongerOf = (error: EventDetail['lastError'], attempt: EventAttempt) =>
-  error !== null && error.message.startsWith(attempt.message)
-
-/** The backend caps an attempt's message at 512 and `lastError` at 1024, so the last attempt reads the longer. */
-export const lastAttemptOf = (event: EventDetail): EventAttempt | null => {
-  const last = event.attemptHistory.at(-1) ?? null
-
-  return last && isLongerOf(event.lastError, last)
-    ? { ...last, message: event.lastError!.message }
-    : last
-}
-
-/** An empty message says nothing, so it is the same as no other. */
-const sameMessage = (a: string, b: string): boolean =>
-  a !== '' && b !== '' && (a.startsWith(b) || b.startsWith(a))
-
-/** One error cut shorter than the other is the same error. */
-export const sameError = (a: EventAttempt, b: EventAttempt): boolean =>
-  a.name === b.name && sameMessage(a.message, b.message)
-
-/** Two attempts or more, every one failing as the last did. */
-export const allSame = (event: EventDetail): boolean => {
-  const last = lastAttemptOf(event)
-  const history = event.attemptHistory
-
-  return (
-    last !== null &&
-    history.length > 1 &&
-    history.every((attempt) => sameError(attempt, last))
-  )
 }

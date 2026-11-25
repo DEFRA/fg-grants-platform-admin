@@ -30,7 +30,7 @@
         {%- set purgedText %}It was purged{% if d.purged.at %} on {{ gpa.Time(d.purged.at) }}{% endif %} by {{ d.purged.by }}. Redriving brings it back to the queue; the purge stays in its history.{% endset -%}
         {{ gpa.Alert({ tone: 'info', html: purgedText, testId: 'redrive-purged' }) }}
       {%- endif -%}
-      {{ gpa.Form({ id: 'redrive-form', action: d.action, label: 'Redrive this event', hidden: [{ name: 'back', value: d.back }] }) }}
+      {{ gpa.Form({ id: 'redrive-form', action: d.action, label: 'Redrive this event', hidden: [{ name: 'back', value: d.back }, { name: 'tab', value: d.tab }] }) }}
     {%- endcall -%}
   {%- endcall -%}
 {%- endif -%}
@@ -46,7 +46,7 @@
       {{ prodNote(d) }}
       {%- set deleted %}It stops being retried and is no longer a dead letter.{% if d.deletionDay %} You can still redrive it until {{ gpa.Time(d.deletionDay) }}, when it’s deleted.{% endif %}{% endset -%}
       {{ gpa.Text({ html: deleted }) }}
-      {%- call gpa.Form({ id: 'purge-form', action: d.action, label: 'Purge this event', hidden: [{ name: 'back', value: d.back }] }) -%}
+      {%- call gpa.Form({ id: 'purge-form', action: d.action, label: 'Purge this event', hidden: [{ name: 'back', value: d.back }, { name: 'tab', value: d.tab }] }) -%}
         {%- call gpa.Stack({ gap: 'lg' }) -%}
           {{ gpa.RadioGroup({ name: 'reasonCode', id: 'purge-reason', label: 'Reason', options: d.reasons, error: d.reasonError, errorTestId: 'purge-reason-error' }) }}
           {%- call gpa.Field({ id: 'purge-note', label: 'Note', optionalUnless: { name: 'reasonCode', value: d.otherReason, current: d.reasonCode }, hint: 'Shown on the event. Don’t include personal data.', error: d.noteError, count: { max: d.noteMax, value: d.note }, countId: 'purge-note-count', errorTestId: 'purge-note-error' }) -%}

@@ -26,6 +26,8 @@ interface DialogBase {
   closeHref: string
   action: string
   back: string
+  /** The tab the write lands back on: empty for the Overview. */
+  tab: string
   /** Production: the dialog says so first. */
   prod: boolean
 }
@@ -73,6 +75,7 @@ const toBase = (
   closeHref: toSelfHref(context),
   action: `${toEventHref(context.key)}/${write}`,
   back: context.from,
+  tab: context.tab === 'history' ? context.tab : '',
   prod: asks.prod
 })
 

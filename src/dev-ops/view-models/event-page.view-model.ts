@@ -24,8 +24,6 @@ import {
 import { toTone } from './catalogue-presentation.ts'
 import type { Tone } from './catalogue-presentation.ts'
 import { toUrlService } from './event-address.ts'
-import { toAttempts } from './event-attempts.ts'
-import type { AttemptsModel } from './event-attempts.ts'
 import { toBanner, toToasts } from './event-banners.ts'
 import type { Banner, EventNotice, Toast } from './event-banners.ts'
 import { serviceNames, timeOf, toSelfHref } from './event-context.ts'
@@ -38,6 +36,8 @@ import type {
 } from './event-dialogs.ts'
 import { toFacts } from './event-facts.ts'
 import type { Fact } from './event-facts.ts'
+import { toHistory } from './event-history.ts'
+import type { HistoryItem } from './event-history.ts'
 import { toEventHref } from './event-formats.ts'
 import {
   eventsPresentationId,
@@ -95,6 +95,22 @@ export interface EventPageQuery {
   back?: string
   confirm?: string
   edit?: string
+  tab?: string
+}
+
+export type EventTab = 'overview' | 'history'
+
+export const eventTabMax = 32
+
+/** Anything but History, or none, opens the Overview. */
+export const toEventTab = (tab: string | undefined): EventTab =>
+  tab === 'history' ? 'history' : 'overview'
+
+interface EventTabItem {
+  text: string
+  href: string
+  current: boolean
+  count?: string
 }
 
 /** What a request hands the page beside the event it reads. */
@@ -148,8 +164,11 @@ export interface EventPageModel {
   redriveHref: string | null
   banner: (Banner & { redriveHref: string | null }) | null
   toasts: Toast[]
+  tab: EventTab
+  tabs: EventTabItem[]
   facts: Fact[]
-  attempts: AttemptsModel | null
+  /** Drawn on the History tab only. */
+  history: HistoryItem[] | null
   payload: PayloadModel | null
   redriveDialog: RedriveDialog | null
   purgeDialog: PurgeDialog | null
@@ -243,12 +262,36 @@ const toContext = (
   service: serviceNames[input.key.service],
   from: toSafeFrom(input.query.back),
   eventHref: toEventHref(input.key),
+  tab: toEventTab(input.query.tab),
   catalogue: input.catalogue,
   ownList: toOwnList(input.catalogue, input.key)
 })
 
+const toTabs = (
+  context: EventContext,
+  historyCount: number
+): EventTabItem[] => [
+  {
+    text: 'Overview',
+    href: toSelfHref({ ...context, tab: 'overview' }),
+    current: context.tab === 'overview'
+  },
+  {
+    text: 'History',
+    href: toSelfHref({ ...context, tab: 'history' }),
+    current: context.tab === 'history',
+    count: String(historyCount)
+  }
+]
+
+const historyShown = (
+  { tab }: EventContext,
+  history: HistoryItem[]
+): HistoryItem[] | null => (tab === 'history' ? history : null)
+
 const toFound = (input: EventPageInput, event: EventDetail): EventPageModel => {
   const context = toContext(input, event)
+  const history = toHistory(event, input.times)
   const notice = noticeFor(context, input.notice)
   const title = event.eventType ?? event.eventId
   const payload = toPayload(context, input)
@@ -274,8 +317,10 @@ const toFound = (input: EventPageInput, event: EventDetail): EventPageModel => {
     ),
     banner: toBannerModel(context, notice),
     toasts: toToasts(notice),
+    tab: context.tab,
+    tabs: toTabs(context, history.length),
     facts: toFacts(context),
-    attempts: toAttempts(context),
+    history: historyShown(context, history),
     payload,
     redriveDialog: toRedriveDialog(context, input),
     purgeDialog: toPurgeDialog(context, input)
@@ -330,7 +375,7 @@ const toMissing = (input: EventPageInput): EventPageModel => {
   return {
     pageTitle: `${state === 'not-found' ? 'Not found – ' : ''}${service} event ${key.id}`,
     navActive: navActiveOf(catalogue, key, from),
-    retryHref: toSelfHref({ key, from }),
+    retryHref: toSelfHref({ key, from, tab: toEventTab(input.query.tab) }),
     back: toBack(catalogue, key, from),
     missing: {
       state,
@@ -346,8 +391,10 @@ const toMissing = (input: EventPageInput): EventPageModel => {
     redriveHref: null,
     banner: null,
     toasts: [],
+    tab: 'overview',
+    tabs: [],
     facts: [],
-    attempts: null,
+    history: null,
     payload: null,
     redriveDialog: null,
     purgeDialog: null

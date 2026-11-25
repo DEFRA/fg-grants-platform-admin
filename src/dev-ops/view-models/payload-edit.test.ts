@@ -1,6 +1,5 @@
 import type { EventDetail } from '../use-cases/get-event.use-case.ts'
 import {
-  hasNoAttemptsSinceEdit,
   isEditedSinceAttempts,
   isEditedSinceRedrive,
   toEditorState,
@@ -34,7 +33,6 @@ describe('the edit and what has run since', () => {
 
     expect(isEditedSinceRedrive(edited)).toBe(true)
     expect(isEditedSinceAttempts(edited)).toBe(true)
-    expect(hasNoAttemptsSinceEdit(edited)).toBe(true)
   })
 
   test('a redrive after the edit: retried', () => {
@@ -44,7 +42,6 @@ describe('the edit and what has run since', () => {
     })
 
     expect(isEditedSinceRedrive(redriven)).toBe(false)
-    expect(hasNoAttemptsSinceEdit(redriven)).toBe(false)
   })
 
   test('an attempt after the edit: the edit has been tried', () => {

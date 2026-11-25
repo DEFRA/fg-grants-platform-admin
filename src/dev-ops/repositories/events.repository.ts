@@ -78,13 +78,29 @@ export interface EventDetail extends EventWithAttempts {
   /** Sent only by an owning service that can edit the payload, so its presence gates the Edit button. */
   payloadRevision?: number | null
   lastEdit?: EventLastEdit | null
-  /** The payload as it was before the first edit, kept for as long as the row is. */
-  originalPayload?: unknown
   /** False when a JSON round trip would change a stored value; null when the service can't tell. */
   payloadIsPlainJson?: boolean | null
   /** Sent only where the owning service has the record. */
   record?: EventRecord | null
+  /** Newest first. */
+  history?: EventHistoryEntry[]
 }
+
+/** One thing that happened to an event, as GAS tells it. */
+export type EventHistoryEntry =
+  | { kind: 'received' | 'dead-lettered' | 'delivered'; at: string | null }
+  | ({ kind: 'attempt'; number: number } & EventAttempt)
+  | ({ kind: 'purged' } & EventLastPurge)
+  | {
+      kind: 'payload-edited'
+      at: string | null
+      by: string
+      note: string | null
+      /** Both null where the service didn't keep the payload before the edit. */
+      before: unknown
+      after: unknown
+    }
+  | { kind: 'redriven'; at: string | null; by: string }
 
 export interface EventLastRedrive {
   at: string | null

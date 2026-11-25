@@ -129,40 +129,6 @@ export const toTraceHref = (event: {
   return href
 }
 
-/** A tenth of a second, the resolution the `1.2s` spelling reports in. */
-const decisecond = 10
-
-/** `5h 34m` past an hour, so a backoff reads as a duration rather than a sum. */
-const toDuration = (ms: number): string => {
-  if (ms < msPerSecond) {
-    return `${ms}ms`
-  }
-
-  // Rounded before the unit is chosen, so 59.97s reads as a minute, not `60.0s`.
-  const tenths = Math.round((ms * decisecond) / msPerSecond)
-
-  if (tenths < secondsPerMinute * decisecond) {
-    return `${(tenths / decisecond).toFixed(1)}s`
-  }
-
-  const whole = Math.round(ms / msPerSecond)
-  const minutes = Math.floor(whole / secondsPerMinute)
-
-  return minutes < minutesPerHour
-    ? `${minutes}m ${whole % secondsPerMinute}s`
-    : `${Math.floor(minutes / minutesPerHour)}h ${minutes % minutesPerHour}m`
-}
-
-/** The gap between two instants, or null when either will not parse. */
-export const toGap = (from: string, to: string): string | null => {
-  const started = toValidDate(from)
-  const finished = toValidDate(to)
-
-  return started === null || finished === null
-    ? null
-    : toDuration(Math.max(0, finished.getTime() - started.getTime()))
-}
-
 export const toEventHref = (key: EventKey): string =>
   `/dev-ops/events/${toUrlService(key.service)}/${encodeURIComponent(key.box)}/${encodeURIComponent(key.id)}`
 
