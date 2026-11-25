@@ -1,10 +1,9 @@
-import { canEditEvent } from '../use-cases/event-state.ts'
 import type { EventDetail } from '../use-cases/get-event.use-case.ts'
-import { allSame, timeOf, toSelfHref } from './event-context.ts'
+import { timeOf, toSelfHref } from './event-context.ts'
 import type { EventContext } from './event-context.ts'
-import { shortId, toEventHref } from './event-formats.ts'
+import { toEventHref } from './event-formats.ts'
 import type { PurgeFormError } from './purge-form.ts'
-import { noteMaxLength, purgeReasons } from './purge-form.ts'
+import { noteMaxLength, otherReason, purgeReasons } from './purge-form.ts'
 import { isEditedSinceAttempts, isEditedSinceRedrive } from './payload-edit.ts'
 import { toDayTime } from './times.ts'
 import type { TimeText } from './times.ts'
@@ -21,11 +20,6 @@ export interface PurgeFormNotice {
   error: PurgeFormError | null
 }
 
-interface ShortName {
-  name: string
-  id: string
-}
-
 interface DialogBase {
   id: string
   open: boolean
@@ -34,7 +28,6 @@ interface DialogBase {
   back: string
   /** Production: the dialog says so first. */
   prod: boolean
-  short: ShortName
 }
 
 interface Byline {
@@ -45,7 +38,8 @@ interface Byline {
 export interface RedriveDialog extends DialogBase {
   service: string
   allowed: number | null
-  futile: { count: number; editHref: string | null } | null
+  /** Failing on the payload it failed with: the dialog says it will fail again. */
+  unchanged: boolean
   edited: Byline | null
   purged: Byline | null
 }
@@ -56,6 +50,9 @@ export interface PurgeDialog extends DialogBase {
   reasonError: string | null
   note: string
   noteError: string | null
+  /** The reason sent back, which the note is required with when it is `otherReason`. */
+  reasonCode: string
+  otherReason: string
   noteMax: number
 }
 
@@ -76,29 +73,11 @@ const toBase = (
   closeHref: toSelfHref(context),
   action: `${toEventHref(context.key)}/${write}`,
   back: context.from,
-  prod: asks.prod,
-  short: {
-    name: context.event.eventType ?? context.event.type,
-    id: shortId(context.event.eventId)
-  }
+  prod: asks.prod
 })
 
-/** Every attempt failed as the last did and nothing has changed since, so a redrive would fail the same way. */
-const isFutile = ({ event, state }: EventContext): boolean =>
-  state.deadLetter && allSame(event) && !isEditedSinceAttempts(event)
-
-const editInstead = (context: EventContext): string | null =>
-  canEditEvent(context.event, context.state)
-    ? toSelfHref(context, ['edit', 'payload'])
-    : null
-
-const toFutile = (context: EventContext) =>
-  isFutile(context)
-    ? {
-        count: context.event.attemptHistory.length,
-        editHref: editInstead(context)
-      }
-    : null
+const isUnchanged = ({ event, state }: EventContext): boolean =>
+  state.deadLetter && !isEditedSinceAttempts(event)
 
 const toEdited = ({ event, times }: EventContext): Byline | null =>
   event.lastEdit && isEditedSinceRedrive(event)
@@ -123,7 +102,7 @@ export const toRedriveDialog = (
         ...toBase(context, asks, redriveDialogId, 'redrive'),
         service: context.service,
         allowed: context.count?.allowed ?? null,
-        futile: toFutile(context),
+        unchanged: isUnchanged(context),
         edited: toEdited(context),
         purged: toPurged(context)
       }
@@ -143,6 +122,8 @@ const toReasons = (form: PurgeFormNotice | null) =>
     checked: form?.reasonCode === value
   }))
 
+const reasonOf = (form: PurgeFormNotice | null) => form?.reasonCode ?? ''
+
 const deletionOf = ({ event, times }: EventContext) =>
   timeOf((event as EventDetail).purgeDeletionDate, times, toDayTime)
 
@@ -160,6 +141,8 @@ export const toPurgeDialog = (
         reasonError: fieldError(form, 'reason'),
         note: form?.note ?? '',
         noteError: fieldError(form, 'note'),
+        reasonCode: reasonOf(form),
+        otherReason,
         noteMax: noteMaxLength
       }
     : null

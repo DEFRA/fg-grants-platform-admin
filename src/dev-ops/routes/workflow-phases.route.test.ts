@@ -269,7 +269,7 @@ describe('the workflow Phases tab', () => {
     )
 
     expect(wordsOf(blocked)).toBe(
-      'CW rejects GAS’s message while mandatory tasks in Review application (the case’s current stage) are open. After its retries the message goes to CW’s inbox as a dead letter, and nothing re-applies it: redrive it once the tasks are done'
+      'CW rejects GAS’s message while mandatory tasks in Review application (the case’s current stage) are open. After its retries the message is a dead letter in CW’s inbox, and nothing re-applies it: redrive it once the tasks are done'
     )
     expect(blocked.find('a').attr('href')).toBe(
       '/dev-ops/events/cw?queue=inbox&status=DEAD_LETTER&clear=all'

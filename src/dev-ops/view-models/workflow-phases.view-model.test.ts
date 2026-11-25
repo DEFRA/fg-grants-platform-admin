@@ -433,7 +433,7 @@ describe('toWorkflowPhases', () => {
       {
         badge: 'needs tasks',
         note: {
-          text: 'CW rejects GAS’s message while mandatory tasks in S (the case’s current stage) are open. After its retries the message goes to CW’s inbox as a dead letter, and nothing re-applies it:',
+          text: 'CW rejects GAS’s message while mandatory tasks in S (the case’s current stage) are open. After its retries the message is a dead letter in CW’s inbox, and nothing re-applies it:',
           link: {
             text: 'redrive it once the tasks are done',
             href: 'cw-dead-letters'
@@ -460,7 +460,7 @@ describe('toWorkflowPhases', () => {
     const [way] = panels.find(({ id }) => id === selected)!.waysOut
 
     expect(way.tasks?.note).toEqual({
-      text: 'CW rejects GAS’s message while mandatory tasks in S (the case’s current stage) are open. After its retries the message goes to CW’s inbox as a dead letter, and nothing re-applies it.',
+      text: 'CW rejects GAS’s message while mandatory tasks in S (the case’s current stage) are open. After its retries the message is a dead letter in CW’s inbox, and nothing re-applies it.',
       link: null
     })
   })

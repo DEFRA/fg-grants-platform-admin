@@ -3,7 +3,17 @@ export type CodeSeg = [cls: string, text: string];
 const TOKEN =
   /("(?:[^"\\]|\\.)*")(\s*:)?|\b(true|false|null)\b|(-?\b\d+(?:\.\d+)?(?:[eE][+-]?\d+)?\b)/g;
 
+const FRAME = /^\s*at\s/;
+function stackLine(line: string): CodeSeg[] {
+  if (!line) return [["", line]];
+  if (!FRAME.test(line)) return [["msg", line]];
+  if (/node:internal|node_modules|\(native\)|<anonymous>/.test(line))
+    return [["int", line]];
+  return [["app", line]];
+}
+
 export function codeLine(line: string, language?: string): CodeSeg[] {
+  if (language === "stack") return stackLine(line);
   if (language !== "json") return [["", line]];
   const out: CodeSeg[] = [];
   const push = (cls: string, text: string): void => {

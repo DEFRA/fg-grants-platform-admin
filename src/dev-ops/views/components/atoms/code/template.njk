@@ -2,7 +2,7 @@
 {%- from "./macro.njk" import Code -%}
 {% macro codeBlock(p) -%}
   {%- set lines = (p.code or '').split('\n') -%}
-  <div class="{{ cls('gpa-code' ~ (' gpa-code-framed' if p.framed else '') ~ (' gpa-code-plain' if p.lineNumbers === false else '') ~ (' gpa-maxh-' ~ p.maxHeight if p.maxHeight else ''), p) }}"{{ attrs(p) }}>
+  <div class="{{ cls('gpa-code' ~ (' gpa-code-framed' if p.framed else '') ~ (' gpa-code-wrap' if p.wrap else '') ~ (' gpa-code-plain' if p.lineNumbers === false else '') ~ (' gpa-maxh-' ~ p.maxHeight if p.maxHeight else ''), p) }}"{{ attrs(p) }}>
     {%- if p.lineNumbers !== false -%}
       <div class="gpa-code-gutter" aria-hidden="true">{% for line in lines %}<div{% if p.errorLine == loop.index %} class="is-error"{% endif %}>{{ loop.index }}</div>{% endfor %}</div>
     {%- endif -%}

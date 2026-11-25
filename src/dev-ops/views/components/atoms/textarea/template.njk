@@ -1,3 +1,9 @@
 {%- from "../../core/macros.njk" import attrs, cls -%}
-<textarea{% if p.id %} id="{{ p.id }}"{% endif %} class="{{ cls('gpa-textarea' ~ (' gpa-mono' if p.mono else '') ~ (' is-invalid' if p.invalid else ''), p) }}"{% if p.name %} name="{{ p.name }}"{% endif %} rows="{{ p.rows or 3 }}"{% if p.mono %} spellcheck="false" wrap="off"{% endif %}{% if p.invalid %} aria-invalid="true"{% endif %}{% if p.describedBy %} aria-describedby="{{ p.describedBy }}"{% endif %}{% if p.label %} aria-label="{{ p.label }}"{% endif %}{% if p.labelledBy %} aria-labelledby="{{ p.labelledBy }}"{% endif %}{% if p.readonly %} readonly{% endif %}{% if p.maxlength %} maxlength="{{ p.maxlength }}"{% endif %}{% if p.placeholder %} placeholder="{{ p.placeholder }}"{% endif %}{{ attrs(p) }}>
+{%- set code = p.mono or p.language -%}
+  {%- set ta -%}
+  <textarea{% if p.id %} id="{{ p.id }}"{% endif %} class="{{ cls('gpa-textarea' ~ (' gpa-mono' if code else '') ~ (' is-invalid' if p.invalid else ''), p) }}"{% if p.name %} name="{{ p.name }}"{% endif %} rows="{{ p.rows or 3 }}"{% if code %} spellcheck="false" wrap="off"{% endif %}{% if p.invalid %} aria-invalid="true"{% endif %}{% if p.describedBy %} aria-describedby="{{ p.describedBy }}"{% endif %}{% if p.label %} aria-label="{{ p.label }}"{% endif %}{% if p.labelledBy %} aria-labelledby="{{ p.labelledBy }}"{% endif %}{% if p.readonly %} readonly{% endif %}{% if p.maxlength %} maxlength="{{ p.maxlength }}"{% endif %}{% if p.placeholder %} placeholder="{{ p.placeholder }}"{% endif %}{{ attrs(p) }}>
 {{ p.value }}</textarea>
+  {%- endset -%}
+  {%- if p.language -%}
+  <gpa-textarea-code data-language="{{ p.language }}"{% if p.errorLine %} data-error-line="{{ p.errorLine }}"{% endif %}><div class="gpa-textarea-code">{{ ta | safe }}</div></gpa-textarea-code>
+  {%- else -%}{{ ta | safe }}{%- endif -%}
