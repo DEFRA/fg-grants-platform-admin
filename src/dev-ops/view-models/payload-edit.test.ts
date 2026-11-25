@@ -100,8 +100,35 @@ describe('toEditorState', () => {
         }
       }).error
     ).toBe(
-      'Couldn’t read the payload: expected a key (line 1, column 2). Check the JSON — a comma, quote or brace is missing.'
+      'Couldn’t read the payload: expected a key (line 1). Check for a missing comma, quote or brace.'
     )
+  })
+
+  test('JSON that can’t be read: the line it stopped at is underlined', () => {
+    expect(
+      toEditorState({
+        step: 'edit',
+        note: '',
+        text: '{\n  "a": 1,,\n}',
+        revision: 1,
+        problem: {
+          kind: 'unreadable',
+          fault: { line: 2, column: 10, expected: 'a key' }
+        }
+      }).errorLine
+    ).toBe(2)
+  })
+
+  test.each([
+    { kind: 'dollar-key', at: { line: 2, column: 3 } },
+    { kind: 'not-an-object' },
+    { kind: 'unchanged' },
+    null
+  ] as const)('no line underlined: %o', (problem) => {
+    expect(
+      toEditorState({ step: 'edit', note: '', text: '', revision: 1, problem })
+        .errorLine
+    ).toBeNull()
   })
 
   test.each([

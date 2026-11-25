@@ -5,8 +5,6 @@ import { canEditEvent } from '../use-cases/event-state.ts'
 import { isUnanswered } from '../use-cases/gas-status.ts'
 import type { GasFailure } from '../use-cases/gas-status.ts'
 import type { EventDetail, EventKey } from '../use-cases/get-event.use-case.ts'
-import { toWhy } from './event-attempts.ts'
-import type { WhyItFailed } from './event-attempts.ts'
 import { timeOf, toSelfHref } from './event-context.ts'
 import type { EventContext } from './event-context.ts'
 import { toEventHref } from './event-formats.ts'
@@ -22,7 +20,7 @@ export interface HeldSave {
   text: string
   revision: number
   note: string
-  /** `redrive` for Save and redrive, which Try again repeats. */
+  /** `redrive` for Redrive, which Try again repeats. */
   then: string
 }
 
@@ -54,7 +52,6 @@ type PayloadEditor = {
   action: string
   discardHref: string
   back: string
-  why: WhyItFailed | null
   current: { text: string; by: string | null; at: TimeText | null } | null
   notPlainJson: boolean
 } & EditorState
@@ -164,7 +161,6 @@ const toEditor = (
     action: reviewAction(context.key),
     discardHref: toSelfHref(context),
     back: context.from,
-    why: toWhy(context),
     current: editor.stale ? toCurrent(context) : null,
     notPlainJson: isNotPlainJson(context.event),
     ...editor
@@ -193,7 +189,7 @@ const toReview = (
 }
 
 const toHeldTitle = (service: string, failure: GasFailure): string =>
-  `Not saved — ${toFailureText(failure, service, timedOut)}`
+  `Not saved: ${toFailureText(failure, service, timedOut)}`
 
 /** An unanswered save may have gone through. */
 export const toUnknownTitle = (service: string, failure: GasFailure): string =>

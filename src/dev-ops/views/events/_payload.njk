@@ -3,13 +3,12 @@
 {#- A post here lands on `#payload`, and a browser clears focus when that target can't take it: the answer to the post is the target. -#}
 {%- set p = payload -%}
 {%- set landing = 'payload' -%}
-{%- set steps = [{ label: 'Edit' }, { label: 'Review and save' }] -%}
 
 {%- if p.mode == 'view' -%}
   {%- set cardActions -%}
     {%- if p.edited %}{{ gpa.Badge({ text: 'Edited', size: 'sm', tone: 'info', testId: 'event-edited' }) }}{% endif -%}
     {{ gpa.CopyButton({ value: p.text, text: 'Copy' }) }}
-    {%- if p.editHref %}{{ gpa.Button({ text: 'Edit payload', size: 'sm', iconStart: 'pencil', href: p.editHref, testId: 'event-edit' }) }}{% endif -%}
+    {%- if p.editHref %}{{ gpa.Button({ text: 'Edit', label: 'Edit payload', size: 'sm', iconStart: 'pencil', href: p.editHref, testId: 'event-edit' }) }}{% endif -%}
   {%- endset -%}
   {%- call gpa.Card({ title: 'Payload', id: null if banner else landing, actions: cardActions, testId: 'event-payload' }) -%}
     {{ gpa.Code({ block: true, code: p.text, label: 'Payload', language: 'json' }) }}
@@ -24,37 +23,21 @@
 
 {%- elif p.mode == 'edit' -%}
   {%- call gpa.Card({ padded: true, title: 'Edit payload', id: null if p.landing else landing, testId: 'event-payload-editor' }) -%}
-    {%- call gpa.Form({ action: p.action, label: 'Edit payload', hidden: [{ name: 'revision', value: p.revision }, { name: 'back', value: p.back }, { name: 'note', value: p.note }] }) -%}
+    {%- call gpa.Form({ action: p.action, label: 'Edit payload', wide: true, hidden: [{ name: 'revision', value: p.revision }, { name: 'back', value: p.back }, { name: 'note', value: p.note }] }) -%}
       {%- call gpa.Stack({ gap: 'lg' }) -%}
-        {{ gpa.Stepper({ label: 'Editing', current: 0, steps: steps }) }}
-        {{ gpa.Text({ tone: 'muted', text: 'Nothing is saved until you confirm.' }) }}
-        {%- if p.why -%}
-          {%- set whyActions -%}
-            {%- if p.why.find %}{{ gpa.Button({ text: p.why.find.text, size: 'sm', variant: 'tertiary', iconEnd: 'arrow-right', href: p.why.find.href, testId: 'event-why-find' }) }}{% endif -%}
-          {%- endset -%}
-          {%- set whyBody -%}
-            {%- call gpa.Stack({ gap: 'xs' }) -%}
-              {{ gpa.Text({ text: p.why.error, mono: true }) }}
-              {%- set sentence %}{{ p.why.sentence }}{% if p.why.at %} {{ gpa.Time(p.why.at) }}{% endif %}.{% endset -%}
-              {{ gpa.Text({ html: sentence, testId: 'event-why-sentence' }) }}
-            {%- endcall -%}
-          {%- endset -%}
-          {{ gpa.Alert({ tone: 'danger', title: 'Why it failed', html: whyBody, actions: whyActions, role: 'status', testId: 'event-why' }) }}
-        {%- endif -%}
-        {%- if p.landing == 'error' -%}
-          {{ gpa.ErrorSummary({ errors: [{ id: 'payload-editor', text: p.error }], attributes: { id: landing } }) }}
-        {%- endif -%}
+        {{ gpa.Text({ tone: 'muted', text: 'You’ll review your changes before anything is saved.' }) }}
         {%- if p.unchanged -%}
           {{ gpa.Alert({ tone: 'info', title: 'Nothing to review.', text: 'The payload is unchanged. Edit it, or discard your changes to leave it as it is.', id: landing if p.landing == 'unchanged' else null, focusOnArrival: p.landing == 'unchanged', testId: 'event-unchanged' }) }}
         {%- endif -%}
         {%- if p.stale -%}
-          {{ gpa.Alert({ tone: 'danger', title: 'Not saved — the payload changed while you were editing.', text: 'Your version is still in the editor. Review it again to compare it with the payload as it is now, shown below.', id: landing if p.landing == 'stale' else null, focusOnArrival: p.landing == 'stale', testId: 'event-stale' }) }}
+          {{ gpa.Alert({ tone: 'danger', title: 'Not saved: the payload changed while you were editing.', text: 'Your version is still in the editor. Review it again to compare it with the payload as it is now, shown below.', id: landing if p.landing == 'stale' else null, focusOnArrival: p.landing == 'stale', testId: 'event-stale' }) }}
         {%- endif -%}
         {%- if p.notPlainJson -%}
           {{ gpa.Alert({ tone: 'warning', title: 'Some values in this payload aren’t plain JSON.', text: 'They’ll be saved as JSON text, for example dates as strings.', testId: 'event-not-plain-json' }) }}
         {%- endif -%}
-        {%- call gpa.Field({ id: 'payload-editor', label: 'Payload JSON', error: p.error, errorTestId: 'event-payload-error' }) -%}
-          {{ gpa.Textarea({ id: 'payload-editor', name: 'text', mono: true, rows: p.rows, value: p.text, invalid: p.error, describedBy: gpa.describedBy({ id: 'payload-editor', error: p.error }), attributes: { autofocus: not p.landing }, testId: 'event-payload-text' }) }}
+        {%- call gpa.Stack({ gap: 'xs' }) -%}
+          {{ gpa.Textarea({ id: landing if p.landing == 'error' else 'payload-editor', name: 'text', label: 'Payload', language: 'json', errorLine: p.errorLine, rows: p.rows, value: p.text, invalid: p.error, describedBy: 'payload-editor-err' if p.error else null, attributes: { autofocus: not p.landing, 'data-focus-on-arrival': p.landing == 'error' }, testId: 'event-payload-text' }) }}
+          {%- if p.error %}{{ gpa.FieldMessage({ id: 'payload-editor-err', tone: 'error', text: p.error, testId: 'event-payload-error' }) }}{% endif -%}
         {%- endcall -%}
         {%- if p.current -%}
           {%- call gpa.Stack({ gap: 'xs' }) -%}
@@ -75,10 +58,9 @@
   {%- endcall -%}
 
 {%- elif p.mode == 'review' -%}
-  {%- call gpa.Card({ padded: true, title: 'Review and save', id: null if p.landing else landing, testId: 'event-payload-review' }) -%}
-    {%- call gpa.Form({ action: p.action, label: 'Save payload', hidden: [{ name: 'text', value: p.text }, { name: 'revision', value: p.revision }, { name: 'back', value: p.back }] }) -%}
+  {%- call gpa.Card({ padded: true, title: 'Review changes', id: null if p.landing else landing, testId: 'event-payload-review' }) -%}
+    {%- call gpa.Form({ action: p.action, label: 'Save payload', wide: true, hidden: [{ name: 'text', value: p.text }, { name: 'revision', value: p.revision }, { name: 'back', value: p.back }] }) -%}
       {%- call gpa.Stack({ gap: 'lg' }) -%}
-        {{ gpa.Stepper({ label: 'Editing', current: 1, steps: steps }) }}
         {%- if p.landing == 'save-error' -%}
           {{ gpa.Alert({ tone: 'danger', title: p.saveError.title, text: p.saveError.text, id: landing, focusOnArrival: true, testId: 'event-save-error' }) }}
         {%- elif p.landing == 'note' -%}
@@ -95,7 +77,7 @@
           {{ gpa.Textarea({ id: 'edit-note', name: 'note', rows: 3, value: p.note, invalid: p.noteError, maxlength: p.noteMax, describedBy: gpa.describedBy({ id: 'edit-note', hint: true, error: p.noteError, extra: 'edit-note-count' }), testId: 'event-note' }) }}
         {%- endcall -%}
         {%- call gpa.FormActions() -%}
-          {{ gpa.Button({ text: 'Save and redrive', variant: 'primary', iconStart: 'refresh-cw', type: 'submit', name: 'then', value: 'redrive', loadingOnSubmit: true, testId: 'event-save-redrive' }) }}
+          {{ gpa.Button({ text: 'Redrive', variant: 'primary', iconStart: 'refresh-cw', type: 'submit', name: 'then', value: 'redrive', loadingOnSubmit: true, testId: 'event-save-redrive' }) }}
           {{ gpa.Button({ text: 'Save', type: 'submit', loadingOnSubmit: true, testId: 'event-save' }) }}
           {{ gpa.Button({ text: 'Back', variant: 'tertiary', type: 'submit', name: 'step', value: 'edit', attributes: { formaction: p.reviewAction }, testId: 'event-review-back' }) }}
         {%- endcall -%}
