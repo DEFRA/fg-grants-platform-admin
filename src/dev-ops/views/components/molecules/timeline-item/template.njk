@@ -1,8 +1,9 @@
 {%- from "../../core/macros.njk" import attrs, cls -%}
+{%- from "../../atoms/icon/macro.njk" import Icon -%}
 <li class="{{ cls('gpa-timeline-item', p) }}"{{ attrs(p) }}>
-    {%- if p.mark %}<span class="gpa-timeline-icon">{{ p.mark | safe }}</span>{% else %}<span class="gpa-timeline-mark gpa-dot-{{ p.tone or 'neutral' }}" aria-hidden="true"></span>{% endif -%}
+    {%- if p.icon %}<span class="gpa-timeline-mark has-icon gpa-timeline-mark-{{ p.tone or 'neutral' }}" aria-hidden="true">{{ Icon({ name: p.icon, size: 'xs' }) }}</span>{% elif p.mark %}<span class="gpa-timeline-icon">{{ p.mark | safe }}</span>{% else %}<span class="gpa-timeline-mark gpa-dot-{{ p.tone or 'neutral' }}" aria-hidden="true"></span>{% endif -%}
     <div class="gpa-timeline-body">
-      <div class="gpa-timeline-head"><span class="gpa-timeline-title">{{ p.titleHtml | safe if p.titleHtml else p.title }}</span>{% if p.meta or p.metaHtml %}<span class="gpa-timeline-meta">{{ p.metaHtml | safe if p.metaHtml else p.meta }}</span>{% endif %}</div>
+      <div class="gpa-timeline-head">{% if p.titleHtml or p.title %}<span class="gpa-timeline-title">{{ p.titleHtml | safe if p.titleHtml else p.title }}</span>{% endif %}{% if p.meta or p.metaHtml %}<span class="gpa-timeline-meta">{{ p.metaHtml | safe if p.metaHtml else p.meta }}</span>{% endif %}</div>
       {%- if caller %}<div class="gpa-timeline-content">{{ caller() }}</div>{% endif -%}
     </div>
   </li>

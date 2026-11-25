@@ -87,6 +87,7 @@
 @import "./atoms/icon/server.css" layer(gpa);
 @import "./atoms/badge/server.css" layer(gpa);
 @import "./atoms/input/server.css" layer(gpa);
+@import "./atoms/textarea/server.css" layer(gpa);
 @import "./atoms/skeleton/server.css" layer(gpa);
 @import "./atoms/menu-item/server.css" layer(gpa);
 @import "./molecules/field/server.css" layer(gpa);

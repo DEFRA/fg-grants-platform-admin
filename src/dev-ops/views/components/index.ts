@@ -28,6 +28,7 @@ import { GpaToastRegion } from "./molecules/toast-region/web-component.ts";
 import { GpaToast } from "./molecules/toast/web-component.ts";
 import { GpaTooltip } from "./atoms/tooltip/web-component.ts";
 import { GpaCutText } from "./molecules/cut-text/web-component.ts";
+import { GpaTextareaCode } from "./atoms/textarea/web-component.ts";
 
 const elements: [string, CustomElementConstructor][] = [
   ["gpa-accordion", GpaAccordion],
@@ -57,12 +58,36 @@ const elements: [string, CustomElementConstructor][] = [
   ["gpa-toast-region", GpaToastRegion],
   ["gpa-toast", GpaToast],
   ["gpa-tooltip", GpaTooltip],
+  ["gpa-textarea-code", GpaTextareaCode],
 ];
 
 for (const [name, element] of elements) {
   if (!customElements.get(name)) customElements.define(name, element);
 }
 
+const followOptional = (field: HTMLElement) => {
+  const name = field.dataset.gpaOptionalUnlessName ?? "";
+  const value = field.dataset.gpaOptionalUnlessValue ?? "";
+  const scope: ParentNode = field.closest("form") ?? document;
+  const controls = [
+    ...scope.querySelectorAll<HTMLInputElement | HTMLSelectElement>(
+      `[name="${CSS.escape(name)}"]`,
+    ),
+  ];
+  const required = controls.some((c) =>
+    c instanceof HTMLInputElement &&
+    (c.type === "radio" || c.type === "checkbox")
+      ? c.checked && c.value === value
+      : c.value === value,
+  );
+  const mark = field.querySelector<HTMLElement>(".gpa-label-optional");
+  if (mark) mark.hidden = required;
+  const id = field.querySelector("label")?.htmlFor;
+  const control = id ? document.getElementById(id) : null;
+  if (required) control?.setAttribute("aria-required", "true");
+  else control?.removeAttribute("aria-required");
+};
+const OPTIONAL_UNLESS = "[data-gpa-optional-unless-name]";
 const upgrade = (root: ParentNode) => {
   for (const input of root.querySelectorAll<HTMLInputElement>(
     "input[data-gpa-indeterminate]",
@@ -76,6 +101,8 @@ const upgrade = (root: ParentNode) => {
     showCurrentNav(nav);
   const arrived = root.querySelector<HTMLElement>("[data-focus-on-arrival]");
   if (arrived && root === document) focusOnArrival(arrived);
+  for (const field of root.querySelectorAll<HTMLElement>(OPTIONAL_UNLESS))
+    followOptional(field);
   for (const count of root.querySelectorAll<HTMLElement>(
     "[data-gpa-count-for]",
   )) {
@@ -85,6 +112,24 @@ const upgrade = (root: ParentNode) => {
       count.textContent = `${control.value.length} / ${count.dataset.max}`;
   }
 };
+
+const followNamed = (event: Event) => {
+  const name = (event.target as HTMLInputElement).name;
+  if (!name) return;
+  for (const field of document.querySelectorAll<HTMLElement>(
+    `[data-gpa-optional-unless-name="${CSS.escape(name)}"]`,
+  ))
+    followOptional(field);
+};
+document.addEventListener("change", followNamed);
+document.addEventListener("input", followNamed);
+document.addEventListener("reset", (event) => {
+  const form = event.target as HTMLFormElement;
+  window.setTimeout(() => {
+    for (const field of form.querySelectorAll<HTMLElement>(OPTIONAL_UNLESS))
+      followOptional(field);
+  }, 0);
+});
 
 document.addEventListener("input", (event) => {
   const control = event.target as HTMLInputElement | HTMLTextAreaElement;
@@ -142,6 +187,8 @@ const start = () => {
 if (document.readyState === "loading")
   document.addEventListener("DOMContentLoaded", start);
 else start();
+
+export { upgrade };
 
 export {
   GpaAccordion,

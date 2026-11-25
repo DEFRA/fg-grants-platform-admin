@@ -559,6 +559,7 @@ describe('Purged', () => {
     expect(textOf($, 'redrive-purged')).toBe(
       'It was purged on 4 Nov 2026 by alex. Redriving brings it back to the queue; the purge stays in its history.'
     )
+    expect(by($, 'redrive-unchanged')).toHaveLength(0)
   })
 })
 
@@ -584,7 +585,7 @@ describe('the states without actions', () => {
     expect($('#redrive-dialog, #purge-dialog')).toHaveLength(0)
   })
 
-  test('more attempts than the maximum: the count alone, never a fraction over one, and the redrive dialog counts the same', async () => {
+  test('more attempts than the maximum: the count alone, never a fraction over one', async () => {
     given(
       detail({
         attempts: '6/5',
@@ -595,9 +596,6 @@ describe('the states without actions', () => {
     const { $ } = await view()
 
     expect(textOf($, 'event-attempts-count')).toBe('6')
-    expect(flat(by($, 'redrive-futile').text())).toContain(
-      'All 6 attempts failed with the same error'
-    )
   })
 
   test('Failed, still retrying: its attempts so far, none of them the last, and no actions (the service’s gate)', async () => {
@@ -625,14 +623,12 @@ describe('the states without actions', () => {
     expect(by($, 'event-redrive')).toHaveLength(0)
   })
 
-  test('no revision from the service: no Edit payload, and the futile warning has no edit action', async () => {
+  test('no revision from the service: no Edit payload', async () => {
     given(detail({ payloadRevision: null }))
 
     const { $ } = await view()
 
     expect(by($, 'event-edit')).toHaveLength(0)
-    expect(by($, 'redrive-futile')).toHaveLength(1)
-    expect(by($, 'redrive-edit-instead')).toHaveLength(0)
   })
 
   test('no trace, no record, no deletion date: those facts are left out', async () => {
@@ -657,8 +653,8 @@ describe('the states without actions', () => {
     expect(textOf($, 'event-back')).toBe('Back to Events')
     expect(facts($)[0]).toEqual(['Queue', 'Inbox'])
     expect(facts($)[3]).toEqual(['Case', 'ref-e2e-019'])
-    expect(textOf($, 'redrive-dialog')).toContain(
-      'CW’s poller picks it up again'
+    expect(textOf($, 'redrive-unchanged')).toBe(
+      'Nothing has changed since it failed. If the cause hasn’t been fixed in CW, it will fail again.'
     )
   })
 })
@@ -758,7 +754,7 @@ describe('Unavailable, timed out, not found', () => {
 })
 
 describe('the redrive dialog', () => {
-  test('without a script, the address opens it: the name, short id, what happens, the futile warning', async () => {
+  test('without a script, the address opens it: what happens, and that a failing event will fail again', async () => {
     const { $ } = await view(`${fromList}&confirm=redrive`)
 
     expect(isOpenWithoutScript($, 'redrive-dialog')).toBe(true)
@@ -769,22 +765,35 @@ describe('the redrive dialog', () => {
     expect(flat(dialog.find('.gpa-dialog-head h2').text())).toBe(
       'Redrive this event?'
     )
-    expect(spaced(dialog.find('.gpa-inline').first().html())).toBe(
-      'AgreementStatusUpdated 5208709c…5726'
+    expect(dialog.text()).not.toContain('AgreementStatusUpdated')
+    expect(dialog.text()).not.toContain('5208709c')
+    expect(dialog.text()).not.toContain('This changes production.')
+    expect(flat(dialog.find('.gpa-text-default').first().text())).toBe(
+      'It goes back in the queue and is tried up to 5 more times.'
     )
-    expect(dialog.find('.gpa-divider-v')).toHaveLength(1)
-    expect(dialog.text()).toContain(
-      'GAS’s poller picks it up again and retries it up to 5 times. The attempt count starts again. This is audited.'
+    expect(textOf($, 'redrive-unchanged')).toBe(
+      'Nothing has changed since it failed. If the cause hasn’t been fixed in GAS, it will fail again.'
     )
+    expect(by($, 'redrive-unchanged').hasClass('gpa-text-muted')).toBe(true)
+    expect(dialog.find('.gpa-alert')).toHaveLength(0)
     expect(
-      flat(by($, 'redrive-futile').find('.gpa-alert-body > div').first().text())
-    ).toBe(
-      'All 5 attempts failed with the same error and the payload hasn’t changed. Fix the cause first — in the payload or in the service it calls.'
-    )
-    expect(by($, 'redrive-edit-instead').attr('href')).toBe(
-      `${fromList}&edit=payload`
-    )
+      dialog
+        .find('.gpa-dialog-foot a, .gpa-dialog-foot button')
+        .toArray()
+        .map((el) => flat($(el).text()))
+    ).toEqual(['Cancel', 'Redrive'])
+    expect(dialog.find('.gpa-dialog-body a')).toHaveLength(0)
     expect(dialog.find('.gpa-dialog-close').attr('href')).toBe(fromList)
+  })
+
+  test('an attempt count that doesn’t read as made/allowed: it goes back in the queue, with no number of tries', async () => {
+    given(detail({ attempts: 'unknown' }))
+
+    const { $ } = await view(`${fromList}&confirm=redrive`)
+
+    expect(
+      flat(by($, 'redrive-dialog').find('.gpa-text-default').first().text())
+    ).toBe('It goes back in the queue.')
   })
 
   test('the form posts the page to go back to, and Redrive submits it with a spinner', async () => {
@@ -800,7 +809,7 @@ describe('the redrive dialog', () => {
     )
   })
 
-  test('an edit not yet redriven: it says the edited payload is used, and the futile warning goes', async () => {
+  test('an edit not yet redriven: it says the edited payload is used, not that it will fail again', async () => {
     given(
       detail({
         lastEdit: { at: '2026-10-14T08:00:00.000Z', by: 'alex.k', note: 'fix' }
@@ -812,7 +821,21 @@ describe('the redrive dialog', () => {
     expect(textOf($, 'redrive-edited')).toBe(
       'It will use the payload edited by alex.k on 14 Oct 2026 08:00, not the original.'
     )
-    expect(by($, 'redrive-futile')).toHaveLength(0)
+    expect(by($, 'redrive-unchanged')).toHaveLength(0)
+  })
+
+  test('an edit redriven that failed again: it will fail again, with no edited note', async () => {
+    given(
+      detail({
+        lastEdit: { at: '2026-10-13T14:00:00.000Z', by: 'alex.k', note: 'fix' },
+        lastRedrive: { at: '2026-10-13T14:30:00.000Z', by: 'alex.k' }
+      })
+    )
+
+    const { $ } = await view()
+
+    expect(by($, 'redrive-unchanged')).toHaveLength(1)
+    expect(by($, 'redrive-edited')).toHaveLength(0)
   })
 
   test('in production, both dialogs say so first', async () => {
@@ -823,6 +846,7 @@ describe('the redrive dialog', () => {
     for (const dialog of ['redrive-dialog', 'purge-dialog']) {
       expect(flat(by($, dialog).find('.gpa-badge').first().text())).toBe('prod')
       expect(by($, dialog).text()).toContain('This changes production.')
+      expect(by($, dialog).text()).not.toContain('5208709c')
     }
   })
 })
@@ -836,8 +860,10 @@ describe('the purge dialog', () => {
     const dialog = by($, 'purge-dialog')
 
     expect(dialog.find('.gpa-dialog').attr('role')).toBe('alertdialog')
-    expect(dialog.text()).toContain(
-      'It won’t be processed or retried, and it leaves the dead-letter list. It’s deleted on 2\u00a0Feb 2027 — you can still redrive it until then. This is audited.'
+    expect(dialog.text()).not.toContain('5208709c')
+    expect(dialog.text()).not.toContain('This changes production.')
+    expect(flat(dialog.find('.gpa-text-default').first().text())).toBe(
+      'It stops being retried and is no longer a dead letter. You can still redrive it until 2 Feb 2027, when it’s deleted.'
     )
     expect(
       dialog
@@ -849,14 +875,19 @@ describe('the purge dialog', () => {
       ['SENT_IN_ERROR', 'Sent in error'],
       ['OTHER', 'Other']
     ])
+    expect(dialog.find('input[name="reasonCode"]').is('[checked]')).toBe(false)
+    expect(flat(dialog.find('label[for="purge-note"]').text())).toBe(
+      'Note (optional)'
+    )
+    expect(dialog.find('.gpa-label-optional').is('[hidden]')).toBe(false)
     expect(flat(dialog.find('#purge-note-hint').text())).toBe(
-      'Required when the reason is Other. Shown on the event; don’t include personal data.'
+      'Shown on the event. Don’t include personal data.'
     )
     expect(dialog.find('#purge-note').attr('maxlength')).toBe('500')
     expect(flat(dialog.find('[data-gpa-count-for="purge-note"]').text())).toBe(
       '0 / 500'
     )
-    expect(by($, 'purge-submit').text()).toBe('Purge event')
+    expect(by($, 'purge-submit').text()).toBe('Purge')
     expect(by($, 'purge-submit').attr('class')).toContain(
       'gpa-btn-danger-solid'
     )
@@ -980,5 +1011,4 @@ test('an empty error message isn’t the same as another', async () => {
   expect(textOf($, 'event-attempts-lead')).toBe(
     'The last error, from attempt 2'
   )
-  expect(by($, 'redrive-futile')).toHaveLength(0)
 })

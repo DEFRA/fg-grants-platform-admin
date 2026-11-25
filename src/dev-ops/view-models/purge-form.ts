@@ -16,7 +16,7 @@ export const toPurgeReasonLabel = (code: string): string =>
 
 export const noteMaxLength = 500
 
-const otherReason: PurgeReasonCode = 'OTHER'
+export const otherReason: PurgeReasonCode = 'OTHER'
 
 export interface PurgeSubmission {
   reasonCode: string
@@ -37,7 +37,7 @@ export interface PurgeFormError {
 
 const missingReason = 'Choose a reason'
 
-const missingNote = 'Say why: the reason is Other'
+const missingNote = 'Add a note to say why'
 
 const longNote = `Shorten the note to ${noteMaxLength} characters or fewer`
 

@@ -92,7 +92,7 @@ describe('toPurgeFormError', () => {
   test('asks for a note when the reason is Other', () => {
     expect(toPurgeFormError(submission('OTHER'))).toEqual({
       field: 'note',
-      message: 'Say why: the reason is Other'
+      message: 'Add a note to say why'
     })
   })
 
