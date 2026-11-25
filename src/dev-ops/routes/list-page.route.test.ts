@@ -613,7 +613,7 @@ describe('Loaded', () => {
       $('link[rel="stylesheet"]')
         .map((_i, link) => $(link).attr('href'))
         .get()
-    ).toEqual(['/public/src/dev-ops/views/components/index.css'])
+    ).toEqual(['/public/src/dev-ops/views/dev-ops.css'])
   })
 })
 

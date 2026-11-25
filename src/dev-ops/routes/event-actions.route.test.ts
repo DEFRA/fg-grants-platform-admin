@@ -583,16 +583,16 @@ describe('Review', () => {
       ...extra
     })
 
-  test('a changed payload: the second step, the diff, the note with its count, and the three buttons', async () => {
+  test('a changed payload: Review changes, a wide form for the diff, the note with its count, and the three buttons', async () => {
     const { $, statusCode } = await review(edited)
 
     expect(statusCode).toBe(statusCodes.ok)
 
     const card = by($, 'event-payload-review')
 
-    expect(card.find('.gpa-step.is-current').text()).toContain(
-      'Review and save'
-    )
+    expect(card.find('.gpa-card-head h2').text()).toBe('Review changes')
+    expect(card.find('.gpa-stepper')).toHaveLength(0)
+    expect(card.find('form').hasClass('gpa-form-wide')).toBe(true)
     expect(flat(by($, 'event-diff').find('.gpa-diff-summary').text())).toBe(
       '1 line added1 line removed'
     )
@@ -604,6 +604,7 @@ describe('Review', () => {
     expect(card.find('form').attr('action')).toBe(`${path}/payload#payload`)
     expect(card.find('input[name="text"]').val()).toBe(edited)
     expect(card.find('input[name="revision"]').val()).toBe('3')
+    expect(flat(by($, 'event-save-redrive').text())).toBe('Redrive')
     expect(by($, 'event-save-redrive').attr('name')).toBe('then')
     expect(by($, 'event-save-redrive').attr('value')).toBe('redrive')
     expect(by($, 'event-save').text()).toBe('Save')
@@ -619,9 +620,16 @@ describe('Review', () => {
     expect(by($, 'event-payload-editor')).toHaveLength(1)
     expect(by($, 'event-payload-text').val()).toBe('{ "a": 1,, }')
     expect(flat(by($, 'event-payload-error').text())).toMatch(
-      /^Couldn’t read the payload: expected .+ \(line 1, column 10\)\. Check the JSON — a comma, quote or brace is missing\.$/
+      /^Couldn’t read the payload: expected .+ \(line 1\)\. Check for a missing comma, quote or brace\.$/
     )
+    expect(by($, 'event-payload-error').attr('id')).toBe('payload-editor-err')
     expect(by($, 'event-payload-text').attr('aria-invalid')).toBe('true')
+    expect(by($, 'event-payload-text').attr('aria-describedby')).toBe(
+      'payload-editor-err'
+    )
+    expect(by($, 'event-purge')).toHaveLength(0)
+    expect(by($, 'event-redrive')).toHaveLength(0)
+    expect($('gpa-textarea-code').attr('data-error-line')).toBe('1')
   })
 
   test('unchanged: Nothing to review', async () => {
@@ -643,7 +651,7 @@ describe('Review', () => {
     const { $ } = await review(edited)
 
     expect(flat(by($, 'event-stale').find('.gpa-alert-title').text())).toBe(
-      'Not saved — the payload changed while you were editing.'
+      'Not saved: the payload changed while you were editing.'
     )
     expect(by($, 'event-payload-text').val()).toBe(edited)
     expect(
@@ -801,16 +809,16 @@ describe('where a post to the editor lands, so the answer takes focus', () => {
     })
   })
 
-  test('JSON that can’t be read: on an error summary that links to the box', async () => {
+  test('JSON that can’t be read: on the box itself, with no error summary', async () => {
     const { $ } = await review('{ "a": 1,, }')
-    const summary = $('[id="payload"]')
 
-    expect(landing($)).toMatchObject({ count: 1, focusable: true })
-    expect(landing($).classes).toContain('gpa-errorsummary')
-    expect(summary.find('a').attr('href')).toBe('#payload-editor')
-    expect(flat(summary.find('a').text())).toBe(
-      flat(by($, 'event-payload-error').text())
-    )
+    expect(landing($)).toMatchObject({
+      count: 1,
+      testId: 'event-payload-text'
+    })
+    expect($('[id="payload"]').is('textarea')).toBe(true)
+    expect($('.gpa-errorsummary')).toHaveLength(0)
+    expect($('[data-focus-on-arrival]').attr('id')).toBe('payload')
   })
 
   test('no note: on an error summary that links to the note', async () => {
@@ -881,11 +889,9 @@ describe('where a post to the editor lands, so the answer takes focus', () => {
   })
 
   test('the editor drawn again with something to say leaves the box to the message', async () => {
-    const unchanged = await review(JSON.stringify(stored, null, 2))
-    const badJson = await review('{ "a": 1,, }')
+    const { $ } = await review(JSON.stringify(stored, null, 2))
 
-    expect(unchanged.$('[autofocus]')).toHaveLength(0)
-    expect(badJson.$('[autofocus]')).toHaveLength(0)
+    expect($('[autofocus]')).toHaveLength(0)
   })
 
   test('Back from the review: the editor again, focus in the box', async () => {
@@ -1033,7 +1039,7 @@ describe('Save', () => {
 
     expect(flat(held.find('.gpa-card-head').text())).toBe('Your changes')
     expect(flat(by($, 'event-held').find('.gpa-alert-title').text())).toBe(
-      'Not saved — GAS timed out.'
+      'Not saved: GAS timed out.'
     )
     expect(flat(held.find('dd').text())).toBe('Pointed at the resubmission')
     expect(held.find('form').attr('action')).toBe(`${path}/payload#payload`)
@@ -1044,6 +1050,8 @@ describe('Save', () => {
     expect(by($, 'event-held-cancel').attr('href')).toBe(
       `${path}?back=${encodeURIComponent(listPath)}`
     )
+    expect(by($, 'event-purge')).toHaveLength(0)
+    expect(by($, 'event-redrive')).toHaveLength(0)
   })
 
   test('held changes are compared line for line, whatever line breaks the form sent', async () => {
@@ -1106,25 +1114,25 @@ describe('Save', () => {
       'GAS fails it',
       path,
       responseError(503),
-      'Not saved — GAS answered with an error.'
+      'Not saved: GAS answered with an error.'
     ],
     [
       'GAS can’t be reached',
       path,
       notConnected,
-      'Not saved — GAS couldn’t be reached.'
+      'Not saved: GAS couldn’t be reached.'
     ],
     [
       'GAS can’t be reached, for a CW event',
       `/dev-ops/events/cw/outbox/${id}`,
       notConnected,
-      'Not saved — GAS couldn’t be reached.'
+      'Not saved: GAS couldn’t be reached.'
     ],
     [
       'CW doesn’t answer GAS in time',
       `/dev-ops/events/cw/outbox/${id}`,
       responseError(504),
-      'Not saved — CW timed out.'
+      'Not saved: CW timed out.'
     ]
   ])(
     '%s: the changes held, naming the service it is down to',
@@ -1160,7 +1168,7 @@ describe('Save', () => {
 
       expect(statusCode).toBe(statusCodes.ok)
       expect(flat(by($, 'event-held').find('.gpa-alert-title').text())).toBe(
-        'Not saved — GAS timed out.'
+        'Not saved: GAS timed out.'
       )
       expect(
         flat(by($, 'event-held').find('.gpa-alert-body > div').first().text())
@@ -1223,7 +1231,7 @@ describe('Save', () => {
 
     expect(statusCode).toBe(statusCodes.ok)
     expect(flat(by($, 'event-held').find('.gpa-alert-title').text())).toBe(
-      'Not saved — GAS timed out.'
+      'Not saved: GAS timed out.'
     )
     expect(
       flat(by($, 'event-held').find('.gpa-alert-body > div').first().text())
@@ -1282,7 +1290,7 @@ describe('Save', () => {
     expect(
       flat(by($, 'event-save-error').find('.gpa-alert-title').text())
     ).toBe(
-      'Not saved — your account has no name or email to record against this change.'
+      'Not saved: your account has no name or email to record against this change.'
     )
     expect(editPayload).not.toHaveBeenCalled()
   })
@@ -1465,7 +1473,7 @@ describe('a held save, kept in the session', () => {
     [
       'failed',
       responseError(503),
-      'Not saved — GAS answered with an error.',
+      'Not saved: GAS answered with an error.',
       'Nothing you sent was saved, but the payload has changed since: your payload and note are below, against the payload as it is now. Trying again opens them in the editor over it.'
     ]
   ])(

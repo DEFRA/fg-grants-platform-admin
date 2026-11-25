@@ -12,8 +12,7 @@ import {
   lastAttemptOf,
   sameError,
   timeOf,
-  toBlock,
-  toRecordLink
+  toBlock
 } from './event-context.ts'
 import type { EventContext } from './event-context.ts'
 import { isAfter, toGap } from './event-formats.ts'
@@ -56,13 +55,6 @@ export interface AttemptsModel {
   block: string | null
   items: AttemptItem[]
   noAttemptsSinceEdit: boolean
-}
-
-export interface WhyItFailed {
-  error: string
-  sentence: string
-  at: TimeText | null
-  find: { text: string; href: string } | null
 }
 
 interface Anchor {
@@ -304,67 +296,4 @@ export const toAttempts = (context: EventContext): AttemptsModel | null => {
   return context.state.redrivenSinceAttempts && context.event.lastRedrive
     ? toRedriven(context)
     : toFailing(context)
-}
-
-const listed = (numbers: number[]): string =>
-  numbers.length === 1
-    ? String(numbers[0])
-    : `${numbers.slice(0, -1).join(', ')} and ${numbers.at(-1)}`
-
-const matchingOf = (event: EventDetail): number[] => {
-  const last = lastAttemptOf(event)
-
-  return last
-    ? event.attemptHistory.flatMap((attempt, index) =>
-        sameError(attempt, last) ? [index + 1] : []
-      )
-    : []
-}
-
-/** What failed this way, and the words that lead to when it last did. */
-const toSentence = (event: EventDetail): [string, string] => {
-  const matching = matchingOf(event)
-  const total = event.attemptHistory.length
-
-  if (matching.length === 0) {
-    return ['It failed with this error', ' at']
-  }
-
-  if (allSame(event)) {
-    return [`Same error on all ${total} attempts`, ', the last at']
-  }
-
-  const attempts = matching.length === 1 ? 'Attempt' : 'Attempts'
-
-  return [`${attempts} ${listed(matching)} failed with this error`, ', last at']
-}
-
-const toFind = (context: EventContext) => {
-  const record = toRecordLink(context.event.record)
-
-  return (
-    record && {
-      text: `Find ${record.title.toLowerCase()} ${record.text}`,
-      href: record.href
-    }
-  )
-}
-
-/** Which attempts failed as the last did, and when the last of them was: no zone after the time. */
-export const toWhy = (context: EventContext): WhyItFailed | null => {
-  const { event, times } = context
-
-  if (event.lastError === null) {
-    return null
-  }
-
-  const at = timeOf(lastAtOf(event), times, toSecondsTime)
-  const [sentence, when] = toSentence(event)
-
-  return {
-    error: errorLine(lastAttemptOf(event) ?? event.lastError),
-    sentence: at ? `${sentence}${when}` : sentence,
-    at,
-    find: toFind(context)
-  }
 }

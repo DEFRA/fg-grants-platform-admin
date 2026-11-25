@@ -251,6 +251,9 @@ const toFound = (input: EventPageInput, event: EventDetail): EventPageModel => {
   const context = toContext(input, event)
   const notice = noticeFor(context, input.notice)
   const title = event.eventType ?? event.eventId
+  const payload = toPayload(context, input)
+  /** Purge and Redrive act on the stored payload, so they wait while it's edited. */
+  const viewing = payload.mode === 'view'
 
   return {
     pageTitle: `${title} – ${context.service} event`,
@@ -263,13 +266,17 @@ const toFound = (input: EventPageInput, event: EventDetail): EventPageModel => {
     titleMono: event.eventType === null,
     status: toStatus(context),
     eventId: event.eventId,
-    purgeHref: actionHref(context, context.state.purgeable, 'purge'),
-    redriveHref: actionHref(context, context.state.redrivable, 'redrive'),
+    purgeHref: actionHref(context, viewing && context.state.purgeable, 'purge'),
+    redriveHref: actionHref(
+      context,
+      viewing && context.state.redrivable,
+      'redrive'
+    ),
     banner: toBannerModel(context, notice),
     toasts: toToasts(notice),
     facts: toFacts(context),
     attempts: toAttempts(context),
-    payload: toPayload(context, input),
+    payload,
     redriveDialog: toRedriveDialog(context, input),
     purgeDialog: toPurgeDialog(context, input)
   }

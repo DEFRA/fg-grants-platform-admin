@@ -59,11 +59,10 @@ const maxRows = 24
 export const toRows = (text: string): number =>
   Math.min(text.split('\n').length + 2, maxRows)
 
-const missingPunctuation =
-  'Check the JSON — a comma, quote or brace is missing.'
+const missingPunctuation = 'Check for a missing comma, quote or brace.'
 
-const unreadable = ({ expected, line, column }: JsonFault): string =>
-  `Couldn’t read the payload: expected ${expected} (line ${line}, column ${column}). ${missingPunctuation}`
+const unreadable = ({ expected, line }: JsonFault): string =>
+  `Couldn’t read the payload: expected ${expected} (line ${line}). ${missingPunctuation}`
 
 /** The scanner's sentences name a place, and a token or a rule, and never the text. */
 const fieldErrors: Record<
@@ -96,6 +95,10 @@ const toFieldError = (problem: EditProblem | null): string | null =>
     ? fieldErrors[problem.kind as keyof typeof fieldErrors](problem)
     : null
 
+/** Only JSON that couldn't be read is underlined, on the line the scanner stopped at. */
+const toErrorLine = (problem: EditProblem | null): number | null =>
+  problem?.kind === 'unreadable' ? problem.fault.line : null
+
 export interface EditorState {
   text: string
   note: string
@@ -103,6 +106,7 @@ export interface EditorState {
   rows: number
   /** Said under the field: the JSON couldn't be read or used. */
   error: string | null
+  errorLine: number | null
   unchanged: boolean
   stale: boolean
 }
@@ -118,6 +122,7 @@ export const toEditorState = (
     revision: step.revision,
     rows: toRows(step.text),
     error: toFieldError(step.problem),
+    errorLine: toErrorLine(step.problem),
     unchanged: kind === 'unchanged',
     stale: kind === 'stale'
   }

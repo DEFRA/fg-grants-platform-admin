@@ -317,9 +317,7 @@ describe('the shell', () => {
     for (const path of pages) {
       const { $ } = await visit(path)
 
-      expect(stylesheets($)).toEqual([
-        '/public/src/dev-ops/views/components/index.css'
-      ])
+      expect(stylesheets($)).toEqual(['/public/src/dev-ops/views/dev-ops.css'])
       expect(
         $('script[src]')
           .toArray()
@@ -806,9 +804,7 @@ describe("Dev Ops' signed out page", () => {
     )
     expect(flatten($('.gpa-shell-bare-brand .gpa-badge').text())).toBe('local')
     expect($('#times-dialog')).toHaveLength(0)
-    expect(stylesheets($)).toEqual([
-      '/public/src/dev-ops/views/components/index.css'
-    ])
+    expect(stylesheets($)).toEqual(['/public/src/dev-ops/views/dev-ops.css'])
     expect(flatten(part($, 'signed-out').find('h1').text())).toBe(
       'You’re signed out'
     )

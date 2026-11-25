@@ -240,7 +240,7 @@ describe('Loaded: a dead letter, every attempt the same', () => {
       $('link[rel="stylesheet"]')
         .map((_i, link) => $(link).attr('href'))
         .get()
-    ).toEqual(['/public/src/dev-ops/views/components/index.css'])
+    ).toEqual(['/public/src/dev-ops/views/dev-ops.css'])
   })
 
   test('Details: the prototype’s facts, in its order', async () => {
@@ -400,6 +400,8 @@ describe('Loaded: a dead letter, every attempt the same', () => {
         .map((key) => $(key).text())
     ).toContain('"clientRef"')
     expect(by($, 'event-edit').attr('href')).toBe(`${fromList}&edit=payload`)
+    expect(flat(by($, 'event-edit').text())).toBe('Edit')
+    expect(by($, 'event-edit').attr('aria-label')).toBe('Edit payload')
     expect(by($, 'event-edited')).toHaveLength(0)
     expect(by($, 'event-original-toggle')).toHaveLength(0)
   })
@@ -470,16 +472,6 @@ describe('Attempts: different errors', () => {
     expect(
       by($, 'event-attempt').first().find('gpa-disclosure pre').text()
     ).toContain('at x (/y.js:1:1)')
-  })
-
-  test('Why it failed names the attempts that failed this way', async () => {
-    given(mixed())
-
-    const { $ } = await view(`${fromList}&edit=payload`)
-
-    expect(textOf($, 'event-why-sentence')).toBe(
-      'Attempts 4 and 5 failed with this error, last at 13 Oct 2026 14:53:24.'
-    )
   })
 })
 
@@ -923,28 +915,30 @@ describe('reopening a dialog from the page', () => {
 })
 
 describe('editing the payload', () => {
-  test('Edit: the first step, the warning, Why it failed with its link, and the JSON in the editor', async () => {
+  test('Edit: the lead line and the JSON in an editor named Payload, with no label, Stepper, Why it failed, Purge or Redrive', async () => {
     const { $ } = await view(`${fromList}&edit=payload`)
 
     const editor = by($, 'event-payload-editor')
 
     expect(editor.attr('id')).toBe('payload')
-    expect(editor.find('.gpa-step.is-current').text()).toContain('Edit')
-    expect(editor.text()).toContain('Nothing is saved until you confirm.')
-    expect(flat(by($, 'event-why').find('.gpa-alert-title').text())).toBe(
-      'Why it failed'
+    expect(editor.find('.gpa-stepper')).toHaveLength(0)
+    expect(editor.find('label')).toHaveLength(0)
+    expect(editor.text()).toContain(
+      'You’ll review your changes before anything is saved.'
     )
-    expect(textOf($, 'event-why-sentence')).toBe(
-      'Same error on all 5 attempts, the last at 13 Oct 2026 14:53:24.'
-    )
-    expect(by($, 'event-why').find('time').attr('title')).toBe(
-      '13 Oct 2026 14:53:24 UTC'
-    )
-    expect(textOf($, 'event-why-find')).toBe('Find application ref-e2e-005')
+    expect(editor.text()).not.toContain('Why it failed')
+    expect(editor.find('form').hasClass('gpa-form-wide')).toBe(true)
+    expect(by($, 'event-purge')).toHaveLength(0)
+    expect(by($, 'event-redrive')).toHaveLength(0)
     expect(by($, 'event-payload-text').val()).toContain(
       '"clientRef": "ref-e2e-005"'
     )
     expect(by($, 'event-payload-text').attr('name')).toBe('text')
+    expect(by($, 'event-payload-text').attr('aria-label')).toBe('Payload')
+    expect(by($, 'event-payload-text').attr('aria-describedby')).toBeUndefined()
+    expect(
+      by($, 'event-payload-text').closest('gpa-textarea-code').data()
+    ).toEqual({ language: 'json' })
     expect(editor.find('form').attr('action')).toBe(
       `${path}/payload/review#payload`
     )

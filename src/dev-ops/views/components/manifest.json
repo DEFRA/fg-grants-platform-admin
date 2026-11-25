@@ -72,7 +72,8 @@
     "DocPrintout",
     "SegmentedControl",
     "DocList",
-    "DocLine"
+    "DocLine",
+    "FieldMessage"
   ],
   "components": [
     "Icon",

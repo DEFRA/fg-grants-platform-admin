@@ -58,7 +58,7 @@ const checkedNote = (check: EditPayloadCheck): string =>
 
 const unattributed = {
   title:
-    'Not saved — your account has no name or email to record against this change.',
+    'Not saved: your account has no name or email to record against this change.',
   text: 'Nothing has changed.'
 }
 

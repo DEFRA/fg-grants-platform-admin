@@ -1,0 +1,6 @@
+@import './components/index.css';
+
+/* A wide form's fields keep the measure, so only what sits beside them, such as a diff, takes the width. */
+.gpa-form-wide .gpa-field {
+  max-width: var(--size-measure-md);
+}
