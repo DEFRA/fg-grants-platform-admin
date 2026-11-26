@@ -9,6 +9,7 @@ import { toEventHref } from '../view-models/event-formats.ts'
 import type { EventPageQuery } from '../view-models/event-page.view-model.ts'
 import {
   eventPageCache,
+  eventTabMax,
   isProduction,
   purgeFormKey,
   redriveNoticeKey,
@@ -50,6 +51,8 @@ export const viewEventRoute: ServerRoute = {
         back: Joi.string().allow(''),
         confirm: Joi.string(),
         edit: Joi.string(),
+        // Any short value: one that names no tab opens the Overview.
+        tab: Joi.string().allow('').max(eventTabMax),
         ...shellQuery
       })
     }

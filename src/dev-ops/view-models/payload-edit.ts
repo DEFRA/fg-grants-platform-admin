@@ -49,10 +49,6 @@ export const isEditedSinceAttempts = (event: EventDetail): boolean => {
   return edit !== null && !attemptedAfter(event, edit.at)
 }
 
-/** Once the edit is redriven, the attempts card says so in its own words. */
-export const hasNoAttemptsSinceEdit = (event: EventDetail): boolean =>
-  isEditedSinceRedrive(event) && isEditedSinceAttempts(event)
-
 /** Tall enough for the payload and two lines more, up to 24, then it scrolls. */
 const maxRows = 24
 

@@ -4,11 +4,15 @@ import Joi from 'joi'
 import type { EventKey } from '../use-cases/get-event.use-case.ts'
 import { purgeEventUseCase } from '../use-cases/purge-event.use-case.ts'
 import { eventAddress, toEventKey } from '../view-models/event-address.ts'
+import { toEventQuery } from '../view-models/event-context.ts'
 import { toEventHref } from '../view-models/event-formats.ts'
+import type { EventTab } from '../view-models/event-page.view-model.ts'
 import {
   eventBannerId,
+  eventTabMax,
   purgeFormKey,
   redriveNoticeKey,
+  toEventTab,
   toSafeFrom
 } from '../view-models/event-page.view-model.ts'
 import { toPurgeFormError, toPurgeNote } from '../view-models/purge-form.ts'
@@ -24,29 +28,23 @@ const noteMax = 2000
 
 interface PurgePayload {
   back: string
+  tab: string
   reasonCode: string
   note: string
-}
-
-const toQuery = (from: string, reopen: boolean): string => {
-  const params = new URLSearchParams()
-
-  if (from !== '') {
-    params.set('back', from)
-  }
-
-  if (reopen) {
-    params.set('confirm', 'purge')
-  }
-
-  return params.size ? `?${params}` : ''
 }
 
 const bannerHash = `#${eventBannerId}`
 
 /** A rejected form is handed back in the dialog, drawn open; a purge lands on the banner that says how it went. */
-const toRedirect = (key: EventKey, from: string, reopen: boolean): string =>
-  `${toEventHref(key)}${toQuery(from, reopen)}${reopen ? '' : bannerHash}`
+const toRedirect = (
+  key: EventKey,
+  from: string,
+  tab: EventTab,
+  reopen: boolean
+): string =>
+  reopen
+    ? `${toEventHref(key)}${toEventQuery(from, tab, ['confirm', 'purge'])}`
+    : `${toEventHref(key)}${toEventQuery(from, tab)}${bannerHash}`
 
 /**
  * No CSRF token and no `options.auth`, for the reasons the redrive route
@@ -61,6 +59,7 @@ export const purgeEventRoute: ServerRoute = {
       params: Joi.object(eventAddress),
       payload: Joi.object({
         back: Joi.string().allow('').max(fromMax).default(''),
+        tab: Joi.string().allow('').max(eventTabMax).default(''),
         // Bounded, not checked: an unknown code is "no reason chosen", which
         // is a sentence on the page rather than a 400 in front of it.
         reasonCode: Joi.string().allow('').max(reasonMax).default(''),
@@ -72,12 +71,18 @@ export const purgeEventRoute: ServerRoute = {
         // Spelled out rather than `{}`: an object default is taken as written,
         // so its children's defaults never fire on the body-less POST hapi
         // hands a payload of `null`.
-        .default({ back: '', reasonCode: '', note: '' })
+        .default({ back: '', tab: '', reasonCode: '', note: '' })
     }
   },
   async handler(request: Request, h: ResponseToolkit) {
     const key = toEventKey(request.params)
-    const { back: from, reasonCode, note } = request.payload as PurgePayload
+    const {
+      back: from,
+      reasonCode,
+      note,
+      ...asked
+    } = request.payload as PurgePayload
+    const tab = toEventTab(asked.tab)
     const page = toEventHref(key)
     const submission = { reasonCode, note: toPurgeNote(note) }
     const error = toPurgeFormError(submission)
@@ -86,13 +91,13 @@ export const purgeEventRoute: ServerRoute = {
     if (error !== null) {
       request.yar.flash(purgeFormKey, { ...submission, error, page })
 
-      return h.redirect(toRedirect(key, safeFrom, true)).code(seeOther)
+      return h.redirect(toRedirect(key, safeFrom, tab, true)).code(seeOther)
     }
 
     const result = await purgeEventUseCase(key, submission, toActor(request))
 
     request.yar.flash(redriveNoticeKey, { ...result, action: 'purge', page })
 
-    return h.redirect(toRedirect(key, safeFrom, false)).code(seeOther)
+    return h.redirect(toRedirect(key, safeFrom, tab, false)).code(seeOther)
   }
 }

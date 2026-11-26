@@ -2,8 +2,8 @@ import Joi from 'joi'
 
 import {
   shellQuery,
-  toClockTime,
   toDayTime,
+  toMillisecondTime,
   toSecondsTime,
   timesOf,
   toTime,
@@ -256,9 +256,13 @@ describe('the attempts’ and dates’ times', () => {
     })
   })
 
-  test('the clock to the millisecond, in the zone', () => {
-    expect(toClockTime(instant, uk).text).toBe('15:53:22.635')
-    expect(toClockTime(instant, toTimes('utc')).text).toBe('14:53:22.635')
+  test('to the millisecond, in the zone', () => {
+    expect(toMillisecondTime(instant, uk).text).toBe(
+      '13\u00a0Oct 2026 15:53:22.635'
+    )
+    expect(toMillisecondTime(instant, toTimes('utc')).text).toBe(
+      '13\u00a0Oct 2026 14:53:22.635'
+    )
   })
 
   test('a day', () => {

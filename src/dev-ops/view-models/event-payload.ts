@@ -42,7 +42,6 @@ interface PayloadView {
   text: string
   edited: boolean
   editHref: string | null
-  original: string | null
 }
 
 type PayloadEditor = {
@@ -85,11 +84,6 @@ export type PayloadModel =
   | PayloadReview
   | PayloadHeld
 
-const toOriginal = (event: EventDetail): string | null =>
-  event.lastEdit && event.originalPayload != null
-    ? JSON.stringify(event.originalPayload, null, 2)
-    : null
-
 const editHrefOf = (context: EventContext): string | null =>
   canEditEvent(context.event, context.state)
     ? toSelfHref(context, ['edit', 'payload'])
@@ -99,8 +93,7 @@ const toView = (context: EventContext): PayloadView => ({
   mode: 'view',
   text: toStoredJson(context.event),
   edited: Boolean(context.event.lastEdit),
-  editHref: editHrefOf(context),
-  original: toOriginal(context.event)
+  editHref: editHrefOf(context)
 })
 
 const reviewAction = (key: EventKey) =>

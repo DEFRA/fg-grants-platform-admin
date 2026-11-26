@@ -15,12 +15,7 @@
       {%- elif v.kind == 'link' -%}
         {{ gpa.Link({ text: v.text, href: v.href }) }}
       {%- elif v.kind == 'logs' -%}
-        {%- call gpa.Stack({ gap: '2xs' }) -%}
-          {%- if v.href %}{{ gpa.Link({ text: 'OpenSearch', href: v.href, external: true, testId: 'event-logs' }) }}{% endif -%}
-          {%- call gpa.Inline({ gap: 'xs', wrap: false }) -%}
-            {{ gpa.Text({ text: v.traceId, mono: true, tone: 'subtle', truncate: true, title: 'Trace ID ' ~ v.traceId }) }}{{ gpa.CopyButton({ value: v.traceId, label: 'Copy trace ID' }) }}
-          {%- endcall -%}
-        {%- endcall -%}
+        {{ gpa.Link({ text: 'OpenSearch', href: v.href, external: true, testId: 'event-logs' }) }}
       {%- else -%}
         {%- call gpa.Stack({ gap: '2xs' }) -%}
           {%- set line -%}{% if v.time %}{{ gpa.Time(v.time) }}{% else %}{{ gpa.NoValue() }}{% endif %} by {{ v.by }}{{ v.after }}{%- endset -%}
@@ -34,7 +29,7 @@
   {{ gpa.FactsCard({ title: 'Details', facts: cards, testId: 'event-details' }) }}
 {%- endmacro %}
 
-{#- One event: its status and id, what went wrong, its payload, and the redrive and purge that act on it. -#}
+{#- One event: its status and id, its payload or its history, and the redrive and purge that act on it. -#}
 {% block content %}
   {%- if missing -%}
     {% include "events/_missing.njk" %}
@@ -66,11 +61,15 @@
       meta: [gpa.StatusDot({ text: status.text, tone: status.tone, testId: 'event-status' }), idLine],
       actions: actions,
       alert: bannerHtml,
-      aside: details(facts),
+      tabs: { label: 'Event', items: tabs },
+      aside: details(facts) if tab == 'overview',
       titleTestId: 'event-title'
     }) -%}
-      {% include "events/_attempts.njk" %}
-      {% include "events/_payload.njk" %}
+      {%- if tab == 'history' -%}
+        {% include "events/_history.njk" %}
+      {%- else -%}
+        {% include "events/_payload.njk" %}
+      {%- endif -%}
     {%- endcall -%}
 
     {% include "events/_dialogs.njk" %}

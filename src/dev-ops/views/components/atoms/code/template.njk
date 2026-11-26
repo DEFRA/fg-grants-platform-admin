@@ -2,8 +2,9 @@
 {%- from "./macro.njk" import Code -%}
 {% macro codeBlock(p) -%}
   {%- set lines = (p.code or '').split('\n') -%}
-  <div class="{{ cls('gpa-code' ~ (' gpa-code-framed' if p.framed else '') ~ (' gpa-code-wrap' if p.wrap else '') ~ (' gpa-code-plain' if p.lineNumbers === false else '') ~ (' gpa-maxh-' ~ p.maxHeight if p.maxHeight else ''), p) }}"{{ attrs(p) }}>
-    {%- if p.lineNumbers !== false -%}
+  {%- set numbered = p.lineNumbers !== false and not p.wrap -%}
+  <div class="{{ cls('gpa-code' ~ (' gpa-code-framed' if p.framed else '') ~ (' gpa-code-wrap' if p.wrap else '') ~ (' gpa-code-plain' if not numbered else '') ~ (' gpa-maxh-' ~ p.maxHeight if p.maxHeight else ''), p) }}"{{ attrs(p) }}>
+    {%- if numbered -%}
       <div class="gpa-code-gutter" aria-hidden="true">{% for line in lines %}<div{% if p.errorLine == loop.index %} class="is-error"{% endif %}>{{ loop.index }}</div>{% endfor %}</div>
     {%- endif -%}
     <pre class="gpa-code-pre{{ ' gpa-code-coloured' if p.language }}" tabindex="0"{% if p.label %} aria-label="{{ p.label }}"{% endif %}{% if p.preTestId %} data-testid="{{ p.preTestId }}"{% endif %}>{% for line in lines %}<div{% if p.errorLine == loop.index %} class="is-error"{% endif %}>{% if p.language %}{% for r in gpaCodeLine(line, p.language) %}{% set c = gpaCodeClass(r[0]) %}{% if c %}<span class="{{ c }}">{{ r[1] }}</span>{% else %}{{ r[1] }}{% endif %}{% endfor %}{% else %}{{ line }}{% endif %}</div>{% endfor %}</pre>

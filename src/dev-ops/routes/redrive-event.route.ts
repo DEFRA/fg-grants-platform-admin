@@ -4,10 +4,14 @@ import Joi from 'joi'
 import type { EventKey } from '../use-cases/get-event.use-case.ts'
 import { redriveEventUseCase } from '../use-cases/redrive-event.use-case.ts'
 import { eventAddress, toEventKey } from '../view-models/event-address.ts'
+import { toEventQuery } from '../view-models/event-context.ts'
 import { toEventHref } from '../view-models/event-formats.ts'
+import type { EventTab } from '../view-models/event-page.view-model.ts'
 import {
   eventBannerId,
+  eventTabMax,
   redriveNoticeKey,
+  toEventTab,
   toSafeFrom
 } from '../view-models/event-page.view-model.ts'
 import { toActor } from '../../common/view-models/actor.ts'
@@ -19,12 +23,8 @@ import { fromMax } from '../view-models/record-filters.ts'
  * saying how it went would be repeated by every refresh of the page it lands
  * on. The outcome rides the session instead, which is spent on one render.
  */
-const toRedirect = (key: EventKey, from: string): string => {
-  const href = toEventHref(key)
-  const query = from === '' ? '' : `?back=${encodeURIComponent(from)}`
-
-  return `${href}${query}#${eventBannerId}`
-}
+const toRedirect = (key: EventKey, from: string, tab: EventTab): string =>
+  `${toEventHref(key)}${toEventQuery(from, tab)}#${eventBannerId}`
 
 /**
  * No CSRF token, deliberately and not by omission — but the defence is the
@@ -63,7 +63,8 @@ export const redriveEventRoute: ServerRoute = {
       // it, a POST with no body at all was a 400 rather than the "redrive and
       // go back to the first list" this claims to accept.
       payload: Joi.object({
-        back: Joi.string().allow('').max(fromMax).default('')
+        back: Joi.string().allow('').max(fromMax).default(''),
+        tab: Joi.string().allow('').max(eventTabMax).default('')
       })
         .empty(null)
         .default({})
@@ -71,7 +72,10 @@ export const redriveEventRoute: ServerRoute = {
   },
   async handler(request: Request, h: ResponseToolkit) {
     const key = toEventKey(request.params)
-    const { back: from } = request.payload as { back?: string }
+    const { back: from, tab } = request.payload as {
+      back?: string
+      tab?: string
+    }
     const result = await redriveEventUseCase(key, toActor(request))
 
     request.yar.flash(redriveNoticeKey, {
@@ -80,6 +84,8 @@ export const redriveEventRoute: ServerRoute = {
       page: toEventHref(key)
     })
 
-    return h.redirect(toRedirect(key, toSafeFrom(from))).code(seeOther)
+    return h
+      .redirect(toRedirect(key, toSafeFrom(from), toEventTab(tab)))
+      .code(seeOther)
   }
 }

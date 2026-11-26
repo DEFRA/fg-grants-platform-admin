@@ -13,13 +13,6 @@
   {%- call gpa.Card({ title: 'Payload', id: null if banner else landing, actions: cardActions, testId: 'event-payload' }) -%}
     {{ gpa.Code({ block: true, code: p.text, label: 'Payload', language: 'json' }) }}
   {%- endcall -%}
-  {%- if p.original -%}
-    {%- call gpa.Disclosure({ text: 'Show the payload before the first edit', hideText: 'Hide the payload before the first edit', summaryTestId: 'event-original-toggle' }) -%}
-      {%- call gpa.Card({ title: 'Payload before the first edit', actions: gpa.CopyButton({ value: p.original, text: 'Copy' }), testId: 'event-original' }) -%}
-        {{ gpa.Code({ block: true, code: p.original, label: 'Payload before the first edit', language: 'json' }) }}
-      {%- endcall -%}
-    {%- endcall -%}
-  {%- endif -%}
 
 {%- elif p.mode == 'edit' -%}
   {%- call gpa.Card({ padded: true, title: 'Edit payload', id: null if p.landing else landing, testId: 'event-payload-editor' }) -%}

@@ -14,6 +14,7 @@ export type {
   EventAttempt,
   EventBox,
   EventDetail,
+  EventHistoryEntry,
   EventKey,
   EventLastEdit,
   EventLastRedrive,

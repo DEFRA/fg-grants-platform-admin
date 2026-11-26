@@ -110,22 +110,12 @@ export const toDayTime = (instant: Date, times: Times): TimeText => {
 
 const msDigits = 3
 
-const msOptions: Intl.DateTimeFormatOptions = {
-  hour: '2-digit',
-  minute: '2-digit',
-  second: '2-digit',
-  hourCycle: 'h23'
-}
-
-/** `14:53:22.635`: the clock alone, to the millisecond, for attempts a fraction of a second apart. */
-export const toClockTime = (instant: Date, times: Times): TimeText => {
-  const parts = partsOf(formatIn(times.zone, 'en-GB', msOptions), instant)
+/** `13 Oct 2026 14:53:22.635`: to the millisecond, for attempts a fraction of a second apart. */
+export const toMillisecondTime = (instant: Date, times: Times): TimeText => {
+  const time = toSecondsTime(instant, times)
   const ms = String(instant.getUTCMilliseconds()).padStart(msDigits, '0')
 
-  return {
-    ...toTime(instant, times),
-    text: `${parts.hour}:${parts.minute}:${parts.second}.${ms}`
-  }
+  return { ...time, text: `${time.text}.${ms}` }
 }
 
 /** The setting a request carries in its cookie. */

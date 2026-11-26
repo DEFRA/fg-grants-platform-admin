@@ -1,0 +1,30 @@
+{% import "components/macros.njk" as gpa %}
+{#- Everything that happened to the event, newest first, each entry shown in full. -#}
+{%- call gpa.Card({ padded: true, testId: 'event-history' }) -%}
+  {%- call gpa.Timeline({ label: 'History', metaFirst: true }) -%}
+    {%- for item in history -%}
+      {%- set meta %}{% if item.at %}{{ gpa.Time(item.at) }}{% endif %}{% endset -%}
+      {%- set c = item.content -%}
+      {%- set entry = { attributes: { id: item.id }, icon: item.icon, tone: item.tone, title: item.title, titleHtml: gpa.VisuallyHidden({ text: item.hiddenTitle }) if item.hiddenTitle, metaHtml: meta, testId: 'event-history-entry' } -%}
+      {%- if c -%}
+        {%- call gpa.TimelineItem(entry) -%}
+          {%- if c.kind == 'error' -%}
+            {{ gpa.Code({ block: true, framed: true, wrap: true, lineNumbers: false, language: 'stack', label: c.label, code: c.code }) }}
+          {%- elif c.kind == 'purge' -%}
+            {%- call gpa.Stack({ gap: '2xs' }) -%}
+              {%- if c.reason %}{{ gpa.Text({ text: c.reason }) }}{% endif -%}
+              {%- if c.note %}{{ gpa.Text({ text: c.note, tone: 'muted' }) }}{% endif -%}
+            {%- endcall -%}
+          {%- else -%}
+            {%- call gpa.Stack({ gap: 'xs' }) -%}
+              {%- if c.note %}{{ gpa.Text({ text: c.note, tone: 'muted' }) }}{% endif -%}
+              {%- if c.diff %}{{ gpa.DiffViewer({ label: 'The change', before: c.diff.before, after: c.diff.after, maxHeight: 360 }) }}{% endif -%}
+            {%- endcall -%}
+          {%- endif -%}
+        {%- endcall -%}
+      {%- else -%}
+        {{ gpa.TimelineItem(entry) }}
+      {%- endif -%}
+    {%- endfor -%}
+  {%- endcall -%}
+{%- endcall -%}
