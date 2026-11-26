@@ -1,0 +1,4 @@
+{% import "components/macros.njk" as gpa %}
+{#- A redrive's result, for the page checking for it to swap in: the record as it is now, and a delivery's or a purge's toast. -#}
+{% include "events/_record.njk" %}
+{%- for toast in toasts %}{{ gpa.Toast({ tone: toast.tone, text: toast.text, testId: 'toast' }) }}{% endfor -%}

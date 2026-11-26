@@ -410,6 +410,7 @@ const lists: Row[] = [
 const purgeCall = 'POST /grant-admin/events/{service}/{box}/{id}/purge'
 const payloadCall = 'POST /grant-admin/events/{service}/{box}/{id}/payload'
 const redriveCall = 'POST /grant-admin/events/{service}/{box}/{id}/redrive'
+const statusCall = 'GET /grant-admin/events/{service}/{box}/{id}/status'
 
 const saveForm = { text: '{"id":"3f2c1a0e"}', revision: 3, note: 'Fixed' }
 
@@ -452,6 +453,47 @@ const events: Row[] = [
     gas: { [eventCall]: timeout },
     calls: [eventCall],
     status: statusCodes.gatewayTimeout,
+    drawn: 'no-lists'
+  },
+  {
+    name: 'a redriven event’s status, checked',
+    url: `${eventUrl}/status`,
+    gas: {
+      [statusCall]: {
+        body: {
+          status: 'RESUBMITTED',
+          statusLabel: 'Resubmitted',
+          attemptsSinceRedrive: 0,
+          maxAttempts: 5
+        }
+      }
+    },
+    calls: [statusCall],
+    status: statusCodes.ok,
+    drawn: 'no-lists'
+  },
+  {
+    name: 'a status check GAS does not answer, which the page ignores',
+    url: `${eventUrl}/status`,
+    gas: { [statusCall]: timeout },
+    calls: [statusCall],
+    status: statusCodes.badGateway,
+    drawn: 'no-lists'
+  },
+  {
+    name: 'a redrive’s result, a part of the page drawn without the shell',
+    url: `${eventUrl}/result?tab=history`,
+    gas: { [eventCall]: withShell(event) },
+    calls: [eventCall],
+    status: statusCodes.ok,
+    drawn: 'no-lists'
+  },
+  {
+    name: 'a redrive’s result GAS has not got, which the page ignores',
+    url: `${eventUrl}/result`,
+    gas: { [eventCall]: refusal(statusCodes.notFound) },
+    calls: [eventCall],
+    status: statusCodes.badGateway,
     drawn: 'no-lists'
   },
   {

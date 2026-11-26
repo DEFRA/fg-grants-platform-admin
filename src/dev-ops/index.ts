@@ -23,6 +23,8 @@ import {
 } from './routes/download-explore.route.ts'
 import { runExploreRoute, viewExploreRoute } from './routes/explore.route.ts'
 import { viewOverviewRoute } from './routes/overview.route.ts'
+import { eventResultRoute } from './routes/event-result.route.ts'
+import { eventStatusRoute } from './routes/event-status.route.ts'
 import { purgeEventRoute } from './routes/purge-event.route.ts'
 import {
   viewApplicationRoute,
@@ -102,6 +104,8 @@ export const devOps = {
               viewWorkflowRoute,
               viewCurrentWorkflowRoute,
               viewEventRoute,
+              eventStatusRoute,
+              eventResultRoute,
               viewAccessTokensRoute,
               viewTimesRoute,
               runExploreRoute,

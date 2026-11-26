@@ -145,3 +145,13 @@ export const toBlock = (
 
   return stack.startsWith(name) ? stack : `${errorLine(attempt)}\n${stack}`
 }
+
+/** An empty message says nothing, so it is the same as no other. */
+const sameMessage = (a: string, b: string): boolean =>
+  a !== '' && b !== '' && (a.startsWith(b) || b.startsWith(a))
+
+/** One error cut shorter than the other is the same error. */
+export const sameError = (
+  a: Pick<EventAttempt, 'name' | 'message'>,
+  b: Pick<EventAttempt, 'name' | 'message'>
+): boolean => a.name === b.name && sameMessage(a.message, b.message)

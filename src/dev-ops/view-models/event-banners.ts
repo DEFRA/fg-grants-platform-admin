@@ -35,6 +35,8 @@ export interface Banner {
   text: string
   /** Saved but not retried: the banner offers the redrive. */
   redriveNow: boolean
+  /** Redriven: the page checks for the result, with a spinner for the banner's icon. */
+  busy?: boolean
 }
 
 export interface Toast {
@@ -46,8 +48,6 @@ export interface Toast {
 export interface BannerContext {
   /** GAS or CW: the service that owns the event. */
   service: string
-  /** The attempts a redrive allows, from the event's own count. */
-  allowed: number | null
   /** The event's deletion date, as a day. */
   deletionDay: string | null
   canRedrive: boolean
@@ -88,14 +88,14 @@ const failed = (notice: EventNotice, { service }: BannerContext) =>
 const unanswered = (notice: EventNotice, { service }: BannerContext) =>
   toFailureText(failureOf(notice), service)
 
-const retries = ({ allowed }: BannerContext) =>
-  allowed === null
-    ? 'The poller will pick it up shortly and retry it.'
-    : `The poller will pick it up shortly and retry it up to ${allowed} times.`
+/** Already in its waiting form, so it is announced once, with this text. */
+const checking = (title: string): Banner => ({
+  ...banner('success', title, 'Checking for the result…'),
+  busy: true
+})
 
 const redriveBanners: Record<RedriveOutcome, BannerFor> = {
-  redriven: (_notice, context) =>
-    banner('success', 'Redriven.', retries(context)),
+  redriven: () => checking('Redriven.'),
   conflict: ({ status }) =>
     banner('warning', notRedriven, nowIs(status, 'redriven')),
   'not-found': (_notice, context) =>
@@ -160,12 +160,7 @@ const savedThenRedrive: Record<
   RedriveOutcome,
   (redrive: RedriveNotice, context: BannerContext) => Banner
 > = {
-  redriven: () =>
-    banner(
-      'success',
-      'Payload saved and redriven.',
-      'The poller will retry it with the edited payload.'
-    ),
+  redriven: () => checking('Payload saved and redriven.'),
   conflict: ({ status }) =>
     banner(
       'warning',
@@ -236,30 +231,29 @@ export const toBanner = (
   return toNoticeBanner ? toNoticeBanner(notice, context) : null
 }
 
-const savedToast = ({ redrive }: EventNotice): Toast => ({
-  tone: 'success',
-  text:
-    redrive?.outcome === 'redriven'
-      ? 'Payload saved and redriven'
-      : 'Payload saved'
-})
+/** A save that was redriven has the banner checking for its result, which says it. */
+const savedToast = ({ redrive }: EventNotice): Toast[] =>
+  redrive?.outcome === 'redriven'
+    ? []
+    : [{ tone: 'success', text: 'Payload saved' }]
+
+export const purgedToast: Toast = { tone: 'info', text: 'Event purged' }
 
 /** The outcome that went through, by action, and what its toast says. */
 /** Partial: a flash another release wrote may name an action this one hasn't. */
 const toasts: Partial<
-  Record<string, [string, (notice: EventNotice) => Toast]>
+  Record<string, [string, (notice: EventNotice) => Toast[]]>
 > = {
-  redrive: ['redriven', () => ({ tone: 'success', text: 'Event redriven' })],
-  purge: ['purged', () => ({ tone: 'info', text: 'Event purged' })],
+  purge: ['purged', () => [purgedToast]],
   edit: ['saved', savedToast]
 }
 
 const toastFor = (notice: EventNotice) => {
   const [outcome, toast] = toasts[actionOf(notice)] ?? []
 
-  return toast && notice.outcome === outcome ? [toast(notice)] : []
+  return toast && notice.outcome === outcome ? toast(notice) : []
 }
 
-/** A write that went through is also said in a toast. */
+/** A write that went through is also said in a toast, but for a redrive: its banner says it while checking for the result. */
 export const toToasts = (notice: EventNotice | null): Toast[] =>
   notice ? toastFor(notice) : []

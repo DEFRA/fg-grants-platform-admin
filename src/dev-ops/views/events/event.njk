@@ -1,77 +1,15 @@
 {% extends 'layouts/page.njk' %}
-{% import "components/macros.njk" as gpa %}
 
-
-{#- The Details card: each fact once, in a fixed order. -#}
-{% macro details(facts) -%}
-  {%- set cards = [] -%}
-  {%- for fact in facts -%}
-    {%- set html -%}
-      {%- set v = fact.value -%}
-      {%- if v.kind == 'text' -%}
-        {{ v.text }}
-      {%- elif v.kind == 'time' -%}
-        {{ gpa.Time(v.time) }}
-      {%- elif v.kind == 'link' -%}
-        {{ gpa.Link({ text: v.text, href: v.href }) }}
-      {%- elif v.kind == 'logs' -%}
-        {{ gpa.Link({ text: 'OpenSearch', href: v.href, external: true, testId: 'event-logs' }) }}
-      {%- else -%}
-        {%- call gpa.Stack({ gap: '2xs' }) -%}
-          {%- set line -%}{% if v.time %}{{ gpa.Time(v.time) }}{% else %}{{ gpa.NoValue() }}{% endif %} by {{ v.by }}{{ v.after }}{%- endset -%}
-          {{ gpa.Text({ html: line }) }}
-          {%- if v.note %}{{ gpa.Text({ text: v.note, tone: 'muted' }) }}{% endif -%}
-        {%- endcall -%}
-      {%- endif -%}
-    {%- endset -%}
-    {%- set cards = (cards.push({ label: fact.label, html: html }), cards) -%}
-  {%- endfor -%}
-  {{ gpa.FactsCard({ title: 'Details', facts: cards, testId: 'event-details' }) }}
-{%- endmacro %}
+{#- The page a redrive returned checks for its result; no other render does. -#}
+{% block headScripts %}
+  {%- if watch %}<script type="module" src="{{ getAssetPath('src/dev-ops/client/event-watch.ts') }}"></script>{% endif -%}
+{% endblock %}
 
 {#- One event: its status and id, its payload or its history, and the redrive and purge that act on it. -#}
 {% block content %}
   {%- if missing -%}
     {% include "events/_missing.njk" %}
   {%- else -%}
-    {%- set idLine -%}
-      {%- call gpa.Inline({ gap: 'xs', wrap: false }) -%}
-        {{ gpa.Text({ text: eventId, mono: true, tone: 'subtle', testId: 'event-id' }) }}{{ gpa.CopyButton({ value: eventId, label: 'Copy event ID' }) }}
-      {%- endcall -%}
-    {%- endset -%}
-
-    {%- set actions -%}
-      {%- if purgeHref %}{{ gpa.Button({ text: 'Purge', variant: 'danger', href: purgeHref, attributes: { 'data-gpa-open': purgeDialog.id }, testId: 'event-purge' }) }}{% endif -%}
-      {%- if redriveHref %}{{ gpa.Button({ text: 'Redrive', variant: 'primary', iconStart: 'refresh-cw', href: redriveHref, attributes: { 'data-gpa-open': redriveDialog.id }, testId: 'event-redrive' }) }}{% endif -%}
-    {%- endset -%}
-
-    {%- set bannerHtml -%}
-      {%- if banner -%}
-        {%- set bannerActions -%}
-          {%- if banner.redriveHref %}{{ gpa.Button({ text: 'Redrive now', size: 'sm', variant: 'primary', href: banner.redriveHref, attributes: { 'data-gpa-open': redriveDialog.id }, testId: 'event-banner-redrive' }) }}{% endif -%}
-        {%- endset -%}
-        {{ gpa.Alert({ id: 'event-banner', tone: banner.tone, title: banner.title, text: banner.text, actions: bannerActions, dismissible: true, focusOnArrival: true, testId: 'event-banner' }) }}
-      {%- endif -%}
-    {%- endset -%}
-
-    {%- call gpa.RecordPage({
-      title: title,
-      mono: titleMono,
-      back: { href: back.href, text: back.text, testId: 'event-back' },
-      meta: [gpa.StatusDot({ text: status.text, tone: status.tone, testId: 'event-status' }), idLine],
-      actions: actions,
-      alert: bannerHtml,
-      tabs: { label: 'Event', items: tabs },
-      aside: details(facts) if tab == 'overview',
-      titleTestId: 'event-title'
-    }) -%}
-      {%- if tab == 'history' -%}
-        {% include "events/_history.njk" %}
-      {%- else -%}
-        {% include "events/_payload.njk" %}
-      {%- endif -%}
-    {%- endcall -%}
-
-    {% include "events/_dialogs.njk" %}
+    {% include "events/_record.njk" %}
   {%- endif -%}
 {% endblock %}

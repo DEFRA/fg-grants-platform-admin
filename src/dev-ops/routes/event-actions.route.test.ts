@@ -196,6 +196,49 @@ const toastsOf = ($: CheerioAPI) =>
       flat($(toast).find('.gpa-toast-text').text())
     ])
 
+/** The watch the page a redrive returned draws: the banner, already checking, and what it can turn into. */
+const watchOf = ($: CheerioAPI) => {
+  const banner = by($, 'event-banner')
+  const noScript = load($('noscript').html() ?? '')
+  const stopped = $('template[data-gpa-watch-stopped]')
+    .toArray()
+    .map((template) => {
+      const alert = load($(template).html() ?? '')
+
+      return [
+        flat(alert('.gpa-alert-title').text()),
+        flat(alert('.gpa-alert-body > div').first().text()),
+        alert('[data-gpa-check-again]').attr('href')
+      ]
+    })
+
+  return {
+    hidden: banner.is('[hidden]'),
+    busy: banner.find('.gpa-spinner').length === 1,
+    ariaBusy: banner.attr('aria-busy') ?? null,
+    statusHref: banner.attr('data-status-href'),
+    resultHref: banner.attr('data-result-href'),
+    script: $('head script[src*="event-watch"]').length,
+    toastRegion: $('.gpa-toast-region').length,
+    noScript: {
+      title: flat(noScript('.gpa-alert-title').text()),
+      text: flat(noScript('.gpa-alert-body > div').first().text()),
+      reload: noScript('[data-testid="event-banner-reload"]').attr('href')
+    },
+    stopped
+  }
+}
+
+const watching = {
+  hidden: true,
+  busy: true,
+  ariaBusy: null,
+  statusHref: `${path}/status`,
+  resultHref: `${path}/result`,
+  script: 1,
+  toastRegion: 1
+}
+
 beforeAll(async () => {
   vi.useFakeTimers({ toFake: ['Date'] })
   vi.setSystemTime(new Date('2026-10-13T15:20:00.000Z'))
@@ -267,10 +310,10 @@ describe('Redrive', () => {
     expect(bannerOf($)).toEqual({
       tone: 'success',
       title: 'Redriven.',
-      text: 'The poller will pick it up shortly and retry it up to 5 times.'
+      text: 'Checking for the result…'
     })
     expect(by($, 'event-banner').attr('data-focus-on-arrival')).toBe('')
-    expect(toastsOf($)).toEqual([['success', 'Event redriven']])
+    expect(toastsOf($)).toEqual([])
 
     const again = await request(
       'GET',
@@ -281,6 +324,104 @@ describe('Redrive', () => {
 
     expect(by(again.$, 'event-banner')).toHaveLength(0)
     expect(toastsOf(again.$)).toEqual([])
+  })
+
+  test('the page it returns checks for the result: the banner drawn once, busy, hidden until the script shows it', async () => {
+    const { $ } = await postAndFollow(`${path}/redrive`, {})
+
+    expect(watchOf($)).toStrictEqual({
+      ...watching,
+      noScript: {
+        title: 'Redriven.',
+        text: 'Reload the page to see how it went.',
+        reload: path
+      },
+      stopped: [
+        [
+          'Redriven.',
+          'Not retried yet. Stopped checking after 30 seconds.',
+          path
+        ],
+        [
+          'Redriven.',
+          'Still retrying: of attempts have failed so far. Stopped checking after 30 seconds.',
+          path
+        ]
+      ]
+    })
+    expect(
+      $('template[data-gpa-watch-stopped="retrying"]')
+        .html()
+        ?.match(/data-gpa-(failed|allowed)/g)
+    ).toStrictEqual(['data-gpa-failed', 'data-gpa-allowed'])
+  })
+
+  test('the script goes before the components’ own, so it shows the banner before focus lands on it', async () => {
+    const { $ } = await postAndFollow(`${path}/redrive`, {})
+
+    expect(
+      $('head script[type="module"]')
+        .toArray()
+        .map((script) => $(script).attr('src')?.split('/').at(-1))
+    ).toStrictEqual(['event-watch.ts', 'index.ts'])
+  })
+
+  test('from History, its result is History’s, keeping where it goes back to', async () => {
+    const { $ } = await postAndFollow(`${path}/redrive`, {
+      back: listPath,
+      tab: 'history'
+    })
+    const query = `?back=${encodeURIComponent(listPath)}&tab=history`
+
+    expect(watchOf($)).toMatchObject({
+      resultHref: `${path}/result${query}`,
+      noScript: { reload: `${path}${query}` }
+    })
+  })
+
+  test('opened again while it is still waiting: no banner and nothing checking', async () => {
+    const { posted } = await postAndFollow(`${path}/redrive`, {})
+
+    vi.mocked(findEvent).mockResolvedValue(
+      detail({ status: 'RESUBMITTED', statusLabel: 'Resubmitted' })
+    )
+
+    const { $ } = await request(
+      'GET',
+      posted.location!,
+      undefined,
+      posted.cookie
+    )
+
+    expect(by($, 'event-banner')).toHaveLength(0)
+    expect(watchOf($)).toMatchObject({
+      script: 0,
+      toastRegion: 0,
+      stopped: []
+    })
+    expect($('noscript')).toHaveLength(0)
+    expect(flat(by($, 'event-status').text())).toBe('Resubmitted')
+  })
+
+  test.each([
+    [
+      'a refused redrive',
+      () =>
+        vi
+          .mocked(redriveEvent)
+          .mockRejectedValue(responseError(409, { status: 'PUBLISHED' }))
+    ],
+    [
+      'a redrive GAS doesn’t answer',
+      () => vi.mocked(redriveEvent).mockRejectedValue(notConnected)
+    ]
+  ])('%s checks nothing', async (_case, given) => {
+    given()
+
+    const { $ } = await postAndFollow(`${path}/redrive`, {})
+
+    expect(watchOf($)).toMatchObject({ script: 0, stopped: [] })
+    expect(by($, 'event-banner').is('[hidden]')).toBe(false)
   })
 
   test('a body-less post is a redrive that goes back to the event alone; a hostile back is dropped', async () => {
@@ -1342,7 +1483,7 @@ describe('Save and redrive', () => {
   const redrove = (redrive: SaveRedrive) =>
     vi.mocked(editPayload).mockResolvedValue({ payloadRevision: 4, redrive })
 
-  test('both go through, in one call: one banner and one toast for both', async () => {
+  test('both go through, in one call: one banner for both, and no toast', async () => {
     redrove({ outcome: 'redriven' })
 
     const { $ } = await saveAndRedrive()
@@ -1357,9 +1498,36 @@ describe('Save and redrive', () => {
     expect(bannerOf($)).toEqual({
       tone: 'success',
       title: 'Payload saved and redriven.',
-      text: 'The poller will retry it with the edited payload.'
+      text: 'Checking for the result…'
     })
-    expect(toastsOf($)).toEqual([['success', 'Payload saved and redriven']])
+    expect(toastsOf($)).toEqual([])
+  })
+
+  test('the page it returns checks for the result under the title naming both, with or without a script', async () => {
+    redrove({ outcome: 'redriven' })
+
+    const { $ } = await saveAndRedrive()
+
+    expect(watchOf($)).toStrictEqual({
+      ...watching,
+      noScript: {
+        title: 'Payload saved and redriven.',
+        text: 'Reload the page to see how it went.',
+        reload: path
+      },
+      stopped: [
+        [
+          'Payload saved and redriven.',
+          'Not retried yet. Stopped checking after 30 seconds.',
+          path
+        ],
+        [
+          'Payload saved and redriven.',
+          'Still retrying: of attempts have failed so far. Stopped checking after 30 seconds.',
+          path
+        ]
+      ]
+    })
   })
 
   test('saved, but the redrive failed: saved, and the redrive’s failure after it, not held', async () => {
